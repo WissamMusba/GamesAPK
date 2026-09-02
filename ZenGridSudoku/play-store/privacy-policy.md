@@ -31,4 +31,4 @@ ZenGrid Sudoku does not knowingly collect any personal identifiable information 
 
 ## 5. Contact Us
 If you have questions about this Privacy Policy, contact us at:
-`support@zengrid.app`
+`technovapro2@gmail.com`
