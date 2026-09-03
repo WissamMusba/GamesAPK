@@ -53,7 +53,7 @@ window.addEventListener('resize',resize);
 
 const settings={sound:true,shake:true,particles:!lowQuality,hints:true};
 try{const s=JSON.parse(localStorage.getItem('crimsonEscapeSettings'));if(s)Object.assign(settings,s);}catch(e){}
-function saveSettings(){try{localStorage.setItem('crimsonEscapeSettings',JSON.stringify(settings));}catch(e){}}
+function saveSettings(){try{localStorage.setItem('crimsonEscapeSettings',JSON.stringify(settings));}catch(e){}try{CG.saveCloud();}catch(e){}}
 
 const Snd={
   ctx:null,master:null,music:null,sfx:null,started:false,
@@ -227,30 +227,50 @@ const CG={
   setContext(o){try{if(this.ok())window.CrazyGames.SDK.game.setGameContext(o);}catch(e){}},
   clearContext(){try{if(this.ok())window.CrazyGames.SDK.game.clearGameContext();}catch(e){}},
   saveCloudTimer:null,
+  cloudKey:'crimson_ronin_save_v1',
+  cloudPayload(){
+    try{return JSON.stringify({stars:progress.stars,times:progress.times,best:best,settings:settings});}catch(e){return '';}
+  },
   saveCloud(){
     if(!this.ok())return;
-    clearTimeout(this.saveCloudTimer);
+    try{clearTimeout(this.saveCloudTimer);}catch(e){}
     this.saveCloudTimer=setTimeout(()=>{
       try{
-        const payload=JSON.stringify({stars:progress.stars,times:progress.times,best});
-        window.CrazyGames.SDK.data.saveItem('crimson_progress',payload).catch(()=>{});
+        const payload=this.cloudPayload();
+        if(!payload)return;
+        // CrazyGames SDK v3 Data Module: data.saveItem(key, value)
+        window.CrazyGames.SDK.data.saveItem(this.cloudKey,payload).catch(()=>{});
       }catch(e){}
-    },1200);
+    },1000);
   },
   loadCloud(){
     if(!this.ok())return Promise.resolve();
     try{
-      return window.CrazyGames.SDK.data.requestItem('crimson_progress').then(v=>{
+      // CrazyGames SDK v3 Data Module: data.requestItem(key) -> Promise<string>
+      return window.CrazyGames.SDK.data.requestItem(this.cloudKey).then(v=>{
         if(!v)return;
         try{
           const d=JSON.parse(v);
-          if(d&&d.stars)for(let i=0;i<NLV;i++){
-            progress.stars[i]=Math.max(progress.stars[i],d.stars[i]||0);
+          if(!d||typeof d!=='object')return;
+          if(d.stars)for(let i=0;i<NLV;i++){
+            progress.stars[i]=Math.max(progress.stars[i]||0,d.stars[i]||0);
             const ct=(d.times&&d.times[i])||0;
             if(ct>0&&(progress.times[i]===0||ct<progress.times[i]))progress.times[i]=ct;
           }
           if(d.best&&d.best>best)best=d.best;
+          // settings: local wins unless cloud has them (local already loaded at boot;
+          // fill only keys missing locally). Never override a local value.
+          if(d.settings&&typeof d.settings==='object'){
+            let touched=false;
+            for(const k of ['sound','shake','particles','hints']){
+              if(typeof settings[k]==='undefined'&&typeof d.settings[k]!=='undefined'){settings[k]=d.settings[k];touched=true;}
+            }
+            if(touched){try{localStorage.setItem('crimsonEscapeSettings',JSON.stringify(settings));}catch(e){}}
+          }
           this.cloudLoaded=true;
+          // write merged result back to local so offline play keeps the best of both
+          try{localStorage.setItem('crimsonEscapeProgress',JSON.stringify(progress));}catch(e){}
+          try{localStorage.setItem('crimsonEscapeBest',String(best));}catch(e){}
         }catch(e){}
       }).catch(()=>{});
     }catch(e){return Promise.resolve();}
