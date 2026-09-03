@@ -651,138 +651,159 @@ const THEMES = {
 };
 
 const LEVELS = [
-  // --- LEVEL 1: BANK TUTORIAL ---
+  // --- LEVEL 1: FIRST FOOT IN (teach: plate + echo hold, no enemies) ---
   {
     id: 1,
-    title: "The Lobby Infiltration",
+    title: "First Foot In",
     chapter: "CHAPTER 1: THE BANK",
     theme: "bank",
     loopSeconds: 10,
     parClones: 2,
-    playerStart: { x: 100, y: 350 },
-    exit: { x: 620, y: 350, w: 60, h: 60, label: "VAN" },
-    loot: { x: 520, y: 350, radius: 20, type: "cash", name: "Bearer Bonds ($250k)" },
-    briefing: "Hold the pressure plate to open Security Door A. Once the loop rewinds, your ghost holds it while you grab the bonds!",
+    playerStart: { x: 90, y: 340 },
+    exit: { x: 600, y: 310, w: 60, h: 60, label: "VAN" },
+    loot: { x: 470, y: 340, radius: 20, type: "cash", name: "Bearer Bonds ($250k)" },
+    briefing: "LOOP 1: stand on the glowing plate to open the vault door. Then hit [R] — your ECHO replays it and holds the door while YOU grab the bonds and reach the van!",
     walls: [
       { x: 40, y: 150, w: 640, h: 20, ht: 44 },
-      { x: 40, y: 530, w: 640, h: 20, ht: 44 },
-      { x: 40, y: 150, w: 20, h: 400, ht: 44 },
-      { x: 660, y: 150, w: 20, h: 400, ht: 44 },
-      { x: 340, y: 150, w: 20, h: 140, ht: 44 },
-      { x: 340, y: 390, w: 20, h: 160, ht: 44 }
+      { x: 40, y: 510, w: 640, h: 20, ht: 44 },
+      { x: 40, y: 150, w: 20, h: 380, ht: 44 },
+      { x: 660, y: 150, w: 20, h: 380, ht: 44 },
+      { x: 340, y: 150, w: 20, h: 120, ht: 44 },
+      { x: 340, y: 370, w: 20, h: 160, ht: 44 }
     ],
     doors: [
-      { id: "doorA", x: 340, y: 290, w: 20, h: 100, ht: 42, openProgress: 0, orientation: "V" }
+      { id: "doorA", x: 340, y: 270, w: 20, h: 100, ht: 42, openProgress: 0, orientation: "V" }
     ],
     switches: [
-      { id: "plate1", x: 220, y: 250, radius: 24, targetDoor: "doorA", type: "plate", active: false }
-    ],
-    vents: [
-      { id: "v1", x1: 280, y1: 180, x2: 400, y2: 180 }
-    ],
-    props: [
-      { type: "desk", x: 160, y: 200, w: 50, h: 30, ht: 24 },
-      { type: "desk", x: 160, y: 440, w: 50, h: 30, ht: 24 },
-      { type: "plant", x: 90, y: 200 },
-      { type: "plant", x: 90, y: 480 },
-      { type: "stanchion", x: 440, y: 300 },
-      { type: "stanchion", x: 440, y: 400 }
-    ],
-    guards: [], lasers: [], cameras: []
-  },
-
-  // --- LEVEL 2: DUAL SYNCHRONIZATION ---
-  {
-    id: 2,
-    title: "Dual Protocol Lock",
-    chapter: "CHAPTER 1: THE BANK",
-    theme: "bank",
-    loopSeconds: 10,
-    parClones: 2,
-    playerStart: { x: 100, y: 340 },
-    exit: { x: 620, y: 340, w: 60, h: 60, label: "EXTRACTION" },
-    loot: { x: 540, y: 340, radius: 22, type: "gold", name: "Solid Gold Bullion" },
-    briefing: "The vault gate requires BOTH plates active at once. Coordinate with your ghost! Hold [TAB] for Recon Vision.",
-    walls: [
-      { x: 40, y: 120, w: 640, h: 20, ht: 44 },
-      { x: 40, y: 560, w: 640, h: 20, ht: 44 },
-      { x: 40, y: 120, w: 20, h: 460, ht: 44 },
-      { x: 660, y: 120, w: 20, h: 460, ht: 44 },
-      { x: 240, y: 230, w: 20, h: 220, ht: 44 },
-      { x: 420, y: 120, w: 20, h: 160, ht: 44 },
-      { x: 420, y: 380, w: 20, h: 200, ht: 44 }
-    ],
-    doors: [
-      { id: "vaultGate", x: 420, y: 280, w: 20, h: 100, ht: 42, openProgress: 0, orientation: "V", requiresBoth: true }
-    ],
-    switches: [
-      { id: "swNorth", x: 330, y: 180, radius: 24, targetDoor: "vaultGate", type: "plate", active: false },
-      { id: "swSouth", x: 330, y: 490, radius: 24, targetDoor: "vaultGate", type: "plate", active: false }
+      { id: "plate1", x: 230, y: 340, radius: 24, targetDoor: "doorA", type: "plate", active: false }
     ],
     vents: [],
     props: [
-      { type: "desk", x: 140, y: 180, w: 46, h: 28, ht: 24 },
-      { type: "desk", x: 140, y: 460, w: 46, h: 28, ht: 24 },
-      { type: "plant", x: 80, y: 160 },
-      { type: "plant", x: 80, y: 520 }
+      { type: "desk", x: 150, y: 420, w: 50, h: 30, ht: 24 },
+      { type: "plant", x: 90, y: 200 },
+      { type: "stanchion", x: 470, y: 420 }
     ],
     guards: [], lasers: [], cameras: []
   },
 
-  // --- LEVEL 3: THE GRAND ART GALLERY ---
+  // --- LEVEL 2: TWIN LOCK (teach: BOTH plates at once + laser, vent shortcut) ---
+  {
+    id: 2,
+    title: "Twin Lock",
+    chapter: "CHAPTER 1: THE BANK",
+    theme: "bank",
+    loopSeconds: 10,
+    parClones: 3,
+    playerStart: { x: 90, y: 340 },
+    exit: { x: 600, y: 290, w: 60, h: 60, label: "EXTRACTION" },
+    loot: { x: 565, y: 400, radius: 22, type: "gold", name: "Solid Gold Bullion" },
+    briefing: "LOOP 1: hold the NORTH plate. LOOP 2: your echo holds north while YOU hold south — gate opens! Slip through, ride the vent past the laser grid, grab the bullion under the guard's nose. [TAB] recon helps!",
+    walls: [
+      { x: 40, y: 130, w: 640, h: 20, ht: 44 },
+      { x: 40, y: 550, w: 640, h: 20, ht: 44 },
+      { x: 40, y: 130, w: 20, h: 440, ht: 44 },
+      { x: 660, y: 130, w: 20, h: 440, ht: 44 },
+      { x: 360, y: 130, w: 20, h: 150, ht: 44 },
+      { x: 360, y: 380, w: 20, h: 190, ht: 44 }
+    ],
+    doors: [
+      { id: "vaultGate", x: 360, y: 280, w: 20, h: 100, ht: 42, openProgress: 0, orientation: "V", requiresBoth: true }
+    ],
+    switches: [
+      { id: "swNorth", x: 290, y: 190, radius: 24, targetDoor: "vaultGate", type: "plate", active: false },
+      { id: "swSouth", x: 290, y: 480, radius: 24, targetDoor: "vaultGate", type: "plate", active: false },
+      {
+        id: "termVault",
+        x: 445, y: 195,
+        radius: 36,
+        type: "terminal",
+        targetLaser: "vaultLaser",
+        hackProgress: 0,
+        overrideTimer: 0,
+        active: false
+      }
+    ],
+    vents: [
+      { id: "vVault", x1: 430, y1: 490, x2: 575, y2: 490 }
+    ],
+    lasers: [
+      { id: "vaultLaser", x1: 520, y1: 150, x2: 520, y2: 530, active: true, disabledTimer: 0 }
+    ],
+    guards: [
+      {
+        id: "gVault",
+        x: 565, y: 250,
+        waypoints: [
+          { x: 565, y: 250, pauseTime: 0.8 },
+          { x: 565, y: 470, pauseTime: 0.8 }
+        ],
+        speed: 70, fov: 0.75, dist: 190,
+        suspicion: 0, state: "PATROL",
+        distractedTimer: 0, lookAngleOverride: null
+      }
+    ],
+    cameras: [],
+    props: [
+      { type: "desk", x: 140, y: 460, w: 46, h: 28, ht: 24 },
+      { type: "plant", x: 80, y: 170 },
+      { type: "pedestal", x: 565, y: 400 }
+    ]
+  },
+
+  // --- LEVEL 3: SWEEPING EYE (teach: camera timing + EMP, loot across patrol) ---
   {
     id: 3,
     title: "The Sweeping Eye",
     chapter: "CHAPTER 2: THE MUSEUM",
     theme: "museum",
     loopSeconds: 10,
-    parClones: 2,
+    parClones: 3,
     playerStart: { x: 90, y: 340 },
-    exit: { x: 620, y: 340, w: 60, h: 60, label: "EXIT ROOF" },
-    loot: { x: 520, y: 340, radius: 22, type: "gem", name: "The Emerald Scarab" },
-    briefing: "A camera sweeps the gallery. Tripping it alerts guards over radio! Use the air vent or fire an EMP dart [F].",
+    exit: { x: 600, y: 340, w: 60, h: 60, label: "EXIT ROOF" },
+    loot: { x: 500, y: 470, radius: 22, type: "gem", name: "The Emerald Scarab" },
+    briefing: "LOOP 1: sprint to the vent and hold the plate for your echo. LOOP 2: slide the vent past the sweeping camera, hit it with EMP [F] or time the swing, then cross the guard's path for the scarab!",
     walls: [
-      { x: 40, y: 120, w: 640, h: 20, ht: 44 },
-      { x: 40, y: 560, w: 640, h: 20, ht: 44 },
-      { x: 40, y: 120, w: 20, h: 460, ht: 44 },
-      { x: 660, y: 120, w: 20, h: 460, ht: 44 },
-      { x: 300, y: 120, w: 20, h: 160, ht: 44 },
-      { x: 300, y: 380, w: 20, h: 200, ht: 44 }
+      { x: 40, y: 130, w: 640, h: 20, ht: 44 },
+      { x: 40, y: 550, w: 640, h: 20, ht: 44 },
+      { x: 40, y: 130, w: 20, h: 440, ht: 44 },
+      { x: 660, y: 130, w: 20, h: 440, ht: 44 },
+      { x: 320, y: 130, w: 20, h: 150, ht: 44 },
+      { x: 320, y: 380, w: 20, h: 190, ht: 44 }
     ],
     doors: [
-      { id: "museumGate", x: 300, y: 280, w: 20, h: 100, ht: 42, openProgress: 0, orientation: "V" }
+      { id: "museumGate", x: 320, y: 280, w: 20, h: 100, ht: 42, openProgress: 0, orientation: "V" }
     ],
     switches: [
-      { id: "swMuseum", x: 190, y: 220, radius: 24, targetDoor: "museumGate", type: "plate", active: false }
+      { id: "swMuseum", x: 240, y: 470, radius: 24, targetDoor: "museumGate", type: "plate", active: false }
     ],
     vents: [
-      { id: "vMuseum", x1: 240, y1: 490, x2: 380, y2: 490 }
+      { id: "vMuseum", x1: 150, y1: 180, x2: 410, y2: 180 }
     ],
     cameras: [
-      { id: "c1", x: 440, y: 150, baseAngle: Math.PI / 2, sweepAngle: 0.9, speed: 1.6, maxDist: 260, fov: 0.8, disabledTimer: 0, alarmTimer: 0 }
+      { id: "c1", x: 480, y: 160, baseAngle: Math.PI / 2, sweepAngle: 0.9, speed: 1.6, maxDist: 260, fov: 0.8, disabledTimer: 0, alarmTimer: 0 }
     ],
     guards: [
       {
         id: "gMuseum",
-        x: 580, y: 480,
+        x: 580, y: 300,
         waypoints: [
-          { x: 580, y: 480, pauseTime: 1.2 },
-          { x: 460, y: 480, pauseTime: 1.2 }
+          { x: 580, y: 300, pauseTime: 0.7 },
+          { x: 430, y: 300, pauseTime: 0.7 }
         ],
-        speed: 85, fov: 0.80, dist: 220,
+        speed: 80, fov: 0.78, dist: 210,
         suspicion: 0, state: "PATROL",
         distractedTimer: 0, lookAngleOverride: null
       }
     ],
     props: [
-      { type: "painting", x: 160, y: 130, w: 50, h: 10, ht: 28 },
-      { type: "painting", x: 420, y: 130, w: 50, h: 10, ht: 28 },
-      { type: "pedestal", x: 520, y: 340 }
+      { type: "painting", x: 160, y: 140, w: 50, h: 10, ht: 28 },
+      { type: "painting", x: 420, y: 140, w: 50, h: 10, ht: 28 },
+      { type: "pedestal", x: 500, y: 470 }
     ],
     lasers: []
   },
 
-  // --- LEVEL 4: THE CRIMSON STAR ---
+  // --- LEVEL 4: CRIMSON STAR (teach: terminal+laser vs plate choice, sneak) ---
   {
     id: 4,
     title: "The Crimson Star",
@@ -791,21 +812,22 @@ const LEVELS = [
     loopSeconds: 10,
     parClones: 3,
     playerStart: { x: 90, y: 340 },
-    exit: { x: 620, y: 340, w: 60, h: 60, label: "EXIT ROOF" },
+    exit: { x: 600, y: 340, w: 60, h: 60, label: "EXIT ROOF" },
     loot: { x: 520, y: 340, radius: 24, type: "gem", name: "The Crimson Star Ruby" },
-    briefing: "Hold [E] at the terminal to drop the laser grid for 6s! Guards have sweeping head turns at corners—sneak with [C]!",
+    briefing: "TWO ways in: hold [E] at the terminal to drop the laser for 6s, OR send an echo to the west plate that props the control door each loop. Sneak [C] past the corner guard — loot sits between laser and patrol!",
     walls: [
-      { x: 40, y: 100, w: 640, h: 20, ht: 44 },
-      { x: 40, y: 580, w: 640, h: 20, ht: 44 },
-      { x: 40, y: 100, w: 20, h: 500, ht: 44 },
-      { x: 660, y: 100, w: 20, h: 500, ht: 44 },
-      { x: 220, y: 100, w: 20, h: 180, ht: 44 },
-      { x: 220, y: 380, w: 20, h: 220, ht: 44 }
+      { x: 40, y: 120, w: 640, h: 20, ht: 44 },
+      { x: 40, y: 560, w: 640, h: 20, ht: 44 },
+      { x: 40, y: 120, w: 20, h: 460, ht: 44 },
+      { x: 660, y: 120, w: 20, h: 460, ht: 44 },
+      { x: 240, y: 120, w: 20, h: 160, ht: 44 },
+      { x: 240, y: 380, w: 20, h: 200, ht: 44 }
     ],
     doors: [
-      { id: "controlDoor", x: 220, y: 280, w: 20, h: 100, ht: 42, openProgress: 1, orientation: "V" }
+      { id: "controlDoor", x: 240, y: 280, w: 20, h: 100, ht: 42, openProgress: 0, orientation: "V" }
     ],
     switches: [
+      { id: "plateStar", x: 130, y: 470, radius: 24, targetDoor: "controlDoor", type: "plate", active: false },
       {
         id: "laserOverride",
         x: 130, y: 200,
@@ -818,34 +840,34 @@ const LEVELS = [
       }
     ],
     vents: [
-      { id: "vStar", x1: 130, y1: 460, x2: 320, y2: 460 }
+      { id: "vStar", x1: 330, y1: 490, x2: 560, y2: 490 }
     ],
     lasers: [
-      { id: "mainLaser", x1: 420, y1: 120, x2: 420, y2: 560, active: true, disabledTimer: 0 }
+      { id: "mainLaser", x1: 420, y1: 140, x2: 420, y2: 540, active: true, disabledTimer: 0 }
     ],
     cameras: [
-      { id: "c2", x: 500, y: 130, baseAngle: Math.PI / 2, sweepAngle: 0.85, speed: 1.5, maxDist: 260, fov: 0.75, disabledTimer: 0, alarmTimer: 0 }
+      { id: "c2", x: 540, y: 150, baseAngle: Math.PI / 2, sweepAngle: 0.85, speed: 1.5, maxDist: 250, fov: 0.75, disabledTimer: 0, alarmTimer: 0 }
     ],
     guards: [
       {
         id: "gStar",
-        x: 340, y: 340,
+        x: 330, y: 340,
         waypoints: [
-          { x: 340, y: 340, pauseTime: 1.0 },
-          { x: 340, y: 220, pauseTime: 1.0 }
+          { x: 330, y: 340, pauseTime: 0.8 },
+          { x: 330, y: 220, pauseTime: 0.8 }
         ],
-        speed: 80, fov: 0.75, dist: 210,
+        speed: 78, fov: 0.75, dist: 205,
         suspicion: 0, state: "PATROL",
         distractedTimer: 0, lookAngleOverride: null
       }
     ],
     props: [
-      { type: "painting", x: 280, y: 110, w: 45, h: 10, ht: 28 },
+      { type: "painting", x: 280, y: 130, w: 45, h: 10, ht: 28 },
       { type: "pedestal", x: 520, y: 340 }
     ]
   },
 
-  // --- LEVEL 5: SECTOR 7 NIGHT WATCH ---
+  // --- LEVEL 5: NIGHT WATCH (teach: coin lure + echo bait, loot across patrol) ---
   {
     id: 5,
     title: "The Night Watch",
@@ -853,83 +875,80 @@ const LEVELS = [
     theme: "lab",
     loopSeconds: 10,
     parClones: 3,
-    playerStart: { x: 90, y: 180 },
-    exit: { x: 620, y: 490, w: 60, h: 60, label: "AIRLOCK" },
+    playerStart: { x: 90, y: 340 },
+    exit: { x: 600, y: 470, w: 60, h: 60, label: "AIRLOCK" },
     loot: { x: 560, y: 180, radius: 22, type: "data", name: "Quantum Encryption Drive" },
-    briefing: "Walls completely block vision. Use the staging room to plan, throw a coin [Q] to turn guards, or sneak through the vent!",
+    briefing: "LOOP 1: sprint the top corridor past the guard and step on the plate. LOOP 2: toss a coin [Q] to peel the guard off the drive, or let your echo bait the patrol while YOU slip up the vent!",
     walls: [
-      { x: 30, y: 90, w: 650, h: 20, ht: 44 },
-      { x: 30, y: 570, w: 650, h: 20, ht: 44 },
-      { x: 30, y: 90, w: 20, h: 500, ht: 44 },
-      { x: 660, y: 90, w: 20, h: 500, ht: 44 },
-      { x: 180, y: 90, w: 20, h: 200, ht: 44 },
-      { x: 180, y: 390, w: 20, h: 200, ht: 44 },
-      { x: 310, y: 220, w: 180, h: 220, ht: 44 }
+      { x: 30, y: 100, w: 650, h: 20, ht: 44 },
+      { x: 30, y: 560, w: 650, h: 20, ht: 44 },
+      { x: 30, y: 100, w: 20, h: 480, ht: 44 },
+      { x: 660, y: 100, w: 20, h: 480, ht: 44 },
+      { x: 200, y: 100, w: 20, h: 170, ht: 44 },
+      { x: 200, y: 370, w: 20, h: 210, ht: 44 },
+      { x: 330, y: 250, w: 170, h: 170, ht: 44 }
     ],
     doors: [
-      { id: "labStagingDoor", x: 180, y: 290, w: 20, h: 100, ht: 42, openProgress: 0, orientation: "V" }
+      { id: "labStagingDoor", x: 200, y: 270, w: 20, h: 100, ht: 42, openProgress: 0, orientation: "V" }
     ],
     switches: [
-      { id: "swSpawnPlate", x: 90, y: 340, radius: 24, targetDoor: "labStagingDoor", type: "plate", active: false }
+      { id: "swSpawnPlate", x: 120, y: 180, radius: 24, targetDoor: "labStagingDoor", type: "plate", active: false }
     ],
     vents: [
-      { id: "vLab1", x1: 100, y1: 140, x2: 240, y2: 140 }
+      { id: "vLab1", x1: 110, y1: 500, x2: 270, y2: 150 }
     ],
     guards: [
       {
         id: "g1",
-        x: 540, y: 480,
+        x: 480, y: 420,
         waypoints: [
-          { x: 540, y: 480, pauseTime: 1.0 },
-          { x: 540, y: 180, pauseTime: 1.0 },
-          { x: 260, y: 180, pauseTime: 1.0 },
-          { x: 260, y: 480, pauseTime: 1.0 }
+          { x: 480, y: 420, pauseTime: 0.6 },
+          { x: 480, y: 180, pauseTime: 0.6 },
+          { x: 560, y: 180, pauseTime: 0.6 }
         ],
-        speed: 90, fov: 0.80, dist: 210,
+        speed: 85, fov: 0.78, dist: 200,
         suspicion: 0, state: "PATROL",
         distractedTimer: 0, lookAngleOverride: null
       }
     ],
     lasers: [], cameras: [],
     props: [
-      { type: "serverRack", x: 330, y: 240, w: 60, h: 30, ht: 34 },
-      { type: "serverRack", x: 410, y: 240, w: 60, h: 30, ht: 34 }
+      { type: "serverRack", x: 350, y: 270, w: 60, h: 30, ht: 34 },
+      { type: "serverRack", x: 420, y: 270, w: 60, h: 30, ht: 34 }
     ]
   },
 
-  // --- LEVEL 6: THE MASTER HEIST ---
+  // --- LEVEL 6: MASTERMIND (teach: 3-echo chain — plate / terminal / dual plates) ---
   {
     id: 6,
     title: "The Mastermind Heist",
     chapter: "CHAPTER 3: SECTOR 7",
     theme: "lab",
     loopSeconds: 10,
-    parClones: 3,
+    parClones: 4,
     playerStart: { x: 80, y: 340 },
-    exit: { x: 620, y: 340, w: 60, h: 60, label: "EVAC" },
-    loot: { x: 540, y: 340, radius: 26, type: "core", name: "Antimatter Battery" },
-    briefing: "Protected airlock chamber. Coordinate Ghost #1 on the airlock plate and Ghost #2 on the laser terminal!",
+    exit: { x: 600, y: 340, w: 60, h: 60, label: "EVAC" },
+    loot: { x: 545, y: 340, radius: 26, type: "core", name: "Antimatter Battery" },
+    briefing: "ECHO 1 holds the airlock. ECHO 2 rides the vent and hacks the laser [E]. ECHO 3 takes the north plate — YOU sprint the south plate, grab the core between the patrols, and walk out together!",
     walls: [
-      { x: 20, y: 80, w: 670, h: 20, ht: 44 },
-      { x: 20, y: 600, w: 670, h: 20, ht: 44 },
-      { x: 20, y: 80, w: 20, h: 540, ht: 44 },
-      { x: 670, y: 80, w: 20, h: 540, ht: 44 },
-      { x: 170, y: 80, w: 20, h: 200, ht: 44 },
-      { x: 170, y: 380, w: 20, h: 240, ht: 44 },
-      { x: 380, y: 80, w: 20, h: 180, ht: 44 },
-      { x: 380, y: 400, w: 20, h: 220, ht: 44 },
-      { x: 500, y: 80, w: 20, h: 200, ht: 44 },
-      { x: 500, y: 380, w: 20, h: 240, ht: 44 }
+      { x: 20, y: 100, w: 670, h: 20, ht: 44 },
+      { x: 20, y: 560, w: 670, h: 20, ht: 44 },
+      { x: 20, y: 100, w: 20, h: 480, ht: 44 },
+      { x: 670, y: 100, w: 20, h: 480, ht: 44 },
+      { x: 180, y: 100, w: 20, h: 170, ht: 44 },
+      { x: 180, y: 370, w: 20, h: 210, ht: 44 },
+      { x: 390, y: 100, w: 20, h: 150, ht: 44 },
+      { x: 390, y: 390, w: 20, h: 190, ht: 44 }
     ],
     doors: [
-      { id: "gateAirlock", x: 170, y: 280, w: 20, h: 100, ht: 42, openProgress: 0, orientation: "V" },
-      { id: "finalVault", x: 500, y: 280, w: 20, h: 100, ht: 42, openProgress: 0, orientation: "V", requiresBoth: true }
+      { id: "gateAirlock", x: 180, y: 270, w: 20, h: 100, ht: 42, openProgress: 0, orientation: "V" },
+      { id: "finalVault", x: 480, y: 280, w: 20, h: 100, ht: 42, openProgress: 0, orientation: "V", requiresBoth: true }
     ],
     switches: [
-      { id: "plateAirlock", x: 80, y: 200, radius: 24, targetDoor: "gateAirlock", type: "plate", active: false },
+      { id: "plateAirlock", x: 100, y: 470, radius: 24, targetDoor: "gateAirlock", type: "plate", active: false },
       {
         id: "termLaser",
-        x: 270, y: 150,
+        x: 290, y: 150,
         radius: 36,
         type: "terminal",
         targetLaser: "vaultLaser",
@@ -937,28 +956,27 @@ const LEVELS = [
         overrideTimer: 0,
         active: false
       },
-      { id: "plateLock1", x: 440, y: 180, radius: 24, targetDoor: "finalVault", type: "plate", active: false },
-      { id: "plateLock2", x: 440, y: 500, radius: 24, targetDoor: "finalVault", type: "plate", active: false }
+      { id: "plateLock1", x: 435, y: 190, radius: 24, targetDoor: "finalVault", type: "plate", active: false },
+      { id: "plateLock2", x: 435, y: 475, radius: 24, targetDoor: "finalVault", type: "plate", active: false }
     ],
     vents: [
-      { id: "vMaster", x1: 80, y1: 520, x2: 260, y2: 520 }
+      { id: "vMaster", x1: 90, y1: 170, x2: 290, y2: 210 }
     ],
     lasers: [
-      { id: "vaultLaser", x1: 380, y1: 260, x2: 380, y2: 400, active: true, disabledTimer: 0 }
+      { id: "vaultLaser", x1: 390, y1: 250, x2: 390, y2: 390, active: true, disabledTimer: 0 }
     ],
     cameras: [
-      { id: "cMaster", x: 280, y: 560, baseAngle: -Math.PI / 2, sweepAngle: 0.8, speed: 1.4, maxDist: 240, fov: 0.7, disabledTimer: 0, alarmTimer: 0 }
+      { id: "cMaster", x: 300, y: 520, baseAngle: -Math.PI / 2, sweepAngle: 0.8, speed: 1.4, maxDist: 240, fov: 0.7, disabledTimer: 0, alarmTimer: 0 }
     ],
     guards: [
       {
         id: "gMaster",
-        x: 280, y: 340,
+        x: 545, y: 220,
         waypoints: [
-          { x: 280, y: 340, pauseTime: 1.0 },
-          { x: 280, y: 460, pauseTime: 1.0 },
-          { x: 280, y: 220, pauseTime: 1.0 }
+          { x: 545, y: 220, pauseTime: 0.6 },
+          { x: 545, y: 445, pauseTime: 0.6 }
         ],
-        speed: 75, fov: 0.75, dist: 200,
+        speed: 78, fov: 0.75, dist: 195,
         suspicion: 0, state: "PATROL",
         distractedTimer: 0, lookAngleOverride: null
       }
@@ -968,7 +986,7 @@ const LEVELS = [
     ]
   },
 
-  // --- LEVEL 7: THE VELVET CASINO LOUNGE ---
+  // --- LEVEL 7: VELVET LOUNGE (teach: breaker blackout window + echo hold) ---
   {
     id: 7,
     title: "The Velvet Lounge",
@@ -977,28 +995,26 @@ const LEVELS = [
     loopSeconds: 10,
     parClones: 3,
     playerStart: { x: 80, y: 350 },
-    exit: { x: 620, y: 350, w: 60, h: 60, label: "VIP EXIT" },
-    loot: { x: 540, y: 350, radius: 24, type: "cash", name: "High-Roller Casino Chips ($1M)" },
-    briefing: "A luxury VIP floor with security guards. Pull the Circuit Breaker [E] in the side alcove to black out security!",
+    exit: { x: 600, y: 350, w: 60, h: 60, label: "VIP EXIT" },
+    loot: { x: 540, y: 430, radius: 24, type: "cash", name: "High-Roller Casino Chips ($1M)" },
+    briefing: "LOOP 1: sprint to the BREAKER and hold [E] — a 6s blackout kills the camera and shrinks guard vision! LOOP 2: your echo holds the lounge plate while YOU ride the blackout to the chips behind the patrol!",
     walls: [
-      { x: 30, y: 110, w: 650, h: 20, ht: 44 },
-      { x: 30, y: 550, w: 650, h: 20, ht: 44 },
-      { x: 30, y: 110, w: 20, h: 460, ht: 44 },
-      { x: 660, y: 110, w: 20, h: 460, ht: 44 },
-      { x: 200, y: 110, w: 20, h: 180, ht: 44 },
-      { x: 200, y: 390, w: 20, h: 180, ht: 44 },
-      { x: 420, y: 110, w: 20, h: 180, ht: 44 },
-      { x: 420, y: 390, w: 20, h: 180, ht: 44 }
+      { x: 30, y: 120, w: 650, h: 20, ht: 44 },
+      { x: 30, y: 540, w: 650, h: 20, ht: 44 },
+      { x: 30, y: 120, w: 20, h: 440, ht: 44 },
+      { x: 660, y: 120, w: 20, h: 440, ht: 44 },
+      { x: 210, y: 120, w: 20, h: 160, ht: 44 },
+      { x: 210, y: 380, w: 20, h: 180, ht: 44 }
     ],
     doors: [
-      { id: "casinoGate1", x: 200, y: 290, w: 20, h: 100, ht: 42, openProgress: 0, orientation: "V" },
-      { id: "vipGate", x: 420, y: 290, w: 20, h: 100, ht: 42, openProgress: 0, orientation: "V" }
+      { id: "casinoGate1", x: 210, y: 280, w: 20, h: 100, ht: 42, openProgress: 0, orientation: "V" },
+      { id: "vipGate", x: 430, y: 280, w: 20, h: 100, ht: 42, openProgress: 0, orientation: "V" }
     ],
     switches: [
-      { id: "swPlateLounge", x: 100, y: 200, radius: 24, targetDoor: "casinoGate1", type: "plate", active: false },
+      { id: "swPlateLounge", x: 120, y: 470, radius: 24, targetDoor: "casinoGate1", type: "plate", active: false },
       {
         id: "breaker1",
-        x: 310, y: 160,
+        x: 310, y: 170,
         radius: 28,
         type: "breaker",
         targetDoor: "vipGate",
@@ -1007,66 +1023,64 @@ const LEVELS = [
       }
     ],
     vents: [
-      { id: "vLounge", x1: 90, y1: 480, x2: 310, y2: 480 }
+      { id: "vLounge", x1: 100, y1: 180, x2: 330, y2: 180 }
     ],
     guards: [
       {
         id: "gCasino1",
-        x: 310, y: 350,
+        x: 540, y: 250,
         waypoints: [
-          { x: 310, y: 350, pauseTime: 1.2 },
-          { x: 310, y: 480, pauseTime: 1.0 },
-          { x: 310, y: 220, pauseTime: 1.0 }
+          { x: 540, y: 250, pauseTime: 0.7 },
+          { x: 540, y: 430, pauseTime: 0.3 },
+          { x: 470, y: 340, pauseTime: 0.7 }
         ],
-        speed: 85, fov: 0.80, dist: 210,
+        speed: 80, fov: 0.78, dist: 200,
         suspicion: 0, state: "PATROL",
         distractedTimer: 0, lookAngleOverride: null
       }
     ],
     cameras: [
-      { id: "cCasino", x: 530, y: 140, baseAngle: Math.PI / 2, sweepAngle: 0.8, speed: 1.5, maxDist: 250, fov: 0.75, disabledTimer: 0, alarmTimer: 0 }
+      { id: "cCasino", x: 540, y: 150, baseAngle: Math.PI / 2, sweepAngle: 0.8, speed: 1.5, maxDist: 250, fov: 0.75, disabledTimer: 0, alarmTimer: 0 }
     ],
     props: [
       { type: "desk", x: 310, y: 250, w: 45, h: 30, ht: 24 },
-      { type: "stanchion", x: 460, y: 290 },
-      { type: "stanchion", x: 460, y: 390 }
+      { type: "stanchion", x: 470, y: 250 },
+      { type: "stanchion", x: 470, y: 430 }
     ],
     lasers: []
   },
 
-  // --- LEVEL 8: SKYRIDGE HELIPAD PENTHOUSE ---
+  // --- LEVEL 8: APEX FINALE (exam: every trick chained — plate / terminal / breaker / dual sync) ---
   {
     id: 8,
     title: "The Apex Penthouse Vault",
     chapter: "CHAPTER 4: SKYRIDGE CASINO",
     theme: "penthouse",
     loopSeconds: 10,
-    parClones: 3,
+    parClones: 4,
     playerStart: { x: 80, y: 340 },
-    exit: { x: 620, y: 340, w: 60, h: 60, label: "HELIPAD" },
-    loot: { x: 530, y: 340, radius: 26, type: "core", name: "The Black Diamond Heart" },
-    briefing: "The pinnacle heist: Dual security corridors, rotating camera, and synchronized terminal hack to unlock the rooftop helipad!",
+    exit: { x: 600, y: 340, w: 60, h: 60, label: "HELIPAD" },
+    loot: { x: 545, y: 430, radius: 26, type: "core", name: "The Black Diamond Heart" },
+    briefing: "FINAL EXAM. ECHO 1: gate plate. ECHO 2: terminal hack [E]. ECHO 3: breaker blackout [E]. Then YOU + ECHO 4 sync the twin vault plates, snatch the Diamond between patrol and camera, and sprint the helipad in the last 3 seconds!",
     walls: [
-      { x: 20, y: 80, w: 670, h: 20, ht: 44 },
-      { x: 20, y: 600, w: 670, h: 20, ht: 44 },
-      { x: 20, y: 80, w: 20, h: 540, ht: 44 },
-      { x: 670, y: 80, w: 20, h: 540, ht: 44 },
-      { x: 180, y: 80, w: 20, h: 200, ht: 44 },
-      { x: 180, y: 380, w: 20, h: 240, ht: 44 },
-      { x: 360, y: 80, w: 20, h: 200, ht: 44 },
-      { x: 360, y: 380, w: 20, h: 240, ht: 44 },
-      { x: 490, y: 80, w: 20, h: 200, ht: 44 },
-      { x: 490, y: 380, w: 20, h: 240, ht: 44 }
+      { x: 20, y: 100, w: 670, h: 20, ht: 44 },
+      { x: 20, y: 560, w: 670, h: 20, ht: 44 },
+      { x: 20, y: 100, w: 20, h: 480, ht: 44 },
+      { x: 670, y: 100, w: 20, h: 480, ht: 44 },
+      { x: 180, y: 100, w: 20, h: 170, ht: 44 },
+      { x: 180, y: 370, w: 20, h: 210, ht: 44 },
+      { x: 360, y: 100, w: 20, h: 150, ht: 44 },
+      { x: 360, y: 380, w: 20, h: 200, ht: 44 }
     ],
     doors: [
-      { id: "heliGate1", x: 180, y: 280, w: 20, h: 100, ht: 42, openProgress: 0, orientation: "V" },
-      { id: "heliVault", x: 490, y: 280, w: 20, h: 100, ht: 42, openProgress: 0, orientation: "V", requiresBoth: true }
+      { id: "heliGate1", x: 180, y: 270, w: 20, h: 100, ht: 42, openProgress: 0, orientation: "V" },
+      { id: "heliVault", x: 480, y: 280, w: 20, h: 100, ht: 42, openProgress: 0, orientation: "V", requiresBoth: true }
     ],
     switches: [
-      { id: "plateHeli1", x: 80, y: 190, radius: 24, targetDoor: "heliGate1", type: "plate", active: false },
+      { id: "plateHeli1", x: 100, y: 470, radius: 24, targetDoor: "heliGate1", type: "plate", active: false },
       {
         id: "termApex",
-        x: 270, y: 160,
+        x: 280, y: 160,
         radius: 36,
         type: "terminal",
         targetLaser: "apexLaser",
@@ -1074,28 +1088,35 @@ const LEVELS = [
         overrideTimer: 0,
         active: false
       },
-      { id: "plateApex1", x: 430, y: 180, radius: 24, targetDoor: "heliVault", type: "plate", active: false },
-      { id: "plateApex2", x: 430, y: 500, radius: 24, targetDoor: "heliVault", type: "plate", active: false }
+      {
+        id: "breakerApex",
+        x: 280, y: 500,
+        radius: 28,
+        type: "breaker",
+        duration: 6.0,
+        active: false
+      },
+      { id: "plateApex1", x: 425, y: 190, radius: 24, targetDoor: "heliVault", type: "plate", active: false },
+      { id: "plateApex2", x: 425, y: 475, radius: 24, targetDoor: "heliVault", type: "plate", active: false }
     ],
     vents: [
-      { id: "vApex", x1: 80, y1: 510, x2: 270, y2: 510 }
+      { id: "vApex", x1: 100, y1: 170, x2: 285, y2: 215 }
     ],
     lasers: [
-      { id: "apexLaser", x1: 360, y1: 270, x2: 360, y2: 410, active: true, disabledTimer: 0 }
+      { id: "apexLaser", x1: 360, y1: 250, x2: 360, y2: 380, active: true, disabledTimer: 0 }
     ],
     cameras: [
-      { id: "cApex", x: 270, y: 560, baseAngle: -Math.PI / 2, sweepAngle: 0.85, speed: 1.5, maxDist: 250, fov: 0.75, disabledTimer: 0, alarmTimer: 0 }
+      { id: "cApex", x: 545, y: 145, baseAngle: Math.PI / 2, sweepAngle: 0.85, speed: 1.6, maxDist: 250, fov: 0.75, disabledTimer: 0, alarmTimer: 0 }
     ],
     guards: [
       {
         id: "gApex",
-        x: 270, y: 340,
+        x: 545, y: 250,
         waypoints: [
-          { x: 270, y: 340, pauseTime: 1.2 },
-          { x: 270, y: 460, pauseTime: 1.0 },
-          { x: 270, y: 220, pauseTime: 1.0 }
+          { x: 545, y: 250, pauseTime: 0.6 },
+          { x: 545, y: 430, pauseTime: 0.4 }
         ],
-        speed: 85, fov: 0.80, dist: 210,
+        speed: 82, fov: 0.78, dist: 200,
         suspicion: 0, state: "PATROL",
         distractedTimer: 0, lookAngleOverride: null
       }
@@ -1120,7 +1141,9 @@ let camX = 0, camY = 0;
 let currentLevelIdx = 0;
 let level = null;
 let gameState = "MENU";
-let levelStars = JSON.parse(localStorage.getItem('chrono_heist_stars_master') || "{}");
+let levelStars = {};
+try { levelStars = JSON.parse(localStorage.getItem('chrono_heist_stars_master') || "{}") || {}; } catch (e) { levelStars = {}; }
+function saveStars() { try { localStorage.setItem('chrono_heist_stars_master', JSON.stringify(levelStars)); } catch (e) {} }
 
 let loopTimer = 0;
 let maxLoopTime = 10.0;
@@ -1167,6 +1190,20 @@ let ambientDust = [];
 let screenShake = 0;
 let slowMoTimer = 0;
 let ghostPaths = [];
+
+// ---- AAA UI state (no per-frame allocation: scratch vars reused in hot paths) ----
+let rewindFlash = 0;        // 1 -> 0 decay after every commitAndRewindLoop
+let uiTime = 0;             // global menu/HUD animation clock (seconds)
+let briefingTimer = 6.5;    // per-level briefing banner lifetime
+let helpVisible = false;    // pause/help overlay toggle
+let paused = false;         // true pause (freezes update sim)
+const UI_COLORS = {
+  cyan: "#38bdf8", cyanDim: "#0284c7", gold: "#facc15", green: "#4ade80",
+  red: "#ef4444", pink: "#f43f5e", ink: "#f8fafc", dim: "#94a3b8",
+  faint: "#64748b", panel: "rgba(8,12,20,0.88)", line: "rgba(148,163,184,0.35)"
+};
+const FONT_UI = "'Rajdhani','JetBrains Mono',sans-serif";
+const FONT_MONO = "'JetBrains Mono',monospace";
 
 for (let i = 0; i < 45; i++) {
   ambientDust.push({
@@ -1232,8 +1269,24 @@ window.addEventListener('keydown', (e) => {
     if (gameState === "PLAYING") throwDecoyCoin();
   }
   if (e.key === 'Escape') {
-    if (gameState === "PLAYING") setGameState("LEVEL_SELECT");
+    if (gameState === "PLAYING") {
+      if (helpVisible) helpVisible = false;
+      else paused = !paused;
+      renderUI();
+    }
     else if (gameState === "LEVEL_SELECT") setGameState("MENU");
+  }
+  if ((e.key === 'h' || e.key === 'H') && gameState === "PLAYING") {
+    helpVisible = !helpVisible;
+    renderUI();
+  }
+  if ((e.key === 'p' || e.key === 'P') && gameState === "PLAYING") {
+    paused = !paused;
+    renderUI();
+  }
+  if ((e.key === 'n' || e.key === 'N') && gameState === "PLAYING" && paused) {
+    paused = false;
+    loadLevel(currentLevelIdx);
   }
 });
 
@@ -1253,14 +1306,32 @@ window.addEventListener('mousemove', (e) => {
   input.screenMouseY = e.clientY;
 });
 
-// Touch controls
+// Touch controls (left 45% = joystick, right side = tap buttons or aim)
 let touchJoy = { active: false, startX: 0, startY: 0 };
+let touchButtons = []; // filled per-frame by renderTouchButtons (canvas hit areas)
+// Tap detection for the canvas touch buttons (runs before joystick logic).
+function handleTouchButtons(x, y) {
+  for (let i = 0; i < touchButtons.length; i++) {
+    const b = touchButtons[i];
+    if (Math.hypot(x - b.x, y - b.y) < b.r) {
+      if (gameState !== "PLAYING" || paused) return true;
+      if (b.id === "interact") input.interact = true;
+      else if (b.id === "rewind") commitAndRewindLoop();
+      else if (b.id === "emp") fireEmpDart();
+      else if (b.id === "coin") throwDecoyCoin();
+      else if (b.id === "sneak") player.isCrouching = !player.isCrouching;
+      return true;
+    }
+  }
+  return false;
+}
 window.addEventListener('touchstart', (e) => {
   audio.init();
   audio.resume();
   e.preventDefault();
   for (let i = 0; i < e.touches.length; i++) {
     const t = e.touches[i];
+    if (handleTouchButtons(t.clientX, t.clientY)) continue;
     if (t.clientX < viewW * 0.45) {
       touchJoy.active = true;
       touchJoy.startX = t.clientX;
@@ -1291,6 +1362,7 @@ window.addEventListener('touchmove', (e) => {
 }, { passive: false });
 
 window.addEventListener('touchend', (e) => {
+  input.interact = false; // release tap-to-interact
   if (e.touches.length === 0) {
     touchJoy.active = false;
     input.up = input.down = input.left = input.right = false;
@@ -1365,6 +1437,10 @@ function loadLevel(idx) {
   noiseRipples = [];
   screenShake = 0;
   slowMoTimer = 0;
+  rewindFlash = 0;
+  briefingTimer = 6.5;
+  paused = false;
+  helpVisible = false;
 
   levelStats.alarmsTripped = 0;
   levelStats.timeTaken = 0;
@@ -1400,10 +1476,12 @@ function commitAndRewindLoop() {
   audio.playRewind();
 
   if (currentRun.length > 8) {
+    // FAIR LOOT: echoes never inherit loot — a ghost must replay over the
+    // loot token to pick it up (sticky carry, resolved per-frame in update).
     ghosts.push({
       id: cloneIndex,
       frames: currentRun,
-      hasLoot: player.hasLoot
+      carrying: false
     });
 
     const path = [];
@@ -1418,12 +1496,20 @@ function commitAndRewindLoop() {
   loopTimer = 0;
   currentRun = [];
 
-  level.doors.forEach(d => d.openProgress = 0);
+  // Doors with no linked opener (decorative arches / pre-opened gates) are
+  // exempt from the rewind reset so they can never cause a soft-lock.
+  level.doors.forEach(d => {
+    const linked = level.switches.some(sw => sw.targetDoor === d.id);
+    if (d.keepOpen || !linked) d.openProgress = 1.0;
+    else d.openProgress = 0;
+  });
   level.switches.forEach(s => {
     s.active = false;
     s.hackProgress = 0;
     s.overrideTimer = 0;
+    s.timer = 0; // breaker blackout never leaks across rewinds
   });
+  ghosts.forEach(g => { g.carrying = false; });
   level.lasers.forEach(l => {
     l.active = true;
     l.disabledTimer = 0;
@@ -1455,6 +1541,8 @@ function commitAndRewindLoop() {
   }
 
   screenShake = 8;
+  rewindFlash = 1.0; // full-screen cyan flash + vignette pulse (decays in update)
+  slowMoTimer = Math.max(slowMoTimer, 0.25); // brief slow-mo sells the time jump
   createSparks(player.x, player.y, 10, 25, "#38bdf8");
   audio.updateMusicLayers(cloneIndex);
 }
@@ -1513,7 +1601,12 @@ function resolveWallCollisions(ent) {
 let lastTime = performance.now();
 
 function update(dt) {
+  uiTime += dt;
   if (gameState !== "PLAYING") return;
+  if (paused) return; // hard pause: freeze sim, keep rendering + DOM overlay
+
+  if (rewindFlash > 0) rewindFlash = Math.max(0, rewindFlash - dt * 1.6);
+  if (briefingTimer > 0) briefingTimer = Math.max(0, briefingTimer - dt);
 
   let simDt = dt;
   if (slowMoTimer > 0) {
@@ -1629,7 +1722,7 @@ function update(dt) {
       x: f.x, y: f.y,
       angle: f.angle,
       isInteracting: f.isInteracting,
-      hasLoot: g.hasLoot
+      carrying: !!g.carrying
     });
   });
 
@@ -1995,21 +2088,36 @@ function update(dt) {
     if (nr.alpha <= 0) noiseRipples.splice(i, 1);
   }
 
-  // Loot
-  if (level.loot && !player.hasLoot && !player.inVent) {
-    const ghostHasLoot = ghosts.some(g => g.hasLoot);
-    if (!ghostHasLoot) {
-      if (Math.hypot(player.x - level.loot.x, player.y - level.loot.y) < player.radius + level.loot.radius) {
+  // Loot — explicit, fair rules shared by live player and echoes:
+  // - ECHOES must physically replay over the loot token to pick it up
+  //   (sticky for the rest of that loop; echo carrying lets YOU extract).
+  // - LIVE player grabs it by touching the token while no echo carries it.
+  // - EXTRACTION always requires the live player to reach the exit.
+  if (level.loot && !player.inVent) {
+    const lootR = player.radius + level.loot.radius;
+    if (!player.hasLoot && !ghosts.some(g => g.carrying)) {
+      if (Math.hypot(player.x - level.loot.x, player.y - level.loot.y) < lootR) {
         player.hasLoot = true;
         audio.playLoot();
         createSparks(level.loot.x, level.loot.y, 10, 40, "#facc15");
         screenShake = 5;
       }
     }
+    if (!player.hasLoot) {
+      for (const ag of activeGhosts) {
+        if (Math.hypot(ag.x - level.loot.x, ag.y - level.loot.y) < 14 + level.loot.radius) {
+          const stored = ghosts.find(g => g.id === ag.id);
+          if (stored) { stored.carrying = true; ag.carrying = true; }
+          audio.playLoot();
+          createSparks(level.loot.x, level.loot.y, 10, 24, "#38bdf8");
+          break;
+        }
+      }
+    }
   }
 
   // Extraction
-  if ((player.hasLoot || ghosts.some(g => g.hasLoot)) && !player.inVent) {
+  if ((player.hasLoot || ghosts.some(g => g.carrying)) && !player.inVent) {
     const ex = level.exit;
     if (player.x >= ex.x && player.x <= ex.x + ex.w && player.y >= ex.y && player.y <= ex.y + ex.h) {
       triggerVictory();
@@ -2042,7 +2150,7 @@ function triggerVictory() {
 
   const prevBest = levelStars[level.id] || 0;
   levelStars[level.id] = Math.max(prevBest, totalStars);
-  localStorage.setItem('chrono_heist_stars_master', JSON.stringify(levelStars));
+  saveStars();
 
   for (let i = 0; i < 80; i++) {
     createSparks(player.x, player.y, 10, 1, ["#facc15", "#38bdf8", "#4ade80", "#f43f5e"][i % 4]);
@@ -2094,6 +2202,20 @@ function render() {
     return;
   }
 
+  // PAUSED: freeze the world frame behind the DOM overlay (no sim updates anyway)
+  if (gameState === "PLAYING" && paused && level) {
+    ctx.restore();
+    ctx.save();
+    ctx.fillStyle = "rgba(3,6,10,0.45)";
+    ctx.fillRect(0, 0, viewW, viewH);
+    ctx.fillStyle = "#38bdf8";
+    ctx.font = "bold 13px " + FONT_MONO;
+    ctx.textAlign = "center";
+    ctx.fillText("⏸ PAUSED — [ESC] TO RESUME", viewW / 2, 110);
+    ctx.restore();
+    return;
+  }
+
   const theme = THEMES[level.theme] || THEMES.bank;
 
   // PASS 1: Textured Floor
@@ -2137,8 +2259,8 @@ function render() {
   });
 
   if (level.loot) {
-    const ghostHasLoot = ghosts.some(g => g.hasLoot);
-    if (!player.hasLoot && !ghostHasLoot) {
+    const echoCarrying = ghosts.some(g => g.carrying);
+    if (!player.hasLoot && !echoCarrying) {
       renderQueue.push({
         depth: level.loot.x + level.loot.y + 15,
         render: () => drawOverhauledLoot(level.loot)
@@ -2210,9 +2332,54 @@ function render() {
   renderTensionVignette();
   renderInGameHUD();
   renderMiniRadar();
+  renderTouchButtons();
 }
 
+// Touch action buttons (right side): INTERACT / REWIND / EMP / COIN / SNEAK.
+// Kept minimal + canvas-rendered; existing joystick handlers untouched.
+// (touchButtons array + handleTouchButtons() are declared up with input setup.)
+function renderTouchButtons() {
+  const isTouch = ("ontouchstart" in window) || navigator.maxTouchPoints > 0;
+  touchButtons = [];
+  if (!isTouch) return;
+  const defs = [
+    { id: "interact", label: "E", color: "#4ade80" },
+    { id: "rewind", label: "R", color: "#38bdf8" },
+    { id: "emp", label: "F", color: "#38bdf8" },
+    { id: "coin", label: "Q", color: "#facc15" },
+    { id: "sneak", label: "C", color: "#facc15" }
+  ];
+  const r = 26, gap = 12;
+  const by = viewH - 120;
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  for (let i = 0; i < defs.length; i++) {
+    const b = defs[i];
+    const bx = viewW - 40 - r - i * (r * 2 + gap);
+    const active = (b.id === "sneak" && player.isCrouching) ||
+      (b.id === "emp" && player.empAmmo > 0) ||
+      (b.id === "coin" && player.coinsAmmo > 0) ||
+      (b.id === "interact") || (b.id === "rewind");
+    ctx.globalAlpha = active ? 0.85 : 0.35;
+    ctx.fillStyle = "rgba(8,12,20,0.8)";
+    ctx.beginPath();
+    ctx.arc(bx, by, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = b.color;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = b.color;
+    ctx.font = "bold 16px " + FONT_MONO;
+    ctx.fillText(b.label, bx, by);
+    touchButtons.push({ id: b.id, x: bx, y: by, r: r + 8 });
+  }
+  ctx.restore();
+}
+
+// ------------------------------------------------------------
 // Textured, High-Tech Floor with Specular Sheen
+// ------------------------------------------------------------
 function renderOverhauledFloor(theme) {
   const tileSize = 50;
   for (let x = 0; x < 700; x += tileSize) {
@@ -2935,6 +3102,26 @@ function renderIsoParticles() {
 
 function renderTensionVignette() {
   const remaining = Math.max(0, maxLoopTime - loopTimer);
+  // 1. Rewind flash: full-screen cyan wash that decays (allocation-free gradient reuse)
+  if (rewindFlash > 0) {
+    ctx.fillStyle = `rgba(56,189,248,${(0.28 * rewindFlash).toFixed(3)})`;
+    ctx.fillRect(0, 0, viewW, viewH);
+    const ringR = (1 - rewindFlash) * Math.max(viewW, viewH) * 0.7;
+    ctx.strokeStyle = `rgba(186,230,253,${(0.55 * rewindFlash).toFixed(3)})`;
+    ctx.lineWidth = 2 + 6 * rewindFlash;
+    ctx.beginPath();
+    ctx.arc(viewW / 2, viewH / 2, Math.max(40, ringR), 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  // 2. Slow-mo vignette: cool blue edge pulse while time is dilated
+  if (slowMoTimer > 0) {
+    const vigGrad = ctx.createRadialGradient(viewW / 2, viewH / 2, viewW * 0.32, viewW / 2, viewH / 2, viewW * 0.72);
+    vigGrad.addColorStop(0, "rgba(56,189,248,0)");
+    vigGrad.addColorStop(1, "rgba(56,189,248,0.30)");
+    ctx.fillStyle = vigGrad;
+    ctx.fillRect(0, 0, viewW, viewH);
+  }
+  // 3. Countdown danger vignette: red pulse in last 3s
   if (remaining <= 3.0) {
     const pulse = (Math.sin(loopTimer * 8) + 1) * 0.5;
     const vigGrad = ctx.createRadialGradient(viewW / 2, viewH / 2, viewW * 0.3, viewW / 2, viewH / 2, viewW * 0.7);
@@ -2946,21 +3133,13 @@ function renderTensionVignette() {
 }
 
 // ------------------------------------------------------------
-// 11. DIEGETIC HUD MATCHING PROTOTYPE (Heart, Segments & Inventory)
+// 11. AAA HUD — loop timer bar + echo pips, objective tracker,
+//     gadget ammo, stealth status, briefing banner (canvas only)
 // ------------------------------------------------------------
 function renderInGameHUD() {
-  // 1. TOP-LEFT: Red Heart & Segmented Health/Stealth Pips (Prototype Style)
+  // ---- 1. TOP-LEFT: stealth status + mission tag ----
   const hudX = 24, hudY = 24;
 
-  // Heart Icon
-  ctx.save();
-  ctx.fillStyle = "#ef4444";
-  ctx.font = "20px sans-serif";
-  ctx.textBaseline = "middle";
-  ctx.textAlign = "left";
-  ctx.fillText("❤️", hudX, hudY + 8);
-
-  // Segmented Pips
   const totalPips = 5;
   const maxGuardSuspicion = (level.guards && level.guards.length > 0)
     ? Math.max(...level.guards.map(g => g.suspicion || 0))
@@ -2969,80 +3148,137 @@ function renderInGameHUD() {
   const filledPips = Math.max(0, Math.ceil((1.0 - maxGuardSuspicion) * totalPips));
   const isAlarm = level.guards && level.guards.some(g => g.state === "ALARM_CHASE");
 
-  const pipStartX = hudX + 28;
-  const pipW = 16, pipH = 12, pipGap = 4;
-
-  for (let i = 0; i < totalPips; i++) {
-    const px = pipStartX + i * (pipW + pipGap);
-    const py = hudY + 2;
-
-    ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
-    ctx.fillRect(px, py, pipW, pipH);
-    ctx.strokeStyle = "rgba(71, 85, 105, 0.6)";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(px, py, pipW, pipH);
-
-    if (i < filledPips) {
-      ctx.fillStyle = isAlarm ? "#ef4444" : (maxGuardSuspicion > 0.2 ? "#facc15" : "#e11d48");
-      ctx.fillRect(px + 1.5, py + 1.5, pipW - 3, pipH - 3);
-    }
-  }
-
-  // Covert / Mission Subtitle
-  ctx.fillStyle = isAlarm ? "#ef4444" : (maxGuardSuspicion > 0.2 ? "#facc15" : "#94a3b8");
-  ctx.font = "bold 11px 'JetBrains Mono', monospace";
-  const statusStr = isAlarm ? "ALARM // LOCKDOWN" : (maxGuardSuspicion > 0.2 ? "CAUTION // SEARCH" : "COVERT // ECHO #" + cloneIndex);
-  ctx.fillText(statusStr, hudX, hudY + 28);
-  ctx.fillStyle = "#64748b";
-  ctx.font = "10px 'JetBrains Mono', monospace";
-  ctx.fillText(level.title.toUpperCase(), hudX, hudY + 42);
-  ctx.restore();
-
-  // 2. TOP-CENTER: Minimalist Floating Chronometer Pill
-  const remaining = Math.max(0, maxLoopTime - loopTimer);
-  const pillW = 160, pillH = 34;
-  const pillX = viewW / 2 - pillW / 2, pillY = 18;
-
   ctx.save();
-  ctx.fillStyle = "rgba(8, 12, 20, 0.88)";
+  ctx.textBaseline = "middle";
+  ctx.textAlign = "left";
+  // panel plate
+  ctx.fillStyle = UI_COLORS.panel;
   ctx.beginPath();
-  ctx.roundRect(pillX, pillY, pillW, pillH, 17);
+  ctx.roundRect(hudX - 10, hudY - 12, 196, 76, 8);
   ctx.fill();
-
-  ctx.strokeStyle = remaining <= 3.0 ? "#ef4444" : "rgba(148, 163, 184, 0.35)";
+  ctx.strokeStyle = isAlarm ? UI_COLORS.red : UI_COLORS.line;
   ctx.lineWidth = 1.2;
   ctx.stroke();
 
-  // Clock Text
-  ctx.fillStyle = remaining <= 3.0 ? "#ef4444" : (remaining <= 5.0 ? "#facc15" : "#f8fafc");
-  ctx.font = "bold 14px 'JetBrains Mono', monospace";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(`00:0${remaining.toFixed(2)}s`, viewW / 2, pillY + pillH / 2);
+  // status dot + label
+  ctx.fillStyle = isAlarm ? UI_COLORS.red : (maxGuardSuspicion > 0.2 ? UI_COLORS.gold : UI_COLORS.green);
+  ctx.beginPath();
+  ctx.arc(hudX + 2, hudY + 2, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = isAlarm ? UI_COLORS.red : (maxGuardSuspicion > 0.2 ? UI_COLORS.gold : UI_COLORS.dim);
+  ctx.font = "bold 11px " + FONT_MONO;
+  const statusStr = isAlarm ? "ALARM // LOCKDOWN" : (maxGuardSuspicion > 0.2 ? "CAUTION // SEARCH" : "COVERT // ECHO #" + cloneIndex);
+  ctx.fillText(statusStr, hudX + 16, hudY + 2);
+
+  // stealth pips (preallocated loop, no closures)
+  const pipStartX = hudX, pipW = 30, pipH = 9, pipGap = 4;
+  for (let i = 0; i < totalPips; i++) {
+    const px = pipStartX + i * (pipW + pipGap);
+    const py = hudY + 14;
+    ctx.fillStyle = "rgba(15,23,42,0.9)";
+    ctx.fillRect(px, py, pipW, pipH);
+    if (i < filledPips) {
+      ctx.fillStyle = isAlarm ? UI_COLORS.red : (maxGuardSuspicion > 0.2 ? UI_COLORS.gold : UI_COLORS.cyan);
+      ctx.fillRect(px + 1, py + 1, pipW - 2, pipH - 2);
+    }
+  }
+  ctx.fillStyle = UI_COLORS.faint;
+  ctx.font = "10px " + FONT_MONO;
+  ctx.fillText((level.chapter || "").toUpperCase(), hudX, hudY + 40);
+  ctx.fillStyle = UI_COLORS.ink;
+  ctx.font = "bold 12px " + FONT_UI;
+  ctx.fillText(("LV" + level.id + " " + level.title).toUpperCase(), hudX, hudY + 52);
   ctx.restore();
 
-  // 3. TOP-RIGHT: Prototype Inventory Slots with Green Badges (Direct from Mockup)
+  // ---- 2. TOP-CENTER: loop timer bar + echo pips ----
+  const remaining = Math.max(0, maxLoopTime - loopTimer);
+  const frac = remaining / maxLoopTime;
+  const barW = 300, barH = 12;
+  const barX = viewW / 2 - barW / 2, barY = 52;
+
+  ctx.save();
+  ctx.fillStyle = UI_COLORS.panel;
+  ctx.beginPath();
+  ctx.roundRect(barX - 14, 12, barW + 28, 58, 12);
+  ctx.fill();
+  ctx.strokeStyle = remaining <= 3.0 ? UI_COLORS.red : UI_COLORS.line;
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+
+  ctx.fillStyle = remaining <= 3.0 ? UI_COLORS.red : (remaining <= 5.0 ? UI_COLORS.gold : UI_COLORS.ink);
+  ctx.font = "bold 16px " + FONT_MONO;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const mm = Math.floor(remaining / 60);
+  const ss = (remaining % 60).toFixed(2).padStart(5, "0");
+  ctx.fillText("00:" + mm + ss + "s", viewW / 2, 27);
+
+  // timer track
+  ctx.fillStyle = "rgba(15,23,42,0.95)";
+  ctx.beginPath();
+  ctx.roundRect(barX, barY, barW, barH, 6);
+  ctx.fill();
+  const barColor = remaining <= 3.0 ? UI_COLORS.red : (remaining <= 5.0 ? UI_COLORS.gold : UI_COLORS.cyan);
+  if (frac > 0) {
+    ctx.fillStyle = barColor;
+    ctx.beginPath();
+    ctx.roundRect(barX, barY, Math.max(8, barW * frac), barH, 6);
+    ctx.fill();
+  }
+  // 1s tick marks
+  ctx.fillStyle = "rgba(3,6,10,0.8)";
+  for (let s = 1; s < Math.round(maxLoopTime); s++) {
+    ctx.fillRect(barX + (barW * s / maxLoopTime) - 1, barY + 1, 2, barH - 2);
+  }
+
+  // echo pips: recorded echoes + live operative
+  const echoTotal = Math.max(1, cloneIndex);
+  const pipR = 5, pipGapY = 8;
+  const pipsW = echoTotal * (pipR * 2 + 4);
+  let pipX = viewW / 2 - pipsW / 2 + pipR + 2;
+  const pipY = barY + barH + pipGapY + pipR;
+  ctx.font = "bold 9px " + FONT_MONO;
+  for (let e = 1; e <= echoTotal; e++) {
+    const isLive = (e === cloneIndex);
+    ctx.fillStyle = isLive ? "#0b111e" : UI_COLORS.cyan;
+    ctx.beginPath();
+    ctx.arc(pipX, pipY, pipR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = isLive ? UI_COLORS.cyan : "rgba(56,189,248,0.35)";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    if (isLive) {
+      ctx.fillStyle = UI_COLORS.cyan;
+      ctx.fillText("YOU", pipX, pipY - pipR - 7);
+    }
+    pipX += pipR * 2 + 4;
+  }
+  ctx.restore();
+
+  // ---- 3. TOP-RIGHT: gadget ammo + objective tracker ----
   const slotSize = 46;
   const slotGap = 10;
   const totalSlots = 4;
   const slotsStartX = viewW - 24 - (totalSlots * slotSize + (totalSlots - 1) * slotGap);
   const slotsY = 18;
 
+  const echoCarrying = ghosts.some(g => g.carrying);
+  const lootSecured = player.hasLoot || echoCarrying;
+  const atExit = level.exit && player.x >= level.exit.x && player.x <= level.exit.x + level.exit.w && player.y >= level.exit.y && player.y <= level.exit.y + level.exit.h;
   const items = [
     {
       id: "dart",
-      label: "[F]",
-      count: player.empAmmo,
+      label: "[F] EMP",
+      count: String(player.empAmmo),
       active: player.empAmmo > 0,
       drawIcon: (cx, cy) => {
-        // Dagger / Dart Icon
-        ctx.strokeStyle = player.empAmmo > 0 ? "#38bdf8" : "#64748b";
+        ctx.strokeStyle = player.empAmmo > 0 ? UI_COLORS.cyan : UI_COLORS.faint;
         ctx.lineWidth = 2.5;
         ctx.beginPath();
         ctx.moveTo(cx - 8, cy + 8);
         ctx.lineTo(cx + 8, cy - 8);
         ctx.stroke();
-        ctx.fillStyle = player.empAmmo > 0 ? "#38bdf8" : "#64748b";
+        ctx.fillStyle = player.empAmmo > 0 ? UI_COLORS.cyan : UI_COLORS.faint;
         ctx.beginPath();
         ctx.arc(cx + 8, cy - 8, 3, 0, Math.PI * 2);
         ctx.fill();
@@ -3050,12 +3286,11 @@ function renderInGameHUD() {
     },
     {
       id: "coin",
-      label: "[Q]",
-      count: player.coinsAmmo,
+      label: "[Q] COIN",
+      count: String(player.coinsAmmo),
       active: player.coinsAmmo > 0,
       drawIcon: (cx, cy) => {
-        // Coin / Bag Icon
-        ctx.fillStyle = player.coinsAmmo > 0 ? "#facc15" : "#64748b";
+        ctx.fillStyle = player.coinsAmmo > 0 ? UI_COLORS.gold : UI_COLORS.faint;
         ctx.beginPath();
         ctx.arc(cx, cy, 7.5, 0, Math.PI * 2);
         ctx.fill();
@@ -3071,8 +3306,7 @@ function renderInGameHUD() {
       isTextBadge: true,
       active: player.isCrouching,
       drawIcon: (cx, cy) => {
-        // Sneak Mask / Footsteps Icon
-        ctx.fillStyle = player.isCrouching ? "#facc15" : "#64748b";
+        ctx.fillStyle = player.isCrouching ? UI_COLORS.gold : UI_COLORS.faint;
         ctx.beginPath();
         ctx.arc(cx, cy - 2, 6, 0, Math.PI * 2);
         ctx.fill();
@@ -3082,15 +3316,14 @@ function renderInGameHUD() {
     {
       id: "loot",
       label: "TARGET",
-      count: player.hasLoot ? "1" : "0",
-      active: player.hasLoot,
+      count: lootSecured ? "1/1" : "0/1",
+      active: lootSecured,
       drawIcon: (cx, cy) => {
-        // Loot Ruby / Gem Icon
-        ctx.fillStyle = player.hasLoot ? "#e11d48" : "#334155";
+        ctx.fillStyle = lootSecured ? UI_COLORS.pink : "#334155";
         ctx.beginPath();
         ctx.arc(cx, cy, 8, 0, Math.PI * 2);
         ctx.fill();
-        if (player.hasLoot) {
+        if (lootSecured) {
           ctx.fillStyle = "#fda4af";
           ctx.beginPath();
           ctx.arc(cx - 2, cy - 2, 2.5, 0, Math.PI * 2);
@@ -3105,7 +3338,6 @@ function renderInGameHUD() {
     const sy = slotsY;
 
     ctx.save();
-    // Dark slot background with border bevel
     ctx.fillStyle = "rgba(10, 15, 24, 0.88)";
     ctx.beginPath();
     ctx.roundRect(sx, sy, slotSize, slotSize, 6);
@@ -3115,11 +3347,9 @@ function renderInGameHUD() {
     ctx.lineWidth = 1.2;
     ctx.stroke();
 
-    // Icon in center
     item.drawIcon(sx + slotSize / 2, sy + slotSize / 2);
 
-    // Green Count Badge in bottom-right corner (Prototype match)
-    const badgeW = item.isTextBadge ? 24 : 14;
+    const badgeW = item.isTextBadge ? 30 : 22;
     const badgeH = 13;
     const bx = sx + slotSize - badgeW - 2;
     const by = sy + slotSize - badgeH - 2;
@@ -3130,45 +3360,102 @@ function renderInGameHUD() {
     ctx.fill();
 
     ctx.fillStyle = item.active ? "#86efac" : "#64748b";
-    ctx.font = "bold 9px 'JetBrains Mono', monospace";
+    ctx.font = "bold 9px " + FONT_MONO;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(item.count, bx + badgeW / 2, by + badgeH / 2);
+    ctx.fillText(String(item.count), bx + badgeW / 2, by + badgeH / 2);
 
-    // Hotkey label underneath
     ctx.fillStyle = "#94a3b8";
-    ctx.font = "bold 9px 'JetBrains Mono', monospace";
+    ctx.font = "bold 9px " + FONT_MONO;
     ctx.textAlign = "center";
     ctx.fillText(item.label, sx + slotSize / 2, sy + slotSize + 12);
 
     ctx.restore();
   });
 
-  // 4. BOTTOM ACTION HINT: Subtle, only appears when relevant
-  if (player.isCrouching) {
-    ctx.save();
-    ctx.fillStyle = "rgba(8, 12, 20, 0.85)";
-    ctx.beginPath();
-    ctx.roundRect(viewW / 2 - 80, viewH - 42, 160, 26, 13);
-    ctx.fill();
-    ctx.strokeStyle = "#facc15";
-    ctx.lineWidth = 1;
-    ctx.stroke();
+  // ---- 4. OBJECTIVE TRACKER (under gadgets): loot -> exit checklist ----
+  const objW = totalSlots * slotSize + (totalSlots - 1) * slotGap;
+  const objX = slotsStartX, objY = slotsY + slotSize + 28;
+  ctx.save();
+  ctx.fillStyle = UI_COLORS.panel;
+  ctx.beginPath();
+  ctx.roundRect(objX, objY, objW, 52, 8);
+  ctx.fill();
+  ctx.strokeStyle = lootSecured ? UI_COLORS.green : UI_COLORS.line;
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.font = "bold 10px " + FONT_MONO;
+  ctx.fillStyle = lootSecured ? UI_COLORS.green : UI_COLORS.gold;
+  ctx.fillText(lootSecured ? "[✓] LOOT SECURED" : "[ ] GRAB THE LOOT", objX + 10, objY + 14);
+  ctx.fillStyle = atExit ? UI_COLORS.green : UI_COLORS.dim;
+  const exitLabel = (level.exit && level.exit.label) || "EXIT";
+  ctx.fillText((lootSecured && atExit ? "[✓] " : "[ ] ") + "EXTRACT: " + exitLabel, objX + 10, objY + 32);
+  ctx.fillStyle = UI_COLORS.faint;
+  ctx.font = "9px " + FONT_MONO;
+  ctx.fillText("PAR " + level.parClones + " ECHO" + (level.parClones > 1 ? "S" : ""), objX + 10, objY + 45);
+  ctx.restore();
 
-    ctx.fillStyle = "#facc15";
-    ctx.font = "bold 11px 'JetBrains Mono', monospace";
+  // ---- 5. BRIEFING BANNER (first seconds of each level, canvas only) ----
+  if (briefingTimer > 0 && level.briefing) {
+    const alpha = Math.min(1, briefingTimer / 1.2);
+    const bw = Math.min(640, viewW - 60);
+    const bx = viewW / 2 - bw / 2, by = viewH - 108;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = UI_COLORS.panel;
+    ctx.beginPath();
+    ctx.roundRect(bx, by, bw, 62, 10);
+    ctx.fill();
+    ctx.strokeStyle = UI_COLORS.cyanDim;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText("SNEAKING [C]", viewW / 2, viewH - 29);
+    ctx.fillStyle = UI_COLORS.cyan;
+    ctx.font = "bold 10px " + FONT_MONO;
+    ctx.fillText("◈ MISSION BRIEF — LV" + level.id + " " + level.title.toUpperCase(), viewW / 2, by + 13);
+    ctx.fillStyle = UI_COLORS.ink;
+    ctx.font = "13px " + FONT_UI;
+    // word-wrap briefing to two lines max (allocation-free: fixed slices)
+    const msg = level.briefing;
+    let split = Math.floor(msg.length / 2);
+    const sp = msg.lastIndexOf(" ", 60);
+    if (sp > 20) split = sp;
+    ctx.fillText(msg.slice(0, split), viewW / 2, by + 32);
+    if (msg.length > split) ctx.fillText(msg.slice(split + 1, split + 95), viewW / 2, by + 48);
+    ctx.restore();
+  }
+
+  // ---- 6. BOTTOM ACTION HINTS: sneak + pause/help, only when relevant ----
+  let hintText = null;
+  if (player.isCrouching) hintText = "SNEAKING [C] — SLOW + QUIET";
+  else if (loopTimer < 2.5 && briefingTimer <= 0) hintText = "[R] REWIND • [TAB] RECON • [ESC] PAUSE";
+  if (hintText) {
+    ctx.save();
+    ctx.fillStyle = "rgba(8, 12, 20, 0.85)";
+    const hw = hintText.length * 7.2 + 28;
+    ctx.beginPath();
+    ctx.roundRect(viewW / 2 - hw / 2, viewH - 42, hw, 26, 13);
+    ctx.fill();
+    ctx.strokeStyle = player.isCrouching ? UI_COLORS.gold : UI_COLORS.line;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = player.isCrouching ? UI_COLORS.gold : UI_COLORS.dim;
+    ctx.font = "bold 11px " + FONT_MONO;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(hintText, viewW / 2, viewH - 29);
     ctx.restore();
   }
 }
 
-// Diegetic Mini-Radar (Neatly nestled under inventory in top-right)
+// Diegetic Mini-Radar (nestled under objective tracker in top-right)
 function renderMiniRadar() {
   const radarW = 125, radarH = 105;
   const radarX = viewW - radarW - 24;
-  const radarY = 86;
+  const radarY = 196;
 
   ctx.save();
   ctx.fillStyle = "rgba(7, 11, 18, 0.80)";
@@ -3224,60 +3511,156 @@ function setGameState(state) {
 function renderUI() {
   uiLayer.innerHTML = "";
 
+  // Trick taught per level (UI-only map, keyed by level id — LEVELS schema untouched)
+  const LEVEL_TRICKS = {
+    1: "TRICK: ECHO HOLDS THE PLATE",
+    2: "TRICK: TWIN-PLATE SYNC + VENT",
+    3: "TRICK: CAMERA TIMING + EMP",
+    4: "TRICK: TERMINAL VS PLATE ROUTES",
+    5: "TRICK: COIN LURE + ECHO BAIT",
+    6: "TRICK: 3-ECHO HEIST CHAIN",
+    7: "TRICK: BREAKER BLACKOUT WINDOW",
+    8: "TRICK: EVERYTHING, AT ONCE"
+  };
+  const CHAPTER_JUMPS = [
+    { name: "I · BANK", idx: 0, color: "#38bdf8" },
+    { name: "II · MUSEUM", idx: 2, color: "#facc15" },
+    { name: "III · SECTOR 7", idx: 4, color: "#4ade80" },
+    { name: "IV · SKYRIDGE", idx: 6, color: "#f43f5e" }
+  ];
+  const totalStars = LEVELS.reduce((s, l) => s + (levelStars[l.id] || 0), 0);
+
   if (gameState === "MENU") {
     uiLayer.innerHTML = `
-      <div style="position:absolute;inset:0;background:radial-gradient(circle at center, #0e1726 0%, #03060a 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#f8fafc;">
-        <div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:6px;color:#38bdf8;font-weight:700;margin-bottom:8px;">TACTICAL ESPIONAGE ENGINE</div>
-        <h1 style="font-size:62px;font-weight:900;letter-spacing:3px;margin:0 0 6px 0;text-shadow:0 8px 36px rgba(56,189,248,0.35);">CHRONO HEIST</h1>
-        <div style="background:rgba(56, 189, 248, 0.12);border:1px solid #0284c7;color:#38bdf8;padding:6px 24px;border-radius:24px;font-size:13px;font-weight:700;margin-bottom:24px;font-family:'JetBrains Mono',monospace;">
+      <style>
+        @keyframes chTitleGlow { 0%,100% { text-shadow:0 0 24px rgba(56,189,248,0.55),0 8px 36px rgba(56,189,248,0.3);} 50% { text-shadow:0 0 44px rgba(56,189,248,0.9),0 8px 44px rgba(244,114,182,0.35);} }
+        @keyframes chBgDrift { 0% { background-position:20% 30%,80% 70%,50% 50%; } 50% { background-position:80% 20%,20% 80%,50% 60%; } 100% { background-position:20% 30%,80% 70%,50% 50%; } }
+        @keyframes chShimmer { 0% { background-position:-200% center; } 100% { background-position:200% center; } }
+        .ch-menu-bg { position:absolute;inset:0;background:
+          radial-gradient(circle at 20% 30%, rgba(2,132,199,0.22) 0%, transparent 45%),
+          radial-gradient(circle at 80% 70%, rgba(244,63,94,0.14) 0%, transparent 45%),
+          radial-gradient(circle at 50% 50%, #0e1726 0%, #03060a 70%);
+          background-size:200% 200%,200% 200%,100% 100%; animation:chBgDrift 14s ease-in-out infinite; }
+        .ch-logo { animation:chTitleGlow 3.2s ease-in-out infinite; }
+        .ch-shimmer { background:linear-gradient(110deg,#f8fafc 30%,#38bdf8 45%,#f472b6 55%,#f8fafc 70%);background-size:200% auto;-webkit-background-clip:text;background-clip:text;color:transparent;animation:chShimmer 5s linear infinite; }
+        .ch-btn-main { transition:transform 0.12s, box-shadow 0.12s; }
+        .ch-btn-main:hover { transform:translateY(-2px); box-shadow:0 10px 34px rgba(2,132,199,0.65); }
+        .ch-chip { transition:border-color 0.12s, transform 0.12s; }
+        .ch-chip:hover { transform:translateY(-2px); }
+      </style>
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#f8fafc;overflow-y:auto;padding:20px;">
+        <div class="ch-menu-bg"></div>
+        <div style="position:relative;display:flex;flex-direction:column;align-items:center;max-width:860px;width:100%;">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:6px;color:#38bdf8;font-weight:700;margin-bottom:8px;">◈ TACTICAL ESPIONAGE ENGINE ◈</div>
+        <h1 class="ch-logo" style="font-size:64px;font-weight:900;letter-spacing:4px;margin:0;line-height:1;"><span class="ch-shimmer">CHRONO HEIST</span></h1>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:4px;color:#facc15;font-weight:700;margin:8px 0 12px 0;">— MASTER EDITION —</div>
+        <div style="background:rgba(56,189,248,0.12);border:1px solid #0284c7;color:#38bdf8;padding:6px 24px;border-radius:24px;font-size:13px;font-weight:700;margin-bottom:10px;font-family:'JetBrains Mono',monospace;">
           8 CLASSIFIED HEISTS • 4 CHAPTERS • 10s TIME-LOOPS
         </div>
-        <p style="color:#94a3b8;font-size:16px;max-width:560px;text-align:center;line-height:1.6;margin-bottom:32px;">
-          Infiltrate commercial vaults and sky-penthouse casinos by synchronizing with recorded temporal echoes of yourself.
+        <div style="font-family:'JetBrains Mono',monospace;font-size:13px;color:#facc15;letter-spacing:2px;margin-bottom:14px;">★ ${totalStars} / ${LEVELS.length * 3} ECHO STARS COLLECTED ★</div>
+        <p style="color:#94a3b8;font-size:15px;max-width:560px;text-align:center;line-height:1.55;margin:0 0 22px 0;">
+          Infiltrate vaults and sky-penthouse casinos by synchronizing with recorded temporal echoes of yourself. Every 10 seconds the loop rewinds — your past selves replay, and the perfect crew emerges.
         </p>
-        <button id="btn-play" class="interactive" style="background:#0284c7;color:#fff;border:none;padding:16px 56px;font-size:20px;font-weight:800;border-radius:8px;cursor:pointer;box-shadow:0 6px 28px rgba(2,132,199,0.5);letter-spacing:1px;">
-          START OPERATION
-        </button>
-        <button id="btn-levels" class="interactive" style="background:transparent;color:#94a3b8;border:1px solid #334155;padding:12px 40px;font-size:14px;font-weight:700;border-radius:8px;cursor:pointer;margin-top:14px;font-family:'JetBrains Mono',monospace;">
-          MISSION DOSSIERS
-        </button>
-        <div style="margin-top:38px;display:flex;flex-wrap:wrap;justify-content:center;gap:22px;color:#64748b;font-size:13px;max-width:820px;font-family:'JetBrains Mono',monospace;">
-          <div><strong style="color:#38bdf8;">WASD / Arrows:</strong> Move & Aim</div>
-          <div><strong style="color:#cbd5e1;">[E] / [Space]:</strong> Hack / Vents / Breakers</div>
-          <div><strong style="color:#cbd5e1;">[C]:</strong> Sneak Mode</div>
-          <div><strong style="color:#cbd5e1;">[F]:</strong> Fire EMP Dart Forward</div>
-          <div><strong style="color:#cbd5e1;">[Q]:</strong> Throw Coin Forward</div>
-          <div><strong style="color:#cbd5e1;">[TAB]:</strong> Tactical Recon</div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-bottom:18px;">
+          <button id="btn-play" class="interactive ch-btn-main" style="background:#0284c7;color:#fff;border:none;padding:15px 46px;font-size:19px;font-weight:800;border-radius:8px;cursor:pointer;box-shadow:0 6px 28px rgba(2,132,199,0.5);letter-spacing:1px;font-family:'Rajdhani',sans-serif;">
+            ▶ START OPERATION
+          </button>
+          <button id="btn-levels" class="interactive" style="background:transparent;color:#94a3b8;border:1px solid #334155;padding:15px 34px;font-size:14px;font-weight:700;border-radius:8px;cursor:pointer;font-family:'JetBrains Mono',monospace;">
+            MISSION DOSSIERS
+          </button>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:3px;color:#64748b;margin-bottom:8px;">— JUMP TO CHAPTER —</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:20px;">
+          ${CHAPTER_JUMPS.map(c => `<button class="interactive ch-chip" data-ch="${c.idx}" style="background:rgba(11,17,30,0.9);border:1px solid ${c.color};color:${c.color};padding:9px 18px;font-size:12px;font-weight:800;border-radius:20px;cursor:pointer;font-family:'JetBrains Mono',monospace;">${c.name}</button>`).join("")}
+        </div>
+        <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:18px;color:#64748b;font-size:12px;max-width:820px;font-family:'JetBrains Mono',monospace;">
+          <div><strong style="color:#38bdf8;">WASD:</strong> Move</div>
+          <div><strong style="color:#cbd5e1;">[E]:</strong> Hack/Vent</div>
           <div><strong style="color:#cbd5e1;">[R]:</strong> Rewind</div>
+          <div><strong style="color:#cbd5e1;">[F]/[Q]:</strong> EMP/Coin</div>
+          <div><strong style="color:#cbd5e1;">[C]:</strong> Sneak</div>
+          <div><strong style="color:#cbd5e1;">[TAB]:</strong> Recon</div>
+          <div><strong style="color:#cbd5e1;">[ESC]:</strong> Pause</div>
+        </div>
         </div>
       </div>
     `;
     document.getElementById('btn-play').onclick = () => loadLevel(0);
     document.getElementById('btn-levels').onclick = () => setGameState("LEVEL_SELECT");
+    document.querySelectorAll('[data-ch]').forEach(b => {
+      b.onclick = () => loadLevel(parseInt(b.dataset.ch, 10));
+    });
+  } else if (gameState === "PLAYING" && (paused || helpVisible)) {
+    const isHelp = helpVisible && !paused;
+    uiLayer.innerHTML = `
+      <div style="position:absolute;inset:0;background:rgba(3,6,10,0.82);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#f8fafc;padding:20px;">
+        <div style="background:#0b111e;border:1px solid #38bdf8;border-radius:14px;padding:30px 34px;max-width:560px;width:92%;box-shadow:0 16px 54px rgba(0,0,0,0.75);">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:4px;color:#38bdf8;font-weight:800;margin-bottom:6px;">${isHelp ? "FIELD MANUAL" : "⏸ OPERATION PAUSED"}</div>
+          <h2 style="font-size:30px;font-weight:900;margin:0 0 4px 0;">${isHelp ? "HOW TO HEIST" : ("LV" + level.id + " · " + level.title)}</h2>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#facc15;letter-spacing:1px;margin-bottom:16px;">${LEVEL_TRICKS[level.id] || ""} · ${ghosts.length} ECHO${ghosts.length === 1 ? "" : "S"} BANKED</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;font-family:'JetBrains Mono',monospace;font-size:13px;color:#cbd5e1;margin-bottom:20px;">
+            <div><strong style="color:#38bdf8;">WASD / ←↑↓→</strong> — move</div>
+            <div><strong style="color:#38bdf8;">[E] / [Space]</strong> — hack · vent · breaker</div>
+            <div><strong style="color:#38bdf8;">[R]</strong> — rewind loop</div>
+            <div><strong style="color:#38bdf8;">[F] / [Q]</strong> — EMP dart / coin lure</div>
+            <div><strong style="color:#38bdf8;">[C]</strong> — sneak (slow + quiet)</div>
+            <div><strong style="color:#38bdf8;">[TAB]</strong> — recon vision</div>
+            <div><strong style="color:#38bdf8;">[ESC] / [P]</strong> — pause</div>
+            <div><strong style="color:#38bdf8;">[N]</strong> — restart level</div>
+          </div>
+          <div style="background:#03060a;border-radius:8px;padding:12px 14px;font-size:13px;color:#94a3b8;line-height:1.55;margin-bottom:20px;">
+            <strong style="color:#4ade80;">ECHO RULES:</strong> every rewind records you. Echoes hold plates, hack terminals and trip breakers — but must physically touch loot to carry it. Only the <strong style="color:#f8fafc;">live YOU</strong> can extract at the exit.
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
+            ${paused ? `<button id="btn-resume" class="interactive" style="background:#0284c7;color:#fff;border:none;padding:12px 30px;font-size:14px;font-weight:800;border-radius:6px;cursor:pointer;font-family:'JetBrains Mono',monospace;">▶ RESUME</button>` : ""}
+            <button id="btn-restart2" class="interactive" style="background:#1e293b;color:#fff;border:none;padding:12px 24px;font-size:13px;font-weight:700;border-radius:6px;cursor:pointer;font-family:'JetBrains Mono',monospace;">↻ RESTART [N]</button>
+            <button id="btn-quit2" class="interactive" style="background:transparent;color:#94a3b8;border:1px solid #334155;padding:12px 24px;font-size:13px;font-weight:700;border-radius:6px;cursor:pointer;font-family:'JetBrains Mono',monospace;">DOSSIERS</button>
+          </div>
+        </div>
+      </div>
+    `;
+    const br = document.getElementById('btn-resume');
+    if (br) br.onclick = () => { paused = false; helpVisible = false; renderUI(); };
+    document.getElementById('btn-restart2').onclick = () => loadLevel(currentLevelIdx);
+    document.getElementById('btn-quit2').onclick = () => { paused = false; helpVisible = false; reportGameplayStop(); setGameState("LEVEL_SELECT"); };
   } else if (gameState === "LEVEL_SELECT") {
-    const chapterThumbs = {
-      bank: "thumb_bank.jpg",
-      museum: "thumb_museum.jpg",
-      lab: "thumb_lab.jpg",
-      penthouse: "thumb_penthouse.jpg"
-    };
+    const chapterMeta = [
+      { key: "CHAPTER 1", name: "CHAPTER I — THE BANK", color: "#38bdf8", img: "thumb_bank.jpg" },
+      { key: "CHAPTER 2", name: "CHAPTER II — THE MUSEUM", color: "#facc15", img: "thumb_museum.jpg" },
+      { key: "CHAPTER 3", name: "CHAPTER III — SECTOR 7", color: "#4ade80", img: "thumb_lab.jpg" },
+      { key: "CHAPTER 4", name: "CHAPTER IV — SKYRIDGE", color: "#f43f5e", img: "thumb_penthouse.jpg" }
+    ];
 
     let cardsHtml = "";
     LEVELS.forEach((lvl, i) => {
       const stars = levelStars[lvl.id] || 0;
       const starStr = "★".repeat(stars) + "☆".repeat(3 - stars);
-      const thumbImg = chapterThumbs[lvl.theme] || "thumb_bank.jpg";
+      const meta = chapterMeta.find(c => (lvl.chapter || "").indexOf(c.key) === 0) || chapterMeta[0];
+      const isHeader = i === 0 || LEVELS[i - 1].chapter !== lvl.chapter;
+      if (isHeader) {
+        const chStars = LEVELS.filter(l => l.chapter === lvl.chapter).reduce((s, l) => s + (levelStars[l.id] || 0), 0);
+        cardsHtml += `
+          <div style="grid-column:1/-1;display:flex;align-items:center;gap:12px;margin:${i === 0 ? "0" : "14px"} 0 2px 0;">
+            <div style="width:4px;height:26px;background:${meta.color};border-radius:2px;box-shadow:0 0 12px ${meta.color};"></div>
+            <div style="font-size:19px;font-weight:900;letter-spacing:2px;color:#f8fafc;">${meta.name}</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${meta.color};">★ ${chStars}/6</div>
+            <div style="flex:1;height:1px;background:#1e293b;"></div>
+          </div>`;
+      }
+      const locked = i > 0 && !(levelStars[LEVELS[i - 1].id] > 0);
       cardsHtml += `
-        <div class="interactive level-card" data-idx="${i}" style="background:#0b111e;border:1px solid #1e293b;border-radius:10px;overflow:hidden;cursor:pointer;transition:transform 0.15s, border-color 0.15s;display:flex;flex-direction:column;">
-          <div style="width:100%;height:110px;background:url('${thumbImg}') center/cover no-repeat;border-bottom:1px solid rgba(148,163,184,0.2);position:relative;">
+        <div class="interactive level-card" data-idx="${i}" style="background:#0b111e;border:1px solid ${stars === 3 ? "#facc15" : "#1e293b"};border-radius:10px;overflow:hidden;cursor:${locked ? "not-allowed" : "pointer"};opacity:${locked ? "0.55" : "1"};transition:transform 0.15s, border-color 0.15s;display:flex;flex-direction:column;">
+          <div style="width:100%;height:96px;background:url('${meta.img}') center/cover no-repeat;border-bottom:1px solid rgba(148,163,184,0.2);position:relative;">
             <div style="position:absolute;inset:0;background:linear-gradient(to top, #0b111e 0%, transparent 80%);"></div>
-            <div style="position:absolute;top:8px;left:8px;background:rgba(3,6,10,0.8);border:1px solid #38bdf8;padding:2px 8px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:10px;color:#38bdf8;font-weight:700;">
-              ${lvl.chapter}
+            <div style="position:absolute;top:8px;left:8px;background:rgba(3,6,10,0.8);border:1px solid ${meta.color};padding:2px 8px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:10px;color:${meta.color};font-weight:700;">
+              LV${lvl.id} · ${locked ? "🔒 CLEAR LV" + LEVELS[i - 1].id + " TO UNLOCK" : lvl.chapter}
             </div>
+            ${stars === 3 ? `<div style="position:absolute;top:8px;right:8px;background:rgba(250,204,21,0.15);border:1px solid #facc15;padding:2px 8px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:10px;color:#facc15;font-weight:800;">PERFECT</div>` : ""}
           </div>
           <div style="padding:14px;">
-            <div style="font-size:17px;font-weight:800;color:#f8fafc;margin-bottom:4px;">${lvl.title}</div>
-            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#94a3b8;margin-bottom:8px;">Par: ${lvl.parClones} Echoes • 10s Timer</div>
+            <div style="font-size:17px;font-weight:800;color:#f8fafc;margin-bottom:2px;">${lvl.title}</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:${meta.color};letter-spacing:1px;margin-bottom:6px;">${LEVEL_TRICKS[lvl.id] || ""}</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#94a3b8;margin-bottom:8px;">Par ${lvl.parClones} echoes • 10s loop • ${(lvl.loot && lvl.loot.name) || "Vault"}</div>
             <div style="font-size:16px;color:#facc15;letter-spacing:2px;">${starStr}</div>
           </div>
         </div>
@@ -3286,8 +3669,9 @@ function renderUI() {
 
     uiLayer.innerHTML = `
       <div style="position:absolute;inset:0;background:#03060a;display:flex;flex-direction:column;align-items:center;padding:36px 20px;color:#f8fafc;overflow-y:auto;">
-        <h2 style="font-size:36px;font-weight:900;letter-spacing:2px;margin-bottom:6px;">MISSION DOSSIERS</h2>
-        <p style="font-family:'JetBrains Mono',monospace;color:#94a3b8;font-size:13px;margin-bottom:24px;">8 Classified Operations Across 4 Security Sectors</p>
+        <h2 style="font-size:36px;font-weight:900;letter-spacing:2px;margin:0 0 6px 0;">MISSION DOSSIERS</h2>
+        <p style="font-family:'JetBrains Mono',monospace;color:#94a3b8;font-size:13px;margin:0 0 4px 0;">8 CLASSIFIED OPERATIONS • ★ ${totalStars}/${LEVELS.length * 3} ECHO STARS</p>
+        <p style="font-family:'JetBrains Mono',monospace;color:#64748b;font-size:11px;margin:0 0 20px 0;">EACH HEIST TEACHES ONE NEW TRICK — CLEAR A LEVEL TO UNLOCK THE NEXT</p>
         <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(250px, 1fr));gap:18px;width:100%;max-width:960px;margin-bottom:28px;">
           ${cardsHtml}
         </div>
@@ -3298,7 +3682,11 @@ function renderUI() {
     `;
 
     document.querySelectorAll('.level-card').forEach(card => {
-      card.onclick = () => loadLevel(parseInt(card.dataset.idx, 10));
+      card.onclick = () => {
+        const idx = parseInt(card.dataset.idx, 10);
+        if (idx > 0 && !(levelStars[LEVELS[idx - 1].id] > 0)) return; // soft-gated progression
+        loadLevel(idx);
+      };
     });
     document.getElementById('btn-back').onclick = () => setGameState("MENU");
   } else if (gameState === "VICTORY") {
@@ -3308,13 +3696,16 @@ function renderUI() {
     const totalStars = (star1 ? 1 : 0) + (star2 ? 1 : 0) + (star3 ? 1 : 0);
     const starStr = "★".repeat(totalStars) + "☆".repeat(3 - totalStars);
     const hasNext = currentLevelIdx + 1 < LEVELS.length;
+    const nextTrick = hasNext ? (LEVEL_TRICKS[LEVELS[currentLevelIdx + 1].id] || "") : "";
+    const newBest = totalStars >= (levelStars[level.id] || 0) && totalStars > 0;
 
     uiLayer.innerHTML = `
-      <div style="position:absolute;inset:0;background:rgba(3, 6, 10, 0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#f8fafc;">
-        <div style="background:#0b111e;border:1px solid #38bdf8;border-radius:14px;padding:36px;max-width:500px;width:90%;text-align:center;box-shadow:0 16px 54px rgba(0,0,0,0.75);">
-          <div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:3px;color:#4ade80;font-weight:800;margin-bottom:6px;">OPERATION SUCCESSFUL</div>
-          <h2 style="font-size:36px;font-weight:900;margin:0 0 8px 0;">LOOT EXTRACTED!</h2>
-          <div style="font-size:46px;color:#facc15;letter-spacing:6px;margin-bottom:18px;">${starStr}</div>
+      <div style="position:absolute;inset:0;background:rgba(3, 6, 10, 0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#f8fafc;padding:16px;">
+        <div style="background:#0b111e;border:1px solid ${totalStars === 3 ? "#facc15" : "#38bdf8"};border-radius:14px;padding:32px;max-width:520px;width:92%;text-align:center;box-shadow:0 16px 54px rgba(0,0,0,0.75);">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:3px;color:#4ade80;font-weight:800;margin-bottom:6px;">OPERATION SUCCESSFUL — LV${level.id} ${level.title.toUpperCase()}</div>
+          <h2 style="font-size:34px;font-weight:900;margin:0 0 4px 0;">${totalStars === 3 ? "FLAWLESS HEIST!" : "LOOT EXTRACTED!"}</h2>
+          ${newBest ? `<div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#38bdf8;letter-spacing:2px;margin-bottom:6px;">◈ NEW BEST ◈</div>` : ""}
+          <div style="font-size:46px;color:#facc15;letter-spacing:6px;margin-bottom:14px;">${starStr}</div>
 
           <div style="background:#03060a;border-radius:8px;padding:16px;text-align:left;margin-bottom:24px;display:flex;flex-direction:column;gap:10px;font-size:14px;font-family:'JetBrains Mono',monospace;">
             <div style="display:flex;align-items:center;justify-content:space-between;">
@@ -3345,6 +3736,8 @@ function renderUI() {
               </button>
             `}
           </div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#64748b;margin-top:14px;">⏱ ${levelStats.timeTaken.toFixed(1)}s HEIST TIME • ${ghosts.length} ECHO${ghosts.length === 1 ? "" : "S"} BANKED</div>
+          ${hasNext ? `<div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#facc15;letter-spacing:1px;margin-top:6px;">NEXT: LV${LEVELS[currentLevelIdx + 1].id} ${LEVELS[currentLevelIdx + 1].title.toUpperCase()} — ${nextTrick}</div>` : `<div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#facc15;margin-top:8px;">★ ${LEVELS.reduce((s, l) => s + (levelStars[l.id] || 0), 0)}/${LEVELS.length * 3} ECHO STARS — MASTER THIEF STATUS ★</div>`}
         </div>
       </div>
     `;
