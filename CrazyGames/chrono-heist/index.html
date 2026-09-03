@@ -50,12 +50,19 @@
 <script>
 "use strict";
 
-// Global crash detector
+// Global crash detector — ignores cross-origin "Script error / Line 0" noise
+// (CrazyGames SDK loads without CORS headers, so its internal errors report
+// as line 0; showing those blocks play with a false alarm).
 window.addEventListener('error', (e) => {
-  console.error("RUNTIME CRASH:", e.message, e.filename, e.lineno);
+  const msg = String((e && e.message) || "");
+  const file = String((e && e.filename) || "");
+  const line = (e && e.lineno) || 0;
+  const isSdkNoise = /crazygames|sdk/i.test(file) || msg === "Script error." || msg === "Script error" || (line === 0 && !/chrono|index\.html/i.test(file));
+  if (isSdkNoise) { console.warn("Ignored third-party script noise:", msg, file); return; }
+  console.error("RUNTIME CRASH:", msg, file, line);
   const errDiv = document.createElement('div');
   errDiv.style.cssText = "position:fixed;top:12px;left:12px;background:#ef4444;color:white;padding:12px 18px;border-radius:6px;font-family:monospace;font-size:13px;z-index:999999;box-shadow:0 4px 20px rgba(0,0,0,0.8);";
-  errDiv.innerText = "Error: " + e.message + " (Line " + e.lineno + ")";
+  errDiv.innerText = "Error: " + msg + " (Line " + line + ")";
   document.body.appendChild(errDiv);
 });
 
@@ -3430,7 +3437,11 @@ function renderInGameHUD() {
 
   // ---- 6. BOTTOM ACTION HINTS: sneak + pause/help, only when relevant ----
   let hintText = null;
+  const anyPlateHeld = level.switches && level.switches.some(s => s.type === "plate" && s.active);
+  const anyDoorOpen = level.doors && level.doors.some(d => d.openProgress > 0.3);
   if (player.isCrouching) hintText = "SNEAKING [C] — SLOW + QUIET";
+  else if (ghosts.length === 0 && (anyPlateHeld || anyDoorOpen)) hintText = "DOOR OPEN — PRESS [R] TO BANK YOUR ECHO, THEN RUN THROUGH!";
+  else if (ghosts.length === 0 && currentLevelIdx === 0) hintText = "STAND ON THE PLATE, THEN PRESS [R] TO BANK YOUR ECHO";
   else if (loopTimer < 2.5 && briefingTimer <= 0) hintText = "[R] REWIND • [TAB] RECON • [ESC] PAUSE";
   if (hintText) {
     ctx.save();
