@@ -29,13 +29,14 @@ const TAU=Math.PI*2;
 let W=0,H=0,DPR=1,vignette=null;
 const lowQuality=(navigator.hardwareConcurrency||4)<=4||window.devicePixelRatio>1.5;
 const shadowMul=lowQuality?0:1;
-const buttons={left:{x:84,y:0,r:40},right:{x:186,y:0,r:40},jump:{x:0,y:0,r:52},hide:{x:0,y:0,r:36}};
+const buttons={left:{x:84,y:0,r:40},right:{x:186,y:0,r:40},jump:{x:0,y:0,r:52},hide:{x:0,y:0,r:36},dash:{x:0,y:0,r:30}};
 function layoutButtons(){
   const safe=touch.isTouch?24:0;
   buttons.left.x=84;buttons.left.y=H-84-safe;
   buttons.right.x=188;buttons.right.y=H-84-safe;
   buttons.jump.x=W-92;buttons.jump.y=H-90-safe;
   buttons.hide.x=W-206;buttons.hide.y=H-74-safe;
+  buttons.dash.x=W-178;buttons.dash.y=H-178-safe;
 }
 function resize(){
   DPR=Math.min(window.devicePixelRatio||1,2);
@@ -129,6 +130,7 @@ const Snd={
   orb(){this.tone({type:'sine',f:880,f2:1400,dur:0.12,vol:0.1});},
   hide(){this.hiss({f:1400,f2:300,dur:0.18,vol:0.12});},
   unhide(){this.hiss({f:300,f2:1400,dur:0.15,vol:0.12});},
+  dash(){this.hiss({f:1800,f2:400,dur:0.22,vol:0.16});this.tone({type:'sawtooth',f:300,f2:900,dur:0.12,vol:0.06,lp:2000});},
   alert(){this.tone({type:'sawtooth',f:220,f2:150,dur:0.18,vol:0.14,lp:700});},
   alarm(){for(let i=0;i<3;i++){this.tone({type:'square',f:660,dur:0.09,vol:0.1,at:i*0.22,lp:1200});this.tone({type:'square',f:880,dur:0.09,vol:0.1,at:i*0.22+0.11,lp:1200});}},
   spotted(){this.tone({type:'square',f:980,f2:700,dur:0.22,vol:0.12,lp:1400});this.tone({type:'sine',f:1400,f2:900,dur:0.22,vol:0.06});},
@@ -808,7 +810,7 @@ let trapSpikes=[];
 let parts=[],texts=[];
 
 const keys={left:false,right:false};
-const btn={left:false,right:false,jump:false};
+const btn={left:false,right:false,jump:false,dash:false};
 const touch={isTouch:false};
 const activeTouches=new Map();
 if(window.matchMedia&&window.matchMedia('(pointer: coarse)').matches)touch.isTouch=true;
@@ -1754,9 +1756,24 @@ class Player{
     this.runPhase=0;this.deform=0;this.dustT=0;this.stepT=0;
     this.hidden=false;this.hideCrate=null;this.dead=false;
     this.facing=1;this.slow=false;this.standPlat=null;
+    this.dashT=0;this.dashCd=0;this.dashDir=1;
   }
   requestJump(){this.buffer=0.13;}
-  cutJump(){if(!this.hidden&&this.vy<0)this.vy*=0.5;}
+  cutJump(){if(!this.hidden&&this.vy<0&&this.dashT<=0)this.vy*=0.5;}
+  tryDash(){
+    if(state!=='play'||this.dead||this.hidden||this.dashT>0||this.dashCd>0)return false;
+    let dir=(keys.right||btn.right?1:0)-(keys.left||btn.left?1:0);
+    if(dir===0)dir=this.facing||1;
+    this.dashDir=dir;this.facing=dir;
+    this.dashT=0.18;this.dashCd=1.2;
+    this.vy=0;
+    Snd.dash();
+    burstDust(this.x+this.w/2,this.y+this.h/2,10);
+    if(settings.particles)parts.push(new Particle({type:'ring',x:this.x+this.w/2,y:this.y+this.h/2,
+      color:'rgba(255,215,120,0.9)',life:0.3,vr:420}));
+    texts.push(new FloatText(this.x+this.w/2,this.y-30,'DASH!','#ffd76a'));
+    return true;
+  }
   doJump(){
     const first=this.onGround||this.coyote>0;
     this.vy=first?-730:-680;
@@ -1771,8 +1788,35 @@ class Player{
   }
   update(dt){
     if(this.hidden){this.deform*=Math.pow(0.002,dt);return;}
+    if(this.dashCd>0)this.dashCd-=dt;
     const left=keys.left||btn.left,right=keys.right||btn.right;
     const dir=(right?1:0)-(left?1:0);
+    if(this.dashT>0){
+      // dash burst: fixed horizontal speed, gravity suspended, double-jump preserved
+      this.dashT-=dt;
+      this.vx=this.dashDir*560;
+      this.vy=0;
+      if(this.vx>10)this.facing=1;
+      else if(this.vx<-10)this.facing=-1;
+      this.deform=0.22;
+      if(settings.particles)parts.push(new Particle({
+        x:this.x+this.w/2-rand(-8,8),y:this.y+rand(6,this.h-6),
+        vx:-this.dashDir*rand(60,160),vy:rand(-30,30),
+        size:rand(3,6),life:rand(0.2,0.35),color:'#ffd76a',grav:0}));
+      this.x+=this.vx*dt;
+      for(const p of plats){
+        if(!platSolid(p))continue;
+        if(this.x<p.x+p.w&&this.x+this.w>p.x&&this.y<p.y+p.h&&this.y+this.h>p.y){
+          if(this.vx>0)this.x=p.x-this.w;
+          else if(this.vx<0)this.x=p.x+p.w;
+        }
+      }
+      this.x=clamp(this.x,0,L.w-this.w);
+      // vertical pass keeps player out of floors during dash
+      this.y+=this.vy*dt;
+      this.buffer-=dt;
+      return;
+    }
     const spd=300*(this.slow?0.45:1);
     this.vx=dir*spd;
     if(this.vx>10)this.facing=1;
@@ -2141,6 +2185,7 @@ window.addEventListener('keydown',e=>{
   if(c==='KeyD'||c==='ArrowRight'){keys.right=true;if(onboardT>0)onboardT=Math.min(onboardT,2);}
   if(c==='KeyW'||c==='ArrowUp'||c==='Space')pressJumpAction();
   if((c==='KeyS'||c==='ArrowDown')&&state==='play')toggleHide();
+  if(c==='ShiftLeft'||c==='ShiftRight'||c==='KeyF'){if(state==='play')player.tryDash();}
   if(c==='Space'||c==='ArrowUp'||c==='ArrowDown')e.preventDefault();
 });
 window.addEventListener('keyup',e=>{
@@ -2174,7 +2219,7 @@ function handlePointerDown(x,y){
   return false;
 }
 function hitButton(x,y){
-  const defs=[['hide',buttons.hide],['jump',buttons.jump],['left',buttons.left],['right',buttons.right]];
+  const defs=[['hide',buttons.hide],['jump',buttons.jump],['dash',buttons.dash],['left',buttons.left],['right',buttons.right]];
   for(const pair of defs){
     const b=pair[1];
     if(Math.hypot(x-b.x,y-b.y)<b.r+16)return pair[0];
@@ -2202,6 +2247,7 @@ canvas.addEventListener('touchstart',e=>{
     activeTouches.set(t.identifier,b);
     if(b==='jump')pressJumpAction();
     else if(b==='hide')toggleHide();
+    else if(b==='dash'){if(state==='play')player.tryDash();}
     else if(!b&&state!=='play')pressJumpAction();
   }
   recalcBtn();
@@ -2734,7 +2780,7 @@ function drawOnboarding(){
   ctx.save();
   ctx.globalAlpha=a*0.95;
   if(!touch.isTouch){
-    const bw=430,bh=74,bx=W/2-bw/2,by=H-bh-16;
+    const bw=560,bh=74,bx=W/2-bw/2,by=H-bh-16;
     ctx.fillStyle='rgba(12,2,2,0.72)';
     rrectPath(bx,by,bw,bh,12);ctx.fill();
     ctx.strokeStyle='rgba(255,110,70,0.4)';ctx.stroke();
@@ -2742,16 +2788,18 @@ function drawOnboarding(){
     drawKeycap(bx+96,by+28,40,40,'D');
     ctx.fillStyle='#ffd9c0';ctx.font='600 12px "Trebuchet MS","Lucida Sans Unicode",sans-serif';ctx.textAlign='center';
     ctx.fillText('MOVE',bx+73,by+62);
-    drawKeycap(bx+190,by+28,120,40,'SPACE');
-    ctx.fillText('JUMP ×2',bx+190,by+62);
-    drawKeycap(bx+286,by+28,40,40,'S');
-    ctx.fillText('HIDE',bx+286,by+62);
-    drawKeycap(bx+362,by+28,52,40,'ESC');
-    ctx.fillText('PAUSE',bx+362,by+62);
+    drawKeycap(bx+160,by+28,120,40,'SPACE');
+    ctx.fillText('JUMP ×2',bx+160,by+62);
+    drawKeycap(bx+256,by+28,40,40,'S');
+    ctx.fillText('HIDE',bx+256,by+62);
+    drawKeycap(bx+336,by+28,86,40,'SHIFT/F');
+    ctx.fillText('DASH',bx+336,by+62);
+    drawKeycap(bx+452,by+28,52,40,'ESC');
+    ctx.fillText('PAUSE',bx+452,by+62);
   }else{
     ctx.fillStyle='rgba(255,217,192,0.75)';
     ctx.font='600 14px "Trebuchet MS","Lucida Sans Unicode",sans-serif';ctx.textAlign='center';
-    ctx.fillText('◀ ▶ MOVE      ▲ JUMP ×2      S HIDE      ☰ PAUSE',W/2,H-150);
+    ctx.fillText('◀ ▶ MOVE      ▲ JUMP ×2      S HIDE      » DASH      ☰ PAUSE',W/2,H-150);
   }
   ctx.restore();
 }
@@ -2871,6 +2919,29 @@ function drawHUD(){
     ctx.textAlign='center';
     ctx.fillText('SAFE '+Math.ceil(mercyT),W/2,70);
     ctx.globalAlpha=1;
+  }
+
+  // dash cooldown pip / ready indicator
+  {
+    const dx=W/2,dy=H-24;
+    const ready=player.dashCd<=0&&player.dashT<=0;
+    if(player.dashT>0){
+      ctx.fillStyle='#ffd76a';ctx.font='400 18px "Impact","Arial Black",sans-serif';
+      ctx.textAlign='center';
+      ctx.fillText('DASH!',dx,dy);
+    }else if(ready&&(state==='play')){
+      ctx.globalAlpha=0.6+0.4*Math.sin(tGlobal*6);
+      ctx.fillStyle='#9cff8a';ctx.font='400 18px "Impact","Arial Black",sans-serif';
+      ctx.textAlign='center';
+      ctx.fillText('DASH READY',dx,dy);
+      ctx.globalAlpha=1;
+    }else if(player.dashCd>0){
+      const frac=clamp(1-player.dashCd/1.2,0,1);
+      ctx.strokeStyle='rgba(255,255,255,0.25)';ctx.lineWidth=4;
+      ctx.beginPath();ctx.arc(dx,dy-6,10,0,TAU);ctx.stroke();
+      ctx.strokeStyle='#ffd76a';
+      ctx.beginPath();ctx.arc(dx,dy-6,10,-Math.PI/2,-Math.PI/2+TAU*frac);ctx.stroke();
+    }
   }
 
   const e=pauseBtnRect();
@@ -3200,12 +3271,14 @@ function drawTouchButtons(){
   ctx.save();
   const defs=[
     ['left',buttons.left,'◀'],['right',buttons.right,'▶'],
-    ['jump',buttons.jump,'▲'],['hide',buttons.hide,'S']];
+    ['jump',buttons.jump,'▲'],['hide',buttons.hide,'S'],['dash',buttons.dash,'»']];
   for(const d of defs){
     const b=d[1];
     const active=(d[0]==='left'&&btn.left)||(d[0]==='right'&&btn.right)||
-                 (d[0]==='jump'&&btn.jump)||(d[0]==='hide'&&player.hidden);
-    const dim=d[0]==='hide'&&!hideAvail&&!player.hidden&&state==='play';
+                 (d[0]==='jump'&&btn.jump)||(d[0]==='hide'&&player.hidden)||
+                 (d[0]==='dash'&&player.dashT>0);
+    const dashCd=d[0]==='dash'&&player.dashCd>0&&player.dashT<=0;
+    const dim=(d[0]==='hide'&&!hideAvail&&!player.hidden&&state==='play')||dashCd;
     ctx.globalAlpha=dim?0.3:(active?0.95:0.65);
     ctx.fillStyle=active?'rgba(60,12,8,0.75)':'rgba(20,3,3,0.55)';
     ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,TAU);ctx.fill();
@@ -3223,7 +3296,7 @@ function drawTouchButtons(){
     }else{
       ctx.font='400 '+Math.floor(b.r*0.7)+'px "Impact","Arial Black",sans-serif';
       ctx.textAlign='center';ctx.textBaseline='middle';
-      ctx.fillText('S',b.x,b.y+2);
+      ctx.fillText(d[0]==='dash'?'»':'S',b.x,b.y+2);
       ctx.textBaseline='alphabetic';
     }
   }
@@ -3318,11 +3391,17 @@ function draw(){
 resize();
 makeTextures();
 initEmbers();
-// Boot straight into gameplay (camera already on the ronin) for instant response.
+// Boot into 'ready' (not 'play') with spawn grace: guards sense nothing
+// until play begins (update passes canSense=false in ready), and mercyT
+// covers the first moments of play. Camera snaps to the ronin instantly.
 startLevelRun(firstIncomplete());
 camX=camClampX(player.x+player.w/2-W*0.45);
 camY=camClampY(player.y+player.h/2-H*0.55);
-state='play';
+if(TEST_MODE){state='play';}
+else{
+  state='ready';readyT=0;
+  mercyT=1.5;player.dead=false;trapSpikes=[];
+}
 tryFocus();
 CG.boot();
 
