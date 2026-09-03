@@ -515,25 +515,32 @@ const audio = new AudioManager();
 // 2. CRAZYGAMES SDK
 // ------------------------------------------------------------
 let crazySDK = null;
+let sdkUsable = false;
 async function initCrazySDK() {
   if (window.CrazyGames && window.CrazyGames.SDK) {
     try {
-      crazySDK = window.CrazyGames.SDK;
-      await crazySDK.init();
-    } catch (e) {}
+      const sdk = window.CrazyGames.SDK;
+      await sdk.init();
+      // Only use gameplay API when the game module actually exists (disabled domains be damned)
+      if (sdk.game && typeof sdk.game.gameplayStart === "function") {
+        crazySDK = sdk;
+        sdkUsable = true;
+      } else {
+        crazySDK = null;
+        console.warn("CrazyGames SDK present but game module unavailable — running fully offline.");
+      }
+    } catch (e) { crazySDK = null; console.warn("CrazyGames SDK init failed — running fully offline."); }
   }
 }
 initCrazySDK();
 
 function reportGameplayStart() {
-  if (crazySDK && crazySDK.game) {
-    try { crazySDK.game.gameplayStart(); } catch(e){}
-  }
+  if (!sdkUsable || !crazySDK || !crazySDK.game) return;
+  try { crazySDK.game.gameplayStart(); } catch(e){}
 }
 function reportGameplayStop() {
-  if (crazySDK && crazySDK.game) {
-    try { crazySDK.game.gameplayStop(); } catch(e){}
-  }
+  if (!sdkUsable || !crazySDK || !crazySDK.game) return;
+  try { crazySDK.game.gameplayStop(); } catch(e){}
 }
 
 // ------------------------------------------------------------
@@ -3765,13 +3772,23 @@ function renderUI() {
 // ------------------------------------------------------------
 // 13. MAIN ANIMATION LOOP
 // ------------------------------------------------------------
+let loopErrReported = false;
 function loop(timestamp) {
-  const dt = Math.min((timestamp - lastTime) / 1000, 0.1);
-  lastTime = timestamp;
+  try {
+    const dt = Math.min((timestamp - lastTime) / 1000, 0.1);
+    lastTime = timestamp;
 
-  update(dt);
-  render();
-
+    update(dt);
+    render();
+  } catch (err) {
+    // The rAF chain must NEVER die (a single throw used to freeze the game
+    // forever on NEXT HEIST). Log once and keep going.
+    if (!loopErrReported) {
+      loopErrReported = true;
+      console.error("loop error (recovered):", err && err.message);
+    }
+    lastTime = performance.now();
+  }
   requestAnimationFrame(loop);
 }
 
