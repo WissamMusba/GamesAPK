@@ -308,6 +308,12 @@ const Snd={
     this.hiss({f:2600,f2:500,dur:0.2,vol:0.16,ft:'bandpass',q:2});
     this.tone({type:'sine',f:440,f2:220,dur:0.15,vol:0.08});
   },
+  slash(){
+    // Swift katana strike & takedown
+    this.hiss({f:3200,f2:400,dur:0.22,vol:0.24,ft:'bandpass',q:2.5});
+    this.tone({type:'triangle',f:360,f2:110,dur:0.18,vol:0.18});
+    this.taiko(0.28, undefined, true);
+  },
   death(){
     // Cinematic dramatic hit
     this.tone({type:'triangle',f:180,f2:40,dur:0.65,vol:0.25,lp:500});
@@ -588,9 +594,33 @@ function makeTextures(){
 }
 
 const TEST_MODE=new URLSearchParams(location.search).get('test')==='1'; // ?test=1 unlocks all rooms for testing
-const G=610,LH=720,NLV=30;
+const G=610,LH=720; let NLV=30;
 const HIDE_LIMIT={crate:5,bush:3};
 const MERCY_TIME=2.5;
+
+const TUTORIAL_LEVEL={
+  name:'THE SHADOW DOJO',w:3600,par:45,
+  plats:[
+    [400,480,220,22],[750,360,200,22],[1050,460,160,22],[1350,440,200,22],
+    {x:2150,y:460,w:160,h:20,t:'vanish'},{x:2360,y:420,w:160,h:20,t:'vanish'},
+    [3000,380,200,22]
+  ],
+  spikes:[{x:2120,w:420}],
+  blades:[],
+  plates:[{x:1850,fx:'spike'}],
+  fires:[{x:2880,y:610,w:80,h:42,period:2.2,on:0.7,phase:0,side:'top'}],
+  spots:[],
+  towers:[{x:2700,x1:2550,x2:2850,speed:0.55}],
+  guards:[
+    {type:'walker',x:1550,minX:1300,maxX:1680,range:240},
+    {type:'runner',x:2780,minX:2580,maxX:2950,range:280}
+  ],
+  crates:[1360],bushes:[2650],
+  keys:[{x:3100,y:325}],doorX:3450,
+  orbs:[[510,420],[850,300],[1130,400],[1450,380],[1850,555],[2230,400],[2440,360],[2710,400],[3050,320]],
+  signs:[] // Replaced by interactive cinematic coaching cards!
+};
+let isTutorial=false;
 
 const LEVELS=[
 {name:'THE CELL',w:2400,par:14,
@@ -615,7 +645,7 @@ const LEVELS=[
  plats:[[300,500,200,22],[580,400,200,22],[900,500,220,22],[1250,430,180,22],[1600,500,220,22],[1950,400,200,22],[2260,500,220,22],[2650,460,220,22],[2950,360,200,22]],
  spikes:[{x:700,w:120},{x:1450,w:150},{x:2450,w:150},{x:1690,w:60,y:500}],
  blades:[{x:1150,y:440,h:170,period:2.4,on:1.1,phase:0.6},{x:2150,y:440,h:170,period:2.2,on:1.0,phase:1.4},{x:2850,y:470,h:140,period:2.0,on:0.9,phase:0.3}],
- plates:[{x:2350,fx:'vanish'}],spots:[],towers:[],
+ plates:[{x:2350,fx:'spike'}],spots:[],towers:[],
  guards:[{type:'watcher',x:1000},{type:'watcher',x:2040},{type:'runner',x:1750,minX:1650,maxX:1850,range:260},{type:'walker',x:2850,minX:2650,maxX:3100,range:280}],
  crates:[1750,3050],bushes:[1250],
  keys:[{x:980,y:455},{x:2040,y:355}],doorX:3280,
@@ -635,7 +665,7 @@ const LEVELS=[
  plats:[[350,500,180,22],[620,400,180,22],[890,300,180,22],[1160,200,200,22],{x:1500,y:300,w:140,h:20,t:'vanish'},{x:1760,y:400,w:140,h:20,t:'vanish'},[2040,500,200,22],[2400,480,180,22]],
  spikes:[{x:540,w:110},{x:1350,w:120},{x:1950,w:110},{x:2600,w:140}],
  blades:[{x:2250,y:440,h:170,period:2.0,on:0.95,phase:0}],
- plates:[{x:750,fx:'spike'},{x:2150,fx:'vanish'}],spots:[],towers:[],
+ plates:[{x:750,fx:'spike'},{x:2150,fx:'spike'}],spots:[],towers:[],
  guards:[{type:'watcher',x:1240},{type:'walker',x:1800,minX:1700,maxX:1900,range:260},{type:'runner',x:2470,minX:2350,maxX:2560,range:290}],
  crates:[980],bushes:[2380],
  keys:[{x:1240,y:145}],doorX:2880,
@@ -649,7 +679,7 @@ const LEVELS=[
  spots:[{x:2990,arc:0.45,speed:0.9,len:580}],
  towers:[{x:2080,x1:1900,x2:2250,speed:0.55},{x:3160,x1:3020,x2:3350,speed:0.65},{x:2300,x1:2150,x2:2450,ty:300,speed:0.6}],
  guards:[{type:'runner',x:700,minX:650,maxX:900,range:300},{type:'walker',x:1680,minX:1550,maxX:1800,range:270},{type:'runner',x:2750,minX:2650,maxX:2950,range:300},{type:'watcher',x:3300}],
- crates:[1250,2550],bushes:[800,3250],
+ crates:[1330,2610],bushes:[800,3250],
  keys:[{x:990,y:205},{x:2990,y:470}],doorX:3450,
  orbs:[[360,435],[660,315],[860,215],[1360,350],[1680,450],[2060,350],[2330,250],[2680,370]],
  signs:[[2800,545,'WATCHTOWERS NEVER SLEEP']]},
@@ -657,10 +687,10 @@ const LEVELS=[
  plats:[[500,490,200,22],[900,400,180,22],{x:1400,y:480,w:180,h:20,t:'vanish'},[1900,400,200,22],[2400,480,220,22]],
  spikes:[{x:700,w:150},{x:1150,w:160},{x:1650,w:150},{x:2150,w:150},{x:2700,w:140}],
  blades:[{x:450,y:440,h:170,period:1.8,on:0.85,phase:0},{x:850,y:430,h:180,period:1.9,on:0.85,phase:0.7},{x:1300,y:440,h:170,period:1.8,on:0.85,phase:1.3},{x:1800,y:430,h:180,period:1.7,on:0.8,phase:0.2},{x:2300,y:440,h:170,period:1.8,on:0.85,phase:1.0},{x:2900,y:440,h:170,period:1.9,on:0.9,phase:0.5}],
- plates:[{x:600,fx:'spike'},{x:1550,fx:'vanish'},{x:2600,fx:'spike'}],spots:[],
+ plates:[{x:600,fx:'spike'},{x:1550,fx:'spike'},{x:2600,fx:'spike'}],spots:[],
  towers:[{x:1600,x1:1400,x2:1820,speed:0.6},{x:3020,x1:2880,x2:3180,speed:0.7},{x:1000,x1:900,x2:1200,ty:400,speed:0.7}],
- guards:[{type:'runner',x:1000,minX:900,maxX:1250,range:290},{type:'runner',x:2000,minX:1850,maxX:2130,range:290},{type:'walker',x:2800,minX:2650,maxX:2950,range:270}],
- crates:[780,2450],bushes:[1700],
+ guards:[{type:'runner',x:1000,minX:900,maxX:1250,range:290},{type:'runner',x:2000,minX:1850,maxX:2130,range:290},{type:'walker',x:2880,minX:2850,maxX:3000,range:270}],
+ crates:[870,2450],bushes:[1830],
  keys:[{x:1980,y:340}],doorX:3080,
  orbs:[[560,440],[960,350],[1460,430],[1750,555],[2150,350],[2470,430],[2950,555]],
  signs:[]},
@@ -668,11 +698,11 @@ const LEVELS=[
  plats:[[400,480,200,22],[750,380,180,22],[1100,480,220,22],[1500,380,200,22],{x:1900,y:480,w:220,h:22,t:'slow'},[2300,380,200,22],[2700,480,200,22],[3050,380,200,22]],
  spikes:[{x:600,w:120},{x:1300,w:160},{x:2100,w:160},{x:2900,w:120}],
  blades:[{x:950,y:430,h:180,period:2.2,on:1.0,phase:0},{x:1750,y:430,h:180,period:2.1,on:1.0,phase:1.2},{x:2550,y:430,h:180,period:2.0,on:0.95,phase:0.4}],
- plates:[{x:500,fx:'spike'},{x:2000,fx:'alarm'},{x:3200,fx:'vanish'}],
+ plates:[{x:500,fx:'spike'},{x:2000,fx:'alarm'},{x:3200,fx:'spike'}],
  spots:[{x:1980,arc:0.5,speed:0.8,len:580}],
  towers:[{x:1300,x1:1100,x2:1500,speed:0.6},{x:2820,x1:2700,x2:3000,speed:0.65},{x:1180,x1:1120,x2:1300,ty:480,speed:0.65},{x:2380,x1:2320,x2:2500,ty:380,speed:0.7}],
- guards:[{type:'watcher',x:700},{type:'watcher',x:1600},{type:'watcher',x:2450},{type:'walker',x:3200,minX:3050,maxX:3350,range:270}],
- crates:[1050],bushes:[650,1850,2650,3300],
+ guards:[{type:'watcher',x:740},{type:'watcher',x:1600},{type:'watcher',x:2450},{type:'walker',x:3200,minX:3050,maxX:3350,range:270}],
+ crates:[1050],bushes:[740,1850,2650,3300],
  keys:[{x:820,y:325},{x:2770,y:425}],doorX:3480,
  orbs:[[460,430],[700,555],[1180,430],[1560,330],[1980,430],[2360,330],[2760,430],[3110,330]],
  signs:[]},
@@ -680,7 +710,7 @@ const LEVELS=[
  plats:[[320,500,170,22],{x:560,y:410,w:150,h:20,t:'vanish'},[800,320,150,22],{x:1040,y:230,w:160,h:20,t:'vanish'},[1300,340,180,22],{x:1560,y:430,w:150,h:20,t:'vanish'},[1800,520,200,22],{x:2080,y:430,w:150,h:20,t:'vanish'},{x:2320,y:330,w:160,h:20,t:'vanish'},[2580,440,200,22],[2900,520,180,22]],
  spikes:[{x:480,w:120},{x:950,w:140},{x:1450,w:150},{x:2000,w:160},{x:2750,w:130}],
  blades:[{x:1750,y:430,h:180,period:2.0,on:0.9,phase:0.5}],
- plates:[{x:700,fx:'spike'},{x:2200,fx:'vanish'}],spots:[],
+ plates:[{x:700,fx:'spike'},{x:2200,fx:'spike'}],spots:[],
  towers:[{x:1200,x1:1120,x2:1480,speed:0.7},{x:2600,x1:2450,x2:2780,speed:0.6},{x:1300,x1:1250,x2:1450,ty:340,speed:0.7}],
  guards:[{type:'runner',x:1100,minX:980,maxX:1250,range:280},{type:'walker',x:1850,minX:1810,maxX:1960,range:260},{type:'runner',x:2600,minX:2590,maxX:2730,range:280},{type:'watcher',x:2980}],
  crates:[1850],bushes:[650,2450,2950],
@@ -693,7 +723,7 @@ const LEVELS=[
  blades:[{x:900,y:440,h:170,period:2.2,on:1.0,phase:0},{x:2300,y:440,h:170,period:2.0,on:0.95,phase:1.0}],
  plates:[{x:1600,fx:'alarm'},{x:2950,fx:'spike'}],spots:[],
  towers:[{x:1250,x1:1100,x2:1450,speed:0.6},{x:2880,x1:2800,x2:3100,speed:0.7},{x:2100,x1:2060,x2:2250,ty:400,speed:0.7}],
- guards:[{type:'runner',x:800,minX:720,maxX:950,range:280},{type:'runner',x:1800,minX:1750,maxX:1930,range:290},{type:'walker',x:2500,minX:2450,maxX:2630,range:260},{type:'watcher',x:3150}],
+ guards:[{type:'runner',x:800,minX:720,maxX:950,range:280},{type:'runner',x:1800,minX:1750,maxX:1930,range:290},{type:'walker',x:2500,minX:2450,maxX:2630,range:260},{type:'watcher',x:3210}],
  crates:[1150],bushes:[2200,3200],
  keys:[{x:2120,y:345}],doorX:3280,
  orbs:[[400,440],[740,350],[1060,440],[1410,350],[1760,440],[2110,350],[2460,440],[2810,350]],
@@ -702,7 +732,7 @@ const LEVELS=[
  plats:[[300,500,200,22],[560,400,180,22],[820,300,180,22],[1080,200,200,22],[1420,300,180,22],[1680,400,180,22],[1940,500,200,22],{x:2200,y:400,w:160,h:20,t:'vanish'},[2450,480,200,22]],
  spikes:[{x:450,w:110},{x:1300,w:130},{x:1850,w:120},{x:2100,w:100},{x:880,w:60,y:300},{x:1120,w:60,y:200},{x:650,w:60,y:400},{x:1770,w:60,y:400}],
  blades:[{x:1600,y:430,h:180,period:2.0,on:0.9,phase:0.4},{x:980,y:200,h:160,period:1.9,on:0.85,phase:0.2}],
- plates:[{x:700,fx:'spike'},{x:2050,fx:'vanish'},{x:650,y:400,fx:'spike'},{x:1180,y:200,fx:'alarm'},{x:1770,y:400,fx:'vanish'},{x:2520,y:480,fx:'spike'}],
+ plates:[{x:700,fx:'spike'},{x:2050,fx:'vanish'},{x:650,y:400,fx:'spike'},{x:1180,y:200,fx:'alarm'},{x:1770,y:400,fx:'spike'},{x:2520,y:480,fx:'spike'}],
  spots:[{x:1160,arc:0.55,speed:1.3,len:580},{x:650,arc:0.5,speed:1.2,len:580},{x:1780,arc:0.5,speed:1.25,len:580}],
  towers:[{x:1500,x1:1450,x2:1650,speed:0.75},{x:2600,x1:2450,x2:2800,speed:0.8},{x:1750,x1:1700,x2:1860,ty:400,speed:0.8}],
  guards:[{type:'watcher',x:1150},{type:'runner',x:1500,minX:1430,maxX:1600,range:280},{type:'walker',x:2500,minX:2450,maxX:2620,range:260}],
@@ -714,10 +744,10 @@ const LEVELS=[
  plats:[[400,490,200,22],[750,390,200,22],[1100,490,220,22],[1500,390,200,22],[1900,490,220,22],[2300,390,200,22],[2650,490,200,22]],
  spikes:[{x:600,w:120},{x:1300,w:150},{x:2100,w:150},{x:2900,w:120},{x:850,w:60,y:390},{x:1610,w:60,y:390},{x:2400,w:60,y:390}],
  blades:[{x:950,y:430,h:180,period:1.7,on:0.8,phase:0},{x:1750,y:430,h:180,period:1.6,on:0.75,phase:1.0},{x:2500,y:430,h:180,period:1.7,on:0.8,phase:0.6}],
- plates:[{x:500,fx:'spike'},{x:2000,fx:'alarm'},{x:2800,fx:'spike'},{x:510,y:490,fx:'spike'},{x:1210,y:490,fx:'vanish'},{x:2010,y:490,fx:'alarm'},{x:2760,y:490,fx:'spike'}],
+ plates:[{x:500,fx:'spike'},{x:2000,fx:'alarm'},{x:2800,fx:'spike'},{x:510,y:490,fx:'spike'},{x:1210,y:490,fx:'spike'},{x:2010,y:490,fx:'alarm'},{x:2760,y:490,fx:'spike'}],
  spots:[{x:500,arc:0.5,speed:1.2,len:580},{x:1210,arc:0.52,speed:1.25,len:580},{x:2010,arc:0.5,speed:1.3,len:580},{x:2760,arc:0.5,speed:1.2,len:580}],
  towers:[{x:1700,x1:1500,x2:1900,speed:0.85},{x:3060,x1:2880,x2:3180,speed:0.85},{x:1550,x1:1510,x2:1690,ty:390,speed:0.85},{x:2350,x1:2310,x2:2490,ty:390,speed:0.85}],
- guards:[{type:'runner',x:700,minX:640,maxX:930,range:290},{type:'runner',x:1400,minX:1330,maxX:1480,range:290},{type:'runner',x:2200,minX:2130,maxX:2280,range:290},{type:'runner',x:2750,minX:2680,maxX:2880,range:300}],
+ guards:[{type:'runner',x:740,minX:720,maxX:930,range:290},{type:'runner',x:1460,minX:1450,maxX:1600,range:290},{type:'runner',x:2260,minX:2250,maxX:2400,range:290},{type:'runner',x:2750,minX:2680,maxX:2880,range:300}],
  crates:[1150],bushes:[800,1950,2550],
  keys:[{x:1580,y:335}],doorX:3080,
  orbs:[[460,440],[810,340],[1160,440],[1560,340],[1960,440],[2360,340],[2710,440],[3000,555]],
@@ -726,7 +756,7 @@ const LEVELS=[
  plats:[[350,480,200,22],{x:700,y:380,w:180,h:22,t:'slow'},[1050,480,200,22],{x:1400,y:380,w:180,h:20,t:'vanish'},[1750,480,200,22],{x:2100,y:380,w:180,h:22,t:'slow'},[2450,480,200,22],[2800,380,200,22]],
  spikes:[{x:500,w:100},{x:1200,w:120},{x:1900,w:120},{x:2600,w:110},{x:3100,w:120},{x:450,w:60,y:480},{x:1150,w:60,y:480},{x:1850,w:60,y:480}],
  blades:[{x:550,y:430,h:180,period:1.6,on:0.75,phase:0},{x:900,y:420,h:190,period:1.6,on:0.75,phase:0.8},{x:1250,y:430,h:180,period:1.5,on:0.7,phase:0.4},{x:1600,y:420,h:190,period:1.5,on:0.7,phase:1.1},{x:1950,y:430,h:180,period:1.5,on:0.7,phase:0.2},{x:2300,y:420,h:190,period:1.5,on:0.7,phase:0.9},{x:2650,y:430,h:180,period:1.6,on:0.75,phase:1.4},{x:3050,y:430,h:180,period:1.6,on:0.8,phase:0.6}],
- plates:[{x:800,fx:'spike'},{x:2200,fx:'vanish'},{x:450,y:480,fx:'alarm'},{x:1150,y:480,fx:'spike'},{x:1850,y:480,fx:'vanish'},{x:790,y:380,fx:'spike'}],
+ plates:[{x:800,fx:'spike'},{x:2200,fx:'spike'},{x:450,y:480,fx:'alarm'},{x:1150,y:480,fx:'spike'},{x:1850,y:480,fx:'spike'},{x:790,y:380,fx:'spike'}],
  spots:[{x:2170,arc:0.5,speed:1.3,len:580},{x:450,arc:0.52,speed:1.25,len:580},{x:1150,arc:0.5,speed:1.3,len:580},{x:1850,arc:0.5,speed:1.2,len:580}],
  towers:[{x:1800,x1:1600,x2:2000,speed:0.7},{x:3250,x1:3120,x2:3380,speed:0.7},{x:1450,x1:1410,x2:1570,ty:380,speed:0.7}],
  guards:[{type:'watcher',x:1150},{type:'walker',x:1800,minX:1760,maxX:1900,range:260},{type:'watcher',x:2500},{type:'runner',x:3000,minX:2950,maxX:3100,range:280}],
@@ -738,7 +768,7 @@ const LEVELS=[
  plats:[[320,500,200,22],{x:620,y:410,w:170,h:20,t:'slow'},[920,320,180,22],{x:1220,y:410,w:150,h:20,t:'vanish'},{x:1520,y:500,w:200,h:22,t:'slow'},[1850,400,180,22],{x:2150,y:300,w:160,h:20,t:'vanish'},[2450,400,200,22],{x:2780,y:500,w:220,h:22,t:'slow'},[3100,400,180,22]],
  spikes:[{x:480,w:110},{x:1080,w:130},{x:1700,w:140},{x:2320,w:120},{x:2980,w:110},{x:2520,w:50,y:400},{x:1010,w:60,y:320},{x:1620,w:60,y:500},{x:2540,w:60,y:400}],
  blades:[{x:1400,y:440,h:170,period:2.0,on:0.9,phase:0.3},{x:2650,y:430,h:180,period:1.9,on:0.9,phase:1.2}],
- plates:[{x:750,fx:'spike'},{x:2050,fx:'vanish'},{x:3250,fx:'alarm'},{x:420,y:500,fx:'spike'},{x:1010,y:320,fx:'vanish'},{x:1620,y:500,fx:'alarm'},{x:2890,y:500,fx:'vanish'}],
+ plates:[{x:750,fx:'spike'},{x:2050,fx:'vanish'},{x:3250,fx:'alarm'},{x:420,y:500,fx:'spike'},{x:1010,y:320,fx:'vanish'},{x:1620,y:500,fx:'alarm'},{x:2890,y:500,fx:'spike'}],
  spots:[{x:2210,arc:0.45,speed:1.3,len:580},{x:420,arc:0.5,speed:1.25,len:580},{x:1010,arc:0.52,speed:1.3,len:580},{x:1620,arc:0.5,speed:1.25,len:580}],
  towers:[{x:1850,x1:1700,x2:2300,ty:400,speed:0.6},{x:3200,x1:3050,x2:3400,speed:0.7}],
  guards:[{type:'watcher',x:1300},{type:'runner',x:1900,minX:1860,maxX:2040,range:290},{type:'walker',x:2500,minX:2460,maxX:2640,range:270},{type:'watcher',x:3200}],
@@ -754,11 +784,11 @@ const LEVELS=[
          {x:1980,w:60,y:270},{x:2560,w:60,y:270},{x:3180,w:60,y:270},{x:790,w:60,y:400},{x:1500,w:60,y:400},{x:3100,w:60,y:490}],
  blades:[{x:900,y:430,h:180,period:2.0,on:0.95,phase:0},{x:1900,y:430,h:180,period:1.9,on:0.9,phase:0.8},{x:3100,y:430,h:180,period:1.8,on:0.85,phase:1.4},
          {x:2360,y:120,h:210,period:1.8,on:0.8,phase:0.3},{x:2960,y:120,h:210,period:1.7,on:0.75,phase:1.1}],
- plates:[{x:1600,fx:'spike'},{x:2300,fx:'alarm'},{x:3300,fx:'vanish'},{x:450,y:490,fx:'spike'},{x:1150,y:490,fx:'alarm'},{x:3100,y:490,fx:'spike'},{x:1460,y:270,fx:'spike'},{x:2060,y:270,fx:'vanish'}],
+ plates:[{x:1600,fx:'spike'},{x:2300,fx:'alarm'},{x:3300,fx:'spike'},{x:450,y:490,fx:'spike'},{x:1150,y:490,fx:'alarm'},{x:3100,y:490,fx:'spike'},{x:1460,y:270,fx:'spike'},{x:2060,y:270,fx:'spike'}],
  spots:[{x:2700,arc:0.45,speed:1.3,len:600},{x:450,arc:0.5,speed:1.25,len:600},{x:1150,arc:0.5,speed:1.3,len:600},{x:1460,arc:0.5,speed:1.25,len:580},{x:3100,arc:0.5,speed:1.3,len:600}],
  towers:[{x:1850,x1:1650,x2:2050,speed:0.8},{x:3400,x1:3250,x2:3550,speed:0.85},
          {x:1500,x1:1250,x2:2100,ty:270,speed:0.8},{x:2700,x1:2450,x2:2870,ty:270,speed:0.9}],
- guards:[{type:'walker',x:1150,minX:1050,maxX:1300,range:260},{type:'runner',x:2000,minX:1900,maxX:2200,range:290},{type:'watcher',x:2450},{type:'runner',x:3200,minX:3050,maxX:3400,range:290},{type:'runner',x:3800,minX:3700,maxX:3950,range:280}],
+ guards:[{type:'walker',x:1150,minX:1050,maxX:1300,range:260},{type:'runner',x:2120,minX:2110,maxX:2280,range:290},{type:'watcher',x:2450},{type:'runner',x:3200,minX:3050,maxX:3400,range:290},{type:'runner',x:3800,minX:3700,maxX:3950,range:280}],
  crates:[950,2350],bushes:[1500,3300,4000],
  keys:[{x:760,y:335},{x:3780,y:360},{x:2700,y:215}],doorX:2700,
  orbs:[[420,440],[760,335],[1120,440],[1460,350],[1820,440],[2160,350],[2520,440],[3060,555],[3660,360],[1400,215],[2100,215],[2750,215],[3300,215]],
@@ -767,12 +797,12 @@ const LEVELS=[
  plats:[[300,480,200,22],[650,380,180,22],[1000,480,200,22],[1350,380,180,22],[1700,480,200,22],[2050,380,180,22],[2400,480,200,22],[2750,380,200,22]],
  spikes:[{x:500,w:120},{x:1200,w:120},{x:1900,w:120},{x:2600,w:120},{x:3050,w:130},{x:1400,w:50,y:380},{x:2090,w:50,y:380},{x:400,w:60,y:480},{x:1100,w:60,y:480},{x:1800,w:60,y:480}],
  blades:[{x:850,y:420,h:190,period:1.9,on:0.85,phase:0},{x:2250,y:420,h:190,period:1.9,on:0.85,phase:1.1}],
- plates:[{x:600,fx:'alarm'},{x:1800,fx:'alarm'},{x:2900,fx:'spike'},{x:400,y:480,fx:'spike'},{x:1100,y:480,fx:'vanish'},{x:2500,y:480,fx:'spike'},{x:740,y:380,fx:'spike'}],
+ plates:[{x:600,fx:'alarm'},{x:1800,fx:'alarm'},{x:2900,fx:'spike'},{x:400,y:480,fx:'spike'},{x:1100,y:480,fx:'spike'},{x:2500,y:480,fx:'spike'},{x:740,y:380,fx:'spike'}],
  spots:[{x:1700,arc:0.5,speed:1.3,len:580},{x:2400,arc:0.5,speed:1.35,len:580},{x:400,arc:0.52,speed:1.25,len:580},{x:1100,arc:0.5,speed:1.3,len:580}],
  towers:[{x:1700,x1:1500,x2:1900,speed:0.85},{x:2400,x1:2200,x2:2600,speed:0.9},
          {x:1350,x1:1150,x2:1550,ty:380,speed:0.85},{x:2050,x1:1900,x2:2200,ty:380,speed:0.9}],
- guards:[{type:'watcher',x:450},{type:'watcher',x:1150},{type:'watcher',x:1850},{type:'watcher',x:2550},{type:'walker',x:3100,minX:3060,maxX:3220,range:260}],
- crates:[950,2350],bushes:[1450,3000],
+ guards:[{type:'watcher',x:450},{type:'watcher',x:1150},{type:'watcher',x:1850},{type:'watcher',x:2550},{type:'walker',x:3200,minX:3180,maxX:3260,range:260}],
+ crates:[950,2350],bushes:[1450,2930],
  keys:[{x:1420,y:325},{x:2820,y:325}],doorX:3280,
  orbs:[[360,430],[710,330],[1060,430],[1410,330],[1760,430],[2110,330],[2460,430],[2810,330],[3100,555]],
  signs:[[1700,545,'PATIENCE BEATS SPEED']]},
@@ -797,12 +827,12 @@ const LEVELS=[
          {x:1650,w:60,y:280},{x:2250,w:60,y:280},{x:2800,w:60,y:280},{x:480,w:60,y:490},{x:1160,w:60,y:490}],
  blades:[{x:560,y:430,h:180,period:1.7,on:0.8,phase:0},{x:900,y:420,h:190,period:1.7,on:0.8,phase:0.9},{x:1250,y:430,h:180,period:1.6,on:0.75,phase:0.3},{x:1600,y:420,h:190,period:1.6,on:0.75,phase:1.2},{x:1950,y:430,h:180,period:1.6,on:0.75,phase:0.6},{x:2300,y:420,h:190,period:1.6,on:0.75,phase:1.5},{x:2950,y:430,h:180,period:1.7,on:0.8,phase:0.2},{x:3300,y:430,h:180,period:1.8,on:0.85,phase:0.7},
          {x:1450,y:130,h:200,period:1.6,on:0.7,phase:0.4},{x:2000,y:130,h:200,period:1.6,on:0.7,phase:1.2},{x:3100,y:130,h:200,period:1.6,on:0.7,phase:0.9}],
- plates:[{x:700,fx:'spike'},{x:2350,fx:'alarm'},{x:3200,fx:'spike'},{x:480,y:490,fx:'spike'},{x:1160,y:490,fx:'vanish'},{x:1150,y:280,fx:'spike'},{x:1725,y:280,fx:'vanish'}],
+ plates:[{x:700,fx:'spike'},{x:2350,fx:'alarm'},{x:3200,fx:'spike'},{x:480,y:490,fx:'spike'},{x:1160,y:490,fx:'spike'},{x:1150,y:280,fx:'spike'},{x:1725,y:280,fx:'spike'}],
  spots:[{x:2500,arc:0.5,speed:1.35,len:580},{x:1800,arc:0.5,speed:1.3,len:580},{x:480,arc:0.52,speed:1.25,len:580},{x:1150,arc:0.5,speed:1.3,len:580}],
  towers:[{x:1700,x1:1500,x2:1900,speed:0.7},{x:3300,x1:3150,x2:3450,speed:0.7},
          {x:1800,x1:1550,x2:1930,ty:280,speed:0.75},{x:2750,x1:2620,x2:3030,ty:280,speed:0.8}],
  guards:[{type:'runner',x:1100,minX:1060,maxX:1240,range:290},{type:'watcher',x:1800},{type:'walker',x:2300,minX:2240,maxX:2420,range:260},{type:'runner',x:3000,minX:2900,maxX:3200,range:300},{type:'runner',x:3700,minX:3560,maxX:3860,range:290}],
- crates:[800,2450],bushes:[1300,3250,3900],
+ crates:[800,2450],bushes:[1330,3250,3900],
  keys:[{x:1470,y:335},{x:2640,y:225}],doorX:2500,
  orbs:[[440,440],[780,340],[1120,440],[1460,340],[1800,440],[2360,420],[3000,440],[1000,225],[1700,225],[2300,225],[2900,225],[3300,225]],
  signs:[[3450,545,'ASCEND HERE. RETURN ABOVE.']]},
@@ -810,12 +840,12 @@ const LEVELS=[
  plats:[[360,490,200,22],[700,390,200,22],[1040,490,220,22],{x:1380,y:390,w:180,h:20,t:'slow'},[1720,490,220,22],[2060,380,200,22],[2400,490,220,22],{x:2740,y:390,w:180,h:20,t:'vanish'},[3060,480,220,22],[3400,380,200,22]],
  spikes:[{x:540,w:120},{x:1240,w:130},{x:1940,w:130},{x:2620,w:130},{x:3280,w:120},{x:1780,w:50,y:490},{x:3120,w:50,y:480},{x:460,w:60,y:490},{x:1150,w:60,y:490}],
  blades:[{x:880,y:430,h:180,period:1.7,on:0.8,phase:0},{x:1600,y:430,h:180,period:1.6,on:0.75,phase:1.0},{x:2280,y:430,h:180,period:1.6,on:0.75,phase:0.5},{x:2950,y:430,h:180,period:1.7,on:0.8,phase:1.3},{x:3600,y:430,h:180,period:1.7,on:0.8,phase:0.3}],
- plates:[{x:650,fx:'spike'},{x:1850,fx:'alarm'},{x:3150,fx:'vanish'},{x:460,y:490,fx:'spike'},{x:1150,y:490,fx:'vanish'},{x:1470,y:390,fx:'spike'},{x:2160,y:380,fx:'vanish'}],
+ plates:[{x:650,fx:'spike'},{x:1850,fx:'alarm'},{x:3150,fx:'spike'},{x:460,y:490,fx:'spike'},{x:1150,y:490,fx:'spike'},{x:1470,y:390,fx:'spike'},{x:2160,y:380,fx:'spike'}],
  spots:[{x:1550,arc:0.5,speed:1.3,len:580},{x:2900,arc:0.5,speed:1.35,len:580},{x:460,arc:0.5,speed:1.25,len:580},{x:1150,arc:0.52,speed:1.3,len:580}],
  towers:[{x:1550,x1:1350,x2:1750,speed:0.7},{x:2900,x1:2700,x2:3100,speed:0.75},
          {x:1900,x1:1750,x2:2050,ty:490,speed:0.7},{x:3250,x1:3100,x2:3400,ty:480,speed:0.75}],
  guards:[{type:'runner',x:800,minX:740,maxX:980,range:290},{type:'runner',x:1500,minX:1440,maxX:1700,range:300},{type:'runner',x:2200,minX:2120,maxX:2380,range:300},{type:'runner',x:2850,minX:2790,maxX:3040,range:300},{type:'runner',x:3500,minX:3440,maxX:3620,range:300}],
- crates:[1150,2500],bushes:[900,2000,3300],
+ crates:[1150,2500],bushes:[900,2080,3410],
  keys:[{x:2130,y:325},{x:3470,y:325}],doorX:3880,
  orbs:[[420,440],[760,340],[1100,440],[1440,340],[1780,440],[2120,280],[2460,440],[2800,340],[3120,430],[3460,280]],
  signs:[]},
@@ -833,8 +863,8 @@ const LEVELS=[
  spots:[{x:1100,arc:0.5,speed:1.0,len:600},{x:3070,arc:0.5,speed:1.15,len:600},{x:4020,arc:0.45,speed:1.2,len:600}],
  towers:[{x:1400,x1:1200,x2:1650,speed:0.7},{x:2750,x1:2550,x2:2950,speed:0.75},{x:4050,x1:3900,x2:4250,speed:0.8},
          {x:1600,x1:1350,x2:1780,ty:260,speed:0.7},{x:2800,x1:2550,x2:2980,ty:260,speed:0.8},{x:3900,x1:3720,x2:4130,ty:260,speed:0.85}],
- guards:[{type:'runner',x:900,minX:750,maxX:1150,range:290},{type:'watcher',x:1400},{type:'walker',x:2100,minX:2040,maxX:2280,range:270},{type:'runner',x:2800,minX:2720,maxX:2950,range:300},{type:'watcher',x:3450},{type:'runner',x:3900,minX:3800,maxX:4050,range:290},{type:'runner',x:4300,minX:4200,maxX:4450,range:280}],
- crates:[1600,3100],bushes:[1100,2450,3550,4150],
+ guards:[{type:'runner',x:900,minX:750,maxX:1150,range:290},{type:'watcher',x:1400},{type:'walker',x:2100,minX:2040,maxX:2280,range:270},{type:'runner',x:2800,minX:2720,maxX:2950,range:300},{type:'watcher',x:3450},{type:'runner',x:3930,minX:3920,maxX:4080,range:290},{type:'runner',x:4300,minX:4200,maxX:4450,range:280}],
+ crates:[1600,3100],bushes:[1060,2450,3550,4150],
  keys:[{x:1100,y:215},{x:4450,y:555},{x:3000,y:205}],doorX:3000,
  orbs:[[440,440],[760,330],[1080,170],[1400,330],[1720,440],[2080,420],[2420,260],[2740,420],[3380,430],[3720,280],[1550,205],[2150,205],[2750,205],[3350,205],[3950,205]],
  signs:[[4150,545,'THE THRONE LANE OPENS ONLY HERE'],[3000,415,'DROP FROM ABOVE TO ENTER']]},
@@ -842,12 +872,12 @@ const LEVELS=[
  plats:[[320,500,180,22],[580,420,160,22],[820,340,160,22],[1080,260,180,22],[1350,340,180,22],[1620,420,200,22],[1950,500,220,22],[2300,400,200,22],[2680,480,200,22],[3050,380,180,22],[3380,300,200,22]],
  spikes:[{x:480,w:110},{x:980,w:120},{x:1500,w:130},{x:2180,w:120},{x:2920,w:130},{x:1720,w:60,y:420},{x:2400,w:60,y:400},{x:3150,w:60,y:380}],
  blades:[{x:1450,y:430,h:170,period:1.7,on:0.8,phase:0.2},{x:2850,y:430,h:170,period:1.6,on:0.75,phase:1.0},{x:1180,y:250,h:150,period:1.6,on:0.7,phase:0.6},{x:3550,y:320,h:140,period:1.7,on:0.8,phase:0.9}],
- plates:[{x:420,y:500,fx:'alarm'},{x:900,y:340,fx:'vanish'},{x:1710,y:420,fx:'spike'},{x:2400,y:400,fx:'vanish'},{x:3150,y:380,fx:'alarm'},{x:1200,y:260,fx:'spike'}],
- fires:[{x:980,y:340,w:110,h:42,period:2.4,on:0.7,phase:0,side:'top'},{x:2050,y:500,w:90,h:48,period:1.9,on:0.6,phase:0.8,side:'top'},{x:3150,y:380,w:100,h:40,period:2.1,on:0.65,phase:1.4,side:'top'}],
+ plates:[{x:420,y:500,fx:'alarm'},{x:850,y:340,fx:'spike'},{x:1710,y:420,fx:'spike'},{x:2400,y:400,fx:'spike'},{x:3150,y:380,fx:'alarm'},{x:1200,y:260,fx:'spike'}],
+ fires:[{x:900,y:340,w:90,h:42,period:2.4,on:0.7,phase:0,side:'top'},{x:2050,y:500,w:90,h:48,period:1.9,on:0.6,phase:0.8,side:'top'},{x:3150,y:380,w:100,h:40,period:2.1,on:0.65,phase:1.4,side:'top'}],
  spots:[{x:420,arc:0.52,speed:1.3,len:580},{x:1710,arc:0.5,speed:1.3,len:580},{x:3150,arc:0.5,speed:1.25,len:580}],
  towers:[{x:1650,x1:1450,x2:1900,speed:0.85},{x:2950,x1:2750,x2:3150,speed:0.85}],
  guards:[{type:'runner',x:700,minX:630,maxX:900,range:295},{type:'watcher',x:1180},{type:'walker',x:1750,minX:1650,maxX:1950,range:270},{type:'runner',x:2600,minX:2450,maxX:2850,range:300}],
- crates:[1350,2400],bushes:[900,3450],
+ crates:[1350,2400],bushes:[860,3450],
  keys:[{x:1160,y:205},{x:3150,y:330}],doorX:3650,
  orbs:[[380,450],[640,370],[880,290],[1180,210],[1450,290],[1720,370],[2050,450],[2400,350],[2780,430],[3400,250]],
  signs:[[680,545,'FORGE FIRES — WATCH THE FLARE BEFORE YOU LEAP']]},
@@ -855,11 +885,11 @@ const LEVELS=[
  plats:[[300,500,200,22],[620,410,180,22],[920,320,180,22],[1220,260,160,22],[1520,320,180,22],[1840,400,200,22],[2180,480,200,22],[2520,400,200,22],[2860,320,200,22],[3200,400,200,22],[3560,480,200,22]],
  spikes:[{x:500,w:110},{x:1100,w:110},{x:1700,w:120},{x:2440,w:120},{x:3100,w:130},{x:720,w:60,y:410},{x:1620,w:60,y:320},{x:2620,w:60,y:400}],
  blades:[{x:800,y:410,h:150,period:1.7,on:0.8,phase:0.3},{x:1350,y:310,h:140,period:1.6,on:0.7,phase:0.8},{x:2000,y:410,h:160,period:1.7,on:0.8,phase:1.1},{x:3300,y:410,h:160,period:1.6,on:0.75,phase:0.5}],
- plates:[{x:400,y:500,fx:'spike'},{x:1010,y:320,fx:'alarm'},{x:1620,y:320,fx:'vanish'},{x:2280,y:480,fx:'spike'},{x:2960,y:320,fx:'alarm'}],
+ plates:[{x:400,y:500,fx:'spike'},{x:1010,y:320,fx:'alarm'},{x:1620,y:320,fx:'spike'},{x:2280,y:480,fx:'spike'},{x:2960,y:320,fx:'alarm'}],
  fires:[{x:1010,y:320,w:90,h:42,period:2.0,on:0.6,phase:0.2,side:'top'},{x:1940,y:400,w:100,h:44,period:2.3,on:0.7,phase:1.0,side:'top'},{x:2960,y:320,w:90,h:42,period:1.8,on:0.6,phase:0.6,side:'top'}],
  spots:[{x:400,arc:0.5,speed:1.3,len:580},{x:1010,arc:0.52,speed:1.3,len:580},{x:1940,arc:0.5,speed:1.25,len:580},{x:2960,arc:0.5,speed:1.3,len:580}],
  towers:[{x:1400,x1:1200,x2:1700,speed:0.85},{x:2700,x1:2500,x2:2950,speed:0.9}],
- guards:[{type:'watcher',x:980},{type:'runner',x:1400,minX:1250,maxX:1650,range:295},{type:'watcher',x:2150},{type:'runner',x:3100,minX:2950,maxX:3350,range:300},{type:'walker',x:3650,minX:3560,maxX:3750,range:270}],
+ guards:[{type:'watcher',x:980},{type:'runner',x:1400,minX:1250,maxX:1650,range:295},{type:'watcher',x:2150},{type:'runner',x:3250,minX:3230,maxX:3400,range:300},{type:'walker',x:3650,minX:3560,maxX:3750,range:270}],
  crates:[1840],bushes:[620,2860,3660],
  keys:[{x:1310,y:205},{x:2960,y:270}],doorX:3860,
  orbs:[[360,450],[680,360],[980,270],[1320,210],[1620,270],[1940,350],[2280,430],[2620,350],[2960,270],[3660,430]],
@@ -869,11 +899,11 @@ const LEVELS=[
         [900,280,500,22],[1500,280,480,22],[2100,280,480,22],[2700,280,480,22],[3300,280,480,22]],
  spikes:[{x:560,w:110},{x:1250,w:120},{x:2000,w:130},{x:2850,w:130},{x:3600,w:110},{x:1150,w:60,y:280},{x:1740,w:60,y:280},{x:2940,w:60,y:280},{x:3520,w:60,y:280}],
  blades:[{x:900,y:350,h:160,period:1.7,on:0.8,phase:0},{x:1750,y:350,h:150,period:1.6,on:0.75,phase:0.7},{x:2600,y:350,h:150,period:1.6,on:0.7,phase:1.3},{x:3400,y:350,h:160,period:1.7,on:0.8,phase:0.5},{x:1300,y:430,h:170,period:1.8,on:0.8,phase:0.4}],
- plates:[{x:460,y:490,fx:'spike'},{x:1200,y:320,fx:'vanish'},{x:1960,y:320,fx:'alarm'},{x:2720,y:480,fx:'spike'},{x:3480,y:320,fx:'vanish'},{x:1150,y:280,fx:'spike'},{x:2320,y:280,fx:'alarm'}],
+ plates:[{x:460,y:490,fx:'spike'},{x:1200,y:320,fx:'spike'},{x:1960,y:320,fx:'alarm'},{x:2720,y:480,fx:'spike'},{x:3480,y:320,fx:'spike'},{x:1150,y:280,fx:'spike'},{x:2320,y:280,fx:'alarm'}],
  fires:[{x:1200,y:320,w:90,h:42,period:2.1,on:0.65,phase:0.3,side:'top'},{x:2340,y:400,w:100,h:44,period:2.4,on:0.7,phase:1.1,side:'top'},{x:3480,y:320,w:90,h:42,period:1.9,on:0.6,phase:0.7,side:'top'}],
  spots:[{x:460,arc:0.5,speed:1.3,len:580},{x:1200,arc:0.52,speed:1.3,len:580},{x:1960,arc:0.5,speed:1.25,len:580},{x:2720,arc:0.5,speed:1.3,len:580},{x:3600,arc:0.5,speed:1.25,len:600}],
  towers:[{x:1500,x1:1300,x2:1750,speed:0.85},{x:2800,x1:2600,x2:3000,speed:0.9},{x:2300,x1:2100,x2:2500,ty:280,speed:0.85}],
- guards:[{type:'watcher',x:800},{type:'runner',x:1150,minX:1000,maxX:1350,range:300},{type:'watcher',x:1950},{type:'runner',x:2850,minX:2700,maxX:3100,range:300},{type:'walker',x:3850,minX:3760,maxX:3950,range:270}],
+ guards:[{type:'watcher',x:800},{type:'runner',x:1150,minX:1000,maxX:1350,range:300},{type:'watcher',x:1950},{type:'runner',x:3000,minX:2980,maxX:3150,range:300},{type:'walker',x:3850,minX:3760,maxX:3950,range:270}],
  crates:[1100,2620],bushes:[720,3480],
  keys:[{x:1180,y:230},{x:3540,y:230}],doorX:2720,
  orbs:[[420,440],[820,350],[1200,270],[1580,210],[1960,270],[2340,350],[2720,430],[3100,350],[3480,270],[3860,370]],
@@ -882,11 +912,11 @@ const LEVELS=[
  plats:[{x:340,y:500,w:200,h:22,t:'slow'},{x:680,y:420,w:170,h:22,t:'slow'},[960,340,180,22],[1280,420,180,22],{x:1600,y:500,w:220,h:22,t:'slow'},{x:1980,y:420,w:180,h:22,t:'slow'},[2320,340,200,22],[2640,420,200,22],{x:3000,y:500,w:220,h:22,t:'slow'},[3360,420,200,22]],
  spikes:[{x:500,w:120},{x:1180,w:130},{x:1480,w:110},{x:2200,w:120},{x:2880,w:120},{x:3240,w:110},{x:1060,w:60,y:340},{x:2420,w:60,y:340},{x:3460,w:60,y:420}],
  blades:[{x:850,y:420,h:160,period:1.7,on:0.8,phase:0.4},{x:1450,y:420,h:160,period:1.6,on:0.75,phase:1.0},{x:2150,y:340,h:150,period:1.6,on:0.7,phase:0.6},{x:3150,y:420,h:160,period:1.7,on:0.8,phase:0.2}],
- plates:[{x:440,y:500,fx:'spike'},{x:1060,y:340,fx:'vanish'},{x:1710,y:500,fx:'alarm'},{x:2420,y:340,fx:'spike'},{x:3110,y:500,fx:'vanish'},{x:3460,y:420,fx:'alarm'}],
+ plates:[{x:440,y:500,fx:'spike'},{x:1060,y:340,fx:'spike'},{x:1710,y:500,fx:'alarm'},{x:2420,y:340,fx:'spike'},{x:3110,y:500,fx:'spike'},{x:3460,y:420,fx:'alarm'}],
  fires:[{x:440,y:500,w:90,h:46,period:1.7,on:0.55,phase:0,side:'top'},{x:1060,y:340,w:90,h:42,period:2.2,on:0.65,phase:0.9,side:'top'},{x:1710,y:500,w:90,h:46,period:2.0,on:0.6,phase:0.4,side:'top'},{x:3110,y:500,w:90,h:46,period:1.9,on:0.6,phase:1.2,side:'top'}],
  spots:[{x:440,arc:0.5,speed:1.3,len:580},{x:1060,arc:0.52,speed:1.3,len:580},{x:1710,arc:0.5,speed:1.25,len:580},{x:2420,arc:0.5,speed:1.3,len:580},{x:3110,arc:0.5,speed:1.25,len:580}],
  towers:[{x:1350,x1:1150,x2:1550,speed:0.85},{x:2650,x1:2450,x2:2850,speed:0.9}],
- guards:[{type:'runner',x:750,minX:680,maxX:900,range:300},{type:'watcher',x:1280},{type:'runner',x:1850,minX:1700,maxX:2050,range:300},{type:'walker',x:2750,minX:2640,maxX:2850,range:270},{type:'runner',x:3450,minX:3360,maxX:3600,range:300}],
+ guards:[{type:'runner',x:750,minX:680,maxX:900,range:300},{type:'watcher',x:1330},{type:'runner',x:1850,minX:1700,maxX:2050,range:300},{type:'walker',x:2750,minX:2640,maxX:2850,range:270},{type:'runner',x:3450,minX:3360,maxX:3600,range:300}],
  crates:[1600,3000],bushes:[960,2320],
  keys:[{x:1050,y:285},{x:2420,y:285}],doorX:3780,
  orbs:[[400,450],[740,370],[1060,290],[1380,370],[1710,450],[2080,370],[2420,290],[2740,370],[3110,450],[3460,370]],
@@ -895,12 +925,12 @@ const LEVELS=[
  plats:[[380,500,220,22],{x:680,y:460,w:140,h:20,t:'vanish'},{x:900,y:420,w:140,h:20,t:'vanish'},{x:1120,y:380,w:140,h:20,t:'vanish'},[1380,480,220,22],[1720,380,200,22],[2080,300,200,22],[2440,400,200,22],[2800,480,220,22],{x:3100,y:400,w:140,h:20,t:'vanish'},{x:3320,y:360,w:140,h:20,t:'vanish'},[3600,480,200,22],[3920,400,200,22]],
  spikes:[{x:540,w:720},{x:1580,w:680},{x:2680,w:700},{x:3480,w:110},{x:3800,w:120},{x:1480,w:60,y:480},{x:2180,w:60,y:300}],
  blades:[{x:1480,y:430,h:170,period:1.6,on:0.75,phase:0.3},{x:2180,y:360,h:150,period:1.6,on:0.7,phase:1.1},{x:2900,y:430,h:170,period:1.7,on:0.8,phase:0.6},{x:4000,y:380,h:160,period:1.6,on:0.75,phase:1.3}],
- plates:[{x:1480,y:480,fx:'vanish'},{x:2180,y:300,fx:'spike'},{x:2900,y:480,fx:'alarm'},{x:4010,y:400,fx:'spike'},{x:770,y:460,fx:'alarm'}],
+ plates:[{x:1480,y:480,fx:'spike'},{x:2180,y:300,fx:'spike'},{x:2900,y:480,fx:'alarm'},{x:4010,y:400,fx:'spike'},{x:770,y:460,fx:'alarm'}],
  fires:[{x:770,y:460,w:80,h:38,period:1.5,on:0.55,phase:0,side:'top'},{x:1480,y:480,w:90,h:46,period:2.0,on:0.6,phase:0.7,side:'top'},{x:2180,y:300,w:90,h:42,period:2.2,on:0.65,phase:1.2,side:'top'},{x:4010,y:400,w:90,h:42,period:1.8,on:0.6,phase:0.4,side:'top'}],
  spots:[{x:770,arc:0.5,speed:1.3,len:580},{x:1480,arc:0.52,speed:1.3,len:580},{x:2180,arc:0.5,speed:1.25,len:580},{x:2900,arc:0.5,speed:1.3,len:580},{x:4010,arc:0.5,speed:1.25,len:580}],
  towers:[{x:1580,x1:1380,x2:1780,speed:0.85},{x:2900,x1:2700,x2:3100,speed:0.9},{x:2100,x1:1900,x2:2350,ty:300,speed:0.85}],
- guards:[{type:'runner',x:1480,minX:1380,maxX:1580,range:300},{type:'watcher',x:2180},{type:'runner',x:2950,minX:2800,maxX:3150,range:300},{type:'walker',x:4100,minX:3920,maxX:4100,range:270}],
- crates:[1380],bushes:[1120,3600,4020],
+ guards:[{type:'runner',x:1480,minX:1380,maxX:1580,range:300},{type:'watcher',x:2320},{type:'runner',x:3420,minX:3400,maxX:3550,range:300},{type:'walker',x:4100,minX:3920,maxX:4100,range:270}],
+ crates:[1380],bushes:[1300,3600,4020],
  keys:[{x:2180,y:250}],doorX:4280,
  orbs:[[440,450],[760,410],[980,370],[1220,330],[1480,430],[1820,330],[2180,250],[2540,350],[2900,430],[3400,310],[4020,350]],
  signs:[[680,545,'THE BRIDGE REMEMBERS EVERY STEP']]},
@@ -909,8 +939,8 @@ const LEVELS=[
         [900,280,520,22],[1520,280,500,22],[2140,280,500,22],[2760,280,500,22]],
  spikes:[{x:500,w:110},{x:1150,w:110},{x:1840,w:120},{x:2520,w:120},{x:3200,w:110},{x:1150,w:60,y:280},{x:1770,w:60,y:280},{x:2390,w:60,y:280},{x:3010,w:60,y:280}],
  blades:[{x:750,y:410,h:150,period:1.6,on:0.75,phase:0.2},{x:1420,y:350,h:160,period:1.6,on:0.7,phase:0.8},{x:2120,y:350,h:160,period:1.5,on:0.65,phase:1.2},{x:2820,y:350,h:160,period:1.6,on:0.75,phase:0.5},{x:3520,y:410,h:150,period:1.7,on:0.8,phase:1.0}],
- plates:[{x:420,y:500,fx:'spike'},{x:740,y:410,fx:'vanish'},{x:1370,y:260,fx:'alarm'},{x:2060,y:400,fx:'spike'},{x:2780,y:400,fx:'vanish'},{x:3500,y:480,fx:'alarm'}],
- fires:[{x:740,y:410,w:90,h:42,period:2.0,on:0.6,phase:0.2,side:'top'},{x:1370,y:260,w:90,h:42,period:1.9,on:0.6,phase:0.9,side:'top'},{x:2780,y:400,w:90,h:42,period:2.2,on:0.65,phase:0.5,side:'top'},{x:3500,y:480,w:90,h:46,period:1.8,on:0.6,phase:1.3,side:'top'}],
+ plates:[{x:420,y:500,fx:'spike'},{x:740,y:410,fx:'spike'},{x:1370,y:260,fx:'alarm'},{x:2060,y:400,fx:'spike'},{x:2780,y:400,fx:'spike'},{x:3500,y:400,fx:'alarm'}],
+ fires:[{x:740,y:410,w:90,h:42,period:2.0,on:0.6,phase:0.2,side:'top'},{x:1370,y:260,w:90,h:42,period:1.9,on:0.6,phase:0.9,side:'top'},{x:2780,y:400,w:90,h:42,period:2.2,on:0.65,phase:0.5,side:'top'},{x:3500,y:400,w:90,h:46,period:1.8,on:0.6,phase:1.3,side:'top'}],
  spots:[{x:420,arc:0.5,speed:1.3,len:580},{x:740,arc:0.52,speed:1.3,len:580},{x:1370,arc:0.5,speed:1.25,len:580},{x:2060,arc:0.5,speed:1.3,len:580},{x:3500,arc:0.5,speed:1.25,len:580}],
  towers:[{x:1500,x1:1300,x2:1750,speed:0.85},{x:2300,x1:2100,x2:2550,ty:280,speed:0.85},{x:3100,x1:2900,x2:3350,speed:0.9}],
  guards:[{type:'watcher',x:800},{type:'runner',x:1300,minX:1150,maxX:1500,range:300},{type:'watcher',x:2100},{type:'runner',x:2800,minX:2650,maxX:3000,range:300},{type:'walker',x:3850,minX:3760,maxX:3950,range:270}],
@@ -922,7 +952,7 @@ const LEVELS=[
  plats:[[360,490,200,22],[700,400,200,22],[1040,320,180,22],[1380,400,200,22],[1720,480,200,22],[2060,400,200,22],[2400,320,180,22],[2740,400,200,22],[3100,480,200,22],[3440,400,200,22]],
  spikes:[{x:560,w:110},{x:1240,w:120},{x:1940,w:130},{x:2600,w:120},{x:3280,w:120},{x:800,w:60,y:400},{x:1480,w:60,y:400},{x:2500,w:60,y:320}],
  blades:[{x:600,y:420,h:190,period:1.4,on:0.6,phase:0},{x:900,y:420,h:190,period:1.4,on:0.6,phase:0.5},{x:1200,y:420,h:190,period:1.4,on:0.6,phase:1.0},{x:1550,y:420,h:190,period:1.4,on:0.6,phase:0.2},{x:1950,y:420,h:190,period:1.4,on:0.6,phase:0.7},{x:2350,y:420,h:190,period:1.4,on:0.6,phase:1.2},{x:2750,y:420,h:190,period:1.4,on:0.6,phase:0.4},{x:3100,y:420,h:190,period:1.4,on:0.6,phase:0.9},{x:3500,y:420,h:190,period:1.4,on:0.6,phase:1.4}],
- plates:[{x:460,y:490,fx:'spike'},{x:1140,y:320,fx:'vanish'},{x:1820,y:480,fx:'alarm'},{x:2500,y:320,fx:'spike'},{x:3200,y:480,fx:'vanish'}],
+ plates:[{x:460,y:490,fx:'spike'},{x:1140,y:320,fx:'spike'},{x:1820,y:480,fx:'alarm'},{x:2500,y:320,fx:'spike'},{x:3200,y:480,fx:'spike'}],
  fires:[{x:800,y:400,w:80,h:40,period:1.6,on:0.55,phase:0.3,side:'top'},{x:1480,y:400,w:80,h:40,period:1.8,on:0.6,phase:0.9,side:'top'},{x:2500,y:320,w:80,h:40,period:1.7,on:0.55,phase:0.5,side:'top'}],
  spots:[{x:460,arc:0.5,speed:1.3,len:580},{x:1140,arc:0.52,speed:1.35,len:580},{x:1820,arc:0.5,speed:1.3,len:580},{x:2500,arc:0.5,speed:1.3,len:580},{x:3200,arc:0.5,speed:1.25,len:580}],
  towers:[{x:1350,x1:1150,x2:1550,speed:0.85},{x:2650,x1:2450,x2:2850,speed:0.9}],
@@ -936,7 +966,7 @@ const LEVELS=[
         [1100,270,520,22],[1720,270,520,22],[2340,270,520,22],[2960,270,520,22],[3580,270,520,22]],
  spikes:[{x:480,w:110},{x:1140,w:110},{x:1780,w:120},{x:2440,w:120},{x:3160,w:120},{x:3880,w:110},{x:1360,w:60,y:270},{x:1980,w:60,y:270},{x:3180,w:60,y:270}],
  blades:[{x:800,y:410,h:150,period:1.6,on:0.75,phase:0.2},{x:1400,y:330,h:140,period:1.5,on:0.7,phase:0.6},{x:2100,y:410,h:160,period:1.6,on:0.75,phase:1.0},{x:2750,y:410,h:150,period:1.6,on:0.7,phase:0.3},{x:3450,y:410,h:150,period:1.7,on:0.8,phase:0.9},{x:4100,y:410,h:150,period:1.6,on:0.75,phase:1.2}],
- plates:[{x:400,y:500,fx:'spike'},{x:1040,y:320,fx:'vanish'},{x:1680,y:340,fx:'alarm'},{x:2340,y:500,fx:'spike'},{x:3060,y:320,fx:'vanish'},{x:3780,y:480,fx:'alarm'},{x:1360,y:270,fx:'spike'}],
+ plates:[{x:400,y:500,fx:'spike'},{x:1040,y:320,fx:'spike'},{x:1680,y:340,fx:'alarm'},{x:2340,y:500,fx:'spike'},{x:3060,y:320,fx:'spike'},{x:3780,y:480,fx:'alarm'},{x:1360,y:270,fx:'spike'}],
  fires:[{x:400,y:500,w:90,h:46,period:1.8,on:0.6,phase:0,side:'top'},{x:1040,y:320,w:90,h:42,period:2.0,on:0.65,phase:0.7,side:'top'},{x:1680,y:340,w:90,h:42,period:2.1,on:0.65,phase:1.1,side:'top'},{x:2340,y:500,w:90,h:46,period:1.9,on:0.6,phase:0.4,side:'top'},{x:3060,y:320,w:90,h:42,period:2.0,on:0.6,phase:0.9,side:'top'}],
  spots:[{x:400,arc:0.5,speed:1.3,len:580},{x:1040,arc:0.52,speed:1.3,len:580},{x:1680,arc:0.5,speed:1.25,len:580},{x:2340,arc:0.5,speed:1.3,len:580},{x:3060,arc:0.5,speed:1.25,len:600},{x:3780,arc:0.5,speed:1.3,len:580}],
  towers:[{x:1350,x1:1150,x2:1600,speed:0.85},{x:2600,x1:2400,x2:2850,speed:0.9},{x:3850,x1:3650,x2:4050,speed:0.9}],
@@ -948,33 +978,175 @@ const LEVELS=[
 {name:'THE SHOGUNS GATE',w:4800,par:70,checkpointX:2400,
  plats:[[380,500,200,22],[700,400,200,22],[1020,320,200,22],[1340,270,200,22],[1660,340,200,22],[1980,420,200,22],[2320,480,200,22],[2680,400,200,22],[3040,320,200,22],[3400,400,200,22],[3760,480,200,22],[4120,400,200,22],[4480,320,200,22],
         [1200,260,520,22],[1820,260,520,22],[2440,260,520,22],[3060,260,520,22],[3680,260,520,22],[4300,260,220,22]],
- spikes:[{x:540,w:110},{x:1180,w:120},{x:1860,w:130},{x:2540,w:130},{x:3220,w:120},{x:3900,w:130},{x:4360,w:110},{x:1440,w:60,y:260},{x:2060,w:60,y:260},{x:3280,w:60,y:260}],
+ spikes:[{x:540,w:110},{x:1180,w:120},{x:1860,w:130},{x:2540,w:130},{x:3260,w:120},{x:3900,w:130},{x:4360,w:110},{x:1440,w:60,y:260},{x:2060,w:60,y:260},{x:3280,w:60,y:260}],
  blades:[{x:900,y:400,h:160,period:1.5,on:0.65,phase:0},{x:1450,y:340,h:150,period:1.5,on:0.65,phase:0.6},{x:2100,y:400,h:160,period:1.5,on:0.65,phase:1.0},{x:2850,y:400,h:150,period:1.5,on:0.65,phase:0.3},{x:3550,y:400,h:160,period:1.5,on:0.65,phase:0.9},{x:4250,y:400,h:150,period:1.5,on:0.65,phase:0.5},{x:1950,y:140,h:160,period:1.6,on:0.7,phase:0.4},{x:3270,y:140,h:160,period:1.6,on:0.7,phase:1.1}],
- plates:[{x:480,y:500,fx:'spike'},{x:1120,y:320,fx:'vanish'},{x:1760,y:340,fx:'alarm'},{x:2420,y:480,fx:'spike'},{x:3140,y:320,fx:'vanish'},{x:3860,y:480,fx:'alarm'},{x:1440,y:260,fx:'spike'},{x:2660,y:260,fx:'vanish'}],
+ plates:[{x:480,y:500,fx:'spike'},{x:1120,y:320,fx:'spike'},{x:1760,y:340,fx:'alarm'},{x:2420,y:480,fx:'spike'},{x:3140,y:320,fx:'spike'},{x:3860,y:480,fx:'alarm'},{x:1440,y:260,fx:'spike'},{x:2660,y:260,fx:'spike'}],
  fires:[{x:480,y:500,w:90,h:46,period:1.7,on:0.6,phase:0,side:'top'},{x:1120,y:320,w:90,h:42,period:2.0,on:0.65,phase:0.6,side:'top'},{x:1760,y:340,w:90,h:42,period:2.1,on:0.6,phase:1.0,side:'top'},{x:3140,y:320,w:90,h:42,period:1.8,on:0.6,phase:0.4,side:'top'},{x:3860,y:480,w:90,h:46,period:1.9,on:0.6,phase:0.9,side:'top'},{x:4580,y:320,w:80,h:42,period:1.9,on:0.6,phase:1.4,side:'top'}],
  spots:[{x:480,arc:0.5,speed:1.3,len:600},{x:1120,arc:0.52,speed:1.35,len:600},{x:1760,arc:0.5,speed:1.3,len:580},{x:2420,arc:0.5,speed:1.35,len:580},{x:3140,arc:0.5,speed:1.3,len:580},{x:3860,arc:0.5,speed:1.35,len:580},{x:4580,arc:0.5,speed:1.25,len:580}],
  towers:[{x:1350,x1:1150,x2:1600,speed:0.9},{x:2550,x1:2350,x2:2750,speed:0.9},{x:3750,x1:3550,x2:3950,speed:0.95},{x:1600,x1:1350,x2:1850,ty:260,speed:0.9},{x:2800,x1:2600,x2:3050,ty:260,speed:0.9},{x:4400,x1:4220,x2:4580,ty:320,speed:0.95}],
- guards:[{type:'runner',x:850,minX:700,maxX:1050,range:305},{type:'watcher',x:1350},{type:'runner',x:1950,minX:1800,maxX:2150,range:305},{type:'watcher',x:2650},{type:'walker',x:3150,minX:3040,maxX:3250,range:275},{type:'runner',x:3850,minX:3700,maxX:4050,range:310},{type:'watcher',x:4580}],
- crates:[1980,3760],bushes:[1120,3040,4480],
+ guards:[{type:'runner',x:850,minX:700,maxX:1050,range:305},{type:'watcher',x:1350},{type:'runner',x:2010,minX:1990,maxX:2150,range:305},{type:'watcher',x:2690},{type:'walker',x:3150,minX:3040,maxX:3250,range:275},{type:'runner',x:3850,minX:3700,maxX:4050,range:310},{type:'watcher',x:4580}],
+ crates:[1980,3760],bushes:[1060,3040,4480],
  keys:[{x:1140,y:270},{x:3280,y:210},{x:4580,y:270}],doorX:3140,
  orbs:[[440,450],[760,350],[1120,270],[1440,220],[1760,290],[2080,370],[2420,430],[2780,350],[3140,270],[3500,350],[3860,430],[4220,350],[4580,270]],
  signs:[[3140,545,'THE SHOGUN AWAITS — THROUGH FIRE AND STEEL']]},
 {name:'THE LAST EMBER',w:5000,par:78,checkpointX:2500,
  plats:[[320,500,200,22],[640,410,180,22],[960,320,200,22],[1280,260,200,22],[1600,340,200,22],[1920,420,200,22],[2260,500,220,22],[2620,400,200,22],[2980,320,200,22],[3340,400,200,22],[3700,480,200,22],[4060,400,200,22],[4420,320,200,22],[4780,260,180,22],
         [900,270,500,22],[1500,270,500,22],[2100,270,500,22],[2700,270,500,22],[3300,270,500,22],[3900,270,500,22],[4500,270,400,22]],
- spikes:[{x:480,w:110},{x:1120,w:120},{x:1780,w:120},{x:2440,w:130},{x:3120,w:130},{x:3800,w:120},{x:4480,w:120},{x:1000,w:60,y:270},{x:1600,w:60,y:270},{x:2820,w:60,y:270},{x:3420,w:60,y:270},{x:4600,w:60,y:270}],
+ spikes:[{x:480,w:110},{x:1120,w:120},{x:1780,w:120},{x:2440,w:130},{x:3300,w:120},{x:3800,w:120},{x:4480,w:120},{x:1000,w:60,y:270},{x:1600,w:60,y:270},{x:2820,w:60,y:270},{x:3420,w:60,y:270},{x:4600,w:60,y:270}],
  blades:[{x:800,y:400,h:160,period:1.5,on:0.65,phase:0},{x:1400,y:340,h:150,period:1.4,on:0.6,phase:0.5},{x:2050,y:400,h:160,period:1.4,on:0.6,phase:1.0},{x:2750,y:400,h:150,period:1.4,on:0.6,phase:0.3},{x:3400,y:400,h:160,period:1.5,on:0.65,phase:0.7},{x:4050,y:400,h:150,period:1.5,on:0.65,phase:1.2},{x:4700,y:400,h:160,period:1.4,on:0.6,phase:0.9},{x:1700,y:140,h:160,period:1.6,on:0.7,phase:0.4},{x:2900,y:140,h:160,period:1.6,on:0.7,phase:1.1},{x:4100,y:140,h:160,period:1.5,on:0.65,phase:0.7}],
- plates:[{x:420,y:500,fx:'spike'},{x:1060,y:320,fx:'vanish'},{x:1700,y:340,fx:'alarm'},{x:2360,y:500,fx:'spike'},{x:3080,y:320,fx:'vanish'},{x:3800,y:480,fx:'alarm'},{x:4520,y:320,fx:'spike'},{x:1000,y:270,fx:'spike'},{x:2220,y:270,fx:'vanish'}],
+ plates:[{x:420,y:500,fx:'spike'},{x:1060,y:320,fx:'spike'},{x:1700,y:340,fx:'alarm'},{x:2360,y:500,fx:'spike'},{x:3080,y:320,fx:'spike'},{x:3800,y:480,fx:'alarm'},{x:4520,y:320,fx:'spike'},{x:1000,y:270,fx:'spike'},{x:2220,y:270,fx:'spike'}],
  fires:[{x:420,y:500,w:90,h:46,period:1.6,on:0.55,phase:0,side:'top'},{x:1060,y:320,w:90,h:42,period:2.0,on:0.6,phase:0.5,side:'top'},{x:1700,y:340,w:90,h:42,period:2.2,on:0.65,phase:0.9,side:'top'},{x:2360,y:500,w:90,h:46,period:1.8,on:0.6,phase:0.3,side:'top'},{x:3080,y:320,w:90,h:42,period:1.9,on:0.6,phase:0.7,side:'top'},{x:3800,y:480,w:90,h:46,period:1.7,on:0.6,phase:1.1,side:'top'},{x:4520,y:320,w:80,h:42,period:1.8,on:0.6,phase:0.4,side:'top'}],
  spots:[{x:420,arc:0.5,speed:1.35,len:600},{x:1060,arc:0.52,speed:1.35,len:600},{x:1700,arc:0.5,speed:1.3,len:580},{x:2360,arc:0.5,speed:1.35,len:580},{x:3080,arc:0.5,speed:1.3,len:600},{x:3800,arc:0.5,speed:1.35,len:580},{x:4520,arc:0.5,speed:1.3,len:580},{x:4880,arc:0.45,speed:1.35,len:600}],
  towers:[{x:1250,x1:1050,x2:1500,speed:0.9},{x:2450,x1:2250,x2:2650,speed:0.95},{x:3650,x1:3450,x2:3850,speed:0.95},{x:1550,x1:1300,x2:1800,ty:270,speed:0.9},{x:2750,x1:2550,x2:3000,ty:270,speed:0.95},{x:4050,x1:3850,x2:4300,ty:270,speed:0.95},{x:4820,x1:4700,x2:4950,ty:400,speed:0.95}],
- guards:[{type:'runner',x:800,minX:680,maxX:980,range:310},{type:'watcher',x:1200},{type:'runner',x:1800,minX:1650,maxX:2000,range:310},{type:'watcher',x:2550},{type:'runner',x:3200,minX:3050,maxX:3400,range:310},{type:'watcher',x:3750},{type:'runner',x:4450,minX:4300,maxX:4650,range:315},{type:'walker',x:4880,minX:4780,maxX:4950,range:275}],
- crates:[1920,3700],bushes:[1060,2980,4420],
+ guards:[{type:'runner',x:800,minX:680,maxX:980,range:310},{type:'watcher',x:1260},{type:'runner',x:1920,minX:1900,maxX:2050,range:310},{type:'watcher',x:2620},{type:'runner',x:3450,minX:3430,maxX:3600,range:310},{type:'watcher',x:3750},{type:'runner',x:4450,minX:4300,maxX:4650,range:315},{type:'walker',x:4880,minX:4780,maxX:4950,range:275}],
+ crates:[1920,3700],bushes:[1000,2980,4360],
  keys:[{x:1060,y:270},{x:3080,y:270},{x:4880,y:210}],doorX:3080,
  orbs:[[380,450],[700,360],[1060,270],[1380,210],[1700,290],[2020,370],[2360,450],[2720,350],[3080,270],[3440,350],[3800,430],[4160,350],[4520,270],[4880,210]],
  signs:[[4780,545,'ONE LAST BREATH BEFORE DARKNESS'],[3000,415,'DROP FROM ABOVE TO ENTER']]}
 
 ];
+
+// Sync custom levels created in the Level Editor if available
+function syncCustomLevelsFromStorage(){
+  try {
+    const savedEditorLevels = localStorage.getItem('crimson_ronin_editor_levels_v1');
+    if (!savedEditorLevels) return;
+    const parsed = JSON.parse(savedEditorLevels);
+    if (!Array.isArray(parsed) || parsed.length === 0) return;
+
+    function convertEditorLevel(el) {
+      const plats = [];
+      (el.platforms || []).forEach(p => {
+        if (p.y >= 610 && p.h >= 100 && p.w >= 2000) return;
+        let t = 'n';
+        if (p.platType === 'ash' || p.isAsh) t = 'slow';
+        else if (p.platType === 'crumble' || p.isCrumble) t = 'vanish';
+        plats.push({
+          x: p.x, y: p.y, w: p.w, h: p.h, t: t,
+          initiallyHidden: !!p.initiallyHidden,
+          collapseDelay: p.collapseDelay !== undefined ? p.collapseDelay : 0.45,
+          respawnDelay: p.respawnDelay !== undefined ? p.respawnDelay : 3.0,
+          triggerTutorial: p.triggerTutorial || false,
+          tutTitle: p.tutTitle || 'CRUMBLING PLATFORM!',
+          tutText: p.tutText || 'This ancient stone platform collapses under your weight!\nLeap quickly before it gives way!',
+          tutKanji: p.tutKanji || '崩'
+        });
+      });
+      return {
+        name: el.name || 'CUSTOM LEVEL',
+        w: Math.max(2400, (el.exit ? el.exit.x + 300 : 2400)),
+        par: 35,
+        spawnX: el.spawn ? el.spawn.x : 80,
+        spawnY: el.spawn ? el.spawn.y : 564,
+        plats: plats,
+        spikes: (el.spikes || []).map(s => ({ x: s.x, w: s.w, y: s.y !== undefined ? s.y : G })),
+        blades: [],
+        plates: (el.plates || []).map(p => {
+          const elevatedPlats = (el.platforms || []).filter(pl => !(pl.y >= 610 && pl.h >= 100 && pl.w >= 2000));
+          let mappedTargetIdx = -1;
+          let targetPlatX = p.targetPlatX;
+          let targetPlatY = p.targetPlatY;
+          if (p.targetPlatIndex !== undefined && p.targetPlatIndex !== null && p.targetPlatIndex >= 0 && el.platforms && el.platforms[p.targetPlatIndex]) {
+            const tPlat = el.platforms[p.targetPlatIndex];
+            targetPlatX = tPlat.x;
+            targetPlatY = tPlat.y;
+            mappedTargetIdx = elevatedPlats.indexOf(tPlat);
+          }
+          return {
+            x: p.x,
+            y: p.y !== undefined ? p.y : G,
+            w: p.w || 38,
+            rearmDelay: p.rearmDelay !== undefined ? p.rearmDelay : 1.0,
+            spikeTrigger: p.spikeTrigger !== undefined ? p.spikeTrigger : (p.targetType === 'spike' || p.fx === 'spike' || (!p.targetType && !p.fx)),
+            spikeMode: p.spikeMode || (p.spikeX !== undefined ? 'custom' : 'behind'),
+            spikeX: p.spikeX,
+            spikeY: p.spikeY,
+            spikeDelay: p.spikeDelay !== undefined ? p.spikeDelay : 0.6,
+            alarmTrigger: p.alarmTrigger !== undefined ? p.alarmTrigger : (p.targetType === 'alarm' || p.fx === 'alarm'),
+            alarmDelay: p.alarmDelay !== undefined ? p.alarmDelay : 0.0,
+            
+            platTrigger: p.platTrigger !== undefined ? p.platTrigger : (p.vanishTrigger !== undefined ? p.vanishTrigger : (p.targetType === 'vanish' || p.targetType === 'spawn' || p.fx === 'vanish' || p.fx === 'spawn')),
+            platAction: p.platAction || (p.targetType === 'spawn' || p.fx === 'spawn' ? 'spawn' : 'vanish'),
+            targetPlatIndex: mappedTargetIdx >= 0 ? mappedTargetIdx : (p.targetPlatIndex !== undefined ? p.targetPlatIndex : (p.targetIdx !== undefined ? p.targetIdx : -1)),
+            targetPlatX: targetPlatX,
+            targetPlatY: targetPlatY,
+            platDelay: p.platDelay !== undefined ? p.platDelay : (p.vanishDelay !== undefined ? p.vanishDelay : 0.0),
+            platDuration: p.platDuration !== undefined ? p.platDuration : 4.0,
+
+          vanishTrigger: p.platTrigger !== undefined ? p.platTrigger : (p.vanishTrigger !== undefined ? p.vanishTrigger : (p.targetType === 'vanish' || p.fx === 'vanish')),
+          vanishDelay: p.platDelay !== undefined ? p.platDelay : (p.vanishDelay !== undefined ? p.vanishDelay : 0.0),
+
+          triggerTutorial: p.triggerTutorial || false,
+          tutTitle: p.tutTitle || 'PRESSURE PLATE TRIGGERED!',
+          tutText: p.tutText || 'You just stepped on a pressure plate!\nA deadly trap spike will thrust out of the ground behind you in 0.6s!\nLEAP FORWARD IMMEDIATELY to avoid getting impaled!',
+          tutKanji: p.tutKanji || '罠'
+          };
+        }),
+        fires: [],
+        spots: [],
+        towers: (el.towers || []).map(t => ({
+          x: t.x,
+          y: t.y !== undefined ? t.y : (t.mount === 'top' ? 0 : G),
+          mount: t.mount || (t.isCeiling ? 'top' : 'bottom'),
+          x1: t.minX !== undefined ? t.minX : (t.x1 !== undefined ? t.x1 : t.x - 150),
+          x2: t.maxX !== undefined ? t.maxX : (t.x2 !== undefined ? t.x2 : t.x + 150),
+          ty: t.ty !== undefined ? t.ty : G,
+          speed: t.speed || 0.55,
+          alertTime: t.alertTime !== undefined ? t.alertTime : (t.spotlightTime !== undefined ? t.spotlightTime : 1.1),
+          beamSpread: t.beamSpread || 54
+        })),
+        guards: (el.guards || []).filter(g => (g.x || 0) >= 200).map(g => ({
+          type: g.speed > 1.8 ? 'runner' : (g.speed === 0 ? 'watcher' : 'walker'),
+          x: Math.max(200, g.x || 200),
+          y: g.y,
+          minX: Math.max(180, g.minX !== undefined ? g.minX : (g.x - 150)),
+          maxX: Math.max(220, g.maxX !== undefined ? g.maxX : (g.x + 150)),
+          range: g.visionLen || 200,
+          speed: g.speed || 1.2,
+          dir: g.dir || 1
+        })),
+        crates: [],
+        bushes: (el.bushes || []).map(b => (typeof b === 'object' ? b.x : b)),
+        keys: (el.keys || []).map(k => ({ x: k.x, y: k.y })),
+        doorX: el.exit ? el.exit.x : 2200,
+        orbs: (el.ki || []).map(k => [k.x, k.y]),
+        signs: (el.texts || []).map(t => [t.x, t.y, t.text]),
+        tutorialCards: (el.tutorialCards || []).map(c => ({
+          id: c.id || ('tut_' + Math.random().toString(36).substring(2, 6)),
+          title: c.title || 'TUTORIAL INSTRUCTION',
+          tag: c.tag || 'TRAINING',
+          kanji: c.kanji || '訓',
+          text: c.text || '',
+          triggerMode: c.triggerMode || 'auto',
+          trigger: c.trigger || { x: c.x || 0, y: c.y || 400, w: c.w || 200, h: c.h || 200 }
+        }))
+      };
+    }
+
+    const tut = parsed.find(l => l.isTutorial);
+    if (tut) {
+      const convertedTut = convertEditorLevel(tut);
+      for (const k in TUTORIAL_LEVEL) delete TUTORIAL_LEVEL[k];
+      Object.assign(TUTORIAL_LEVEL, convertedTut);
+    }
+    const normal = parsed.filter(l => !l.isTutorial);
+    if (normal.length > 0) {
+      LEVELS.length = 0;
+      normal.forEach(l => LEVELS.push(convertEditorLevel(l)));
+      NLV = LEVELS.length;
+    }
+  } catch(err) {
+    console.warn('Error syncing custom levels:', err);
+  }
+}
+
+syncCustomLevelsFromStorage();
+window.addEventListener('storage', (e) => {
+  if (e.key === 'crimson_ronin_editor_levels_v1') syncCustomLevelsFromStorage();
+});
+window.addEventListener('focus', () => {
+  syncCustomLevelsFromStorage();
+});
 
 const progress={stars:new Array(NLV).fill(0),times:new Array(NLV).fill(0)};
 try{
@@ -1102,8 +1274,8 @@ function towerAlarm(tower){
   texts.push(new FloatText(tower.x,tower.topY()-16,'SPOTTED!','#ff5340'));
   if(settings.particles)parts.push(new Particle({type:'ring',x:px,y:py-20,color:'rgba(255,80,50,0.85)',life:0.5,vr:520}));
   const byDist=(a,b)=>Math.abs(a.x-px)-Math.abs(b.x-px);
-  const left=guards.filter(g=>g.type!=='watcher'&&g.x<px).sort(byDist);
-  const right=guards.filter(g=>g.type!=='watcher'&&g.x>=px).sort(byDist);
+  const left=guards.filter(g=>g.type!=='watcher'&&g.x<px&&Math.abs(g.x-px)<650).sort(byDist);
+  const right=guards.filter(g=>g.type!=='watcher'&&g.x>=px&&Math.abs(g.x-px)<650).sort(byDist);
   const chosen=[];
   if(left.length)chosen.push(left[0]);
   if(right.length)chosen.push(right[0]);
@@ -1147,7 +1319,13 @@ class SpikeGroup{
   }
 }
 class TrapSpike{
-  constructor(x,dir,y){this.x=x+dir*90;this.y=(y!==undefined?y:G);this.t=0;this.life=1.9;this.w=96;}
+  constructor(x,dir,y,isCustomPos){
+    this.x=isCustomPos?x:(x+dir*90);
+    this.y=(y!==undefined?y:G);
+    this.t=0;
+    this.life=1.9;
+    this.w=96;
+  }
   update(dt){this.t+=dt;}
   up(){return this.t>0.15&&this.t<1.7;}
   hNow(){return 46*clamp(this.t/0.15,0,1);}
@@ -1200,50 +1378,184 @@ class Blade{
   }
 }
 class Plate{
-  constructor(x,fx,y){this.x=x;this.fx=fx||'spike';this.y=(y!==undefined?y:G);this.state='idle';this.t=0;this.seen=false;this.dir=1;}
-  update(dt){
-    if(this.state==='armed'){
-      this.t-=dt;
-      if(this.t<=0){this.state='idle';this.fire();}
+  constructor(d,fx,y){
+    if(typeof d==='object'){
+      this.x=d.x;
+      this.y=(d.y!==undefined?d.y:G);
+      this.w=d.w||38;
+      this.spikeTrigger=d.spikeTrigger!==undefined?d.spikeTrigger:(d.fx==='spike'||!d.fx);
+      this.spikeMode=d.spikeMode||(d.spikeX!==undefined?'custom':'behind');
+      this.spikeX=d.spikeX!==undefined?d.spikeX:d.x;
+      this.spikeY=d.spikeY!==undefined?d.spikeY:this.y;
+      this.spikeDelay=d.spikeDelay!==undefined?d.spikeDelay:0.6;
+      this.alarmTrigger=d.alarmTrigger!==undefined?d.alarmTrigger:(d.fx==='alarm');
+      this.alarmDelay=d.alarmDelay!==undefined?d.alarmDelay:0.0;
+      
+      this.platTrigger=d.platTrigger!==undefined?d.platTrigger:(d.vanishTrigger!==undefined?d.vanishTrigger:(d.fx==='vanish'||d.fx==='spawn'));
+      this.platAction=d.platAction||(d.fx==='spawn'?'spawn':'vanish');
+      this.targetPlatIndex=d.targetPlatIndex!==undefined?d.targetPlatIndex:(d.targetIdx!==undefined?d.targetIdx:-1);
+      this.targetPlatX=d.targetPlatX;
+      this.targetPlatY=d.targetPlatY;
+      this.platDelay=d.platDelay!==undefined?d.platDelay:(d.vanishDelay!==undefined?d.vanishDelay:0.0);
+      this.platDuration=d.platDuration!==undefined?d.platDuration:4.0;
+      this.rearmDelay=d.rearmDelay!==undefined?d.rearmDelay:(d.cooldownTime!==undefined?d.cooldownTime:1.0);
+
+      this.triggerTutorial=d.triggerTutorial||false;
+      this.tutTitle=d.tutTitle||'PRESSURE PLATE TRIGGERED!';
+      this.tutText=d.tutText||'You just stepped on a pressure plate!\nA deadly trap spike will thrust out of the ground behind you in 0.6s!\nLEAP FORWARD IMMEDIATELY to avoid getting impaled!';
+      this.tutKanji=d.tutKanji||'罠';
+    }else{
+      this.x=d;
+      this.fx=fx||'spike';
+      this.y=(y!==undefined?y:G);
+      this.w=38;
+      this.spikeTrigger=this.fx==='spike';
+      this.spikeMode='behind';
+      this.spikeX=this.x;
+      this.spikeY=this.y;
+      this.spikeDelay=0.6;
+      this.alarmTrigger=this.fx==='alarm';
+      this.alarmDelay=0.0;
+      this.platTrigger=this.fx==='vanish'||this.fx==='spawn';
+      this.platAction=this.fx==='spawn'?'spawn':'vanish';
+      this.targetPlatIndex=-1;
+      this.platDelay=0.0;
+      this.platDuration=4.0;
+      this.triggerTutorial=false;
+      this.tutTitle='PRESSURE PLATE TRIGGERED!';
+      this.tutText='You just stepped on a pressure plate!\nA deadly trap spike will thrust out of the ground behind you in 0.6s!\nLEAP FORWARD IMMEDIATELY to avoid getting impaled!';
+      this.tutKanji='罠';
     }
-    if(state==='play'&&mercyT<=0&&!player.hidden&&this.state==='idle'&&player.onGround){
+    this.state='idle';
+    this.t=0;
+    this.seen=false;
+    this.dir=1;
+    this.spikeTimer=-1;
+    this.alarmTimer=-1;
+    this.platTimer=-1;
+    this.rearmTimer=0;
+  }
+  getHostPlatform(){
+    for(let i=1;i<plats.length;i++){
+      const p=plats[i];
+      if(this.x>=p.x-10 && this.x<=p.x+p.w+10 && Math.abs(this.y-p.y)<8){
+        return p;
+      }
+    }
+    return null;
+  }
+  update(dt){
+    const host=this.getHostPlatform();
+    if(host && (host.vState==='gone'||host.vState==='hidden')){
+      return; // Plate is on a hidden platform: completely disabled
+    }
+    if(this.rearmTimer>0){
+      this.rearmTimer-=dt;
+    }
+    if(this.state==='armed'){
+      if(this.spikeTimer>=0){
+        this.spikeTimer-=dt;
+        if(this.spikeTimer<=0){
+          this.spikeTimer=-1;
+          const isCustom=this.spikeMode==='custom'&&this.spikeX!==undefined;
+          const sx=isCustom?this.spikeX:this.x;
+          const sy=isCustom&&this.spikeY!==undefined?this.spikeY:this.y;
+          trapSpikes.push(new TrapSpike(sx,this.dir,sy,isCustom));
+        }
+      }
+      if(this.alarmTimer>=0){
+        this.alarmTimer-=dt;
+        if(this.alarmTimer<=0){
+          this.alarmTimer=-1;
+          soundAlarm(this.x);
+        }
+      }
+      if(this.platTimer>=0){
+        this.platTimer-=dt;
+        if(this.platTimer<=0){
+          this.platTimer=-1;
+          let target=null;
+          // Method 1: Match by exact coordinate if stored
+          if(this.targetPlatX!==undefined && this.targetPlatY!==undefined){
+            target=plats.find(pl=>Math.abs(pl.x-this.targetPlatX)<6 && Math.abs(pl.y-this.targetPlatY)<6);
+          }
+          // Method 2: Match by targetPlatIndex
+          if(!target && this.targetPlatIndex>=0){
+            if(plats[this.targetPlatIndex+1]) target=plats[this.targetPlatIndex+1];
+            else if(plats[this.targetPlatIndex]) target=plats[this.targetPlatIndex];
+          }
+          // Method 3: Fallback to closest platform that is not ground
+          if(!target){
+            let bd=1e9;
+            for(let pi=1;pi<plats.length;pi++){
+              const p=plats[pi];
+              if(p.y>=G)continue;
+              const d=Math.hypot((p.x+p.w/2)-this.x,(p.y+p.h/2)-this.y);
+              if(d<bd){bd=d;target=p;}
+            }
+          }
+          if(target){
+            if(this.platAction==='spawn'){
+              target.vState='solid';
+              target.spawnTimer=this.platDuration>0?this.platDuration:999999;
+              Snd.doubleJump();
+              burstDust(target.x+target.w/2,target.y+target.h/2,10);
+              texts.push(new FloatText(target.x+target.w/2,target.y-24,'PLATFORM SPAWNED!','#00d2d3'));
+            }else{
+              target.vState='gone';
+              target.vT=this.platDuration>0?this.platDuration:3.2;
+              Snd.crumble();
+              burstDust(target.x+target.w/2,target.y+target.h/2,8);
+              texts.push(new FloatText(target.x+target.w/2,target.y-24,'COLLAPSED!','#e74c3c'));
+            }
+          }
+        }
+      }
+      if(this.spikeTimer<0&&this.alarmTimer<0&&this.platTimer<0){
+        this.state='idle';
+        this.rearmTimer=this.rearmDelay>0?this.rearmDelay:1.0;
+      }
+    }
+    if(state==='play'&&mercyT<=0&&!player.hidden&&this.state==='idle'&&this.rearmTimer<=0&&player.onGround){
       const platY=player.standPlat?player.standPlat.y:G;
       const expectedY=this.y;
-      const onThisPlat=Math.abs(platY-expectedY)<4;
-      if(onThisPlat&&Math.abs(player.x+player.w/2-this.x)<22){
-        this.state='armed';this.t=0.6;this.seen=true;this.dir=player.facing;
+      const onThisPlat=Math.abs(platY-expectedY)<6;
+      if(onThisPlat&&Math.abs(player.x+player.w/2-this.x)<(this.w/2+3)){
+        this.state='armed';this.seen=true;this.dir=player.facing;
+        this.spikeTimer=this.spikeTrigger?Math.max(0.01,this.spikeDelay):-1;
+        this.alarmTimer=this.alarmTrigger?Math.max(0.01,this.alarmDelay):-1;
+        this.platTimer=this.platTrigger?Math.max(0.01,this.platDelay):-1;
         Snd.plate();
         texts.push(new FloatText(this.x,this.y-26,'click...','rgba(255,150,120,0.9)'));
+        if((this.triggerTutorial && !tutTriggered['plate_'+this.x]) || (isTutorial && !tutTriggered['plate_tut_intro'])){
+          tutTriggered['plate_tut_intro']=true;
+          if(this.triggerTutorial) tutTriggered['plate_'+this.x]=true;
+          activeTutCard={
+            kanji:this.tutKanji||'罠',
+            title:this.tutTitle||'PRESSURE PLATE TRIGGERED!',
+            text:this.tutText||'You just stepped on a pressure plate!\nA deadly trap spike will thrust out of the ground behind you in 0.6s!\nLEAP FORWARD IMMEDIATELY to avoid getting impaled!'
+          };
+          Snd.alert();
+        }
       }
-    }
-  }
-  fire(){
-    if(this.fx==='spike'){
-      trapSpikes.push(new TrapSpike(this.x,this.dir,this.y));
-    }else if(this.fx==='vanish'){
-      let target=null,bd=1e9;
-      for(const p of plats){
-        if(p.y===G)continue;
-        const d=p.x-this.x;
-        if(d>-20&&d<420&&d<bd){bd=d;target=p;}
-      }
-      if(target){target.vState='gone';target.vT=3.2;Snd.crumble();burstDust(target.x+target.w/2,target.y,6);}
-      else trapSpikes.push(new TrapSpike(this.x,this.dir,this.y));
-    }else if(this.fx==='alarm'){
-      soundAlarm(this.x);
     }
   }
   draw(){
-    const py=this.y;
-    if(this.state==='armed'){
-      ctx.fillStyle=Math.sin(tGlobal*30)>0?'rgba(255,80,50,0.75)':'rgba(120,30,20,0.5)';
-    }else{
-      ctx.fillStyle='rgba(255,255,255,0.07)';
+    const host=this.getHostPlatform();
+    if(host && (host.vState==='gone'||host.vState==='hidden')){
+      return; // Do not draw plate if host platform is hidden/gone
     }
-    ctx.fillRect(this.x-19,py-5,38,5);
-    if(this.seen){ctx.fillStyle='rgba(255,80,50,0.4)';ctx.fillRect(this.x-19,py-5,38,2);}
-    ctx.fillStyle='rgba(0,0,0,0.5)';
-    ctx.fillRect(this.x-14,py-4,3,3);ctx.fillRect(this.x+11,py-4,3,3);
+    const py=this.y;
+    const hw=(this.w||38)/2;
+    if(this.state==='armed'){
+      ctx.fillStyle=Math.sin(tGlobal*30)>0?'rgba(255,80,50,0.85)':'rgba(120,30,20,0.6)';
+    }else{
+      ctx.fillStyle='rgba(255,255,255,0.08)';
+    }
+    ctx.fillRect(this.x-hw,py-5,hw*2,5);
+    if(this.seen){ctx.fillStyle='rgba(255,80,50,0.5)';ctx.fillRect(this.x-hw,py-5,hw*2,2);}
+    ctx.fillStyle='#f39c12';
+    ctx.fillRect(this.x-hw+5,py-4,3,3);ctx.fillRect(this.x+hw-8,py-4,3,3);
   }
 }
 
@@ -1370,14 +1682,29 @@ class Spotlight{
 }
 class Watchtower{
   constructor(d){
-    this.x=d.x;this.x1=d.x1;this.x2=d.x2;
+    this.x=d.x;
+    this.mount=d.mount||(d.isCeiling?'top':'bottom');
+    this.baseY=d.y!==undefined?d.y:(this.mount==='top'?0:G);
+    this.x1=d.x1!==undefined?d.x1:(d.minX!==undefined?d.minX:d.x-150);
+    this.x2=d.x2!==undefined?d.x2:(d.maxX!==undefined?d.maxX:d.x+150);
     this.ty=d.ty!==undefined?d.ty:G;
-    this.h=d.h||175;this.speed=d.speed||0.6;
+    this.h=d.h||175;
+    this.speed=d.speed||0.6;
+    this.alertTime=d.alertTime!==undefined?d.alertTime:(d.spotlightTime!==undefined?d.spotlightTime:1.1);
+    this.beamSpread=d.beamSpread||54;
     this.phase=d.phase!==undefined?d.phase:d.x*0.011;
-    this.exposure=0;this.cd=0;
+    this.exposure=0;
+    this.cd=0;
   }
-  topY(){return G-this.h;}
-  origin(){return{x:this.x,y:this.topY()+24};}
+  topY(){
+    return this.mount==='top'?this.baseY:this.baseY-this.h;
+  }
+  origin(){
+    return {
+      x:this.x,
+      y:this.mount==='top'?this.baseY+18:this.topY()+24
+    };
+  }
   targetPoint(){
     const t=(tGlobal*this.speed+this.phase)%2;
     const p=t<1?t:2-t;
@@ -1393,65 +1720,96 @@ class Watchtower{
     t=clamp(t,0,1);
     const cx=o.x+dx*t,cy=o.y+dy*t;
     const dist=Math.hypot(px-cx,py-cy);
-    return dist<(8+t*36);
+    return dist<(8+t*(this.beamSpread*0.66));
   }
   update(dt){
-    if(this.cd>0){this.cd-=dt;this.exposure=Math.max(0,this.exposure-dt*2);return;}
+    if(this.cd>0){
+      this.cd-=dt;
+      this.exposure=Math.max(0,this.exposure-dt*2);
+      return;
+    }
     if(state==='play'&&!player.hidden&&mercyT<=0){
       const pcx=player.x+player.w/2,pcy=player.y+player.h/2;
       if(this.contains(pcx,pcy)){
-        this.exposure+=dt;
-        if(this.exposure>=1.1){this.exposure=0;this.cd=5;towerAlarm(this);}
-      }else this.exposure=Math.max(0,this.exposure-dt*1.5);
-    }else this.exposure=Math.max(0,this.exposure-dt*2);
+        this.exposure += dt;
+        if(this.exposure >= this.alertTime){
+          this.exposure=0;
+          this.cd=5;
+          towerAlarm(this);
+        }
+      }else{
+        this.exposure=Math.max(0,this.exposure-dt*1.5);
+      }
+    }else{
+      this.exposure=Math.max(0,this.exposure-dt*2);
+    }
   }
   drawStructure(){
     const top=this.topY();
-    ctx.strokeStyle='#1a0405';ctx.lineWidth=5;
-    ctx.beginPath();ctx.moveTo(this.x-16,G);ctx.lineTo(this.x-7,top+18);ctx.stroke();
-    ctx.beginPath();ctx.moveTo(this.x+16,G);ctx.lineTo(this.x+7,top+18);ctx.stroke();
-    ctx.lineWidth=2.5;
-    for(let i=1;i<=3;i++){
-      const yy=G-(G-top-20)*i/4;
-      const ww=16-9*i/4;
-      ctx.beginPath();ctx.moveTo(this.x-ww,yy);ctx.lineTo(this.x+ww,yy-34);ctx.stroke();
-      ctx.beginPath();ctx.moveTo(this.x+ww,yy);ctx.lineTo(this.x-ww,yy-34);ctx.stroke();
+    const isTop=this.mount==='top';
+    ctx.save();
+    if(isTop){
+      // Ceiling hanging structure
+      ctx.fillStyle='#1a0405';
+      ctx.fillRect(this.x-22,this.baseY,44,8);
+      ctx.strokeStyle='#1a0405';
+      ctx.lineWidth=4;
+      ctx.beginPath();
+      ctx.moveTo(this.x-12,this.baseY+8);ctx.lineTo(this.x-6,this.baseY+22);
+      ctx.moveTo(this.x+12,this.baseY+8);ctx.lineTo(this.x+6,this.baseY+22);
+      ctx.stroke();
+      rrectPath(this.x-16,this.baseY+16,32,16,3);ctx.fill();
+    }else{
+      // Ground tower structure
+      ctx.strokeStyle='#1a0405';ctx.lineWidth=5;
+      ctx.beginPath();ctx.moveTo(this.x-16,this.baseY);ctx.lineTo(this.x-7,top+18);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(this.x+16,this.baseY);ctx.lineTo(this.x+7,top+18);ctx.stroke();
+      ctx.lineWidth=2.5;
+      for(let i=1;i<=3;i++){
+        const yy=this.baseY-(this.baseY-top-20)*i/4;
+        const ww=16-9*i/4;
+        ctx.beginPath();ctx.moveTo(this.x-ww,yy);ctx.lineTo(this.x+ww,yy-34);ctx.stroke();
+        ctx.beginPath();ctx.moveTo(this.x+ww,yy);ctx.lineTo(this.x-ww,yy-34);ctx.stroke();
+      }
+      ctx.fillStyle='#1a0405';
+      rrectPath(this.x-17,top,34,20,3);ctx.fill();
+      ctx.beginPath();ctx.moveTo(this.x-21,top);ctx.lineTo(this.x,top-12);ctx.lineTo(this.x+21,top);ctx.closePath();ctx.fill();
     }
-    ctx.fillStyle='#1a0405';
-    rrectPath(this.x-17,top,34,20,3);ctx.fill();
-    ctx.beginPath();ctx.moveTo(this.x-21,top);ctx.lineTo(this.x,top-12);ctx.lineTo(this.x+21,top);ctx.closePath();ctx.fill();
+    const o=this.origin();
     const active=this.cd<=0;
     ctx.fillStyle=active?(this.exposure>0?'#ff6a4a':'#ffcf6a'):'#5a4a30';
-    ctx.beginPath();ctx.arc(this.x,top+24,5,0,TAU);ctx.fill();
+    ctx.beginPath();ctx.arc(o.x,o.y,5,0,TAU);ctx.fill();
     if(active){
       ctx.save();ctx.globalCompositeOperation='lighter';
-      const gg=ctx.createRadialGradient(this.x,top+24,2,this.x,top+24,20);
+      const gg=ctx.createRadialGradient(o.x,o.y,2,o.x,o.y,20);
       gg.addColorStop(0,this.exposure>0?'rgba(255,110,70,0.5)':'rgba(255,215,110,0.4)');
       gg.addColorStop(1,'rgba(255,215,110,0)');
       ctx.fillStyle=gg;
-      ctx.beginPath();ctx.arc(this.x,top+24,20,0,TAU);ctx.fill();
+      ctx.beginPath();ctx.arc(o.x,o.y,20,0,TAU);ctx.fill();
       ctx.restore();
     }
+    ctx.restore();
   }
   drawBeam(){
     if(this.cd>0)return;
     const o=this.origin(),tp=this.targetPoint();
     const warm=this.exposure>0;
+    const spread=this.beamSpread||54;
     ctx.save();ctx.globalCompositeOperation='lighter';
     const g=ctx.createLinearGradient(o.x,o.y,tp.x,tp.y);
-    if(warm){g.addColorStop(0,'rgba(255,120,70,0.32)');g.addColorStop(1,'rgba(255,120,70,0.06)');}
-    else{g.addColorStop(0,'rgba(255,225,170,0.24)');g.addColorStop(1,'rgba(255,225,170,0.05)');}
+    if(warm){g.addColorStop(0,'rgba(255,120,70,0.34)');g.addColorStop(1,'rgba(255,120,70,0.08)');}
+    else{g.addColorStop(0,'rgba(255,225,170,0.25)');g.addColorStop(1,'rgba(255,225,170,0.05)');}
     ctx.fillStyle=g;
     ctx.beginPath();
     ctx.moveTo(o.x,o.y);
-    ctx.lineTo(tp.x-38,tp.y);
-    ctx.lineTo(tp.x+38,tp.y);
+    ctx.lineTo(tp.x-spread*0.7,tp.y);
+    ctx.lineTo(tp.x+spread*0.7,tp.y);
     ctx.closePath();ctx.fill();
-    const pg=ctx.createRadialGradient(tp.x,tp.y,4,tp.x,tp.y,54);
-    pg.addColorStop(0,warm?'rgba(255,140,80,0.35)':'rgba(255,230,180,0.28)');
+    const pg=ctx.createRadialGradient(tp.x,tp.y,4,tp.x,tp.y,spread);
+    pg.addColorStop(0,warm?'rgba(255,140,80,0.38)':'rgba(255,230,180,0.28)');
     pg.addColorStop(1,'rgba(255,230,180,0)');
     ctx.fillStyle=pg;
-    ctx.beginPath();ctx.ellipse(tp.x,tp.y,54,12,0,0,TAU);ctx.fill();
+    ctx.beginPath();ctx.ellipse(tp.x,tp.y,spread,12,0,0,TAU);ctx.fill();
     ctx.restore();
   }
 }
@@ -1652,29 +2010,40 @@ function losClear(x1,y1,x2,y2){
 class Guard{
   constructor(d){
     this.type=d.type||'walker';
-    this.spawnX=d.x;
-    this.x=d.x;this.y=G;this.vy=0;this.onGround=true;this.jumpCd=0;
-    this.minX=d.minX!==undefined?d.minX:d.x-10;
-    this.maxX=d.maxX!==undefined?d.maxX:d.x+10;
+    this.spawnX=Math.max(260, d.x||260);
+    this.x=this.spawnX;this.y=G;this.vy=0;this.onGround=true;this.jumpCd=0;
+    this.minX=Math.max(220, d.minX!==undefined?d.minX:this.spawnX-10);
+    this.maxX=Math.max(this.minX+30, d.maxX!==undefined?d.maxX:this.spawnX+10);
     this.range=d.range||(this.type==='runner'?300:260);
     this.dir=1;this.state='patrol';
     this.phase=rand(0,6);this.pauseT=0;this.blind=false;
-    this.sweepPhase=hash(d.x)*2.2;
-    this.lastSeen={x:d.x,y:G};
+    this.sweepPhase=hash(this.spawnX)*2.2;
+    this.lastSeen={x:this.spawnX,y:G};
     this.lastSeenPlat=null;
     this.lastSeenGrounded=false;
     this.climbCooldown=0;
     this.searchT=0;this.invT=0;this.invSpot=null;this.investigateCd=0;
-    this.alarmT=0;this.alarmCd=0;this.wasChase=false;
+    this.alarmT=0;this.alarmCd=0;this.wasChase=false;this.dead=false;
     if(this.type==='runner'){this.patrolSpd=170;this.chaseSpd=325;}
     else if(this.type==='watcher'){this.patrolSpd=0;this.chaseSpd=0;}
     else{this.patrolSpd=90;this.chaseSpd=315;}
   }
   reset(){
     this.x=this.spawnX;this.y=G;this.vy=0;this.state='patrol';this.dir=1;
-    this.alarmT=0;this.invT=0;this.searchT=0;this.onGround=true;this.pauseT=0;this.wasChase=false;
+    this.alarmT=0;this.invT=0;this.searchT=0;this.onGround=true;this.pauseT=0;this.wasChase=false;this.dead=false;
+  }
+  die(){
+    if(this.dead)return;
+    this.dead=true;
+    burstDeath(this.x,this.y-30);
+    burstDust(this.x,this.y,10);
+    Snd.slash();
+    shake=Math.max(shake,8);
+    score+=150;
+    texts.push(new FloatText(this.x,this.y-54,'VANQUISHED! +150','#ffd76a'));
   }
   update(dt,canSense){
+    if(this.dead)return;
     const eyeY=this.y-46;
     const pcx=player.x+player.w/2,pcy=player.y+player.h/2;
     this.jumpCd-=dt;this.investigateCd-=dt;this.alarmCd-=dt;
@@ -1686,11 +2055,13 @@ class Guard{
     }else this.blind=false;
 
     let visible=false;
-    if(canSense&&!player.hidden&&!this.blind){
+    if(canSense&&!player.hidden&&!this.blind&&player.x>130){
       const dx=pcx-this.x,dy=pcy-eyeY,dist=Math.hypot(dx,dy);
-      const inFront=dx*this.dir>-16;
+      const inFront=(dx*this.dir>0);
       const angleOk=Math.abs(dy)<dist*0.62+18;
-      if(dist<46||(dist<this.range&&inFront&&angleOk&&losClear(this.x+this.dir*12,eyeY,pcx,pcy)))visible=true;
+      if(inFront&&dist<this.range&&angleOk&&losClear(this.x+this.dir*12,eyeY,pcx,pcy)){
+        visible=true;
+      }
     }
     if(visible){
       this.lastSeen={x:pcx,y:pcy};
@@ -1710,7 +2081,7 @@ class Guard{
     }
 
     if(canSense&&player.hidden&&this.type!=='watcher'&&
-       (this.state==='patrol'||this.state==='search')&&this.investigateCd<=0){
+       (this.state==='search')&&this.investigateCd<=0){
       for(const s of hideSpots){
         if(player.hideCrate===s&&Math.abs(this.x-(s.x+s.w/2))<52){
           this.state='investigate';this.invT=2.5;this.invSpot=s;break;
@@ -1826,19 +2197,51 @@ class Guard{
       if(this.x-14<p.x+p.w&&this.x+14>p.x&&this.y-58<p.y+p.h&&this.y>p.y){
         if(this.vy>0&&this.y-this.vy*dt<=p.y+14){
           this.y=p.y;this.vy=0;this.onGround=true;
-          if(p.t==='vanish'&&p.vState==='solid'){p.vState='shake';p.vT=0.7;}
+          if(p.t==='vanish'&&p.vState==='solid'){
+            p.vState='shake';p.vT=0.7;
+          }
           if(!wasG)burstDust(this.x,this.y,3);
         }
       }
     }
-    if(this.y>LH+240){this.y=G;this.vy=0;}
+    if(this.y>LH+100){this.x=Math.max(200,this.spawnX);this.y=G;this.vy=0;this.state='patrol';}
 
-    if(canSense&&!player.hidden){
-      if(Math.abs(pcx-this.x)<26&&player.y+player.h>this.y-62&&player.y<this.y)die();
+    if(canSense&&!player.hidden&&!this.dead&&mercyT<=0){
+      const dx=pcx-this.x;
+      const inFront=(dx*this.dir>0);
+      const isTouching=Math.abs(dx)<26&&player.y+player.h>this.y-62&&player.y<this.y;
+      if(isTouching){
+        if(this.state==='chase'||inFront){
+          die();
+        }else{
+          this.touchT=(this.touchT||0)+dt;
+          if(this.touchT>0.9){
+            this.dir*=-1;
+            this.state='chase';
+            Snd.alert();
+          }
+        }
+      }else{
+        this.touchT=0;
+      }
     }
     this.wasChase=this.state==='chase';
   }
   draw(){
+    if(this.dead)return;
+    if(this.state!=='chase'&&!player.hidden&&!player.dead&&state==='play'){
+      const dx=player.x+player.w/2-this.x,dy=player.y+player.h/2-(this.y-30);
+      if(dx*this.dir<0&&Math.abs(dx)<85&&Math.abs(dy)<54){
+        ctx.save();ctx.textAlign='center';ctx.font='bold 11px "Trebuchet MS",sans-serif';
+        const bob=Math.sin(tGlobal*8)*2;
+        ctx.fillStyle='rgba(14,2,2,0.88)';
+        rrectPath(this.x-44,this.y-86+bob,88,22,6);ctx.fill();
+        ctx.strokeStyle='#ffd76a';ctx.lineWidth=1.5;ctx.stroke();
+        ctx.fillStyle='#ffd76a';
+        ctx.fillText(touch.isTouch?'TAP / [E] TAKEDOWN':'[E] TAKEDOWN',this.x,this.y-71+bob);
+        ctx.restore();
+      }
+    }
     const alert=this.state==='chase';
     const ex=this.x+this.dir*8,ey=this.y-46,len=this.range*(this.blind?0.25:1);
     if(!this.blind||alert){
@@ -2057,7 +2460,19 @@ class Player{
           this.y=p.y-this.h;this.vy=0;
           this.onGround=true;this.jumpsLeft=2;this.coyote=0.1;
           this.standPlat=p;
-          if(p.t==='vanish'&&p.vState==='solid'){p.vState='shake';p.vT=0.7;}
+          if(p.t==='vanish'&&p.vState==='solid'){
+            p.vState='shake';
+            p.vT=p.collapseDelay!==undefined?p.collapseDelay:0.7;
+            if(p.triggerTutorial&&!tutTriggered['plat_'+p.x]){
+              tutTriggered['plat_'+p.x]=true;
+              activeTutCard={
+                kanji:p.tutKanji||'崩',
+                title:p.tutTitle||'CRUMBLING PLATFORM!',
+                text:p.tutText||'This ancient stone platform collapses under your weight!\nLeap quickly before it gives way!'
+              };
+              Snd.alert();
+            }
+          }
           if(!wasGround){this.deform=-0.2;Snd.land();burstDust(this.x+this.w/2,p.y,7);}
         }else{
           this.y=p.y+p.h;this.vy=0;
@@ -2167,23 +2582,39 @@ class Player{
 const player=new Player();
 
 function loadLevel(i){
-  levelIndex=i;
-  const d=LEVELS[i];
+  syncCustomLevelsFromStorage();
+  let d;
+  if(typeof i==='object'){d=i;levelIndex=-1;isTutorial=true;}
+  else if(i===-1){d=TUTORIAL_LEVEL;levelIndex=-1;isTutorial=true;}
+  else{levelIndex=i;d=LEVELS[i];isTutorial=false;}
   L=d;curName=d.name;parTime=d.par;
   keysNeed=d.keys.length;keyGotCount=0;
-  currentCheckpointX=90;
+  currentCheckpointX=d.spawnX!==undefined?d.spawnX:90;
   plats=[{x:0,y:G,w:d.w,h:110,t:'n'}];
   for(const p of d.plats){
     if(Array.isArray(p))plats.push({x:p[0],y:p[1],w:p[2],h:p[3],t:'n'});
     else{
-      const np={x:p.x,y:p.y,w:p.w,h:p.h,t:p.t||'n'};
-      if(np.t==='vanish'){np.vState='solid';np.vT=0;}
+      const np={
+        x:p.x,y:p.y,w:p.w,h:p.h,t:p.t||'n',
+        initiallyHidden:!!p.initiallyHidden,
+        collapseDelay:p.collapseDelay,
+        respawnDelay:p.respawnDelay,
+        triggerTutorial:p.triggerTutorial,
+        tutTitle:p.tutTitle,tutText:p.tutText,tutKanji:p.tutKanji
+      };
+      if(np.initiallyHidden){
+        np.vState='gone';
+        np.vT=0;
+      }else if(np.t==='vanish'){
+        np.vState='solid';
+        np.vT=0;
+      }
       plats.push(np);
     }
   }
   spikeGroups=d.spikes.map(s=>new SpikeGroup(s.x,s.w,s.y!==undefined?s.y:G));
   blades=d.blades.map(b=>new Blade(b));
-  plates=d.plates.map(p=>new Plate(p.x,p.fx||'spike',p.y));
+  plates=d.plates.map(p=>new Plate(p));
   fires=(d.fires||[]).map(f=>new PulseFire(f));
   spots=d.spots.map(s=>new Spotlight(s));
   towers=d.towers.map(t=>new Watchtower(t));
@@ -2208,6 +2639,247 @@ function loadLevel(i){
 }
 function camClampX(v){return L.w<=W?(L.w-W)/2:clamp(v,0,L.w-W);}
 function camClampY(v){return LH<=H?(LH-H)/2:clamp(v,0,LH-H);}
+
+let activeTutCard=null;
+let activeTutPrompt=null;
+let tutPromptRect=null;
+let tutTriggered={};
+
+function resetTutorialState(){
+  tutTriggered={};
+  activeTutCard=null;
+  activeTutPrompt=null;
+  tutPromptRect=null;
+}
+
+function dismissTutCard(){
+  if(!activeTutCard)return;
+  activeTutCard=null;
+  Snd.ui();
+}
+window.getActiveTutCard=()=>activeTutCard;
+window.setActiveTutCard=(v)=>{activeTutCard=v;};
+
+function getCardTriggerRect(c){
+  if(!c)return null;
+  if(Array.isArray(c.trigger))return {x:c.trigger[0],y:c.trigger[1],w:c.trigger[2],h:c.trigger[3]};
+  if(c.trigger&&typeof c.trigger==='object')return {x:c.trigger.x,y:c.trigger.y,w:c.trigger.w,h:c.trigger.h};
+  if(c.x!==undefined&&c.w!==undefined)return {x:c.x,y:c.y||400,w:c.w,h:c.h||200};
+  return null;
+}
+
+function rectsOverlap(r1,r2){
+  return r1.x<r2.x+r2.w && r1.x+r1.w>r2.x && r1.y<r2.y+r2.h && r1.y+r1.h>r2.y;
+}
+
+function checkTutorialMilestones(){
+  if(state!=='play'||activeTutCard)return;
+
+  let candidatePrompt = null;
+  if(L && L.tutorialCards && L.tutorialCards.length > 0){
+    const pr = { x: player.x, y: player.y, w: player.w, h: player.h };
+    for(const c of L.tutorialCards){
+      const tr = getCardTriggerRect(c);
+      if(!tr) continue;
+      const cardId = c.id || (c.title + '_' + tr.x);
+      const isAuto = (c.triggerMode === 'auto' || c.mode === 'auto');
+      if(isAuto){
+        if(!tutTriggered[cardId] && rectsOverlap(pr, tr)){
+          tutTriggered[cardId] = true;
+          activeTutPrompt = null;
+          activeTutCard = {
+            kanji: c.kanji || '訓',
+            title: c.title || 'TUTORIAL INSTRUCTION',
+            text: c.text || ''
+          };
+          Snd.alert();
+          return;
+        }
+      } else {
+        // Prompted mode: always available whenever in that spot!
+        if(rectsOverlap(pr, tr)){
+          candidatePrompt = { card: c, id: cardId };
+        }
+      }
+    }
+  }
+  activeTutPrompt = candidatePrompt;
+}
+
+function tryOpenTutPrompt(){
+  if(state==='play' && activeTutPrompt && activeTutPrompt.card){
+    const c = activeTutPrompt.card;
+    activeTutCard = {
+      kanji: c.kanji || '訓',
+      title: c.title || 'TUTORIAL INSTRUCTION',
+      text: c.text || ''
+    };
+    activeTutPrompt = null;
+    Snd.alert();
+    return true;
+  }
+  return false;
+}
+
+function drawTutPrompt(p){
+  if(!p || !p.card) return;
+  const c = p.card;
+  const titleText = (c.title || 'OPTIONAL TIP').toUpperCase();
+
+  ctx.save();
+  
+  const px = player.x + player.w/2 - camX;
+  const py = player.y - camY;
+  
+  const label = `[ E ]  ${titleText}`;
+  ctx.font = 'bold 11px "Trebuchet MS",sans-serif';
+  const textW = ctx.measureText(label).width;
+  const pw = Math.max(170, textW + 28);
+  const ph = 28;
+  
+  const bob = Math.sin(tGlobal * 7) * 2.5;
+  const cx = clamp(px, pw/2 + 10, W - pw/2 - 10);
+  const cy = clamp(py - 34 + bob, 46, H - 70);
+  const bx = cx - pw/2, by = cy - ph/2;
+  
+  tutPromptRect = { x: bx, y: by, w: pw, h: ph };
+
+  // Subtle glow
+  ctx.shadowColor = 'rgba(255, 215, 106, 0.45)';
+  ctx.shadowBlur = 10 * shadowMul;
+
+  // Dark obsidian badge
+  ctx.fillStyle = 'rgba(16, 3, 5, 0.94)';
+  rrectPath(bx, by, pw, ph, 6);
+  ctx.fill();
+
+  // Gold border
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = '#ffd76a';
+  ctx.lineWidth = 1.4;
+  ctx.stroke();
+
+  // Inner highlight
+  ctx.strokeStyle = 'rgba(255, 80, 50, 0.3)';
+  ctx.lineWidth = 1;
+  rrectPath(bx + 2, by + 2, pw - 4, ph - 4, 4);
+  ctx.stroke();
+
+  // Left button pill [ E ]
+  const badgeW = 24, badgeH = 18;
+  const bbx = bx + 5, bby = by + 5;
+  ctx.fillStyle = 'rgba(255, 215, 106, 0.25)';
+  rrectPath(bbx, bby, badgeW, badgeH, 4);
+  ctx.fill();
+  ctx.strokeStyle = '#ffd76a';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  ctx.fillStyle = '#ffd76a';
+  ctx.font = 'bold 11px "Trebuchet MS",sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('E', bbx + badgeW/2, bby + 13);
+
+  // Title text
+  ctx.fillStyle = '#f5ebd9';
+  ctx.font = 'bold 11px "Trebuchet MS",sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(titleText, bbx + badgeW + 8, by + 18);
+
+  // Downward pointer arrow
+  ctx.fillStyle = '#ffd76a';
+  ctx.beginPath();
+  ctx.moveTo(cx - 4, by + ph);
+  ctx.lineTo(cx + 4, by + ph);
+  ctx.lineTo(cx, by + ph + 4);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawTutCard(c){
+  ctx.save();
+  ctx.fillStyle='rgba(8,1,2,0.80)';
+  ctx.fillRect(0,0,W,H);
+
+  const cw=Math.min(560,W*0.90);
+  const ch=Math.min(270,H*0.78);
+  const cx=W/2-cw/2,cy=H/2-ch/2;
+
+  ctx.shadowColor='rgba(255,60,30,0.5)';
+  ctx.shadowBlur=28*shadowMul;
+
+  ctx.fillStyle='rgba(20,4,6,0.96)';
+  rrectPath(cx,cy,cw,ch,14);
+  ctx.fill();
+
+  ctx.strokeStyle='#ffd76a';
+  ctx.lineWidth=2;
+  ctx.stroke();
+  ctx.shadowBlur=0;
+
+  ctx.strokeStyle='rgba(255,80,50,0.35)';
+  ctx.lineWidth=1;
+  rrectPath(cx+5,cy+5,cw-10,ch-10,10);
+  ctx.stroke();
+
+  if(c.kanji){
+    ctx.save();
+    ctx.fillStyle='rgba(255,60,30,0.08)';
+    ctx.font='bold 110px serif';
+    ctx.textAlign='center';
+    ctx.fillText(c.kanji,W/2,cy+ch*0.68);
+    ctx.restore();
+  }
+
+  ctx.fillStyle='#ff5340';
+  ctx.font='bold 11px "Trebuchet MS",sans-serif';
+  ctx.textAlign='center';
+  ctx.fillText('CRIMSON DOJO · TRAINING INSIGHT',W/2,cy+30);
+
+  ctx.fillStyle='#ffd76a';
+  ctx.font='400 23px "Impact","Arial Black",sans-serif';
+  ctx.fillText(c.title,W/2,cy+62);
+
+  ctx.strokeStyle='rgba(255,215,106,0.4)';
+  ctx.lineWidth=1;
+  ctx.beginPath();
+  ctx.moveTo(cx+30,cy+76);ctx.lineTo(W/2-20,cy+76);
+  ctx.moveTo(W/2+20,cy+76);ctx.lineTo(cx+cw-30,cy+76);
+  ctx.stroke();
+  ctx.fillStyle='#ffd76a';
+  ctx.fillRect(W/2-3,cy+73,6,6);
+
+  ctx.fillStyle='#f5ebd9';
+  ctx.font='15px "Trebuchet MS",sans-serif';
+  ctx.textAlign='center';
+  const lines=c.text.split('\n');
+  for(let i=0;i<lines.length;i++){
+    ctx.fillText(lines[i],W/2,cy+108+i*24);
+  }
+
+  const bob=Math.sin(tGlobal*6)*2;
+  const bw=230,bh=34,bx=W/2-bw/2,by=cy+ch-48+bob;
+  ctx.fillStyle='rgba(255,215,106,0.2)';
+  rrectPath(bx,by,bw,bh,8);ctx.fill();
+  ctx.strokeStyle='#ffd76a';ctx.lineWidth=1.5;ctx.stroke();
+  ctx.fillStyle='#ffd76a';
+  ctx.font='bold 13px "Trebuchet MS",sans-serif';
+  ctx.fillText(touch.isTouch?'TAP TO CONTINUE':'PRESS [SPACE] OR CLICK',W/2,by+22);
+
+  ctx.restore();
+}
+
+function startTutorial(){
+  resetTutorialState();
+  isTutorial=true;
+  score=0;deaths=0;totalOrbs=0;totalTime=0;newBest=false;
+  deathsSinceAd=0;
+  loadLevel(TUTORIAL_LEVEL);
+  startBrief();
+  CG.gameplayStart();
+}
 function startLevelRun(i){
   score=0;deaths=0;totalOrbs=0;totalTime=0;newBest=false;
   deathsSinceAd=0;
@@ -2217,7 +2889,7 @@ function startLevelRun(i){
 }
 function startBrief(){state='brief';briefT=0;briefDur=clamp(1.2+L.w/1800,1.4,2.4);}
 function startReady(t){state='ready';readyT=t||0;}
-function goMenu(){state='menu';menuSel=0;CG.clearContext();}
+function goMenu(){state='menu';menuSel=0;heatT=0;CG.clearContext();CG.gameplayStop();}
 function openPause(){if(inGame()&&state!=='dead'&&state!=='cleared'&&state!=='win'){state='paused';pauseSel=0;Snd.ui();}}
 function die(){
   if(state!=='play')return;
@@ -2230,7 +2902,7 @@ function die(){
   burstDeath(player.x+player.w/2,player.y+player.h/2);
   shake=16;flash=1;
 }
-function respawn(){loadLevel(levelIndex);startReady(0.35);}
+function respawn(){if(isTutorial)loadLevel(TUTORIAL_LEVEL);else loadLevel(levelIndex);startReady(0.35);}
 function doRevive(){
   reviveUsed=true;mercyT=MERCY_TIME;
   player.dead=false;
@@ -2250,24 +2922,45 @@ function forceUnhide(msg){
   const s=player.hideCrate;
   if(!s)return;
   player.hidden=false;
-  player.x=s.x+s.w+4;
-  if(player.x+player.w>L.w)player.x=s.x-player.w-4;
+  player.x=s.x+s.w/2-player.w/2;
   player.y=G-player.h;player.vy=0;
   player.hideCrate=null;hideT=0;
   s.cd=2.5;
+  mercyT=Math.max(mercyT,0.4);
   Snd.unhide();
   burstDust(player.x+player.w/2,G,8);
   texts.push(new FloatText(player.x+player.w/2,player.y-30,msg,'#ff8a70'));
 }
+function tryTakedown(){
+  if(state!=='play'||player.hidden||player.dead)return false;
+  const pcx=player.x+player.w/2,pcy=player.y+player.h/2;
+  for(const g of guards){
+    if(g.dead||g.state==='chase')continue;
+    const dx=pcx-g.x,dy=pcy-(g.y-30);
+    const behind=(dx*g.dir<0);
+    if(behind&&Math.abs(dx)<85&&Math.abs(dy)<54){
+      g.die();
+      texts.push(new FloatText(g.x,g.y-54,'TAKEDOWN! +200','#ffd76a'));
+      score+=50;
+      Snd.slash();
+      return true;
+    }
+  }
+  return false;
+}
+
 function toggleHide(){
   if(state!=='play')return;
   if(player.hidden){
     const c=player.hideCrate;
     player.hidden=false;
-    player.x=c.x+c.w+4;
-    if(player.x+player.w>L.w)player.x=c.x-player.w-4;
+    if(keys.left)player.x=c.x-player.w-4;
+    else if(keys.right)player.x=c.x+c.w+4;
+    else player.x=c.x+c.w/2-player.w/2;
+    player.x=clamp(player.x,0,L.w-player.w);
     player.y=G-player.h;player.vy=0;
     player.hideCrate=null;hideT=0;
+    mercyT=Math.max(mercyT,0.4);
     Snd.unhide();
   }else if(hideAvail){
     if(hideAvail.cd>0){
@@ -2301,7 +2994,18 @@ function levelCleared(){
   burstGold(player.x+player.w/2,player.y+player.h/2,20);
 }
 function advanceLevel(){
-  if(levelIndex+1<NLV){startLevelRun(levelIndex+1);}
+  if(isTutorial){
+    isTutorial=false;
+    try{localStorage.setItem('crimsonTutDone','1');}catch(e){}
+    texts.push(new FloatText(W/2,H/2-40,'TRAINING COMPLETED!','#ffd76a'));
+    goMenu();
+    return;
+  }
+  if(levelIndex+1<NLV){
+    loadLevel(levelIndex+1);
+    if(!visitedLevels.has(levelIndex)){visitedLevels.add(levelIndex);startBrief();}
+    else startReady(0.35);
+  }
   else{
     state='win';
     newBest=score>best;
@@ -2317,9 +3021,11 @@ function firstIncomplete(){
   return 0;
 }
 function uiAction(id){
-  if(id==='play'){Snd.ui();startLevelRun(firstIncomplete());}
+  if(id==='play'){Snd.ui();CG.gameplayStart();startLevelRun(firstIncomplete());}
+  else if(id==='tutorial'){Snd.ui();startTutorial();}
   else if(id==='levels'){Snd.ui();state='levels';levelSel=firstIncomplete();levelPage=Math.floor(levelSel/10);}
   else if(id==='settings'){Snd.ui();state='settings';setSel=0;}
+  else if(id==='editor'){Snd.ui();window.open('editor.html', '_blank');}
   else if(id==='back'){Snd.ui();goMenu();}
   else if(id==='resume'){Snd.ui();state='play';}
   else if(id==='restart'){Snd.ui();respawn();}
@@ -2332,12 +3038,12 @@ function uiAction(id){
   else if(id==='shake'){settings.shake=!settings.shake;saveSettings();Snd.ui();}
   else if(id==='particles'){settings.particles=!settings.particles;saveSettings();Snd.ui();}
   else if(id==='hints'){settings.hints=!settings.hints;saveSettings();Snd.ui();}
-  else if(typeof id==='number'){Snd.ui();if(unlocked(id))startLevelRun(id);}
+  else if(typeof id==='number'){Snd.ui();if(unlocked(id)){CG.gameplayStart();startLevelRun(id);}}
 }
 
 function pressJumpAction(){
   if(awaitingFocus){awaitingFocus=false;tryFocus();}
-  if(state==='menu'){uiAction(['play','levels','settings'][menuSel]);return;}
+  if(state==='menu'){uiAction(['play','tutorial','levels','settings','editor'][menuSel]);return;}
   if(state==='levels'){uiAction(levelSel);return;}
   if(state==='settings'){uiAction(['sound','shake','particles','hints'][setSel]);return;}
   if(state==='paused'){uiAction(['resume','restart','quit'][pauseSel]);return;}
@@ -2353,8 +3059,8 @@ function pressJumpAction(){
 function releaseJump(){if(state==='play')player.cutJump();}
 function menuNav(c){
   if(state==='menu'){
-    if(c==='ArrowUp'||c==='ArrowLeft')menuSel=(menuSel+2)%3;
-    if(c==='ArrowDown'||c==='ArrowRight')menuSel=(menuSel+1)%3;
+    if(c==='ArrowUp'||c==='ArrowLeft')menuSel=(menuSel+4)%5;
+    if(c==='ArrowDown'||c==='ArrowRight')menuSel=(menuSel+1)%5;
   }else if(state==='levels'){
     const cols=5;
     if(c==='ArrowLeft'){
@@ -2381,6 +3087,10 @@ window.addEventListener('keydown',e=>{
   if(awaitingFocus){awaitingFocus=false;tryFocus();}
   audioGesture();
   const c=e.code;
+  if(activeTutCard){
+    if(c==='Space'||c==='Enter'){dismissTutCard();e.preventDefault();}
+    return;
+  }
   if((c==='Escape'||c==='KeyP')&&inGame()&&state!=='dead'&&state!=='cleared'&&state!=='win'){
     if(state==='paused'){state='play';}
     else openPause();
@@ -2397,6 +3107,10 @@ window.addEventListener('keydown',e=>{
   if(c==='KeyD'||c==='ArrowRight'){keys.right=true;if(onboardT>0)onboardT=Math.min(onboardT,2);}
   if(c==='KeyW'||c==='ArrowUp'||c==='Space')pressJumpAction();
   if((c==='KeyS'||c==='ArrowDown')&&state==='play')toggleHide();
+  if((c==='KeyE'||c==='KeyX'||c==='KeyJ')&&state==='play'){
+    if(tryOpenTutPrompt())return;
+    if(tryTakedown())return;
+  }
   if(c==='ShiftLeft'||c==='ShiftRight'||c==='KeyF'){if(state==='play')player.tryDash();}
   if(c==='Space'||c==='ArrowUp'||c==='ArrowDown')e.preventDefault();
 });
@@ -2415,6 +3129,15 @@ function inGame(){return['brief','ready','play','dead','cleared','win'].includes
 function handlePointerDown(x,y){
   if(adActive)return true;
   if(awaitingFocus){awaitingFocus=false;tryFocus();}
+  if(activeTutCard){dismissTutCard();return true;}
+  if(activeTutPrompt&&tutPromptRect&&state==='play'){
+    if(x>=tutPromptRect.x&&x<=tutPromptRect.x+tutPromptRect.w&&y>=tutPromptRect.y&&y<=tutPromptRect.y+tutPromptRect.h){
+      if(tryOpenTutPrompt())return true;
+    }
+  }
+  if(isTutorial&&state==='play'){
+    if(x>=W-110&&x<=W-14&&y>=14&&y<=44){goMenu();return true;}
+  }
   if(state==='menu'||state==='levels'||state==='settings'||state==='dead'||state==='paused'){
     for(const r of uiRects){
       if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){uiAction(r.id);return true;}
@@ -2458,7 +3181,7 @@ canvas.addEventListener('touchstart',e=>{
     const b=hitButton(t.clientX,t.clientY);
     activeTouches.set(t.identifier,b);
     if(b==='jump')pressJumpAction();
-    else if(b==='hide')toggleHide();
+    else if(b==='hide'){if(tryTakedown())return;toggleHide();}
     else if(b==='dash'){if(state==='play')player.tryDash();}
     else if(!b&&state!=='play')pressJumpAction();
   }
@@ -2494,13 +3217,31 @@ document.addEventListener('contextmenu',e=>e.preventDefault());
 
 function updateVanishPlats(dt){
   for(const p of plats){
-    if(p.t!=='vanish')continue;
+    // Spawned temporary platform countdown
+    if(p.spawnTimer!==undefined && p.spawnTimer>0){
+      p.spawnTimer-=dt;
+      if(p.spawnTimer<=0){
+        p.spawnTimer=0;
+        p.vState='gone';
+        Snd.crumble();
+        burstDust(p.x+p.w/2,p.y+p.h/2,6);
+        texts.push(new FloatText(p.x+p.w/2,p.y-20,'VANISHED!','#ff7a3c'));
+      }
+    }
+
+    if(p.t!=='vanish' && !p.initiallyHidden && !p.vState) continue;
     if(p.vState==='shake'){
       p.vT-=dt;
-      if(p.vT<=0){p.vState='gone';p.vT=2.6;Snd.crumble();burstDust(p.x+p.w/2,p.y+p.h/2,6);}
+      if(p.vT<=0){
+        p.vState='gone';
+        p.vT=(p.respawnDelay!==undefined?p.respawnDelay:2.6);
+        Snd.crumble();burstDust(p.x+p.w/2,p.y+p.h/2,6);
+      }
     }else if(p.vState==='gone'){
-      p.vT-=dt;
-      if(p.vT<=0)p.vState='solid';
+      if(p.vT>0){
+        p.vT-=dt;
+        if(p.vT<=0)p.vState='solid';
+      }
     }
   }
 }
@@ -2537,6 +3278,7 @@ function update(dt){
   else if(state==='play'){
     totalTime+=dt;levelTime+=dt;
     player.update(dt);
+    checkTutorialMilestones();
     updateVanishPlats(dt);
 
     const tx=camClampX(player.x+player.w/2-W*0.45);
@@ -2796,13 +3538,19 @@ function drawPlatforms(){
   for(const p of plats){
     if(p.y===G)continue;
     if(!inView(p.x,p.y,p.w,p.h))continue;
-    if(p.t==='vanish'&&p.vState==='gone'){
-      ctx.globalAlpha=0.16;
-      ctx.strokeStyle='#ffd9c0';ctx.lineWidth=1.5;
-      ctx.setLineDash([6,6]);
-      ctx.strokeRect(p.x,p.y,p.w,p.h);
-      ctx.setLineDash([]);
-      ctx.globalAlpha=1;
+    if(p.vState==='gone'||p.vState==='hidden'){
+      if(p.initiallyHidden){
+        // 100% INVISIBLE: Do NOT draw any outline at all!
+        continue;
+      }else{
+        ctx.save();
+        ctx.globalAlpha=0.15;
+        ctx.strokeStyle='#ffd9c0';
+        ctx.lineWidth=1.2;
+        ctx.setLineDash([4,4]);
+        ctx.strokeRect(p.x,p.y,p.w,p.h);
+        ctx.restore();
+      }
       continue;
     }
     let jx=0,jy=0;
@@ -2859,13 +3607,23 @@ function drawPlatforms(){
       ctx.fillStyle='rgba(0,0,0,0.45)';
       ctx.fillRect(3,p.h-3,p.w-6,3);
       ctx.save();
-      ctx.shadowColor='rgba(255,90,50,0.7)';ctx.shadowBlur=6*shadowMul;
-      ctx.fillStyle='rgba(255,110,66,0.6)';
-      ctx.fillRect(2,0,p.w-4,2.4);
+      if(p.spawnTimer>0){
+        ctx.shadowColor='#00d2d3';ctx.shadowBlur=8*shadowMul;
+        ctx.fillStyle='#00d2d3';
+        ctx.fillRect(2,0,p.w-4,2.6);
+      }else{
+        ctx.shadowColor='rgba(255,90,50,0.7)';ctx.shadowBlur=6*shadowMul;
+        ctx.fillStyle='rgba(255,110,66,0.6)';
+        ctx.fillRect(2,0,p.w-4,2.4);
+      }
       ctx.restore();
       ctx.fillStyle='rgba(0,0,0,0.3)';
       const n=Math.floor(p.w/46);
       for(let i=1;i<n;i++)ctx.fillRect(i*(p.w/n),5,2,p.h-8);
+    }
+    if(p.spawnTimer>0){
+      ctx.fillStyle='rgba(0,210,211,0.85)';
+      ctx.fillRect(2,p.h-3,p.w-4,2);
     }
     ctx.restore();
   }
@@ -2894,7 +3652,7 @@ function drawSigns(){
   ctx.font='600 15px "Trebuchet MS","Lucida Sans Unicode",sans-serif';
   ctx.textAlign='center';
   for(const s of signs){
-    if(inView(s[0]-50,s[1]-20,100,20))ctx.fillText(s[2],s[0],s[1]);
+    if(inView(s[0]-240,s[1]-30,480,50))ctx.fillText(s[2],s[0],s[1]);
   }
 }
 function drawHidePrompt(){
@@ -2924,17 +3682,34 @@ function drawHidePrompt(){
     ctx.fillText(Math.ceil(lim-hideT)+'s',cxp,cyp+4);
   }
 }
-function towerExposureNow(){
-  let m=0;
-  for(const t of towers)if(t.exposure>m)m=t.exposure;
-  return m;
+function towerExposureData(){
+  let maxFrac=0, maxExp=0, maxLimit=1.1;
+  for(const t of towers){
+    const limit=t.alertTime!==undefined?t.alertTime:(t.spotlightTime!==undefined?t.spotlightTime:1.1);
+    const effLimit=Math.max(0.1,limit);
+    const frac=t.exposure/effLimit;
+    if(frac>maxFrac){
+      maxFrac=frac;
+      maxExp=t.exposure;
+      maxLimit=effLimit;
+    }
+  }
+  return { exp: maxExp, limit: maxLimit, frac: maxFrac };
 }
 function drawThreatMeter(){
   if(state!=='play'||player.hidden)return;
-  const te=towerExposureNow();
+  const tData=towerExposureData();
   let val=0,limit=1,warnTxt='';
-  if(te>0){val=te;limit=2;warnTxt='CAMERA';}
-  else if(lightExp>0){val=lightExp;limit=1;warnTxt='LIGHT';}
+  if(tData.exp>0){
+    val=tData.exp;
+    limit=tData.limit;
+    warnTxt='CAMERA';
+  }
+  else if(lightExp>0){
+    val=lightExp;
+    limit=0.7;
+    warnTxt='LIGHT';
+  }
   if(val<=0)return;
   const cx=player.x+player.w/2,cy=player.y-28;
   const frac=clamp(val/limit,0,1);
@@ -3089,21 +3864,31 @@ function drawMenuButton(x,y,w,h,label,hot,id){
 
 function drawHUD(){
   ctx.save();
+  const hudW=Math.min(300,W*0.44);
   ctx.fillStyle='rgba(14,1,1,0.5)';
-  rrectPath(14,14,238,78,10);ctx.fill();
+  rrectPath(14,14,hudW,78,10);ctx.fill();
   ctx.strokeStyle='rgba(255,90,60,0.35)';ctx.lineWidth=1;ctx.stroke();
   const ag=ctx.createLinearGradient(0,14,0,92);
   ag.addColorStop(0,'#ffd76a');ag.addColorStop(1,'#d43a2a');
   ctx.fillStyle=ag;ctx.fillRect(14,20,4,66);
-  ctx.textAlign='left';
-  ctx.fillStyle='#ffb45e';ctx.font='600 13px "Trebuchet MS","Lucida Sans Unicode",sans-serif';
-  ctx.fillText('LEVEL '+(levelIndex+1)+'/30 — '+curName,32,34);
-  ctx.fillStyle='#ffffff';ctx.font='400 36px "Impact","Arial Black",sans-serif';
-  ctx.fillText(pad(score),32,72);
+
   ctx.textAlign='right';
   ctx.fillStyle='rgba(255,255,255,0.55)';ctx.font='600 13px "Trebuchet MS","Lucida Sans Unicode",sans-serif';
-  ctx.fillText('DEATHS '+deaths,242,34);
-  ctx.fillText('KI × '+orbs.filter(o=>o.taken).length+'/'+orbs.length,242,80);
+  ctx.fillText('DEATHS '+deaths,hudW+4,34);
+  ctx.fillText('KI × '+orbs.filter(o=>o.taken).length+'/'+orbs.length,hudW+4,80);
+
+  ctx.textAlign='left';
+  ctx.fillStyle='#ffb45e';ctx.font='600 13px "Trebuchet MS","Lucida Sans Unicode",sans-serif';
+  const titleText = isTutorial ? ('TUTORIAL · ' + curName) : ('LV ' + (levelIndex+1) + '/30 · ' + curName);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(30,18,hudW-108,22);
+  ctx.clip();
+  ctx.fillText(titleText,32,34);
+  ctx.restore();
+
+  ctx.fillStyle='#ffffff';ctx.font='400 36px "Impact","Arial Black",sans-serif';
+  ctx.fillText(pad(score),32,72);
 
   const kw=66+keysNeed*32;
   ctx.fillStyle='rgba(14,1,1,0.5)';
@@ -3135,7 +3920,7 @@ function drawHUD(){
 
   // dash cooldown pip / ready indicator
   {
-    const dx=W/2,dy=H-24;
+    const dx=W/2,dy=(onboardT>0)?(H-84):(H-24);
     const ready=player.dashCd<=0&&player.dashT<=0;
     if(player.dashT>0){
       ctx.fillStyle='#ffd76a';ctx.font='400 18px "Impact","Arial Black",sans-serif';
@@ -3173,7 +3958,7 @@ function drawCard(){
   ctx.fillRect(0,H*0.14,W,104);
   ctx.fillStyle='#ff5340';ctx.font='400 20px "Impact","Arial Black",sans-serif';
   try{ctx.letterSpacing='6px';}catch(e){}
-  ctx.fillText('LEVEL '+(levelIndex+1)+' OF 30',W/2,H*0.14+36);
+  ctx.fillText(isTutorial?'TRAINING GROUNDS':('LEVEL '+(levelIndex+1)+' OF 30'),W/2,H*0.14+36);
   try{ctx.letterSpacing='0px';}catch(e){}
   ctx.fillStyle='#fff';ctx.font='400 44px "Impact","Arial Black",sans-serif';
   ctx.shadowColor='rgba(255,60,30,0.8)';ctx.shadowBlur=18*shadowMul;
@@ -3219,11 +4004,12 @@ function drawMenu(){
   ctx.fillStyle='rgba(255,255,255,0.7)';ctx.font='600 16px "Trebuchet MS","Lucida Sans Unicode",sans-serif';
   ctx.fillText('30 ROOMS  •  STEALTH  •  TRAPS  •  WATCHTOWERS',W/2,H*0.20+62);
   ctx.fillStyle='rgba(255,215,120,0.85)';ctx.font='600 15px "Trebuchet MS","Lucida Sans Unicode",sans-serif';
-  ctx.fillText('★ '+totalStars()+' / '+(NLV*3)+(best>0?'      BEST SCORE '+pad(best):''),W/2,H*0.20+86);
-  const bw=240,bh=52,bx=W/2-bw/2;
-  drawMenuButton(bx,H*0.44,bw,bh,'PLAY',menuSel===0,'play');
-  drawMenuButton(bx,H*0.44+66,bw,bh,'LEVELS',menuSel===1,'levels');
-  drawMenuButton(bx,H*0.44+132,bw,bh,'SETTINGS',menuSel===2,'settings');
+  const bw=240,bh=42,bx=W/2-bw/2;
+  drawMenuButton(bx,H*0.35,bw,bh,'PLAY',menuSel===0,'play');
+  drawMenuButton(bx,H*0.35+48,bw,bh,'TUTORIAL',menuSel===1,'tutorial');
+  drawMenuButton(bx,H*0.35+96,bw,bh,'LEVELS',menuSel===2,'levels');
+  drawMenuButton(bx,H*0.35+144,bw,bh,'SETTINGS',menuSel===3,'settings');
+  drawMenuButton(bx,H*0.35+192,bw,bh,'LEVEL EDITOR',menuSel===4,'editor');
   const cy=H*0.84;
   ctx.fillStyle='rgba(0,0,0,0.28)';
   rrectPath(W/2-300,cy-48,600,100,14);ctx.fill();
@@ -3595,6 +4381,21 @@ function draw(){
   if(state==='dead'){uiRects=[];drawDead();}
   if(state==='cleared')drawCleared();
   if(state==='win')drawWin();
+  if(activeTutPrompt&&state==='play'&&!activeTutCard)drawTutPrompt(activeTutPrompt);
+  if(activeTutCard)drawTutCard(activeTutCard);
+  if(isTutorial&&state==='play'&&!activeTutCard){
+    // Floating top hint for tutorial
+    ctx.save();ctx.textAlign='center';ctx.fillStyle='rgba(14,2,4,0.72)';
+    rrectPath(W/2-170,14,340,30,6);ctx.fill();
+    ctx.strokeStyle='rgba(255,215,106,0.35)';ctx.lineWidth=1;ctx.stroke();
+    ctx.fillStyle='#ffd76a';ctx.font='bold 11px "Trebuchet MS",sans-serif';
+    ctx.fillText('A/D: RUN   SPACE: JUMP(×2)   S: HIDE   E: TAKEDOWN',W/2,33);
+    // [ESC] MENU button
+    const ex=W-104,ey=14;
+    rrectPath(ex,ey,90,30,6);ctx.fill();ctx.stroke();
+    ctx.fillStyle='#ffb45e';ctx.fillText('ESC · MENU',ex+45,33);
+    ctx.restore();
+  }
   drawTouchButtons();
   drawRotate();
   if(awaitingFocus)drawFocusOverlay();
@@ -3606,13 +4407,34 @@ initEmbers();
 // Boot into 'ready' (not 'play') with spawn grace: guards sense nothing
 // until play begins (update passes canSense=false in ready), and mercyT
 // covers the first moments of play. Camera snaps to the ronin instantly.
-startLevelRun(firstIncomplete());
-camX=camClampX(player.x+player.w/2-W*0.45);
-camY=camClampY(player.y+player.h/2-H*0.55);
-if(TEST_MODE){state='play';}
-else{
-  state='ready';readyT=0;
-  mercyT=1.5;player.dead=false;trapSpikes=[];
+const tutDone=(()=>{try{return localStorage.getItem('crimsonTutDone')==='1';}catch(e){return false;}})();
+const urlParams=new URLSearchParams(window.location.search);
+const targetLvl=urlParams.get('playLevel')||urlParams.get('lvl')||urlParams.get('level');
+if(targetLvl==='tutorial'||targetLvl==='-1'){
+  syncCustomLevelsFromStorage();
+  startTutorial();
+}else if(targetLvl!==null&&!isNaN(parseInt(targetLvl,10))){
+  syncCustomLevelsFromStorage();
+  const lvlIdx=parseInt(targetLvl,10);
+  if(lvlIdx>=0&&lvlIdx<LEVELS.length){
+    CG.gameplayStart();
+    startLevelRun(lvlIdx);
+  }else{
+    goMenu();
+  }
+}else if(TEST_MODE){
+  loadLevel(firstIncomplete());
+  camX=camClampX(player.x+player.w/2-W*0.45);
+  camY=camClampY(player.y+player.h/2-H*0.55);
+  state='play';
+}else if(!tutDone){
+  // First time player: immediately launch the awesome Tutorial!
+  startTutorial();
+}else{
+  loadLevel(firstIncomplete());
+  camX=camClampX(player.x+player.w/2-W*0.45);
+  camY=camClampY(player.y+player.h/2-H*0.55);
+  goMenu();
 }
 tryFocus();
 CG.boot();
@@ -3629,7 +4451,7 @@ function loop(now){
       else CG.gameplayStop();
       prevState=state;
     }
-    if(!paused&&!adActive&&!awaitingFocus){
+    if(!paused&&!adActive&&!awaitingFocus&&!activeTutCard){
       updateEmbers(dt);
       update(dt);
       Snd.tickMusic(dt);
