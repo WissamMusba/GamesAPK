@@ -551,6 +551,31 @@ function platSolid(p){
   if(p.t==='vanish'&&p.vState==='gone')return false;
   return true;
 }
+function hasSpawnPlate(targetPlat){
+  if(!targetPlat)return false;
+  if(targetPlat.initiallyHidden)return true;
+  if(typeof plates==='undefined'||!plates||plates.length===0)return false;
+  return plates.some(pl=>{
+    if(!pl.platTrigger)return false;
+    const act=pl.platAction||(pl.fx==='spawn'?'spawn':'vanish');
+    if(act!=='spawn')return false;
+    if(pl.targetPlatX!==undefined&&pl.targetPlatY!==undefined){
+      return Math.abs(pl.targetPlatX-targetPlat.x)<6&&Math.abs(pl.targetPlatY-targetPlat.y)<6;
+    }
+    if(pl.targetPlatIndex!==undefined&&pl.targetPlatIndex!==null&&pl.targetPlatIndex>=0){
+      const match=plats[pl.targetPlatIndex+1]||plats[pl.targetPlatIndex];
+      return match===targetPlat;
+    }
+    let bd=1e9,closest=null;
+    for(let pi=1;pi<plats.length;pi++){
+      const p=plats[pi];
+      if(p.y>=G)continue;
+      const d=Math.hypot((p.x+p.w/2)-pl.x,(p.y+p.h/2)-pl.y);
+      if(d<bd){bd=d;closest=p;}
+    }
+    return closest===targetPlat;
+  });
+}
 function inView(x,y,w=100,h=100){
   return x+w>camX-100&&x<camX+W+100&&y+h>camY-100&&y<camY+H+100;
 }
@@ -1503,13 +1528,19 @@ class Plate{
           if(target){
             if(this.platAction==='spawn'){
               target.vState='solid';
-              target.spawnTimer=this.platDuration>0?this.platDuration:999999;
+              target.spawnTimer=this.platDuration>0?this.platDuration:0;
+              target.vT=0;
               Snd.doubleJump();
               burstDust(target.x+target.w/2,target.y+target.h/2,10);
               texts.push(new FloatText(target.x+target.w/2,target.y-24,'PLATFORM SPAWNED!','#00d2d3'));
             }else{
               target.vState='gone';
-              target.vT=this.platDuration>0?this.platDuration:3.2;
+              target.spawnTimer=0;
+              if(hasSpawnPlate(target)){
+                target.vT=0; // Stays permanently vanished because spawn plates exist to spawn it
+              }else{
+                target.vT=this.platDuration>0?this.platDuration:3.2; // Auto-respawn since no spawn plate exists
+              }
               Snd.crumble();
               burstDust(target.x+target.w/2,target.y+target.h/2,8);
               texts.push(new FloatText(target.x+target.w/2,target.y-24,'COLLAPSED!','#e74c3c'));
@@ -3240,11 +3271,15 @@ function updateVanishPlats(dt){
       p.vT-=dt;
       if(p.vT<=0){
         p.vState='gone';
-        p.vT=(p.respawnDelay!==undefined?p.respawnDelay:2.6);
+        if(hasSpawnPlate(p)){
+          p.vT=0;
+        }else{
+          p.vT=(p.respawnDelay!==undefined?p.respawnDelay:2.6);
+        }
         Snd.crumble();burstDust(p.x+p.w/2,p.y+p.h/2,6);
       }
     }else if(p.vState==='gone'){
-      if(p.vT>0){
+      if(p.vT>0 && !hasSpawnPlate(p)){
         p.vT-=dt;
         if(p.vT<=0)p.vState='solid';
       }

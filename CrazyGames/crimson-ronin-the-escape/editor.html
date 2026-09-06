@@ -15605,6 +15605,26 @@ function executeStealthTakedown() {
   });
 }
 
+function hasSpawnPlateInEditor(platIdx, lvl) {
+  if (!lvl || !lvl.platforms || !lvl.platforms[platIdx]) return false;
+  const targetPlat = lvl.platforms[platIdx];
+  if (targetPlat.initiallyHidden) return true;
+  return (lvl.plates || []).some((pl) => {
+    if (pl.platTrigger === false && !pl.vanishTrigger) return false;
+    const act = pl.platAction || (pl.targetType === 'spawn' || pl.fx === 'spawn' ? 'spawn' : 'vanish');
+    if (act !== 'spawn') return false;
+    if (pl.targetPlatIndex !== undefined && pl.targetPlatIndex !== null && pl.targetPlatIndex >= 0) {
+      return pl.targetPlatIndex === platIdx;
+    }
+    let bd = 1e9, cIdx = -1;
+    (lvl.platforms || []).forEach((plat, pi) => {
+      const d = Math.hypot((plat.x + plat.w / 2) - pl.x, (plat.y + plat.h / 2) - (pl.y !== undefined ? pl.y : 610));
+      if (d < bd) { bd = d; cIdx = pi; }
+    });
+    return cIdx === platIdx;
+  });
+}
+
 function updatePlaytest() {
   if (!playState || !playState.ronin || playState.activeCard || playState.levelCleared) return;
   const dt = 1 / 60;
@@ -15614,7 +15634,7 @@ function updatePlaytest() {
   if (!r.alive) return;
 
   // Update Platform Spawn / Reappear Timers
-  (playState.platStates || []).forEach((ps) => {
+  (playState.platStates || []).forEach((ps, idx) => {
     if (ps.spawnTimer > 0) {
       ps.spawnTimer -= dt;
       if (ps.spawnTimer <= 0) {
@@ -15622,7 +15642,7 @@ function updatePlaytest() {
         ps.vState = 'gone';
       }
     }
-    if (ps.reappearTimer > 0) {
+    if (ps.reappearTimer > 0 && !hasSpawnPlateInEditor(idx, lvl)) {
       ps.reappearTimer -= dt;
       if (ps.reappearTimer <= 0) {
         ps.reappearTimer = 0;
@@ -15791,14 +15811,20 @@ function updatePlaytest() {
           if (tIdx !== undefined && tIdx !== null && playState.platStates && playState.platStates[tIdx]) {
             const targetState = playState.platStates[tIdx];
             const act = p.platAction || 'spawn';
-            const dur = p.platDuration !== undefined ? p.platDuration : (act === 'spawn' ? 4.0 : 3.0);
+            const dur = p.platDuration !== undefined ? p.platDuration : 0;
             if (act === 'spawn') {
               targetState.vState = 'solid';
               targetState.spawnTimer = dur > 0 ? dur : 0;
+              targetState.reappearTimer = 0;
               showToast('✨ Platform Spawned!', 'success');
             } else {
               targetState.vState = 'gone';
-              targetState.reappearTimer = dur > 0 ? dur : 0;
+              targetState.spawnTimer = 0;
+              if (hasSpawnPlateInEditor(tIdx, lvl)) {
+                targetState.reappearTimer = 0; // Stays permanently vanished because spawn plates exist to spawn it
+              } else {
+                targetState.reappearTimer = dur > 0 ? dur : 3.0; // Auto-respawn since no spawn plate exists
+              }
               showToast('💥 Platform Collapsed!', 'warning');
             }
           }
