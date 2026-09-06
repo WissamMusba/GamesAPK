@@ -16437,7 +16437,8 @@ function openGitModal() {
 function updateGitCommandPreview() {
   const msg = document.getElementById('git-commit-msg').value || 'Update level data';
   const escapedMsg = msg.replace(/"/g, '\\"');
-  const cmd = `git add "CrazyGames/crimson-ronin-the-escape/index.html" "CrazyGames/crimson-ronin-the-escape/editor.html" && git commit -m "${escapedMsg}" && git push`;
+  const repoPath = 'C:\\Users\\wissa\\Downloads\\MainGames\\GamesAPK_tmp';
+  const cmd = `cd /d "${repoPath}" && git add "CrazyGames/crimson-ronin-the-escape/index.html" "CrazyGames/crimson-ronin-the-escape/editor.html" && git commit -m "${escapedMsg}" && git push`;
   document.getElementById('git-command-preview').value = cmd;
 }
 
