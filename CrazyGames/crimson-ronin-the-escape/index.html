@@ -544,7 +544,13 @@ function pointInPlat(x,y){
   }
   return false;
 }
-function platSolid(p){return !(p.t==='vanish'&&p.vState==='gone');}
+function platSolid(p){
+  if(!p)return false;
+  if(p.vState==='gone'||p.vState==='hidden')return false;
+  if(p.initiallyHidden&&p.vState!=='solid')return false;
+  if(p.t==='vanish'&&p.vState==='gone')return false;
+  return true;
+}
 function inView(x,y,w=100,h=100){
   return x+w>camX-100&&x<camX+W+100&&y+h>camY-100&&y<camY+H+100;
 }
