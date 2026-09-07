@@ -780,16 +780,23 @@ function syncCustomLevelsFromStorage(){
           alertTime: t.alertTime !== undefined ? t.alertTime : (t.spotlightTime !== undefined ? t.spotlightTime : 1.1),
           beamSpread: t.beamSpread || 54
         })),
-        guards: (el.guards || []).filter(g => (g.x || 0) >= 200).map(g => ({
-          type: g.speed > 1.8 ? 'runner' : (g.speed === 0 ? 'watcher' : 'walker'),
-          x: Math.max(200, g.x || 200),
-          y: g.y,
-          minX: Math.max(180, g.minX !== undefined ? g.minX : (g.x - 150)),
-          maxX: Math.max(220, g.maxX !== undefined ? g.maxX : (g.x + 150)),
-          range: g.visionLen || 200,
-          speed: g.speed || 1.2,
-          dir: g.dir || 1
-        })),
+        guards: (el.guards || []).map(g => {
+          let gy = g.y !== undefined ? g.y : G;
+          if (gy >= 600) {
+            const host = (el.platforms || []).find(p => p.y < 590 && g.x >= p.x - 15 && g.x <= p.x + p.w + 15 && (g.minX >= p.x - 20 || g.maxX <= p.x + p.w + 20));
+            if (host) gy = host.y;
+          }
+          return {
+            type: g.type || (g.speed > 1.8 ? 'runner' : (g.speed === 0 ? 'watcher' : 'walker')),
+            x: g.x,
+            y: gy,
+            minX: g.minX !== undefined ? g.minX : (g.x - 150),
+            maxX: g.maxX !== undefined ? g.maxX : (g.x + 150),
+            range: g.range || g.visionLen || 220,
+            speed: g.speed !== undefined ? g.speed : 1.2,
+            dir: g.dir || 1
+          };
+        }),
         crates: (el.crates || []).map(c => (typeof c === 'object' ? (c.y !== undefined ? { x: c.x, y: c.y } : c.x) : c)),
         bushes: (el.bushes || []).map(b => (typeof b === 'object' ? (b.y !== undefined ? { x: b.x, y: b.y } : b.x) : b)),
         keys: (el.keys || []).map(k => ({ x: k.x, y: k.y })),
@@ -1553,11 +1560,16 @@ class Orb{
   }
 }
 class HideSpot{
-  constructor(x,type){
+  constructor(d,type){
     this.type=type;
     this.w=type==='crate'?64:78;
     this.h=type==='crate'?54:48;
-    this.x=x;this.y=G;this.cd=0;
+    if(typeof d==='object'){
+      this.x=d.x; this.y=d.y!==undefined?d.y:G;
+    }else{
+      this.x=d; this.y=G;
+    }
+    this.cd=0;
   }
   draw(){
     const x=this.x,y=this.y-this.h,w=this.w,h=this.h;
@@ -1701,15 +1713,16 @@ function losClear(x1,y1,x2,y2){
 class Guard{
   constructor(d){
     this.type=d.type||'walker';
-    this.spawnX=Math.max(260, d.x||260);
-    this.x=this.spawnX;this.y=G;this.vy=0;this.onGround=true;this.jumpCd=0;
-    this.minX=Math.max(220, d.minX!==undefined?d.minX:this.spawnX-10);
-    this.maxX=Math.max(this.minX+30, d.maxX!==undefined?d.maxX:this.spawnX+10);
+    this.spawnX=d.x!==undefined?d.x:260;
+    this.spawnY=d.y!==undefined?d.y:G;
+    this.x=this.spawnX;this.y=this.spawnY;this.vy=0;this.onGround=true;this.jumpCd=0;
+    this.minX=d.minX!==undefined?d.minX:this.spawnX-10;
+    this.maxX=d.maxX!==undefined?d.maxX:this.spawnX+10;
     this.range=d.range||(this.type==='runner'?300:260);
     this.dir=1;this.state='patrol';
     this.phase=rand(0,6);this.pauseT=0;this.blind=false;
     this.sweepPhase=hash(this.spawnX)*2.2;
-    this.lastSeen={x:this.spawnX,y:G};
+    this.lastSeen={x:this.spawnX,y:this.spawnY};
     this.lastSeenPlat=null;
     this.lastSeenGrounded=false;
     this.climbCooldown=0;
@@ -1720,7 +1733,7 @@ class Guard{
     else{this.patrolSpd=90;this.chaseSpd=315;}
   }
   reset(){
-    this.x=this.spawnX;this.y=G;this.vy=0;this.state='patrol';this.dir=1;
+    this.x=this.spawnX;this.y=this.spawnY!==undefined?this.spawnY:G;this.vy=0;this.state='patrol';this.dir=1;
     this.alarmT=0;this.invT=0;this.searchT=0;this.onGround=true;this.pauseT=0;this.wasChase=false;this.dead=false;
   }
   die(){
@@ -1895,7 +1908,7 @@ class Guard{
         }
       }
     }
-    if(this.y>LH+100){this.x=Math.max(200,this.spawnX);this.y=G;this.vy=0;this.state='patrol';}
+    if(this.y>LH+100){this.x=this.spawnX;this.y=this.spawnY!==undefined?this.spawnY:G;this.vy=0;this.state='patrol';}
 
     if(canSense&&!player.hidden&&!this.dead&&mercyT<=0){
       const dx=pcx-this.x;
