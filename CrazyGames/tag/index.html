@@ -351,6 +351,11 @@ function cycleSlot(i,d){
   let cur=list.indexOf(menu.slotColor[i]);
   cur=(cur+d+list.length)%list.length;
   menu.slotColor[i]=list[cur];
+  if(menu.mode==='rows'&&activeSlots().length<2){
+    menu.mode='slots';
+    menu.row=0;
+    toast('CHOOSE AT LEAST 2 PLAYERS!');
+  }
   sfx('ui');
 }
 function ruleValue(){return [settings.doubleJump,settings.collision,settings.special][menu.rule];}
@@ -369,7 +374,17 @@ function rowEdit(d){
 }
 function rowEnter(){
   if(menu.row===0){menu.mode='slots';sfx('ok');}
-  else if(menu.row===4){sfx('go');startMatch();}
+  else if(menu.row===4){
+    if(activeSlots().length<2){
+      menu.mode='slots';
+      menu.row=0;
+      toast('CHOOSE AT LEAST 2 PLAYERS!');
+      sfx('back');
+    }else{
+      sfx('go');
+      startMatch();
+    }
+  }
   else if(menu.row===3)toggleRule();
   else rowEdit(1);
 }
@@ -425,6 +440,14 @@ function makePlayer(i,slot,colIdx){
     slot:slot,colIdx:colIdx,trail:[]};
 }
 function startMatch(){
+  const act=activeSlots();
+  if(act.length<2){
+    menu.mode='slots';
+    menu.row=0;
+    toast('CHOOSE AT LEAST 2 PLAYERS!');
+    sfx('back');
+    return;
+  }
   matchIndex++;
   /* AUTOMATIC CLEAN GRADIENT BACKGROUND CHANGE ON EVERY MATCH */
   currentThemeIdx=(matchIndex-1)%THEMES.length;
@@ -1495,14 +1518,24 @@ function drawMenu(){
     else if(i===1)s='MAP:  ‹  '+(settings.map+1)+'. '+MAPS[settings.map].name+'  ›';
     else if(i===2)s='TIMER:  ‹  '+settings.time+'s  ›';
     else if(i===3)s='‹  '+RULE_NAMES[menu.rule]+': '+(ruleValue()?'ON':'OFF')+'  ›';
-    else s='START MATCH';
-    ptxt(s,0,0,i===4?FT(fs+2):FN(fs,900),hl?'#ffffff':'#c8d8e8');
+    else s=activeSlots().length<2?'START MATCH (MIN 2 PLAYERS)':'START MATCH';
+    const rowCol=hl?(i===4&&activeSlots().length<2?'#ff7777':'#ffffff'):(i===4&&activeSlots().length<2?'#884444':'#c8d8e8');
+    ptxt(s,0,0,i===4?FT(fs+2):FN(fs,900),rowCol);
     g.restore();
     const tw2=CW*0.56;
     zone(CW/2-tw2/2,y-step*0.45,tw2,step*0.9,{fn:()=>{
       if(menu.mode==='slots')return;
       if(i===0){menu.mode='slots';sfx('ok');}
-      else if(i===4){sfx('go');startMatch();}
+      else if(i===4){
+        if(activeSlots().length<2){
+          menu.mode='slots';
+          menu.row=0;
+          toast('CHOOSE AT LEAST 2 PLAYERS!');
+          sfx('back');
+        }else{
+          sfx('go');startMatch();
+        }
+      }
       else if(menu.row===i)rowEdit(1);
       else{menu.row=i;sfx('ui');}
     }});
