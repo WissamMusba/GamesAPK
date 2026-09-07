@@ -3,7 +3,10 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>TAG! — 2-4 Player Chase Arena</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+<meta http-equiv="Pragma" content="no-cache"/>
+<meta http-equiv="Expires" content="0"/>
+<title>TAG! — 2-4 Player Chase Arena (v1.2)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800;900&family=Rubik:ital,wght@0,700;0,800;0,900;1,900&display=swap" rel="stylesheet"/>
@@ -1423,6 +1426,7 @@ function drawMenu(){
   g.translate(CW/2,CH/2);g.scale(cam.s,cam.s);g.translate(-cam.x,-cam.y);
   drawNightWorld();
   g.restore();
+  txt('v1.2 (Maps Updated)', 16, 20, FN(12, 800), 'rgba(255,255,255,0.5)', 'left');
   const ly=CH*0.13;
   const word='TAG';
   g.font=FT(Math.min(90,CW*0.12));
