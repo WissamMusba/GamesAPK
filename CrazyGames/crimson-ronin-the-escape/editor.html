@@ -1662,14 +1662,14 @@ select { cursor: pointer; }
       "y": 564
     },
     "exit": {
-      "x": 3280,
+      "x": 3300,
       "y": 540
     },
     "platforms": [
       {
         "x": 0,
         "y": 610,
-        "w": 3400,
+        "w": 3500,
         "h": 110,
         "platType": "solid",
         "isCrumble": false,
@@ -1678,8 +1678,8 @@ select { cursor: pointer; }
         "respawnDelay": 0
       },
       {
-        "x": 300,
-        "y": 500,
+        "x": 320,
+        "y": 490,
         "w": 200,
         "h": 22,
         "platType": "solid",
@@ -1689,8 +1689,8 @@ select { cursor: pointer; }
         "respawnDelay": 0
       },
       {
-        "x": 580,
-        "y": 400,
+        "x": 620,
+        "y": 390,
         "w": 200,
         "h": 22,
         "platType": "solid",
@@ -1700,8 +1700,8 @@ select { cursor: pointer; }
         "respawnDelay": 0
       },
       {
-        "x": 900,
-        "y": 500,
+        "x": 940,
+        "y": 280,
         "w": 220,
         "h": 22,
         "platType": "solid",
@@ -1711,30 +1711,31 @@ select { cursor: pointer; }
         "respawnDelay": 0
       },
       {
-        "x": 1250,
-        "y": 430,
-        "w": 180,
+        "x": 1260,
+        "y": 280,
+        "w": 200,
         "h": 22,
         "platType": "solid",
         "isCrumble": false,
         "isAsh": false,
+        "initiallyHidden": true,
         "collapseDelay": 0,
         "respawnDelay": 0
       },
       {
-        "x": 1600,
-        "y": 500,
+        "x": 1560,
+        "y": 380,
         "w": 220,
         "h": 22,
-        "platType": "solid",
+        "platType": "ash",
         "isCrumble": false,
-        "isAsh": false,
+        "isAsh": true,
         "collapseDelay": 0,
         "respawnDelay": 0
       },
       {
-        "x": 1950,
-        "y": 400,
+        "x": 1900,
+        "y": 280,
         "w": 200,
         "h": 22,
         "platType": "solid",
@@ -1744,31 +1745,31 @@ select { cursor: pointer; }
         "respawnDelay": 0
       },
       {
-        "x": 2260,
-        "y": 500,
-        "w": 220,
-        "h": 22,
-        "platType": "solid",
-        "isCrumble": false,
+        "x": 2220,
+        "y": 380,
+        "w": 160,
+        "h": 20,
+        "platType": "crumble",
+        "isCrumble": true,
         "isAsh": false,
-        "collapseDelay": 0,
-        "respawnDelay": 0
+        "collapseDelay": 0.5,
+        "respawnDelay": 3
       },
       {
-        "x": 2650,
-        "y": 460,
-        "w": 220,
-        "h": 22,
-        "platType": "solid",
-        "isCrumble": false,
-        "isAsh": false,
-        "collapseDelay": 0,
-        "respawnDelay": 0
-      },
-      {
-        "x": 2950,
-        "y": 360,
+        "x": 2500,
+        "y": 480,
         "w": 200,
+        "h": 22,
+        "platType": "solid",
+        "isCrumble": false,
+        "isAsh": false,
+        "collapseDelay": 0,
+        "respawnDelay": 0
+      },
+      {
+        "x": 2850,
+        "y": 420,
+        "w": 220,
         "h": 22,
         "platType": "solid",
         "isCrumble": false,
@@ -1781,41 +1782,60 @@ select { cursor: pointer; }
       {
         "x": 700,
         "y": 610,
+        "w": 140,
+        "h": 20
+      },
+      {
+        "x": 1220,
+        "y": 610,
+        "w": 260,
+        "h": 20
+      },
+      {
+        "x": 2050,
+        "y": 610,
+        "w": 140,
+        "h": 20
+      },
+      {
+        "x": 2720,
+        "y": 610,
         "w": 120,
-        "h": 20
-      },
-      {
-        "x": 1450,
-        "y": 610,
-        "w": 150,
-        "h": 20
-      },
-      {
-        "x": 2450,
-        "y": 610,
-        "w": 150,
-        "h": 20
-      },
-      {
-        "x": 1690,
-        "y": 500,
-        "w": 60,
         "h": 20
       }
     ],
     "plates": [
+      {
+        "x": 990,
+        "y": 280,
+        "w": 40,
+        "targetPlatIndex": 4,
+        "platTrigger": true,
+        "platAction": "spawn",
+        "platDuration": 0,
+        "spikeTrigger": false,
+        "alarmTrigger": false
+      },
       {
         "x": 2350,
         "y": 610,
         "w": 40,
         "targetIdx": 0,
         "targetType": "spike",
+        "spikeTrigger": true,
+        "platTrigger": false,
         "delay": 0.1
       }
     ],
     "bushes": [
       {
-        "x": 1250,
+        "x": 2050,
+        "y": 565,
+        "w": 70,
+        "h": 45
+      },
+      {
+        "x": 3050,
         "y": 565,
         "w": 70,
         "h": 45
@@ -1829,39 +1849,28 @@ select { cursor: pointer; }
         "maxX": 1100,
         "speed": 0,
         "dir": 1,
-        "visionLen": 200,
+        "visionLen": 220,
         "visionH": 50,
         "shootInterval": 0
       },
       {
-        "x": 2040,
+        "x": 1650,
         "y": 554,
-        "minX": 1940,
-        "maxX": 2140,
-        "speed": 0,
-        "dir": 1,
-        "visionLen": 200,
-        "visionH": 50,
-        "shootInterval": 0
-      },
-      {
-        "x": 1750,
-        "y": 554,
-        "minX": 1650,
-        "maxX": 1850,
-        "speed": 2.2,
+        "minX": 1500,
+        "maxX": 1800,
+        "speed": 1.2,
         "dir": 1,
         "visionLen": 260,
         "visionH": 50,
         "shootInterval": 0
       },
       {
-        "x": 2850,
+        "x": 2650,
         "y": 554,
-        "minX": 2650,
-        "maxX": 3100,
-        "speed": 1.2,
-        "dir": 1,
+        "minX": 2500,
+        "maxX": 2800,
+        "speed": 2.2,
+        "dir": -1,
         "visionLen": 280,
         "visionH": 50,
         "shootInterval": 0
@@ -1870,57 +1879,65 @@ select { cursor: pointer; }
     "towers": [],
     "keys": [
       {
-        "x": 980,
-        "y": 455
+        "x": 1040,
+        "y": 220
       },
       {
-        "x": 2040,
-        "y": 355
+        "x": 1980,
+        "y": 220
       }
     ],
     "ki": [
       {
-        "x": 360,
-        "y": 450
-      },
-      {
-        "x": 640,
-        "y": 350
-      },
-      {
-        "x": 1000,
-        "y": 400
-      },
-      {
-        "x": 1330,
-        "y": 380
-      },
-      {
-        "x": 1700,
+        "x": 400,
         "y": 430
       },
       {
-        "x": 2350,
-        "y": 400
+        "x": 720,
+        "y": 330
       },
       {
-        "x": 2720,
-        "y": 410
+        "x": 1040,
+        "y": 170
       },
       {
-        "x": 3050,
-        "y": 310
+        "x": 1360,
+        "y": 220
+      },
+      {
+        "x": 1660,
+        "y": 320
+      },
+      {
+        "x": 2000,
+        "y": 170
+      },
+      {
+        "x": 2300,
+        "y": 320
+      },
+      {
+        "x": 2950,
+        "y": 360
       }
     ],
     "tutorialCards": [],
     "texts": [
       {
-        "x": 1700,
-        "y": 545,
-        "text": "TWO KEYS SEAL THIS GATE",
+        "x": 620,
+        "y": 335,
+        "text": "LEAP ACROSS THE PITCHED ROOFS",
         "size": 16,
         "color": "#f1c40f",
         "alpha": 0.85
+      },
+      {
+        "x": 940,
+        "y": 225,
+        "text": "PRESSURE REVEALS THE GHOST RIDGE",
+        "size": 16,
+        "color": "#00d2d3",
+        "alpha": 0.9
       }
     ]
   },
@@ -1934,14 +1951,14 @@ select { cursor: pointer; }
       "y": 564
     },
     "exit": {
-      "x": 2850,
+      "x": 2950,
       "y": 540
     },
     "platforms": [
       {
         "x": 0,
         "y": 610,
-        "w": 3000,
+        "w": 3200,
         "h": 110,
         "platType": "solid",
         "isCrumble": false,
@@ -1950,19 +1967,8 @@ select { cursor: pointer; }
         "respawnDelay": 0
       },
       {
-        "x": 350,
+        "x": 360,
         "y": 490,
-        "w": 220,
-        "h": 22,
-        "platType": "solid",
-        "isCrumble": false,
-        "isAsh": false,
-        "collapseDelay": 0,
-        "respawnDelay": 0
-      },
-      {
-        "x": 700,
-        "y": 390,
         "w": 200,
         "h": 22,
         "platType": "solid",
@@ -1972,7 +1978,18 @@ select { cursor: pointer; }
         "respawnDelay": 0
       },
       {
-        "x": 1050,
+        "x": 700,
+        "y": 410,
+        "w": 200,
+        "h": 22,
+        "platType": "solid",
+        "isCrumble": false,
+        "isAsh": false,
+        "collapseDelay": 0,
+        "respawnDelay": 0
+      },
+      {
+        "x": 1060,
         "y": 490,
         "w": 220,
         "h": 22,
@@ -1984,8 +2001,8 @@ select { cursor: pointer; }
       },
       {
         "x": 1450,
-        "y": 400,
-        "w": 200,
+        "y": 380,
+        "w": 220,
         "h": 22,
         "platType": "solid",
         "isCrumble": false,
@@ -1994,8 +2011,8 @@ select { cursor: pointer; }
         "respawnDelay": 0
       },
       {
-        "x": 1800,
-        "y": 490,
+        "x": 1820,
+        "y": 480,
         "w": 240,
         "h": 22,
         "platType": "ash",
@@ -2006,8 +2023,8 @@ select { cursor: pointer; }
       },
       {
         "x": 2250,
-        "y": 400,
-        "w": 220,
+        "y": 390,
+        "w": 200,
         "h": 22,
         "platType": "solid",
         "isCrumble": false,
@@ -2029,31 +2046,33 @@ select { cursor: pointer; }
     ],
     "spikes": [
       {
-        "x": 550,
+        "x": 580,
         "y": 610,
-        "w": 120,
+        "w": 110,
         "h": 20
       },
       {
-        "x": 1250,
+        "x": 1300,
+        "y": 610,
+        "w": 140,
+        "h": 20
+      },
+      {
+        "x": 2080,
         "y": 610,
         "w": 150,
-        "h": 20
-      },
-      {
-        "x": 2050,
-        "y": 610,
-        "w": 160,
         "h": 20
       }
     ],
     "plates": [
       {
-        "x": 900,
+        "x": 920,
         "y": 610,
         "w": 40,
         "targetIdx": 0,
         "targetType": "spike",
+        "spikeTrigger": true,
+        "platTrigger": false,
         "delay": 0.1
       },
       {
@@ -2062,20 +2081,22 @@ select { cursor: pointer; }
         "w": 40,
         "targetIdx": 0,
         "targetType": "alarm",
+        "alarmTrigger": true,
+        "platTrigger": false,
         "delay": 0.1
       }
     ],
     "bushes": [
       {
-        "x": 980,
+        "x": 960,
         "y": 565,
         "w": 70,
         "h": 45
       },
       {
-        "x": 1900,
+        "x": 1650,
         "y": 565,
-        "w": 70,
+        "w": 75,
         "h": 45
       },
       {
@@ -2087,20 +2108,20 @@ select { cursor: pointer; }
     ],
     "guards": [
       {
-        "x": 760,
+        "x": 740,
         "y": 554,
-        "minX": 660,
-        "maxX": 860,
+        "minX": 640,
+        "maxX": 840,
         "speed": 0,
         "dir": 1,
-        "visionLen": 200,
+        "visionLen": 220,
         "visionH": 50,
         "shootInterval": 0
       },
       {
-        "x": 1500,
+        "x": 1520,
         "y": 554,
-        "minX": 1450,
+        "minX": 1420,
         "maxX": 1750,
         "speed": 1.2,
         "dir": 1,
@@ -2109,52 +2130,62 @@ select { cursor: pointer; }
         "shootInterval": 0
       },
       {
-        "x": 2350,
+        "x": 2360,
         "y": 554,
-        "minX": 2250,
-        "maxX": 2500,
-        "speed": 1.2,
-        "dir": 1,
-        "visionLen": 270,
+        "minX": 2240,
+        "maxX": 2520,
+        "speed": 1.4,
+        "dir": -1,
+        "visionLen": 280,
         "visionH": 50,
         "shootInterval": 0
       }
     ],
-    "towers": [],
+    "towers": [
+      {
+        "x": 1650,
+        "y": 610,
+        "radius": 260,
+        "minAngle": 0.8,
+        "maxAngle": 2.3,
+        "speed": 0.6,
+        "startAngle": 1.5
+      }
+    ],
     "keys": [
       {
-        "x": 1530,
-        "y": 340
+        "x": 1550,
+        "y": 320
       }
     ],
     "ki": [
       {
-        "x": 400,
-        "y": 440
+        "x": 420,
+        "y": 430
       },
       {
-        "x": 760,
-        "y": 335
-      },
-      {
-        "x": 1110,
-        "y": 440
-      },
-      {
-        "x": 1600,
+        "x": 780,
         "y": 350
       },
       {
-        "x": 1900,
-        "y": 440
+        "x": 1150,
+        "y": 430
       },
       {
-        "x": 2320,
-        "y": 350
+        "x": 1550,
+        "y": 260
       },
       {
-        "x": 2660,
-        "y": 440
+        "x": 1920,
+        "y": 420
+      },
+      {
+        "x": 2330,
+        "y": 330
+      },
+      {
+        "x": 2700,
+        "y": 430
       }
     ],
     "tutorialCards": [],
@@ -2166,6 +2197,14 @@ select { cursor: pointer; }
         "size": 16,
         "color": "#f1c40f",
         "alpha": 0.85
+      },
+      {
+        "x": 1650,
+        "y": 230,
+        "text": "SEARCHLIGHT SWEEPS THE COURTYARD",
+        "size": 16,
+        "color": "#ff7675",
+        "alpha": 0.9
       }
     ]
   },
@@ -2433,14 +2472,14 @@ select { cursor: pointer; }
       "y": 564
     },
     "exit": {
-      "x": 3450,
+      "x": 3500,
       "y": 540
     },
     "platforms": [
       {
         "x": 0,
         "y": 610,
-        "w": 3600,
+        "w": 550,
         "h": 110,
         "platType": "solid",
         "isCrumble": false,
@@ -2449,8 +2488,19 @@ select { cursor: pointer; }
         "respawnDelay": 0
       },
       {
-        "x": 300,
-        "y": 490,
+        "x": 3000,
+        "y": 610,
+        "w": 600,
+        "h": 110,
+        "platType": "solid",
+        "isCrumble": false,
+        "isAsh": false,
+        "collapseDelay": 0,
+        "respawnDelay": 0
+      },
+      {
+        "x": 320,
+        "y": 480,
         "w": 200,
         "h": 22,
         "platType": "solid",
@@ -2460,30 +2510,8 @@ select { cursor: pointer; }
         "respawnDelay": 0
       },
       {
-        "x": 600,
-        "y": 370,
-        "w": 200,
-        "h": 22,
-        "platType": "solid",
-        "isCrumble": false,
-        "isAsh": false,
-        "collapseDelay": 0,
-        "respawnDelay": 0
-      },
-      {
-        "x": 900,
-        "y": 260,
-        "w": 220,
-        "h": 22,
-        "platType": "solid",
-        "isCrumble": false,
-        "isAsh": false,
-        "collapseDelay": 0,
-        "respawnDelay": 0
-      },
-      {
-        "x": 1300,
-        "y": 400,
+        "x": 620,
+        "y": 380,
         "w": 180,
         "h": 22,
         "platType": "solid",
@@ -2493,7 +2521,75 @@ select { cursor: pointer; }
         "respawnDelay": 0
       },
       {
-        "x": 1600,
+        "x": 920,
+        "y": 380,
+        "w": 180,
+        "h": 22,
+        "platType": "solid",
+        "isCrumble": false,
+        "isAsh": false,
+        "initiallyHidden": true,
+        "collapseDelay": 0,
+        "respawnDelay": 0
+      },
+      {
+        "x": 1220,
+        "y": 280,
+        "w": 220,
+        "h": 22,
+        "platType": "solid",
+        "isCrumble": false,
+        "isAsh": false,
+        "collapseDelay": 0,
+        "respawnDelay": 0
+      },
+      {
+        "x": 1560,
+        "y": 340,
+        "w": 180,
+        "h": 22,
+        "platType": "solid",
+        "isCrumble": false,
+        "isAsh": false,
+        "initiallyHidden": true,
+        "collapseDelay": 0,
+        "respawnDelay": 0
+      },
+      {
+        "x": 1860,
+        "y": 420,
+        "w": 150,
+        "h": 20,
+        "platType": "crumble",
+        "isCrumble": true,
+        "isAsh": false,
+        "collapseDelay": 0.45,
+        "respawnDelay": 3
+      },
+      {
+        "x": 2150,
+        "y": 320,
+        "w": 200,
+        "h": 22,
+        "platType": "solid",
+        "isCrumble": false,
+        "isAsh": false,
+        "collapseDelay": 0,
+        "respawnDelay": 0
+      },
+      {
+        "x": 2480,
+        "y": 440,
+        "w": 200,
+        "h": 22,
+        "platType": "ash",
+        "isCrumble": false,
+        "isAsh": true,
+        "collapseDelay": 0,
+        "respawnDelay": 0
+      },
+      {
+        "x": 2780,
         "y": 500,
         "w": 200,
         "h": 22,
@@ -2502,111 +2598,43 @@ select { cursor: pointer; }
         "isAsh": false,
         "collapseDelay": 0,
         "respawnDelay": 0
-      },
-      {
-        "x": 2000,
-        "y": 400,
-        "w": 200,
-        "h": 22,
-        "platType": "solid",
-        "isCrumble": false,
-        "isAsh": false,
-        "collapseDelay": 0,
-        "respawnDelay": 0
-      },
-      {
-        "x": 2300,
-        "y": 300,
-        "w": 200,
-        "h": 22,
-        "platType": "solid",
-        "isCrumble": false,
-        "isAsh": false,
-        "collapseDelay": 0,
-        "respawnDelay": 0
-      },
-      {
-        "x": 2620,
-        "y": 420,
-        "w": 220,
-        "h": 22,
-        "platType": "solid",
-        "isCrumble": false,
-        "isAsh": false,
-        "collapseDelay": 0,
-        "respawnDelay": 0
-      },
-      {
-        "x": 2950,
-        "y": 520,
-        "w": 180,
-        "h": 22,
-        "platType": "ash",
-        "isCrumble": false,
-        "isAsh": true,
-        "collapseDelay": 0,
-        "respawnDelay": 0
       }
     ],
     "spikes": [
       {
-        "x": 480,
+        "x": 550,
         "y": 610,
-        "w": 120,
-        "h": 20
-      },
-      {
-        "x": 1150,
-        "y": 610,
-        "w": 140,
-        "h": 20
-      },
-      {
-        "x": 1850,
-        "y": 610,
-        "w": 150,
-        "h": 20
-      },
-      {
-        "x": 2450,
-        "y": 610,
-        "w": 140,
-        "h": 20
-      },
-      {
-        "x": 2360,
-        "y": 300,
-        "w": 60,
+        "w": 2450,
         "h": 20
       }
     ],
     "plates": [
       {
-        "x": 1500,
-        "y": 610,
+        "x": 680,
+        "y": 380,
         "w": 40,
-        "targetIdx": 0,
-        "targetType": "spike",
-        "delay": 0.1
+        "targetPlatIndex": 4,
+        "platTrigger": true,
+        "platAction": "spawn",
+        "platDuration": 0,
+        "spikeTrigger": false,
+        "alarmTrigger": false
       },
       {
-        "x": 3200,
-        "y": 610,
+        "x": 1300,
+        "y": 280,
         "w": 40,
-        "targetIdx": 0,
-        "targetType": "alarm",
-        "delay": 0.1
+        "targetPlatIndex": 6,
+        "platTrigger": true,
+        "platAction": "spawn",
+        "platDuration": 0,
+        "spikeTrigger": false,
+        "alarmTrigger": false
       }
     ],
     "bushes": [
       {
-        "x": 800,
-        "y": 565,
-        "w": 70,
-        "h": 45
-      },
-      {
-        "x": 3250,
+        "x": 3150,
         "y": 565,
         "w": 70,
         "h": 45
@@ -2614,132 +2642,113 @@ select { cursor: pointer; }
     ],
     "guards": [
       {
-        "x": 700,
-        "y": 554,
-        "minX": 650,
-        "maxX": 900,
-        "speed": 2.2,
-        "dir": 1,
-        "visionLen": 300,
-        "visionH": 50,
-        "shootInterval": 0
-      },
-      {
-        "x": 1680,
-        "y": 554,
-        "minX": 1550,
-        "maxX": 1800,
-        "speed": 1.2,
-        "dir": 1,
-        "visionLen": 270,
-        "visionH": 50,
-        "shootInterval": 0
-      },
-      {
-        "x": 2750,
-        "y": 554,
-        "minX": 2650,
-        "maxX": 2950,
-        "speed": 2.2,
-        "dir": 1,
-        "visionLen": 300,
+        "x": 1360,
+        "y": 224,
+        "minX": 1260,
+        "maxX": 1420,
+        "speed": 0,
+        "dir": -1,
+        "visionLen": 200,
         "visionH": 50,
         "shootInterval": 0
       },
       {
         "x": 3300,
         "y": 554,
-        "minX": 3200,
-        "maxX": 3400,
-        "speed": 0,
-        "dir": 1,
-        "visionLen": 200,
+        "minX": 3100,
+        "maxX": 3450,
+        "speed": 2.2,
+        "dir": -1,
+        "visionLen": 280,
         "visionH": 50,
         "shootInterval": 0
       }
     ],
     "towers": [
       {
-        "x": 2080,
+        "x": 1220,
         "y": 610,
         "radius": 260,
-        "minAngle": 0.7,
-        "maxAngle": 2.4,
-        "speed": 0.55,
+        "minAngle": 0.6,
+        "maxAngle": 2.5,
+        "speed": 0.5,
         "startAngle": 1.5
       },
       {
-        "x": 3160,
+        "x": 3200,
         "y": 610,
-        "radius": 260,
-        "minAngle": 0.7,
-        "maxAngle": 2.4,
-        "speed": 0.65,
-        "startAngle": 1.5
-      },
-      {
-        "x": 2300,
-        "y": 610,
-        "radius": 260,
-        "minAngle": 0.7,
-        "maxAngle": 2.4,
+        "radius": 240,
+        "minAngle": 0.8,
+        "maxAngle": 2.2,
         "speed": 0.6,
         "startAngle": 1.5
       }
     ],
     "keys": [
       {
-        "x": 990,
-        "y": 205
+        "x": 1320,
+        "y": 220
       },
       {
-        "x": 2990,
-        "y": 470
+        "x": 2250,
+        "y": 260
       }
     ],
     "ki": [
       {
-        "x": 360,
-        "y": 435
+        "x": 400,
+        "y": 420
       },
       {
-        "x": 660,
-        "y": 315
+        "x": 710,
+        "y": 320
       },
       {
-        "x": 860,
-        "y": 215
+        "x": 1010,
+        "y": 320
       },
       {
-        "x": 1360,
-        "y": 350
+        "x": 1320,
+        "y": 160
       },
       {
-        "x": 1680,
-        "y": 450
+        "x": 1650,
+        "y": 280
       },
       {
-        "x": 2060,
-        "y": 350
+        "x": 1930,
+        "y": 360
       },
       {
-        "x": 2330,
-        "y": 250
+        "x": 2250,
+        "y": 200
       },
       {
-        "x": 2680,
-        "y": 370
+        "x": 2580,
+        "y": 380
+      },
+      {
+        "x": 2880,
+        "y": 440
       }
     ],
     "tutorialCards": [],
     "texts": [
       {
-        "x": 2800,
-        "y": 545,
-        "text": "WATCHTOWERS NEVER SLEEP",
+        "x": 320,
+        "y": 425,
+        "text": "THE VOID DEVOURS THE HASTY",
         "size": 16,
-        "color": "#f1c40f",
-        "alpha": 0.85
+        "color": "#ff7675",
+        "alpha": 0.9
+      },
+      {
+        "x": 620,
+        "y": 325,
+        "text": "AWAKEN THE STEPPING STONES",
+        "size": 16,
+        "color": "#00d2d3",
+        "alpha": 0.9
       }
     ]
   },
@@ -2753,14 +2762,14 @@ select { cursor: pointer; }
       "y": 564
     },
     "exit": {
-      "x": 3080,
+      "x": 3350,
       "y": 540
     },
     "platforms": [
       {
         "x": 0,
         "y": 610,
-        "w": 3200,
+        "w": 450,
         "h": 110,
         "platType": "solid",
         "isCrumble": false,
@@ -2769,19 +2778,19 @@ select { cursor: pointer; }
         "respawnDelay": 0
       },
       {
-        "x": 500,
+        "x": 2900,
+        "y": 610,
+        "w": 600,
+        "h": 110,
+        "platType": "solid",
+        "isCrumble": false,
+        "isAsh": false,
+        "collapseDelay": 0,
+        "respawnDelay": 0
+      },
+      {
+        "x": 320,
         "y": 490,
-        "w": 200,
-        "h": 22,
-        "platType": "solid",
-        "isCrumble": false,
-        "isAsh": false,
-        "collapseDelay": 0,
-        "respawnDelay": 0
-      },
-      {
-        "x": 900,
-        "y": 400,
         "w": 180,
         "h": 22,
         "platType": "solid",
@@ -2791,9 +2800,31 @@ select { cursor: pointer; }
         "respawnDelay": 0
       },
       {
-        "x": 1400,
-        "y": 480,
-        "w": 180,
+        "x": 600,
+        "y": 420,
+        "w": 160,
+        "h": 20,
+        "platType": "crumble",
+        "isCrumble": true,
+        "isAsh": false,
+        "collapseDelay": 0.6,
+        "respawnDelay": 3
+      },
+      {
+        "x": 880,
+        "y": 350,
+        "w": 150,
+        "h": 20,
+        "platType": "crumble",
+        "isCrumble": true,
+        "isAsh": false,
+        "collapseDelay": 0.5,
+        "respawnDelay": 3
+      },
+      {
+        "x": 1180,
+        "y": 280,
+        "w": 150,
         "h": 20,
         "platType": "crumble",
         "isCrumble": true,
@@ -2802,268 +2833,29 @@ select { cursor: pointer; }
         "respawnDelay": 3
       },
       {
-        "x": 1900,
-        "y": 400,
-        "w": 200,
-        "h": 22,
-        "platType": "solid",
-        "isCrumble": false,
-        "isAsh": false,
-        "collapseDelay": 0,
-        "respawnDelay": 0
-      },
-      {
-        "x": 2400,
-        "y": 480,
-        "w": 220,
-        "h": 22,
-        "platType": "solid",
-        "isCrumble": false,
-        "isAsh": false,
-        "collapseDelay": 0,
-        "respawnDelay": 0
-      }
-    ],
-    "spikes": [
-      {
-        "x": 700,
-        "y": 610,
-        "w": 150,
-        "h": 20
-      },
-      {
-        "x": 1150,
-        "y": 610,
-        "w": 160,
-        "h": 20
-      },
-      {
-        "x": 1650,
-        "y": 610,
-        "w": 150,
-        "h": 20
-      },
-      {
-        "x": 2150,
-        "y": 610,
-        "w": 150,
-        "h": 20
-      },
-      {
-        "x": 2700,
-        "y": 610,
+        "x": 1480,
+        "y": 340,
         "w": 140,
-        "h": 20
-      }
-    ],
-    "plates": [
-      {
-        "x": 600,
-        "y": 610,
-        "w": 40,
-        "targetIdx": 0,
-        "targetType": "spike",
-        "delay": 0.1
-      },
-      {
-        "x": 1550,
-        "y": 610,
-        "w": 40,
-        "targetIdx": 0,
-        "targetType": "spike",
-        "delay": 0.1
-      },
-      {
-        "x": 2600,
-        "y": 610,
-        "w": 40,
-        "targetIdx": 0,
-        "targetType": "spike",
-        "delay": 0.1
-      }
-    ],
-    "bushes": [
-      {
-        "x": 1830,
-        "y": 565,
-        "w": 70,
-        "h": 45
-      }
-    ],
-    "guards": [
-      {
-        "x": 1000,
-        "y": 554,
-        "minX": 900,
-        "maxX": 1250,
-        "speed": 2.2,
-        "dir": 1,
-        "visionLen": 290,
-        "visionH": 50,
-        "shootInterval": 0
-      },
-      {
-        "x": 2000,
-        "y": 554,
-        "minX": 1850,
-        "maxX": 2130,
-        "speed": 2.2,
-        "dir": 1,
-        "visionLen": 290,
-        "visionH": 50,
-        "shootInterval": 0
-      },
-      {
-        "x": 2880,
-        "y": 554,
-        "minX": 2850,
-        "maxX": 3000,
-        "speed": 1.2,
-        "dir": 1,
-        "visionLen": 270,
-        "visionH": 50,
-        "shootInterval": 0
-      }
-    ],
-    "towers": [
-      {
-        "x": 1600,
-        "y": 610,
-        "radius": 260,
-        "minAngle": 0.7,
-        "maxAngle": 2.4,
-        "speed": 0.6,
-        "startAngle": 1.5
-      },
-      {
-        "x": 3020,
-        "y": 610,
-        "radius": 260,
-        "minAngle": 0.7,
-        "maxAngle": 2.4,
-        "speed": 0.7,
-        "startAngle": 1.5
-      },
-      {
-        "x": 1000,
-        "y": 610,
-        "radius": 260,
-        "minAngle": 0.7,
-        "maxAngle": 2.4,
-        "speed": 0.7,
-        "startAngle": 1.5
-      }
-    ],
-    "keys": [
-      {
-        "x": 1980,
-        "y": 340
-      }
-    ],
-    "ki": [
-      {
-        "x": 560,
-        "y": 440
-      },
-      {
-        "x": 960,
-        "y": 350
-      },
-      {
-        "x": 1460,
-        "y": 430
-      },
-      {
-        "x": 1750,
-        "y": 555
-      },
-      {
-        "x": 2150,
-        "y": 350
-      },
-      {
-        "x": 2470,
-        "y": 430
-      },
-      {
-        "x": 2950,
-        "y": 555
-      }
-    ],
-    "tutorialCards": [],
-    "texts": []
-  },
-  {
-    "id": "level_8",
-    "name": "Level 8: Silent Blade",
-    "isTutorial": false,
-    "reqKeys": 2,
-    "spawn": {
-      "x": 80,
-      "y": 564
-    },
-    "exit": {
-      "x": 3480,
-      "y": 540
-    },
-    "platforms": [
-      {
-        "x": 0,
-        "y": 610,
-        "w": 3600,
-        "h": 110,
-        "platType": "solid",
-        "isCrumble": false,
+        "h": 20,
+        "platType": "crumble",
+        "isCrumble": true,
         "isAsh": false,
-        "collapseDelay": 0,
-        "respawnDelay": 0
+        "collapseDelay": 0.4,
+        "respawnDelay": 3
       },
       {
-        "x": 400,
-        "y": 480,
-        "w": 200,
-        "h": 22,
-        "platType": "solid",
-        "isCrumble": false,
+        "x": 1760,
+        "y": 410,
+        "w": 140,
+        "h": 20,
+        "platType": "crumble",
+        "isCrumble": true,
         "isAsh": false,
-        "collapseDelay": 0,
-        "respawnDelay": 0
+        "collapseDelay": 0.35,
+        "respawnDelay": 3
       },
       {
-        "x": 750,
-        "y": 380,
-        "w": 180,
-        "h": 22,
-        "platType": "solid",
-        "isCrumble": false,
-        "isAsh": false,
-        "collapseDelay": 0,
-        "respawnDelay": 0
-      },
-      {
-        "x": 1100,
-        "y": 480,
-        "w": 220,
-        "h": 22,
-        "platType": "solid",
-        "isCrumble": false,
-        "isAsh": false,
-        "collapseDelay": 0,
-        "respawnDelay": 0
-      },
-      {
-        "x": 1500,
-        "y": 380,
-        "w": 200,
-        "h": 22,
-        "platType": "solid",
-        "isCrumble": false,
-        "isAsh": false,
-        "collapseDelay": 0,
-        "respawnDelay": 0
-      },
-      {
-        "x": 1900,
+        "x": 2050,
         "y": 480,
         "w": 220,
         "h": 22,
@@ -3074,8 +2866,8 @@ select { cursor: pointer; }
         "respawnDelay": 0
       },
       {
-        "x": 2300,
-        "y": 380,
+        "x": 2450,
+        "y": 390,
         "w": 200,
         "h": 22,
         "platType": "solid",
@@ -3085,7 +2877,234 @@ select { cursor: pointer; }
         "respawnDelay": 0
       },
       {
-        "x": 2700,
+        "x": 2750,
+        "y": 480,
+        "w": 180,
+        "h": 22,
+        "platType": "solid",
+        "isCrumble": false,
+        "isAsh": false,
+        "collapseDelay": 0,
+        "respawnDelay": 0
+      }
+    ],
+    "spikes": [
+      {
+        "x": 450,
+        "y": 610,
+        "w": 2450,
+        "h": 20
+      }
+    ],
+    "plates": [
+      {
+        "x": 2150,
+        "y": 480,
+        "w": 40,
+        "targetIdx": 0,
+        "targetType": "spike",
+        "spikeTrigger": true,
+        "platTrigger": false,
+        "delay": 0.1
+      }
+    ],
+    "bushes": [
+      {
+        "x": 3050,
+        "y": 565,
+        "w": 70,
+        "h": 45
+      }
+    ],
+    "guards": [
+      {
+        "x": 2550,
+        "y": 334,
+        "minX": 2450,
+        "maxX": 2650,
+        "speed": 0,
+        "dir": 1,
+        "visionLen": 220,
+        "visionH": 50,
+        "shootInterval": 0
+      },
+      {
+        "x": 3150,
+        "y": 554,
+        "minX": 2950,
+        "maxX": 3300,
+        "speed": 2.2,
+        "dir": -1,
+        "visionLen": 280,
+        "visionH": 50,
+        "shootInterval": 0
+      }
+    ],
+    "towers": [
+      {
+        "x": 2500,
+        "y": 610,
+        "radius": 250,
+        "minAngle": 0.7,
+        "maxAngle": 2.4,
+        "speed": 0.55,
+        "startAngle": 1.5
+      }
+    ],
+    "keys": [
+      {
+        "x": 1250,
+        "y": 220
+      }
+    ],
+    "ki": [
+      {
+        "x": 380,
+        "y": 430
+      },
+      {
+        "x": 680,
+        "y": 360
+      },
+      {
+        "x": 950,
+        "y": 290
+      },
+      {
+        "x": 1250,
+        "y": 160
+      },
+      {
+        "x": 1550,
+        "y": 280
+      },
+      {
+        "x": 1830,
+        "y": 350
+      },
+      {
+        "x": 2150,
+        "y": 420
+      },
+      {
+        "x": 2550,
+        "y": 330
+      }
+    ],
+    "tutorialCards": [],
+    "texts": [
+      {
+        "x": 320,
+        "y": 435,
+        "text": "RUN OR FALL — THE CATACOMBS COLLAPSE",
+        "size": 16,
+        "color": "#f1c40f",
+        "alpha": 0.85
+      },
+      {
+        "x": 880,
+        "y": 295,
+        "text": "AIR DASH (SHIFT) BRIDGES THE VOID",
+        "size": 16,
+        "color": "#00d2d3",
+        "alpha": 0.9
+      }
+    ]
+  },
+  {
+    "id": "level_8",
+    "name": "Level 8: Silent Blade",
+    "isTutorial": false,
+    "reqKeys": 1,
+    "spawn": {
+      "x": 80,
+      "y": 564
+    },
+    "exit": {
+      "x": 3300,
+      "y": 540
+    },
+    "platforms": [
+      {
+        "x": 0,
+        "y": 610,
+        "w": 3500,
+        "h": 110,
+        "platType": "solid",
+        "isCrumble": false,
+        "isAsh": false,
+        "collapseDelay": 0,
+        "respawnDelay": 0
+      },
+      {
+        "x": 350,
+        "y": 490,
+        "w": 200,
+        "h": 22,
+        "platType": "solid",
+        "isCrumble": false,
+        "isAsh": false,
+        "collapseDelay": 0,
+        "respawnDelay": 0
+      },
+      {
+        "x": 680,
+        "y": 400,
+        "w": 200,
+        "h": 22,
+        "platType": "solid",
+        "isCrumble": false,
+        "isAsh": false,
+        "collapseDelay": 0,
+        "respawnDelay": 0
+      },
+      {
+        "x": 1040,
+        "y": 280,
+        "w": 220,
+        "h": 22,
+        "platType": "solid",
+        "isCrumble": false,
+        "isAsh": false,
+        "initiallyHidden": true,
+        "collapseDelay": 0,
+        "respawnDelay": 0
+      },
+      {
+        "x": 1400,
+        "y": 420,
+        "w": 200,
+        "h": 22,
+        "platType": "solid",
+        "isCrumble": false,
+        "isAsh": false,
+        "collapseDelay": 0,
+        "respawnDelay": 0
+      },
+      {
+        "x": 1750,
+        "y": 480,
+        "w": 220,
+        "h": 22,
+        "platType": "ash",
+        "isCrumble": false,
+        "isAsh": true,
+        "collapseDelay": 0,
+        "respawnDelay": 0
+      },
+      {
+        "x": 2150,
+        "y": 390,
+        "w": 200,
+        "h": 22,
+        "platType": "solid",
+        "isCrumble": false,
+        "isAsh": false,
+        "collapseDelay": 0,
+        "respawnDelay": 0
+      },
+      {
+        "x": 2550,
         "y": 480,
         "w": 200,
         "h": 22,
@@ -3096,8 +3115,8 @@ select { cursor: pointer; }
         "respawnDelay": 0
       },
       {
-        "x": 3050,
-        "y": 380,
+        "x": 2900,
+        "y": 420,
         "w": 200,
         "h": 22,
         "platType": "solid",
@@ -3109,77 +3128,68 @@ select { cursor: pointer; }
     ],
     "spikes": [
       {
-        "x": 600,
+        "x": 570,
         "y": 610,
-        "w": 120,
+        "w": 100,
         "h": 20
       },
       {
-        "x": 1300,
+        "x": 1260,
         "y": 610,
-        "w": 160,
+        "w": 130,
         "h": 20
       },
       {
-        "x": 2100,
+        "x": 1980,
         "y": 610,
-        "w": 160,
+        "w": 150,
         "h": 20
       },
       {
-        "x": 2900,
+        "x": 2760,
         "y": 610,
-        "w": 120,
+        "w": 130,
         "h": 20
       }
     ],
     "plates": [
       {
-        "x": 500,
+        "x": 720,
+        "y": 400,
+        "w": 40,
+        "targetPlatIndex": 3,
+        "platTrigger": true,
+        "platAction": "spawn",
+        "platDuration": 0,
+        "spikeTrigger": false,
+        "alarmTrigger": false
+      },
+      {
+        "x": 2350,
         "y": 610,
         "w": 40,
         "targetIdx": 0,
         "targetType": "spike",
-        "delay": 0.1
-      },
-      {
-        "x": 2000,
-        "y": 610,
-        "w": 40,
-        "targetIdx": 0,
-        "targetType": "alarm",
-        "delay": 0.1
-      },
-      {
-        "x": 3200,
-        "y": 610,
-        "w": 40,
-        "targetIdx": 0,
-        "targetType": "spike",
+        "spikeTrigger": true,
+        "platTrigger": false,
         "delay": 0.1
       }
     ],
     "bushes": [
       {
-        "x": 740,
+        "x": 1350,
         "y": 565,
         "w": 70,
         "h": 45
       },
       {
-        "x": 1850,
+        "x": 2050,
         "y": 565,
         "w": 70,
         "h": 45
       },
       {
-        "x": 2650,
-        "y": 565,
-        "w": 70,
-        "h": 45
-      },
-      {
-        "x": 3300,
+        "x": 3050,
         "y": 565,
         "w": 70,
         "h": 45
@@ -3187,134 +3197,99 @@ select { cursor: pointer; }
     ],
     "guards": [
       {
-        "x": 740,
+        "x": 800,
         "y": 554,
-        "minX": 640,
-        "maxX": 840,
+        "minX": 700,
+        "maxX": 900,
         "speed": 0,
         "dir": 1,
-        "visionLen": 200,
+        "visionLen": 220,
         "visionH": 50,
         "shootInterval": 0
       },
       {
-        "x": 1600,
+        "x": 1550,
         "y": 554,
-        "minX": 1500,
+        "minX": 1400,
         "maxX": 1700,
-        "speed": 0,
-        "dir": 1,
-        "visionLen": 200,
-        "visionH": 50,
-        "shootInterval": 0
-      },
-      {
-        "x": 2450,
-        "y": 554,
-        "minX": 2350,
-        "maxX": 2550,
-        "speed": 0,
-        "dir": 1,
-        "visionLen": 200,
-        "visionH": 50,
-        "shootInterval": 0
-      },
-      {
-        "x": 3200,
-        "y": 554,
-        "minX": 3050,
-        "maxX": 3350,
         "speed": 1.2,
         "dir": 1,
-        "visionLen": 270,
+        "visionLen": 260,
+        "visionH": 50,
+        "shootInterval": 0
+      },
+      {
+        "x": 2650,
+        "y": 554,
+        "minX": 2500,
+        "maxX": 2800,
+        "speed": 2.2,
+        "dir": -1,
+        "visionLen": 280,
         "visionH": 50,
         "shootInterval": 0
       }
     ],
-    "towers": [
-      {
-        "x": 1300,
-        "y": 610,
-        "radius": 260,
-        "minAngle": 0.7,
-        "maxAngle": 2.4,
-        "speed": 0.6,
-        "startAngle": 1.5
-      },
-      {
-        "x": 2820,
-        "y": 610,
-        "radius": 260,
-        "minAngle": 0.7,
-        "maxAngle": 2.4,
-        "speed": 0.65,
-        "startAngle": 1.5
-      },
-      {
-        "x": 1180,
-        "y": 610,
-        "radius": 260,
-        "minAngle": 0.7,
-        "maxAngle": 2.4,
-        "speed": 0.65,
-        "startAngle": 1.5
-      },
-      {
-        "x": 2380,
-        "y": 610,
-        "radius": 260,
-        "minAngle": 0.7,
-        "maxAngle": 2.4,
-        "speed": 0.7,
-        "startAngle": 1.5
-      }
-    ],
+    "towers": [],
     "keys": [
       {
-        "x": 820,
-        "y": 325
-      },
-      {
-        "x": 2770,
-        "y": 425
+        "x": 1150,
+        "y": 220
       }
     ],
     "ki": [
       {
-        "x": 460,
+        "x": 420,
         "y": 430
       },
       {
-        "x": 700,
-        "y": 555
+        "x": 750,
+        "y": 340
       },
       {
-        "x": 1180,
-        "y": 430
+        "x": 1150,
+        "y": 160
       },
       {
-        "x": 1560,
+        "x": 1500,
+        "y": 360
+      },
+      {
+        "x": 1860,
+        "y": 420
+      },
+      {
+        "x": 2250,
         "y": 330
       },
       {
-        "x": 1980,
-        "y": 430
+        "x": 2650,
+        "y": 420
       },
       {
-        "x": 2360,
-        "y": 330
-      },
-      {
-        "x": 2760,
-        "y": 430
-      },
-      {
-        "x": 3110,
-        "y": 330
+        "x": 3000,
+        "y": 360
       }
     ],
     "tutorialCards": [],
-    "texts": []
+    "texts": [
+      {
+        "x": 680,
+        "y": 345,
+        "text": "WHISPERING BLADES CUT THE RUSHED",
+        "size": 16,
+        "color": "#f1c40f",
+        "alpha": 0.85
+      },
+      {
+        "x": 1040,
+        "y": 225,
+        "text": "OBSERVE THE CLOCKWORK PULSE",
+        "size": 16,
+        "color": "#00d2d3",
+        "alpha": 0.9
+      }
+    ]
   },
   {
     "id": "level_9",
