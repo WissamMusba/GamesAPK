@@ -217,394 +217,77 @@ const SLOTS=[
 /* ================= 10 INTRICATE, ACCESSIBLE MAPS (NO OVERLAPS, PURE JUKE ZONES) ================= */
 /* Format: [x, y, w, h, (optional dy for slope)]
    Pink platforms (drops) NEVER overlap solids, are 100% jump-through from below and drop-through with Down/S! */
-const MAPS=[
-{
-  name:'SMUGGLERS CATACOMBS', /* Two crawlway tunnels with speedways, non-overlapping pink escape hatches & center T staircase */
-  solids:[
-    /* Upper terrace */
-    [260,380,460,26],[860,360,200,26],[1340,360,200,26],[1680,380,460,26],
-    /* Left crawlway tunnel: roof at 590, floor at 740 -> 124px roomy headroom */
-    [420,590,400,26],
-    [260,740,200,26],
-    /* Right crawlway tunnel: roof at 590, floor at 740 -> 124px roomy headroom */
-    [1580,590,400,26],
-    [1940,740,200,26],
-    /* Center T-divider */
-    [980,740,440,26],[1186,766,28,160],
-    /* Basement shelters */
-    [240,1090,400,26],[1760,1090,400,26],
-    /* Outer roosts */
-    [60,520,160,26],[2180,520,160,26]
-  ],
-  speeds:[
-    /* Speedways inside tunnels (flush with floor at y=740, no headroom pinch!) */
-    [460,740,200,26],[1740,740,200,26],
-    /* Ground straightaway */
-    [800,1260,800,26]
-  ],
-  drops:[
-    /* Stepping stone above center T (smooth 190px jump from T up to skyway!) */
-    [1040,545,320,24],
-    /* Center skyway drop connector */
-    [1060,360,280,24],
-    /* Left tunnel: roof jump-through slot & floor escape hatch */
-    [260,590,160,24],[660,740,160,24],
-    /* Right tunnel: roof jump-through slot & floor escape hatch */
-    [1980,590,160,24],[1580,740,160,24],
-    /* Basement access drops */
-    [840,930,240,24],[1320,930,240,24]
-  ],
-  boosts:[
-    /* Outer recovery bounce pads */
-    [120,1260,220,26],[2060,1260,220,26]
-  ]
-},
-{
-  name:'SYMMETRIC STADIUM', /* Symmetrical tournament arena with 180px tiered stepping stones and center drop shaft */
-  solids:[
-    /* High center crown deck (cleanly split around center drop 1060..1340!) */
-    [920,560,140,26],[1340,560,140,26],
-    /* Mid-tier wings */
-    [340,740,460,26],[1600,740,460,26],
-    /* Step-down shelves */
-    [420,920,340,26],[1640,920,340,26],
-    /* Low courtyard stepping shelves (160px from ground!) */
-    [460,1100,240,26],[1700,1100,240,26],
-    /* Spectator perches */
-    [60,420,260,26],[2080,420,260,26],
-    /* Ground center slab */
-    [800,1260,800,26]
-  ],
-  speeds:[
-    /* High center orange crown runway */
-    [1040,380,320,26],
-    /* Outer ground sprint strips */
-    [140,1260,500,26],[1760,1260,500,26]
-  ],
-  drops:[
-    /* Central vertical drop shaft (4 tiers, smooth 180px jumps and drops) */
-    [1060,560,280,24],[1060,740,280,24],[1060,920,280,24],[1060,1100,280,24],
-    /* Flanking stepping stones */
-    [540,560,160,24],[1700,560,160,24],
-    /* Low corner escape ledges */
-    [60,1020,240,24],[2100,1020,240,24]
-  ],
-  boosts:[
-    /* Floating center trampoline pad */
-    [1080,1180,240,26]
-  ]
-},
-{
-  name:'THE VIPERS NEST', /* Chicane tunnels, momentum slides, roomy 134px clearance, and full multi-tier flow */
-  solids:[
-    /* Upper slide ramp: ends at x=720, y=460 */
-    [300,360,420,26,100],
-    /* Tunnel roof at y=460 (134px clearance above y=620 floor) */
-    [860,460,400,26],
-    /* Descending chicane ramp: starts at x=1340, y=620, ends at x=1760, y=710 */
-    [1340,620,420,26,90],
-    /* Bottom return ramp */
-    [1260,920,440,26,-90],
-    /* Low steps from ground (170px from ground!) */
-    [260,1090,260,26],[1880,1090,260,26],
-    /* Mid shelters */
-    [240,910,340,26],[1820,910,340,26],
-    /* Upper shelters (cleanly split around drops 320..500 and 1900..2080!) */
-    [240,730,80,26],[2080,730,80,26],
-    /* High roosts */
-    [60,550,180,26],[2160,550,180,26]
-  ],
-  speeds:[
-    /* Inside tunnel speed strips (flush with floor at y=620!) */
-    [860,620,160,26],[1180,620,160,26],
-    /* Floating angled speed ramp */
-    [1540,460,400,26,75],
-    /* Ground sprint */
-    [100,1260,600,26],[1700,1260,600,26]
-  ],
-  drops:[
-    /* Tunnel entrance catch shelf */
-    [720,460,140,24],
-    /* Secret tunnel floor escape (drops runner down into basin) */
-    [1020,620,160,24],
-    /* Ramp exit catch ledges (does not overlap shelter!) */
-    [1760,710,120,24],[1040,920,220,24],
-    /* Shelter roof drop hatches */
-    [320,730,180,24],[1900,730,180,24]
-  ],
-  boosts:[
-    /* Center trampoline slingshot */
-    [1080,1260,240,26]
-  ]
-},
-{
-  name:'PRISON BREAK', /* 3 Jail cells with pink ceilings and floors, 170px yard stepping steps */
-  solids:[
-    /* Cell vertical divider walls */
-    [700,560,26,360],[1040,560,26,360],[1380,560,26,360],[1720,560,26,360],
-    /* Low yard stepping platforms (170px from ground!) */
-    [720,1090,280,26],[1400,1090,280,26],
-    /* Guard towers on sides (split cleanly around drops 280..420 and 1980..2120!) */
-    [180,460,100,26],[420,460,100,26],
-    [1880,460,100,26],[2120,460,100,26],
-    [180,486,26,400],[494,486,26,400],
-    [1880,486,26,400],[2194,486,26,400],
-    /* High central skywalk */
-    [860,380,200,26],[1340,380,200,26]
-  ],
-  speeds:[
-    /* Skywalk center orange strip */
-    [1060,380,280,26],
-    /* Outer yard sprint paths */
-    [100,1260,420,26],[1880,1260,420,26]
-  ],
-  drops:[
-    /* Cell 1: pink jump-through roof & pink drop-through floor */
-    [726,560,314,24],[726,920,314,24],
-    /* Cell 2: pink jump-through roof & pink drop-through floor */
-    [1066,560,314,24],[1066,920,314,24],
-    /* Cell 3: pink jump-through roof & pink drop-through floor */
-    [1406,560,314,24],[1406,920,314,24],
-    /* Mid resting shelves inside cells */
-    [726,740,180,24],[1130,740,180,24],[1406,740,180,24],
-    /* Guard tower drop hatches */
-    [280,460,140,24],[1980,460,140,24],
-    [206,680,288,24],[1906,680,288,24],
-    /* Exterior tower climbing rungs */
-    [60,900,120,24],[2220,900,120,24],
-    [60,1100,120,24],[2220,1100,120,24]
-  ],
-  boosts:[
-    /* Courtyard jump pads */
-    [560,1260,140,26],[1700,1260,140,26]
-  ]
-},
-{
-  name:'METRO TERMINAL', /* Subterranean maintenance tube with center mezzanine connecting to upper stations */
-  solids:[
-    /* Platform stations at y=670 */
-    [240,670,380,26],[820,670,200,26],[1380,670,200,26],[1780,670,380,26],
-    /* Center mezzanine deck at y=870 (cleanly split around drop 1080..1320!) */
-    [960,870,120,26],[1320,870,120,26],
-    /* Maintenance tube ceiling at y=1080 (cleanly cut for 3 pink access shafts) */
-    [440,1080,200,26],[820,1080,240,26],[1340,1080,240,26],[1760,1080,200,26],
-    /* Outer high perches */
-    [60,470,260,26],[2080,470,260,26]
-  ],
-  speeds:[
-    /* Station center speed bridge */
-    [1020,670,360,26],
-    /* Full underground tube speedway */
-    [500,1260,1400,26]
-  ],
-  drops:[
-    /* 3 Maintenance tube entrance shafts */
-    [640,1080,180,24],[1060,1080,280,24],[1580,1080,180,24],
-    /* Center mezzanine drop hatch */
-    [1080,870,240,24],
-    /* Station side connectors */
-    [340,870,200,24],[1860,870,200,24],
-    /* High sky drop shelf */
-    [1080,470,240,24]
-  ],
-  boosts:[
-    /* Outer terminal launch springs */
-    [180,1260,240,26],[1980,1260,240,26]
-  ]
-},
-{
-  name:'WINDING FORTRESS', /* Concentric loop corridors with courtyard terraces and accessible sanctum steps */
-  solids:[
-    /* Outer top corridor: cut cleanly for left & right pink drops */
-    [380,380,180,26],[1840,380,180,26],
-    /* Outer side vertical walls */
-    [380,406,26,454],[1994,406,26,454],
-    /* Middle ring floor at y=860 (cleanly split around boost 1080..1320!) */
-    [560,860,240,26],[980,860,100,26],[1320,860,100,26],[1600,860,240,26],
-    /* Inner sanctum walls */
-    [940,560,26,300],[1434,560,26,300],
-    /* Low courtyard terraces (200px from ground!) */
-    [420,1060,280,26],[1020,1060,360,26],[1700,1060,280,26],
-    /* Outer low perches */
-    [60,960,220,26],[2120,960,220,26]
-  ],
-  speeds:[
-    /* Top corridor orange speed strip */
-    [740,380,920,26],
-    /* Ground straightaway */
-    [100,1260,440,26],[700,1260,1000,26],[1860,1260,440,26]
-  ],
-  drops:[
-    /* Outer top corridor drop slots */
-    [560,380,180,24],[1660,380,180,24],
-    /* Middle ring drop slots */
-    [800,860,180,24],[1420,860,180,24],
-    /* Inner sanctum pink roof */
-    [966,560,468,24],
-    /* Inner sanctum mid stepping shelf (effortless 150px single jumps out of sanctum!) */
-    [1080,710,240,24]
-  ],
-  boosts:[
-    /* Inner sanctum rocket spring */
-    [1080,860,240,26]
-  ]
-},
-{
-  name:'THE CONVEYOR FACTORY', /* Staggered conveyors with 180px tiered catwalks and zero impossible leaps */
-  solids:[
-    /* High crane bridge at y=330 */
-    [920,330,560,26],
-    /* Top Conveyor entries at y=510 */
-    [240,510,100,26],[2060,510,100,26],
-    /* Mid catwalks at y=700 */
-    [340,700,380,26],[1680,700,380,26],
-    /* Low assembly decks at y=1080 (180px from ground!) */
-    [360,1080,340,26],[1040,1080,320,26],[1700,1080,340,26],
-    /* Corner decks */
-    [60,900,200,26],[2140,900,200,26]
-  ],
-  speeds:[
-    /* Top orange conveyors */
-    [340,510,440,26],[1620,510,440,26],
-    /* Center conveyor at y=890 */
-    [800,890,800,26],
-    /* Ground paths */
-    [100,1260,440,26],[1860,1260,440,26]
-  ],
-  drops:[
-    /* High crane drop ends */
-    [800,330,120,24],[1480,330,120,24],
-    /* Center catwalk connector */
-    [1060,700,280,24],
-    /* Center conveyor flanking drop hatches */
-    [600,890,200,24],[1600,890,200,24]
-  ],
-  boosts:[
-    /* Floor launch pads */
-    [700,1260,200,26],[1500,1260,200,26]
-  ]
-},
-{
-  name:'SKYLINE ROOFTOPS', /* Open rooftop arena: tiered terraces, fire escape drops, wide skybridge & zero dead-ends */
-  solids:[
-    /* Left Tower: wide terraces (no enclosed walls or cages!) */
-    [160,460,440,26],[240,740,120,26],[520,740,80,26],[160,1020,440,26],
-    /* Right Tower: wide terraces */
-    [1800,460,440,26],[1800,740,80,26],[2040,740,120,26],[1800,1020,440,26],
-    /* High center skywalk (solid ends) */
-    [900,340,140,26],[1360,340,140,26],
-    /* Plaza center deck (cleanly split around drop 1060..1340!) */
-    [920,860,140,26],[1340,860,140,26]
-  ],
-  speeds:[
-    /* High skywalk orange runway */
-    [1040,340,320,26],
-    /* Outer rooftop sprint strips */
-    [220,460,320,26],[1860,460,320,26],
-    /* Ground straightaway */
-    [700,1260,1000,26]
-  ],
-  drops:[
-    /* Skybridge center jump-through */
-    [1040,600,320,24],
-    /* Plaza center drop-through hatch */
-    [1060,860,280,24],
-    /* Multi-tier fire escape drop rungs between towers and center */
-    [640,600,220,24],[1540,600,220,24],
-    [640,860,220,24],[1540,860,220,24],
-    [640,1100,220,24],[1540,1100,220,24],
-    /* Tower terrace fire escape dropouts */
-    [360,740,160,24],[1880,740,160,24]
-  ],
-  boosts:[
-    /* Base alleyway launch springs */
-    [100,1260,220,26],[2080,1260,220,26],
-    /* Center courtyard bounce pad */
-    [1080,1260,240,26]
-  ]
-},
-{
-  name:'HOLLOW PEAKS', /* Floating mountain peaks with flush interior speedways, 180px foothill steps & sky hatches */
-  solids:[
-    /* Mountain 1 outer slopes */
-    [260,460,360,26,60],[800,520,260,26,-60],
-    /* Mountain 2 outer slopes */
-    [1340,520,260,26,-60],[1780,460,360,26,60],
-    /* Hollow core floors at y=680 */
-    [340,680,160,26],[900,680,140,26],
-    [1360,680,140,26],[1900,680,160,26],
-    /* Center valley bridge at y=880 */
-    [960,880,480,26],
-    /* Low foothill shelves (180px from ground!) */
-    [360,1080,260,26],[1780,1080,260,26]
-  ],
-  speeds:[
-    /* Interior core speed strips (flush with floor at y=680!) */
-    [500,680,200,26],[1700,680,200,26],
-    /* Ground straightaway */
-    [700,1260,1000,26]
-  ],
-  drops:[
-    /* Open sky pink hatches (drop directly into the mountain core from above!) */
-    [620,520,180,24],[1600,520,180,24],
-    /* Core floor pink dropouts */
-    [700,680,200,24],[1500,680,200,24],
-    /* Valley center drop rung (180px from ground!) */
-    [1060,1080,280,24]
-  ],
-  boosts:[
-    /* Under-mountain launch springs */
-    [460,1260,220,26],[1720,1260,220,26]
-  ]
-},
-{
-  name:'THE LABYRINTH 2.0', /* Tactical gauntlet with 4-tier chimney ladder, roomy crawlways, and center connector */
-  solids:[
-    /* Right 4-tier chimney walls */
-    [1600,380,26,720],[2080,380,26,720],
-    /* Top bridge at y=440 */
-    [1180,440,420,26],
-    /* Center divider shelf at y=680 */
-    [940,680,140,26],[1260,680,160,26],[1260,706,26,174],
-    /* Mid divider shelf at y=880 (cleanly split around drop 1080..1240!) */
-    [980,880,100,26],[1240,880,100,26],
-    /* Left crawlway upper shelf at y=720 */
-    [360,720,480,26],[660,746,26,154],
-    /* Left crawlway lower floor at y=900 (154px roomy clearance!) */
-    [280,900,180,26],[620,900,220,26],
-    /* Left low shelf at y=1080 (180px from ground!) */
-    [340,1080,240,26],
-    /* Upper left angled roof baffle */
-    [180,360,320,26,-50]
-  ],
-  speeds:[
-    /* Top bridge orange speed runway */
-    [480,440,440,26],
-    /* Ground straightaway */
-    [1200,1260,1080,26]
-  ],
-  drops:[
-    /* Right chimney 4 elevator slats (spaced 200px apart, starting at 1080 -> 180px from ground!) */
-    [1626,1080,454,24],
-    [1626,880,454,24],
-    [1626,680,454,24],
-    [1626,480,454,24],
-    /* Top bridge pink connector */
-    [920,440,260,24],
-    /* Center divider bypass */
-    [1080,680,180,24],
-    /* Mid divider drop hatch */
-    [1080,880,160,24],
-    /* Low center stepping stone (180px from ground!) */
-    [1040,1080,240,24],
-    /* Left crawlway floor escape hatch */
-    [460,900,160,24]
-  ],
-  boosts:[
-    /* Center floor launch pad */
-    [840,1260,240,26]
-  ]
-}
+const MAPS = [
+  {
+    name: 'SMUGGLERS CATACOMBS',
+    solids: [[260,380,460,26],[860,360,200,26],[1340,360,200,26],[1680,380,460,26],[420,590,400,26],[260,740,200,26],[1580,590,400,26],[1940,740,200,26],[980,740,440,26],[1186,766,28,160],[240,1090,400,26],[1760,1090,400,26],[60,520,160,26],[2180,520,160,26]],
+    speeds: [[460,740,200,26],[1740,740,200,26],[800,1260,800,26]],
+    drops: [[1040,545,320,24],[1060,360,280,24],[260,590,160,24],[660,740,160,24],[1980,590,160,24],[1580,740,160,24],[840,930,240,24],[1320,930,240,24]],
+    boosts: [[120,1260,220,26],[2060,1260,220,26]]
+  },
+  {
+    name: 'SYMMETRIC STADIUM',
+    solids: [[920,560,140,26],[1340,560,140,26],[340,740,460,26],[1600,740,460,26],[420,920,340,26],[1640,920,340,26],[460,1100,240,26],[1700,1100,240,26],[60,420,260,26],[2080,420,260,26]],
+    speeds: [[1040,380,320,26],[140,1260,500,26],[1760,1260,500,26]],
+    drops: [[1060,560,280,24],[1060,740,280,24],[1060,920,280,24],[1060,1100,280,24],[540,560,160,24],[1700,560,160,24],[60,1020,240,24],[2100,1020,240,24]],
+    boosts: [[1080,1260,240,26]]
+  },
+  {
+    name: 'THE VIPERS NEST',
+    solids: [[300,360,420,26,100],[860,460,400,26],[1340,620,420,26,90],[1260,920,440,26,-90],[260,1090,260,26,40],[240,730,80,26],[2080,730,80,26],[60,550,180,26],[2160,550,180,26],[1880,1090,260,26,-40]],
+    speeds: [[860,620,160,26],[1180,620,160,26],[1540,460,400,26,75],[100,1260,600,26],[1700,1260,600,26]],
+    drops: [[720,460,140,24],[1020,620,160,24],[1760,710,120,24],[1040,920,220,24],[320,730,180,24],[1900,730,180,24],[240,910,340,26],[1820,910,340,26]],
+    boosts: [[1080,1260,240,26]]
+  },
+  {
+    name: 'PRISON BREAK',
+    solids: [[700,560,26,385],[1040,560,26,385],[1380,560,26,385],[1720,560,26,385],[720,1090,280,26],[1400,1090,280,26],[180,460,100,26],[420,460,100,26],[1880,460,100,26],[2120,460,100,26],[180,486,26,400],[494,486,26,400],[1880,486,26,400],[2194,486,26,400],[860,380,200,26],[1340,380,200,26]],
+    speeds: [[1060,380,280,26],[100,1260,420,26],[1880,1260,420,26],[990,240,420,26]],
+    drops: [[726,560,314,24],[726,920,314,24],[1066,560,314,24],[1066,920,314,24],[1406,560,314,24],[1406,920,314,24],[726,740,180,24],[1130,740,180,24],[1406,740,180,24],[280,460,140,24],[1980,460,140,24],[206,680,288,24],[1906,680,288,24],[60,900,120,24],[2220,900,120,24],[60,1100,120,24],[2220,1100,120,24]],
+    boosts: [[560,1260,140,26],[1700,1260,140,26]]
+  },
+  {
+    name: 'METRO TERMINAL',
+    solids: [[240,670,380,26],[820,670,200,26],[1380,670,200,26],[1780,670,380,26],[960,870,120,26],[1320,870,120,26],[440,1080,200,26],[820,1080,240,26],[1340,1080,240,26],[1760,1080,200,26],[60,470,260,26],[2080,470,260,26]],
+    speeds: [[1020,670,360,26],[500,1260,1400,26]],
+    drops: [[640,1080,180,24],[1060,1080,280,24],[1580,1080,180,24],[1080,870,240,24],[340,870,200,24],[1860,870,200,24],[1080,470,240,24]],
+    boosts: [[180,1260,240,26],[1980,1260,240,26]]
+  },
+  {
+    name: 'WINDING FORTRESS',
+    solids: [[380,380,180,26],[1840,380,180,26],[380,406,26,454],[1994,406,26,454],[560,860,240,26],[980,860,100,26],[1320,860,100,26],[1600,860,240,26],[940,560,26,300],[1434,560,26,300],[420,1060,280,26],[1020,1060,360,26],[1700,1060,280,26],[60,960,220,26],[2120,960,220,26]],
+    speeds: [[740,380,920,26],[100,1260,440,26],[700,1260,1000,26],[1860,1260,440,26]],
+    drops: [[560,380,180,24],[1660,380,180,24],[800,860,180,24],[1420,860,180,24],[966,560,468,24],[1080,710,240,24]],
+    boosts: [[1080,860,240,26]]
+  },
+  {
+    name: 'THE CONVEYOR FACTORY',
+    solids: [[920,330,560,26],[240,510,100,26],[2060,510,100,26],[340,700,380,26],[1680,700,380,26],[360,1080,340,26],[1040,1080,320,26],[1700,1080,340,26],[60,900,200,26],[2140,900,200,26]],
+    speeds: [[340,510,440,26],[1620,510,440,26],[800,890,800,26],[100,1260,440,26],[1860,1260,440,26]],
+    drops: [[800,330,120,24],[1480,330,120,24],[1060,700,280,24],[600,890,200,24],[1600,890,200,24]],
+    boosts: [[700,1260,200,26],[1500,1260,200,26]]
+  },
+  {
+    name: 'SKYLINE ROOFTOPS',
+    solids: [[160,460,440,26],[240,740,120,26],[520,740,80,26],[160,1020,440,26],[1800,460,440,26],[1800,740,80,26],[2040,740,120,26],[1800,1020,440,26],[900,340,140,26],[1360,340,140,26],[920,860,140,26],[1340,860,140,26]],
+    speeds: [[1040,340,320,26],[220,460,320,26],[1860,460,320,26],[700,1260,1000,26]],
+    drops: [[1040,600,320,24],[1060,860,280,24],[640,600,220,24],[1540,600,220,24],[640,860,220,24],[1540,860,220,24],[640,1100,220,24],[1540,1100,220,24],[360,740,160,24],[1880,740,160,24]],
+    boosts: [[100,1260,220,26],[2080,1260,220,26],[1080,1260,240,26]]
+  },
+  {
+    name: 'HOLLOW PEAKS',
+    solids: [[260,460,360,26,60],[800,520,260,26,-60],[1340,520,260,26,-60],[1780,460,360,26,60],[340,680,160,26],[900,680,140,26],[1360,680,140,26],[1900,680,160,26],[960,880,480,26],[360,1080,260,26],[1780,1080,260,26]],
+    speeds: [[500,680,200,26],[1700,680,200,26],[700,1260,1000,26]],
+    drops: [[620,520,180,24],[1600,460,180,24],[700,680,200,24],[1500,680,200,24],[1060,1080,280,24]],
+    boosts: [[460,1260,220,26],[1720,1260,220,26]]
+  },
+  {
+    name: 'THE LABYRINTH 2.0',
+    solids: [[1600,380,26,720],[2080,380,26,720],[1180,440,420,26],[940,680,140,26],[1260,680,160,26],[1260,706,26,174],[980,880,100,26],[1240,880,100,26],[360,720,480,26],[660,746,26,154],[280,900,180,26],[620,900,220,26],[340,1080,240,26],[180,360,320,26,-50]],
+    speeds: [[480,440,440,26],[1200,1260,1080,26]],
+    drops: [[1626,1080,454,24],[1626,880,454,24],[1625,680,454,24],[1626,480,454,24],[920,440,260,24],[1080,680,180,24],[1080,880,160,24],[1040,1080,240,24],[460,900,160,24]],
+    boosts: [[840,1260,240,26]]
+  }
 ];
 
 let SOLIDS=[];
