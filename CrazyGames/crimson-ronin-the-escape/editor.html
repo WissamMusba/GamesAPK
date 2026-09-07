@@ -1271,8 +1271,84 @@ select { cursor: pointer; }
         "y": 320
       }
     ],
-    "tutorialCards": [],
-    "texts": []
+    "tutorialCards": [
+      {
+        "id": "tut_move_jump",
+        "title": "Movement Basics",
+        "tag": "TRAINING",
+        "kanji": "走",
+        "text": "Hey, welcome to the dojo!\nUse A and D to sprint across the floor.\nTap Space once to jump, and tap again in mid-air for a ninja double jump!",
+        "triggerMode": "prompt",
+        "trigger": {
+          "x": 100,
+          "y": 450,
+          "w": 250,
+          "h": 200
+        }
+      },
+      {
+        "id": "tut_stealth_hide",
+        "title": "Stealth & Hiding",
+        "tag": "STEALTH",
+        "kanji": "影",
+        "text": "See those crates and bushes?\nHold S while near them to duck into the shadows.\nGuards will walk right past without ever noticing you!",
+        "triggerMode": "prompt",
+        "trigger": {
+          "x": 1300,
+          "y": 450,
+          "w": 250,
+          "h": 200
+        }
+      },
+      {
+        "id": "tut_spotlight",
+        "title": "Spotlight Evasion",
+        "tag": "WATCHTOWER",
+        "kanji": "眼",
+        "text": "Eyes on that spotlight beam from above!\nIf it catches you in the open, alarms will scream.\nHide in a bush or wait till it sweeps away before you sprint!",
+        "triggerMode": "prompt",
+        "trigger": {
+          "x": 2550,
+          "y": 450,
+          "w": 250,
+          "h": 200
+        }
+      }
+    ],
+    "texts": [
+      {
+        "x": 200,
+        "y": 545,
+        "text": "A/D to run, Space twice to double jump. Smooth, right?",
+        "size": 16,
+        "color": "#f1c40f",
+        "alpha": 0.85
+      },
+      {
+        "x": 1360,
+        "y": 420,
+        "text": "See the crate? Press S to duck behind it and stay out of sight!",
+        "size": 16,
+        "color": "#f1c40f",
+        "alpha": 0.85
+      },
+      {
+        "x": 2650,
+        "y": 545,
+        "text": "Bushes make you totally invisible. Wait for the runner to pass!",
+        "size": 16,
+        "color": "#f1c40f",
+        "alpha": 0.85
+      },
+      {
+        "x": 3100,
+        "y": 280,
+        "text": "Grab that glowing key and bolt for the exit gate!",
+        "size": 16,
+        "color": "#00d2d3",
+        "alpha": 0.9
+      }
+    ]
   },
   {
     "id": "level_1",
@@ -1691,7 +1767,7 @@ select { cursor: pointer; }
       {
         "x": 620,
         "y": 390,
-        "w": 200,
+        "w": 220,
         "h": 22,
         "platType": "solid",
         "isCrumble": false,
@@ -1806,6 +1882,16 @@ select { cursor: pointer; }
     ],
     "plates": [
       {
+        "x": 720,
+        "y": 390,
+        "w": 40,
+        "targetType": "alarm",
+        "alarmTrigger": true,
+        "platTrigger": false,
+        "spikeTrigger": false,
+        "delay": 0
+      },
+      {
         "x": 990,
         "y": 280,
         "w": 40,
@@ -1815,16 +1901,6 @@ select { cursor: pointer; }
         "platDuration": 0,
         "spikeTrigger": false,
         "alarmTrigger": false
-      },
-      {
-        "x": 2350,
-        "y": 610,
-        "w": 40,
-        "targetIdx": 0,
-        "targetType": "spike",
-        "spikeTrigger": true,
-        "platTrigger": false,
-        "delay": 0.1
       }
     ],
     "bushes": [
@@ -1876,7 +1952,20 @@ select { cursor: pointer; }
         "shootInterval": 0
       }
     ],
-    "towers": [],
+    "towers": [
+      {
+        "x": 1750,
+        "y": 0,
+        "mount": "top",
+        "isCeiling": true,
+        "ty": 380,
+        "radius": 260,
+        "minAngle": 0.8,
+        "maxAngle": 2.3,
+        "speed": 0.65,
+        "startAngle": 1.5
+      }
+    ],
     "keys": [
       {
         "x": 1040,
@@ -1926,17 +2015,17 @@ select { cursor: pointer; }
       {
         "x": 620,
         "y": 335,
-        "text": "LEAP ACROSS THE PITCHED ROOFS",
+        "text": "Watch your landing! There's an alarm plate right on that roof ledge.",
         "size": 16,
         "color": "#f1c40f",
         "alpha": 0.85
       },
       {
-        "x": 940,
-        "y": 225,
-        "text": "PRESSURE REVEALS THE GHOST RIDGE",
+        "x": 1560,
+        "y": 320,
+        "text": "Eyes up! Sky spotlight is scanning the gap — time your leap!",
         "size": 16,
-        "color": "#00d2d3",
+        "color": "#ff7675",
         "alpha": 0.9
       }
     ]
@@ -1951,14 +2040,14 @@ select { cursor: pointer; }
       "y": 564
     },
     "exit": {
-      "x": 2950,
+      "x": 2850,
       "y": 540
     },
     "platforms": [
       {
         "x": 0,
         "y": 610,
-        "w": 3200,
+        "w": 3000,
         "h": 110,
         "platType": "solid",
         "isCrumble": false,
@@ -1967,9 +2056,9 @@ select { cursor: pointer; }
         "respawnDelay": 0
       },
       {
-        "x": 360,
+        "x": 350,
         "y": 490,
-        "w": 200,
+        "w": 220,
         "h": 22,
         "platType": "solid",
         "isCrumble": false,
@@ -1979,7 +2068,7 @@ select { cursor: pointer; }
       },
       {
         "x": 700,
-        "y": 410,
+        "y": 390,
         "w": 200,
         "h": 22,
         "platType": "solid",
@@ -1989,7 +2078,7 @@ select { cursor: pointer; }
         "respawnDelay": 0
       },
       {
-        "x": 1060,
+        "x": 1050,
         "y": 490,
         "w": 220,
         "h": 22,
@@ -2001,8 +2090,8 @@ select { cursor: pointer; }
       },
       {
         "x": 1450,
-        "y": 380,
-        "w": 220,
+        "y": 400,
+        "w": 200,
         "h": 22,
         "platType": "solid",
         "isCrumble": false,
@@ -2011,8 +2100,8 @@ select { cursor: pointer; }
         "respawnDelay": 0
       },
       {
-        "x": 1820,
-        "y": 480,
+        "x": 1800,
+        "y": 490,
         "w": 240,
         "h": 22,
         "platType": "ash",
@@ -2023,8 +2112,8 @@ select { cursor: pointer; }
       },
       {
         "x": 2250,
-        "y": 390,
-        "w": 200,
+        "y": 400,
+        "w": 220,
         "h": 22,
         "platType": "solid",
         "isCrumble": false,
@@ -2046,33 +2135,31 @@ select { cursor: pointer; }
     ],
     "spikes": [
       {
-        "x": 580,
+        "x": 550,
         "y": 610,
-        "w": 110,
+        "w": 120,
         "h": 20
       },
       {
-        "x": 1300,
-        "y": 610,
-        "w": 140,
-        "h": 20
-      },
-      {
-        "x": 2080,
+        "x": 1250,
         "y": 610,
         "w": 150,
+        "h": 20
+      },
+      {
+        "x": 2050,
+        "y": 610,
+        "w": 160,
         "h": 20
       }
     ],
     "plates": [
       {
-        "x": 920,
+        "x": 900,
         "y": 610,
         "w": 40,
         "targetIdx": 0,
         "targetType": "spike",
-        "spikeTrigger": true,
-        "platTrigger": false,
         "delay": 0.1
       },
       {
@@ -2081,22 +2168,20 @@ select { cursor: pointer; }
         "w": 40,
         "targetIdx": 0,
         "targetType": "alarm",
-        "alarmTrigger": true,
-        "platTrigger": false,
         "delay": 0.1
       }
     ],
     "bushes": [
       {
-        "x": 960,
+        "x": 980,
         "y": 565,
         "w": 70,
         "h": 45
       },
       {
-        "x": 1650,
+        "x": 1900,
         "y": 565,
-        "w": 75,
+        "w": 70,
         "h": 45
       },
       {
@@ -2108,20 +2193,20 @@ select { cursor: pointer; }
     ],
     "guards": [
       {
-        "x": 740,
+        "x": 760,
         "y": 554,
-        "minX": 640,
-        "maxX": 840,
+        "minX": 660,
+        "maxX": 860,
         "speed": 0,
         "dir": 1,
-        "visionLen": 220,
+        "visionLen": 200,
         "visionH": 50,
         "shootInterval": 0
       },
       {
-        "x": 1520,
+        "x": 1500,
         "y": 554,
-        "minX": 1420,
+        "minX": 1450,
         "maxX": 1750,
         "speed": 1.2,
         "dir": 1,
@@ -2130,62 +2215,52 @@ select { cursor: pointer; }
         "shootInterval": 0
       },
       {
-        "x": 2360,
+        "x": 2350,
         "y": 554,
-        "minX": 2240,
-        "maxX": 2520,
-        "speed": 1.4,
-        "dir": -1,
-        "visionLen": 280,
+        "minX": 2250,
+        "maxX": 2500,
+        "speed": 1.2,
+        "dir": 1,
+        "visionLen": 270,
         "visionH": 50,
         "shootInterval": 0
       }
     ],
-    "towers": [
-      {
-        "x": 1650,
-        "y": 610,
-        "radius": 260,
-        "minAngle": 0.8,
-        "maxAngle": 2.3,
-        "speed": 0.6,
-        "startAngle": 1.5
-      }
-    ],
+    "towers": [],
     "keys": [
       {
-        "x": 1550,
-        "y": 320
+        "x": 1530,
+        "y": 340
       }
     ],
     "ki": [
       {
-        "x": 420,
-        "y": 430
+        "x": 400,
+        "y": 440
       },
       {
-        "x": 780,
+        "x": 760,
+        "y": 335
+      },
+      {
+        "x": 1110,
+        "y": 440
+      },
+      {
+        "x": 1600,
         "y": 350
       },
       {
-        "x": 1150,
-        "y": 430
+        "x": 1900,
+        "y": 440
       },
       {
-        "x": 1550,
-        "y": 260
+        "x": 2320,
+        "y": 350
       },
       {
-        "x": 1920,
-        "y": 420
-      },
-      {
-        "x": 2330,
-        "y": 330
-      },
-      {
-        "x": 2700,
-        "y": 430
+        "x": 2660,
+        "y": 440
       }
     ],
     "tutorialCards": [],
@@ -2197,14 +2272,6 @@ select { cursor: pointer; }
         "size": 16,
         "color": "#f1c40f",
         "alpha": 0.85
-      },
-      {
-        "x": 1650,
-        "y": 230,
-        "text": "SEARCHLIGHT SWEEPS THE COURTYARD",
-        "size": 16,
-        "color": "#ff7675",
-        "alpha": 0.9
       }
     ]
   },
@@ -2666,21 +2733,15 @@ select { cursor: pointer; }
     ],
     "towers": [
       {
-        "x": 1220,
-        "y": 610,
+        "x": 1300,
+        "y": 0,
+        "mount": "top",
+        "isCeiling": true,
+        "ty": 280,
         "radius": 260,
-        "minAngle": 0.6,
-        "maxAngle": 2.5,
-        "speed": 0.5,
-        "startAngle": 1.5
-      },
-      {
-        "x": 3200,
-        "y": 610,
-        "radius": 240,
-        "minAngle": 0.8,
-        "maxAngle": 2.2,
-        "speed": 0.6,
+        "minAngle": 0.7,
+        "maxAngle": 2.4,
+        "speed": 0.55,
         "startAngle": 1.5
       }
     ],
@@ -2737,17 +2798,17 @@ select { cursor: pointer; }
       {
         "x": 320,
         "y": 425,
-        "text": "THE VOID DEVOURS THE HASTY",
+        "text": "Don't look down! Jump plate-to-plate without stopping.",
         "size": 16,
-        "color": "#ff7675",
-        "alpha": 0.9
+        "color": "#f1c40f",
+        "alpha": 0.85
       },
       {
-        "x": 620,
-        "y": 325,
-        "text": "AWAKEN THE STEPPING STONES",
+        "x": 1220,
+        "y": 220,
+        "text": "Sky spotlight right on the key! Grab it while the beam looks away.",
         "size": 16,
-        "color": "#00d2d3",
+        "color": "#ff7675",
         "alpha": 0.9
       }
     ]
@@ -2898,14 +2959,22 @@ select { cursor: pointer; }
     ],
     "plates": [
       {
-        "x": 2150,
-        "y": 480,
+        "x": 920,
+        "y": 350,
         "w": 40,
-        "targetIdx": 0,
         "targetType": "spike",
         "spikeTrigger": true,
         "platTrigger": false,
         "delay": 0.1
+      },
+      {
+        "x": 2150,
+        "y": 480,
+        "w": 40,
+        "targetType": "alarm",
+        "alarmTrigger": true,
+        "platTrigger": false,
+        "delay": 0
       }
     ],
     "bushes": [
@@ -2942,12 +3011,15 @@ select { cursor: pointer; }
     ],
     "towers": [
       {
-        "x": 2500,
-        "y": 610,
+        "x": 2100,
+        "y": 0,
+        "mount": "top",
+        "isCeiling": true,
+        "ty": 480,
         "radius": 250,
         "minAngle": 0.7,
         "maxAngle": 2.4,
-        "speed": 0.55,
+        "speed": 0.6,
         "startAngle": 1.5
       }
     ],
@@ -2996,17 +3068,17 @@ select { cursor: pointer; }
       {
         "x": 320,
         "y": 435,
-        "text": "RUN OR FALL — THE CATACOMBS COLLAPSE",
+        "text": "That platform's crumbling AND it has a plate! Air-dash (Shift) immediately!",
         "size": 16,
         "color": "#f1c40f",
         "alpha": 0.85
       },
       {
-        "x": 880,
-        "y": 295,
-        "text": "AIR DASH (SHIFT) BRIDGES THE VOID",
+        "x": 1760,
+        "y": 350,
+        "text": "Keep moving, don't stop! The catacombs are dropping behind you!",
         "size": 16,
-        "color": "#00d2d3",
+        "color": "#ff7675",
         "alpha": 0.9
       }
     ]
@@ -3152,6 +3224,32 @@ select { cursor: pointer; }
         "h": 20
       }
     ],
+    "blades": [
+      {
+        "x": 950,
+        "y": 430,
+        "h": 180,
+        "period": 2.2,
+        "on": 1,
+        "phase": 0
+      },
+      {
+        "x": 1750,
+        "y": 430,
+        "h": 180,
+        "period": 2.1,
+        "on": 1,
+        "phase": 1.2
+      },
+      {
+        "x": 2550,
+        "y": 430,
+        "h": 180,
+        "period": 2,
+        "on": 0.95,
+        "phase": 0.4
+      }
+    ],
     "plates": [
       {
         "x": 720,
@@ -3165,10 +3263,9 @@ select { cursor: pointer; }
         "alarmTrigger": false
       },
       {
-        "x": 2350,
-        "y": 610,
+        "x": 1450,
+        "y": 420,
         "w": 40,
-        "targetIdx": 0,
         "targetType": "spike",
         "spikeTrigger": true,
         "platTrigger": false,
@@ -3230,7 +3327,20 @@ select { cursor: pointer; }
         "shootInterval": 0
       }
     ],
-    "towers": [],
+    "towers": [
+      {
+        "x": 1750,
+        "y": 0,
+        "mount": "top",
+        "isCeiling": true,
+        "ty": 480,
+        "radius": 260,
+        "minAngle": 0.7,
+        "maxAngle": 2.4,
+        "speed": 0.65,
+        "startAngle": 1.5
+      }
+    ],
     "keys": [
       {
         "x": 1150,
@@ -3276,7 +3386,7 @@ select { cursor: pointer; }
       {
         "x": 680,
         "y": 345,
-        "text": "WHISPERING BLADES CUT THE RUSHED",
+        "text": "See the blade rhythm? Wait for the swing back, then dash through.",
         "size": 16,
         "color": "#f1c40f",
         "alpha": 0.85
@@ -3284,7 +3394,7 @@ select { cursor: pointer; }
       {
         "x": 1040,
         "y": 225,
-        "text": "OBSERVE THE CLOCKWORK PULSE",
+        "text": "Take the high secret bridge if you want to skip the blades entirely!",
         "size": 16,
         "color": "#00d2d3",
         "alpha": 0.9
