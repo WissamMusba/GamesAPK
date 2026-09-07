@@ -884,6 +884,10 @@ select { cursor: pointer; }
         <span class="icon">🏮</span>
         <span class="label">Sky Beam (C)</span>
       </button>
+      <button class="tool-btn" data-tool="trigger">
+        <span class="icon">⚡</span>
+        <span class="label">Trigger (Z)</span>
+      </button>
       <button class="tool-btn" data-tool="bush">
         <span class="icon">🌿</span>
         <span class="label">Bush (7)</span>
@@ -965,6 +969,7 @@ select { cursor: pointer; }
       <div class="hotkey-row"><span class="hk-badge">4 5</span><span>Spikes / Guard</span></div>
       <div class="hotkey-row"><span class="hk-badge">6 C</span><span>Ground Tower / Sky Beam</span></div>
       <div class="hotkey-row"><span class="hk-badge">7 8</span><span>Bush / Plate</span></div>
+      <div class="hotkey-row"><span class="hk-badge">Z</span><span>Trigger Collision Box</span></div>
       <div class="hotkey-row"><span class="hk-badge">9 0</span><span>Key / KI Shard</span></div>
       <div class="hotkey-row"><span class="hk-badge">S E</span><span>Spawn / Exit Gate</span></div>
       <div class="hotkey-row"><span class="hk-badge">T X</span><span>Tut Card / Text</span></div>
@@ -14619,6 +14624,7 @@ function onKeyDown(e) {
     'Digit5': 'guard',
     'Digit6': 'tower',
     'KeyC': 'ceiling_tower',
+    'KeyZ': 'trigger',
     'Digit7': 'bush',
     'Digit8': 'plate',
     'Digit9': 'key',
@@ -15072,6 +15078,26 @@ function placeNewEntity(tool, wx, wy) {
     const t = { x: x, y: ty, text: 'SHADOWS CONCEAL THE WAY', size: 16, color: '#f1c40f', alpha: 0.85 };
     lvl.texts.push(t);
     selectEntityDirect(t, 'text', lvl.texts.length - 1);
+  } else if (tool === 'trigger') {
+    if (!lvl.triggerZones) lvl.triggerZones = [];
+    const tw = hostPlat ? hostPlat.w : 160;
+    const th = 90;
+    const tx = hostPlat ? hostPlat.x : (x - tw / 2);
+    const ty = hostPlat ? (hostPlat.y - th) : (y - th / 2);
+    const tz = {
+      x: tx, y: ty, w: tw, h: th,
+      oneShot: true, rearmDelay: 1.5,
+      teleportTrigger: false, teleportX: tx + 300, teleportY: ty,
+      guardSpawnTrigger: false, guardSpawnX: tx, guardSpawnY: 610, guardSpawnType: 'runner',
+      launchTrigger: false, launchPower: 18,
+      slowMoTrigger: false, slowMoDuration: 2.5,
+      spikeTrigger: false, spikeMode: 'custom', spikeX: tx, spikeY: 610, spikeDelay: 0.4,
+      alarmTrigger: false, alarmDelay: 0.0,
+      platTrigger: false, platAction: 'vanish', platDelay: 0.0, platDuration: 4.0,
+      triggerTutorial: false, tutTitle: 'TRIGGER ACTIVATED!', tutText: ''
+    };
+    lvl.triggerZones.push(tz);
+    selectEntityDirect(tz, 'trigger', lvl.triggerZones.length - 1);
   }
 
   updateLevelQuickStats();
@@ -15096,6 +15122,7 @@ function deleteSelectedEntity() {
   else if (selectedEntityType === 'tower') lvl.towers.splice(selectedEntityIndex, 1);
   else if (selectedEntityType === 'bush') lvl.bushes.splice(selectedEntityIndex, 1);
   else if (selectedEntityType === 'plate') lvl.plates.splice(selectedEntityIndex, 1);
+  else if (selectedEntityType === 'trigger' && lvl.triggerZones) lvl.triggerZones.splice(selectedEntityIndex, 1);
   else if (selectedEntityType === 'key') {
     lvl.keys.splice(selectedEntityIndex, 1);
     lvl.reqKeys = Math.max(1, lvl.keys.length);
@@ -16009,7 +16036,8 @@ function renderEditorScene() {
     if (lvl.exit) drawExit(lvl.exit, selectedEntity === lvl.exit, lvl.reqKeys);
 
     // 9. Tutorial Card Trigger Regions
-    (lvl.tutorialCards || []).forEach((c, idx) => drawTutCardRegion(c, selectedEntity === c));
+    (lvl.triggerZones || []).forEach((tz, idx) => drawTriggerZone(tz, selectedEntity === tz));
+  (lvl.tutorialCards || []).forEach((c, idx) => drawTutCardRegion(c, selectedEntity === c));
 
     // 10. Floating Texts
     (lvl.texts || []).forEach((t, idx) => drawText(t, selectedEntity === t));
@@ -16477,6 +16505,104 @@ function drawExit(e, isSelected, reqKeys) {
   }
   ctx.restore();
 }
+
+function drawTriggerZone(tz, isSelected) {
+  ctx.save();
+  const x = tz.x;
+  const y = tz.y;
+  const w = tz.w || 160;
+  const h = tz.h || 100;
+
+  // Background
+  ctx.fillStyle = isSelected ? 'rgba(9, 132, 227, 0.25)' : 'rgba(9, 132, 227, 0.12)';
+  ctx.fillRect(x, y, w, h);
+
+  // Dashed border
+  ctx.strokeStyle = isSelected ? '#00d2d3' : 'rgba(0, 210, 211, 0.7)';
+  ctx.lineWidth = isSelected ? 2 : 1.5;
+  ctx.setLineDash([6, 4]);
+  ctx.strokeRect(x, y, w, h);
+  ctx.setLineDash([]);
+
+  // Label banner
+  ctx.fillStyle = 'rgba(10, 15, 29, 0.85)';
+  ctx.fillRect(x, y - 20, Math.min(w, 180), 20);
+  ctx.strokeStyle = '#00d2d3';
+  ctx.strokeRect(x, y - 20, Math.min(w, 180), 20);
+
+  ctx.fillStyle = '#00d2d3';
+  ctx.font = 'bold 11px Rajdhani';
+  ctx.fillText('⚡ TRIGGER ZONE' + (tz.oneShot ? ' (1-SHOT)' : ' (REARM)'), x + 6, y - 6);
+
+  // Active tags inside box
+  const activeTags = [];
+  if (tz.teleportTrigger) activeTags.push('⛩ WARP');
+  if (tz.guardSpawnTrigger) activeTags.push('⚔ AMBUSH');
+  if (tz.launchTrigger) activeTags.push('💨 LAUNCH');
+  if (tz.slowMoTrigger) activeTags.push('⏳ ZEN');
+  if (tz.spikeTrigger) activeTags.push('▲ SPIKE');
+  if (tz.alarmTrigger) activeTags.push('🚨 ALARM');
+  if (tz.platTrigger) activeTags.push('🌫 PLAT');
+
+  if (activeTags.length > 0) {
+    ctx.font = 'bold 10px Rajdhani';
+    ctx.fillStyle = '#f1c40f';
+    ctx.fillText(activeTags.join(' • '), x + 8, y + 20);
+  }
+
+  // Draw lines to destinations if active
+  if (tz.teleportTrigger && tz.teleportX !== undefined) {
+    const tx = tz.teleportX;
+    const ty = tz.teleportY !== undefined ? tz.teleportY : y;
+    ctx.strokeStyle = '#00d2d3';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.moveTo(x + w / 2, y + h / 2);
+    ctx.lineTo(tx, ty);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Teleport Portal preview icon
+    ctx.fillStyle = 'rgba(0, 210, 211, 0.2)';
+    ctx.beginPath();
+    ctx.arc(tx, ty, 22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#00d2d3';
+    ctx.stroke();
+    ctx.fillStyle = '#00d2d3';
+    ctx.font = 'bold 10px Rajdhani';
+    ctx.fillText('⛩ WARP DEST', tx - 30, ty - 26);
+  }
+
+  if (tz.guardSpawnTrigger && tz.guardSpawnX !== undefined) {
+    const gx = tz.guardSpawnX;
+    const gy = tz.guardSpawnY !== undefined ? tz.guardSpawnY : 610;
+    ctx.strokeStyle = '#e74c3c';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(x + w / 2, y + h / 2);
+    ctx.lineTo(gx, gy - 20);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Guard preview icon
+    ctx.fillStyle = 'rgba(231, 76, 60, 0.3)';
+    ctx.fillRect(gx - 14, gy - 44, 28, 44);
+    ctx.strokeStyle = '#e74c3c';
+    ctx.strokeRect(gx - 14, gy - 44, 28, 44);
+    ctx.fillStyle = '#e74c3c';
+    ctx.font = 'bold 10px Rajdhani';
+    ctx.fillText('⚔ ' + (tz.guardSpawnType || 'runner').toUpperCase(), gx - 24, gy - 48);
+  }
+
+  if (isSelected) {
+    drawSelectionBox(x, y, w, h);
+  }
+  ctx.restore();
+}
+
 function drawTutCardRegion(c, isSelected) {
   ctx.save();
   const tr = c.trigger || { x: 0, y: 0, w: 100, h: 100 };
@@ -16732,9 +16858,52 @@ function hasSpawnPlateInEditor(platIdx, lvl) {
   });
 }
 
+function executePlaytestTriggerActions(actSource) {
+  if (!playState || !playState.ronin) return;
+  const r = playState.ronin;
+  // 1. Shadow Teleport
+  if (actSource.teleportTrigger && actSource.teleportX !== undefined) {
+    r.x = actSource.teleportX;
+    r.y = actSource.teleportY !== undefined ? (actSource.teleportY - r.h) : r.y;
+    r.vx = 0;
+    r.vy = 0;
+    showToast('⛩ SHADOW TELEPORT WARP!', 'success');
+  }
+  // 2. Guard Ambush
+  if (actSource.guardSpawnTrigger && actSource.guardSpawnX !== undefined) {
+    const gx = actSource.guardSpawnX;
+    const gy = actSource.guardSpawnY !== undefined ? actSource.guardSpawnY : 610;
+    const newG = {
+      x: gx, y: gy,
+      minX: gx - 160, maxX: gx + 160,
+      speed: actSource.guardSpawnType === 'runner' ? 2.2 : 1.4,
+      visionLen: 260, dir: 1, dead: false
+    };
+    if (!playState.lvl.guards) playState.lvl.guards = [];
+    playState.lvl.guards.push(newG);
+    showToast('⚔ ENEMY AMBUSH SPAWNED!', 'error');
+  }
+  // 3. Ninja Updraft
+  if (actSource.launchTrigger) {
+    const pwr = actSource.launchPower || 18;
+    r.vy = -pwr * 40;
+    r.onGround = false;
+    showToast('💨 NINJA LEAP UPDRAFT!', 'warning');
+  }
+  // 4. Slow-Mo Zen Focus
+  if (actSource.slowMoTrigger) {
+    playState.slowMoTimer = Math.max(playState.slowMoTimer || 0, actSource.slowMoDuration || 2.5);
+    showToast('⏳ ZEN FOCUS (SLOW-MO)!', 'default');
+  }
+}
+
 function updatePlaytest() {
   if (!playState || !playState.ronin || playState.activeCard || playState.levelCleared) return;
-  const dt = 1 / 60;
+  let dt = 1 / 60;
+  if (playState.slowMoTimer > 0) {
+    playState.slowMoTimer -= dt;
+    dt *= 0.38;
+  }
   const r = playState.ronin;
   const lvl = playState.lvl;
 
@@ -16883,6 +17052,7 @@ function updatePlaytest() {
       if (p.alarmTrigger) {
         showToast('🚨 ALARM RAISED BY PRESSURE PLATE!', 'error');
       }
+      executePlaytestTriggerActions(p);
       if (p.triggerTutorial) {
         playState.activeCard = {
           title: p.tutTitle || 'PRESSURE PLATE TRIGGERED!',
@@ -16970,6 +17140,29 @@ function updatePlaytest() {
     if (!k.collected && Math.hypot((r.x + r.w / 2) - k.x, (r.y + r.h / 2) - k.y) < 24) {
       k.collected = true;
       playState.kiCollected++;
+    }
+  });
+
+  // Trigger Zones Collision Check
+  (lvl.triggerZones || []).forEach((tz, idx) => {
+    if (!playState.tzStates) playState.tzStates = [];
+    if (!playState.tzStates[idx]) playState.tzStates[idx] = { triggered: false, rearmTimer: 0 };
+    const tzs = playState.tzStates[idx];
+    if (tzs.rearmTimer > 0) tzs.rearmTimer -= dt;
+    if (tz.oneShot && tzs.triggered) return;
+    if (tzs.rearmTimer > 0) return;
+
+    if (r.x + r.w > tz.x && r.x < tz.x + tz.w && r.y + r.h > tz.y && r.y < tz.y + tz.h) {
+      tzs.triggered = true;
+      tzs.rearmTimer = tz.rearmDelay || 1.5;
+      executePlaytestTriggerActions(tz);
+      if (tz.triggerTutorial) {
+        playState.activeCard = {
+          title: tz.tutTitle || 'TRIGGER ACTIVATED!',
+          tag: 'TRIGGER ZONE',
+          text: tz.tutText || 'You just stepped into a collision trigger zone!'
+        };
+      }
     }
   });
 

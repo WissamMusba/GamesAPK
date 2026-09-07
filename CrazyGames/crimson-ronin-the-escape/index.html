@@ -764,9 +764,56 @@ function syncCustomLevelsFromStorage(){
           triggerTutorial: p.triggerTutorial || false,
           tutTitle: p.tutTitle || 'PRESSURE PLATE TRIGGERED!',
           tutText: p.tutText || 'You just stepped on a pressure plate!\nA deadly trap spike will thrust out of the ground behind you in 0.6s!\nLEAP FORWARD IMMEDIATELY to avoid getting impaled!',
-          tutKanji: p.tutKanji || '罠'
+          tutKanji: p.tutKanji || '罠',
+          teleportTrigger: !!p.teleportTrigger,
+          teleportX: p.teleportX,
+          teleportY: p.teleportY,
+          guardSpawnTrigger: !!p.guardSpawnTrigger,
+          guardSpawnX: p.guardSpawnX,
+          guardSpawnY: p.guardSpawnY,
+          guardSpawnType: p.guardSpawnType || 'runner',
+          launchTrigger: !!p.launchTrigger,
+          launchPower: p.launchPower || 18,
+          slowMoTrigger: !!p.slowMoTrigger,
+          slowMoDuration: p.slowMoDuration || 2.5
           };
         }),
+        triggerZones: (el.triggerZones || el.triggers || []).map(tz => ({
+          x: tz.x,
+          y: tz.y,
+          w: tz.w || 160,
+          h: tz.h || 100,
+          oneShot: tz.oneShot !== undefined ? tz.oneShot : true,
+          rearmDelay: tz.rearmDelay || 1.5,
+          teleportTrigger: !!tz.teleportTrigger,
+          teleportX: tz.teleportX,
+          teleportY: tz.teleportY,
+          guardSpawnTrigger: !!tz.guardSpawnTrigger,
+          guardSpawnX: tz.guardSpawnX,
+          guardSpawnY: tz.guardSpawnY,
+          guardSpawnType: tz.guardSpawnType || 'runner',
+          launchTrigger: !!tz.launchTrigger,
+          launchPower: tz.launchPower || 18,
+          slowMoTrigger: !!tz.slowMoTrigger,
+          slowMoDuration: tz.slowMoDuration || 2.5,
+          spikeTrigger: !!tz.spikeTrigger,
+          spikeMode: tz.spikeMode || 'custom',
+          spikeX: tz.spikeX,
+          spikeY: tz.spikeY,
+          spikeDelay: tz.spikeDelay !== undefined ? tz.spikeDelay : 0.4,
+          alarmTrigger: !!tz.alarmTrigger,
+          alarmDelay: tz.alarmDelay || 0,
+          platTrigger: !!tz.platTrigger,
+          platAction: tz.platAction || 'vanish',
+          targetPlatX: tz.targetPlatX,
+          targetPlatY: tz.targetPlatY,
+          platDelay: tz.platDelay || 0,
+          platDuration: tz.platDuration || 4.0,
+          triggerTutorial: !!tz.triggerTutorial,
+          tutTitle: tz.tutTitle || 'TRIGGER ACTIVATED!',
+          tutText: tz.tutText || '',
+          tutKanji: tz.tutKanji || '発'
+        })),
         fires: [],
         spots: [],
         towers: (el.towers || []).map(t => ({
@@ -879,7 +926,7 @@ function tryFocus(){
   try{canvas.focus();window.focus();}catch(e){}
 }
 
-let L=null,plats=[],spikeGroups=[],blades=[],plates=[],fires=[];
+let L=null,plats=[],spikeGroups=[],blades=[],plates=[],fires=[],triggerZones=[];
 let guards=[],hideSpots=[],orbs=[],keyObjs=[],signs=[],spots=[],towers=[];
 let doorObj=null;
 let trapSpikes=[];
@@ -1069,6 +1116,191 @@ class Blade{
     }
   }
 }
+
+// =========================================================================
+// TRIGGER ZONE & ENHANCED TRAP ACTION RUNTIME
+// =========================================================================
+function executeEnhancedTrigger(src) {
+  // 1. Shadow Teleport Portal
+  if (src.teleportTrigger && src.teleportX !== undefined) {
+    burstDust(player.x, player.y - 15, 20);
+    player.x = src.teleportX;
+    player.y = src.teleportY !== undefined ? (src.teleportY - player.h) : (G - player.h);
+    player.vx = 0;
+    player.vy = 0;
+    burstDust(player.x, player.y - 15, 20);
+    Snd.dash();
+    texts.push(new FloatText(player.x, player.y - 30, 'SHADOW WARP!', '#00d2d3'));
+  }
+
+  // 2. Guard Ambush
+  if (src.guardSpawnTrigger && src.guardSpawnX !== undefined) {
+    const gx = src.guardSpawnX;
+    const gy = src.guardSpawnY !== undefined ? src.guardSpawnY : G;
+    const gType = src.guardSpawnType || 'runner';
+    const newG = new Guard({
+      type: gType,
+      x: gx,
+      y: gy,
+      minX: gx - 160,
+      maxX: gx + 160,
+      range: 280,
+      speed: gType === 'runner' ? 2.2 : 1.4
+    });
+    guards.push(newG);
+    burstDust(gx, gy - 15, 24);
+    Snd.alert();
+    texts.push(new FloatText(gx, gy - 32, 'AMBUSH!', '#e74c3c'));
+  }
+
+  // 3. Ninja Updraft (Launch Leap)
+  if (src.launchTrigger) {
+    const power = src.launchPower || 18;
+    player.vy = -power * 28;
+    player.onGround = false;
+    burstDust(player.x, player.y, 16);
+    Snd.doubleJump();
+    texts.push(new FloatText(player.x, player.y - 30, 'NINJA LEAP!', '#f1c40f'));
+  }
+
+  // 4. Slow-Mo Zen Focus
+  if (src.slowMoTrigger) {
+    slowMoTimer = Math.max(slowMoTimer, src.slowMoDuration || 2.5);
+    Snd.alert();
+    texts.push(new FloatText(player.x, player.y - 30, 'ZEN FOCUS ⏳', '#a29bfe'));
+  }
+}
+
+class TriggerZone {
+  constructor(d) {
+    this.x = d.x;
+    this.y = d.y;
+    this.w = d.w || 160;
+    this.h = d.h || 100;
+    this.oneShot = d.oneShot !== undefined ? d.oneShot : true;
+    this.triggered = false;
+    this.rearmDelay = d.rearmDelay || 1.5;
+    this.rearmTimer = 0;
+
+    // Action properties
+    this.teleportTrigger = !!d.teleportTrigger;
+    this.teleportX = d.teleportX;
+    this.teleportY = d.teleportY;
+
+    this.guardSpawnTrigger = !!d.guardSpawnTrigger;
+    this.guardSpawnX = d.guardSpawnX;
+    this.guardSpawnY = d.guardSpawnY;
+    this.guardSpawnType = d.guardSpawnType || 'runner';
+
+    this.launchTrigger = !!d.launchTrigger;
+    this.launchPower = d.launchPower || 18;
+
+    this.slowMoTrigger = !!d.slowMoTrigger;
+    this.slowMoDuration = d.slowMoDuration || 2.5;
+
+    this.spikeTrigger = !!d.spikeTrigger;
+    this.spikeMode = d.spikeMode || 'custom';
+    this.spikeX = d.spikeX !== undefined ? d.spikeX : d.x;
+    this.spikeY = d.spikeY !== undefined ? d.spikeY : G;
+    this.spikeDelay = d.spikeDelay !== undefined ? d.spikeDelay : 0.4;
+
+    this.alarmTrigger = !!d.alarmTrigger;
+    this.alarmDelay = d.alarmDelay || 0;
+
+    this.platTrigger = !!d.platTrigger;
+    this.platAction = d.platAction || 'vanish';
+    this.targetPlatX = d.targetPlatX;
+    this.targetPlatY = d.targetPlatY;
+    this.platDelay = d.platDelay || 0;
+    this.platDuration = d.platDuration || 4.0;
+
+    this.triggerTutorial = !!d.triggerTutorial;
+    this.tutTitle = d.tutTitle || 'TRIGGER ACTIVATED!';
+    this.tutText = d.tutText || '';
+    this.tutKanji = d.tutKanji || '発';
+
+    this.spikeTimer = -1;
+    this.alarmTimer = -1;
+    this.platTimer = -1;
+  }
+
+  update(dt) {
+    if (this.rearmTimer > 0) this.rearmTimer -= dt;
+
+    // Handle active timers if armed
+    if (this.spikeTimer >= 0) {
+      this.spikeTimer -= dt;
+      if (this.spikeTimer <= 0) {
+        this.spikeTimer = -1;
+        trapSpikes.push(new TrapSpike(this.spikeX, 1, this.spikeY, true));
+      }
+    }
+    if (this.alarmTimer >= 0) {
+      this.alarmTimer -= dt;
+      if (this.alarmTimer <= 0) {
+        this.alarmTimer = -1;
+        soundAlarm(this.x);
+      }
+    }
+    if (this.platTimer >= 0) {
+      this.platTimer -= dt;
+      if (this.platTimer <= 0) {
+        this.platTimer = -1;
+        let target = null;
+        if (this.targetPlatX !== undefined && this.targetPlatY !== undefined) {
+          target = plats.find(pl => Math.abs(pl.x - this.targetPlatX) < 6 && Math.abs(pl.y - this.targetPlatY) < 6);
+        }
+        if (target) {
+          if (this.platAction === 'spawn') {
+            target.vState = 'solid';
+            target.spawnTimer = this.platDuration > 0 ? this.platDuration : 0;
+            target.vT = 0;
+            Snd.doubleJump();
+            burstDust(target.x + target.w / 2, target.y + target.h / 2, 10);
+            texts.push(new FloatText(target.x + target.w / 2, target.y - 24, 'PLATFORM SPAWNED!', '#00d2d3'));
+          } else {
+            target.vState = 'gone';
+            target.spawnTimer = 0;
+            target.vT = this.platDuration > 0 ? this.platDuration : 3.2;
+            Snd.crumble();
+            burstDust(target.x + target.w / 2, target.y + target.h / 2, 8);
+            texts.push(new FloatText(target.x + target.w / 2, target.y - 24, 'COLLAPSED!', '#e74c3c'));
+          }
+        }
+      }
+    }
+
+    if (this.oneShot && this.triggered) return;
+    if (state !== 'play' || mercyT > 0 || player.hidden || this.rearmTimer > 0) return;
+
+    // AABB check with player
+    const px = player.x;
+    const py = player.y;
+    const pw = player.w;
+    const ph = player.h;
+
+    if (px + pw > this.x && px < this.x + this.w && py + ph > this.y && py < this.y + this.h) {
+      this.triggered = true;
+      this.rearmTimer = this.rearmDelay;
+
+      this.spikeTimer = this.spikeTrigger ? Math.max(0.01, this.spikeDelay) : -1;
+      this.alarmTimer = this.alarmTrigger ? Math.max(0.01, this.alarmDelay) : -1;
+      this.platTimer = this.platTrigger ? Math.max(0.01, this.platDelay) : -1;
+
+      executeEnhancedTrigger(this);
+
+      if (this.triggerTutorial) {
+        activeTutCard = {
+          kanji: this.tutKanji || '発',
+          title: this.tutTitle || 'TRIGGER ACTIVATED!',
+          text: this.tutText || 'You just crossed a hidden trigger zone!'
+        };
+        Snd.alert();
+      }
+    }
+  }
+}
+
 class Plate{
   constructor(d,fx,y){
     if(typeof d==='object'){
@@ -1096,6 +1328,22 @@ class Plate{
       this.tutTitle=d.tutTitle||'UH OH... PRESSURE PLATE!';
       this.tutText=d.tutText||'Hear that click? You just stepped on a pressure plate!\nA spike is thrusting up right behind your back in half a second — JUMP FORWARD NOW!';
       this.tutKanji=d.tutKanji||'罠';
+
+      // Enhanced Trap Actions
+      this.teleportTrigger = !!d.teleportTrigger;
+      this.teleportX = d.teleportX;
+      this.teleportY = d.teleportY;
+
+      this.guardSpawnTrigger = !!d.guardSpawnTrigger;
+      this.guardSpawnX = d.guardSpawnX;
+      this.guardSpawnY = d.guardSpawnY;
+      this.guardSpawnType = d.guardSpawnType || 'runner';
+
+      this.launchTrigger = !!d.launchTrigger;
+      this.launchPower = d.launchPower || 18;
+
+      this.slowMoTrigger = !!d.slowMoTrigger;
+      this.slowMoDuration = d.slowMoDuration || 2.5;
     }else{
       this.x=d;
       this.fx=fx||'spike';
@@ -1223,6 +1471,7 @@ class Plate{
         this.spikeTimer=this.spikeTrigger?Math.max(0.01,this.spikeDelay):-1;
         this.alarmTimer=this.alarmTrigger?Math.max(0.01,this.alarmDelay):-1;
         this.platTimer=this.platTrigger?Math.max(0.01,this.platDelay):-1;
+        executeEnhancedTrigger(this);
         Snd.plate();
         texts.push(new FloatText(this.x,this.y-26,'click...','rgba(255,150,120,0.9)'));
         if((this.triggerTutorial && !tutTriggered['plate_'+this.x]) || (isTutorial && !tutTriggered['plate_tut_intro'])){
@@ -2319,6 +2568,7 @@ function loadLevel(i){
   spikeGroups=d.spikes.map(s=>new SpikeGroup(s.x,s.w,s.y!==undefined?s.y:G));
   blades=d.blades.map(b=>new Blade(b));
   plates=d.plates.map(p=>new Plate(p));
+  triggerZones=(d.triggerZones||d.triggers||[]).map(tz=>new TriggerZone(tz));
   fires=(d.fires||[]).map(f=>new PulseFire(f));
   spots=d.spots.map(s=>new Spotlight(s));
   towers=d.towers.map(t=>new Watchtower(t));
@@ -2953,7 +3203,12 @@ function updateVanishPlats(dt){
     }
   }
 }
+let slowMoTimer = 0;
 function update(dt){
+  if (slowMoTimer > 0) {
+    slowMoTimer = Math.max(0, slowMoTimer - dt);
+    dt *= 0.38;
+  }
   shake=Math.max(0,shake-dt*46);
   flash=Math.max(0,flash-dt*2.4);
   if(cardT>0)cardT-=dt;
@@ -3017,6 +3272,7 @@ function update(dt){
     const canSense=mercyT<=0;
     for(const g of guards)g.update(dt,canSense);
     for(const p of plates)p.update(dt);
+  if (typeof triggerZones !== 'undefined') { for(const tz of triggerZones) tz.update(dt); }
     for(const ts of trapSpikes)ts.update(dt);
     trapSpikes=trapSpikes.filter(ts=>ts.t<ts.life);
     for(const t of towers)t.update(dt);
