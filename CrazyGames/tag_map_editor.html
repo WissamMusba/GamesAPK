@@ -142,6 +142,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--txt);
   <button class="btn full" id="b-game" title="Open tag_game.html">🚀 Full Game ↗</button>
   <button class="btn hist" id="b-saves" title="Save history & snapshots">🕰 Saves (<span id="save-n">1</span>)</button>
   <button class="btn" id="b-save" title="Quick save (Ctrl+S)">💾 Quick Save</button>
+  <button class="btn" id="b-link-file" title="Link directly to index.html for direct disk saving without Python">📁 Link index.html</button>
   <button class="btn" id="b-export" title="Download JSON / copy code">📤 Export</button>
   <button class="btn" id="b-import" title="Import JSON file or pasted text">📥 Import</button>
   <button class="btn code" id="b-code" title="Copy map as game-ready JS">📋 Code</button>
@@ -243,10 +244,10 @@ const DEFAULT_TAG_MAPS=[{"name":"SMUGGLERS CATACOMBS","solids":[[260,380,460,26]
 const LS_KEY='tag_arena_custom_maps_v1';
 const HIST_KEY='tag_arena_maps_history_v1';
 const W=2400,H=1320,WALL=60;
-const JUMP_REACH=325; /* single full-hold, measured 314px @60fps + margin */
-const DOUBLE_REACH=570; /* double full-hold at apex, measured 556px @60fps + margin */
-const BOOST_JUMP_REACH=505; /* blue-pad full-hold, measured 493px @60fps + margin */
-const BOOST_DOUBLE_REACH=765; /* boost + double, ≈750px + margin */
+const JUMP_REACH=268; /* max landing height for single jump (apex feet rise, measured 268px) */
+const DOUBLE_REACH=510; /* max landing height for double jump (apex feet rise, measured 511px) */
+const BOOST_JUMP_REACH=446; /* max landing height for boost jump (apex feet rise, measured 447px) */
+const BOOST_DOUBLE_REACH=690; /* max landing height for boost + double jump (apex feet rise, measured 690px) */
 const SPAWN_W=240,SPAWN_H=46; /* click (no drag) spawns this default platform; drag for custom size */
 const TYPES={
   solid:{name:'Solid', col:'#b07a3e', dark:'#4c301c'},
@@ -309,11 +310,88 @@ function toast(msg,ok){
 }
 
 /* ---- save + history ---- */
-function writeMaps(silent){
-  try{localStorage.setItem(LS_KEY,JSON.stringify(maps));
-    if(!silent)toast('Saved ✓ — reload the game to play it');
-  }catch(e){toast('Save failed: '+e.message,false);}
+let linkedFileHandle = null;
+
+function formatMapsJS(mapsList){
+  const a=m=>k=>m[k].map(p=>`[${p.join(',')}]`).join(',');
+  const lines=mapsList.map(m=>`{\n  name:'${m.name.replace(/'/g,"\\'")}',\n  solids:[${a(m)('solids')}],\n  speeds:[${a(m)('speeds')}],\n  drops:[${a(m)('drops')}],\n  boosts:[${a(m)('boosts')}]\n}`);
+  return 'const MAPS=[\n'+lines.join(',\n')+'\n];';
 }
+
+async function saveToFileHandle(handle, mapsList){
+  const file = await handle.getFile();
+  const text = await file.text();
+  const newMapsCode = formatMapsJS(mapsList);
+  const regex = /const\s+MAPS\s*=\s*\[[\s\S]*?\n\];/;
+  if(!regex.test(text)){
+    throw new Error('Could not locate "const MAPS = [...]" in ' + handle.name);
+  }
+  const updatedText = text.replace(regex, newMapsCode);
+  const writable = await handle.createWritable();
+  await writable.write(updatedText);
+  await writable.close();
+}
+
+async function linkIndexFile(){
+  if(!('showOpenFilePicker' in window)){
+    toast('File System API not supported in this browser. Run: python server.py', false);
+    return;
+  }
+  try{
+    const [handle] = await window.showOpenFilePicker({
+      types: [{description: 'HTML files', accept: {'text/html': ['.html']}}],
+      multiple: false
+    });
+    linkedFileHandle = handle;
+    await saveToFileHandle(linkedFileHandle, maps);
+    const btn = document.getElementById('b-link-file');
+    btn.innerHTML = '📁 Linked: ' + handle.name;
+    btn.style.borderColor = '#2ecc71';
+    btn.style.color = '#2ecc71';
+    toast('Linked to ' + handle.name + '! Every save now writes directly to this file.');
+  }catch(e){
+    if(e.name !== 'AbortError') toast('Linking failed: ' + e.message, false);
+  }
+}
+
+async function writeMaps(silent){
+  try{localStorage.setItem(LS_KEY,JSON.stringify(maps));}catch(e){}
+  
+  // 1. Try local dev server endpoint (/api/save-maps)
+  try{
+    const res = await fetch('/api/save-maps', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(maps)
+    });
+    if(res.ok){
+      if(!silent) toast('Saved directly to index.html ✓ (ready to git commit & push!)');
+      return true;
+    }
+  }catch(e){}
+
+  // 2. Try linked File System Handle
+  if(linkedFileHandle){
+    try{
+      await saveToFileHandle(linkedFileHandle, maps);
+      if(!silent) toast('Saved directly to ' + linkedFileHandle.name + ' ✓ (ready to git commit!)');
+      return true;
+    }catch(e){
+      console.warn('File handle write failed', e);
+    }
+  }
+
+  // 3. Fallback to browser localStorage
+  if(!silent){
+    if(location.hostname === 'localhost' || location.hostname === '127.0.0.1'){
+      toast('Saved in browser ✓ (Run "python server.py" or click "📁 Link index.html" to write directly to file)');
+    }else{
+      toast('Saved ✓ — reload game to play');
+    }
+  }
+  return false;
+}
+
 function saveSoon(){clearTimeout(saveT);saveT=setTimeout(()=>writeMaps(true),700);}
 function getHist(){try{const a=JSON.parse(localStorage.getItem(HIST_KEY));return Array.isArray(a)?a:[]}catch(e){return[];}}
 function recordSnap(name,silent){
@@ -326,7 +404,7 @@ function recordSnap(name,silent){
   if(!silent)toast('Snapshot saved ✓');
   renderSaves();
 }
-function quickSave(){writeMaps();recordSnap(null,true);toast('Saved ✓ — reload the game to play it');}
+async function quickSave(){await writeMaps(false);recordSnap(null,true);}
 
 /* ================= canvas / camera ================= */
 const cv=document.getElementById('cv'),g=cv.getContext('2d'),view=document.getElementById('view');
@@ -616,11 +694,11 @@ function draw(){
       g.fillText(label,p[0]+p[2]+36,p[1]-reach+8);
     };
     if(sel.type==='boost'){
-      guide(BOOST_JUMP_REACH,'rgba(240,123,47,0.6)','max boost jump');
-      guide(BOOST_DOUBLE_REACH,'rgba(155,89,182,0.55)','boost + double');
+      guide(BOOST_JUMP_REACH,'rgba(240,123,47,0.6)','max boost landing');
+      guide(BOOST_DOUBLE_REACH,'rgba(155,89,182,0.55)','boost + double landing');
     }else{
-      guide(JUMP_REACH,'rgba(0,210,211,0.6)','max jump');
-      guide(DOUBLE_REACH,'rgba(155,89,182,0.55)','max double jump');
+      guide(JUMP_REACH,'rgba(0,210,211,0.6)','max jump landing');
+      guide(DOUBLE_REACH,'rgba(155,89,182,0.55)','max double jump landing');
     }
   }
   if(play.on)drawPlay();
@@ -875,6 +953,7 @@ document.getElementById('b-game').onclick=()=>{
   window.open('tag_game.html','_blank');
 };
 document.getElementById('b-save').onclick=quickSave;
+document.getElementById('b-link-file').onclick=linkIndexFile;
 document.getElementById('b-saves').onclick=()=>{renderSaves();openM('m-saves');};
 document.getElementById('b-export').onclick=()=>{expMode='one';expPayload=mapJS(map());document.getElementById('exp-text').value=expPayload;openM('m-export');};
 document.getElementById('b-import').onclick=()=>{document.getElementById('imp-err').textContent='';openM('m-import');};
