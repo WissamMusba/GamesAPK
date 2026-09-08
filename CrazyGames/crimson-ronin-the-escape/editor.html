@@ -868,6 +868,10 @@ select { cursor: pointer; }
         <span class="icon">🌫</span>
         <span class="label">Ash Plat (3)</span>
       </button>
+      <button class="tool-btn" data-tool="wall">
+        <span class="icon">🧗</span>
+        <span class="label">Wall/Climb (W)</span>
+      </button>
       <button class="tool-btn" data-tool="spike">
         <span class="icon">▲</span>
         <span class="label">Spikes (4)</span>
@@ -14663,6 +14667,7 @@ function onKeyDown(e) {
     'Digit1': 'platform',
     'Digit2': 'crumble',
     'Digit3': 'ash',
+    'KeyW': 'wall',
     'Digit4': 'spike',
     'Digit5': 'guard',
     'Digit6': 'tower',
@@ -14734,7 +14739,7 @@ function onCanvasMouseDown(e) {
       }
     }
 
-    const isPlatformTool = currentTool === 'platform' || currentTool === 'crumble' || currentTool === 'ash';
+    const isPlatformTool = currentTool === 'platform' || currentTool === 'crumble' || currentTool === 'ash' || currentTool === 'wall';
 
     // 2. In Solid / Platform mode: Select, drag or resize existing platforms directly
     if (isPlatformTool) {
@@ -14822,21 +14827,40 @@ function onCanvasMouseMove(e) {
     const target = isTut ? selectedEntity.trigger : selectedEntity;
     const start = isTut ? dragStartEntityState.trigger : dragStartEntityState;
 
-    if (activeResizeHandle === 'right' || activeResizeHandle === 'bottom-right' || activeResizeHandle === 'top-right') {
-      target.w = Math.max(20, start.w + dx);
-    }
-    if (activeResizeHandle === 'left' || activeResizeHandle === 'bottom-left' || activeResizeHandle === 'top-left') {
-      const newW = Math.max(20, start.w - dx);
-      target.x = start.x + (start.w - newW);
-      target.w = newW;
-    }
-    if (activeResizeHandle === 'bottom' || activeResizeHandle === 'bottom-right' || activeResizeHandle === 'bottom-left') {
-      target.h = Math.max(10, start.h + dy);
-    }
-    if (activeResizeHandle === 'top' || activeResizeHandle === 'top-right' || activeResizeHandle === 'top-left') {
-      const newH = Math.max(10, start.h - dy);
-      target.y = start.y + (start.h - newH);
-      target.h = newH;
+    if (selectedEntityType === 'spike') {
+      const startW = start.w || 120;
+      const startH = start.h || 30;
+      if (activeResizeHandle === 'right' || activeResizeHandle === 'bottom-right' || activeResizeHandle === 'top-right') {
+        target.w = Math.max(20, startW + dx);
+      }
+      if (activeResizeHandle === 'left' || activeResizeHandle === 'bottom-left' || activeResizeHandle === 'top-left') {
+        const newW = Math.max(20, startW - dx);
+        target.x = start.x + (startW - newW);
+        target.w = newW;
+      }
+      if (activeResizeHandle === 'top' || activeResizeHandle === 'top-right' || activeResizeHandle === 'top-left') {
+        target.h = Math.max(15, startH - dy);
+      }
+      if (activeResizeHandle === 'bottom' || activeResizeHandle === 'bottom-right' || activeResizeHandle === 'bottom-left') {
+        target.h = Math.max(15, startH + dy);
+      }
+    } else {
+      if (activeResizeHandle === 'right' || activeResizeHandle === 'bottom-right' || activeResizeHandle === 'top-right') {
+        target.w = Math.max(20, (start.w || 100) + dx);
+      }
+      if (activeResizeHandle === 'left' || activeResizeHandle === 'bottom-left' || activeResizeHandle === 'top-left') {
+        const newW = Math.max(20, (start.w || 100) - dx);
+        target.x = start.x + ((start.w || 100) - newW);
+        target.w = newW;
+      }
+      if (activeResizeHandle === 'bottom' || activeResizeHandle === 'bottom-right' || activeResizeHandle === 'bottom-left') {
+        target.h = Math.max(10, (start.h || 22) + dy);
+      }
+      if (activeResizeHandle === 'top' || activeResizeHandle === 'top-right' || activeResizeHandle === 'top-left') {
+        const newH = Math.max(10, (start.h || 22) - dy);
+        target.y = start.y + ((start.h || 22) - newH);
+        target.h = newH;
+      }
     }
     if (activeResizeHandle === 'patrol-min') {
       selectedEntity.minX = Math.min(selectedEntity.x, snap(dragStartEntityState.minX + dx, grid));
@@ -14898,7 +14922,7 @@ function onCanvasMouseMove(e) {
     }
   }
 
-  const isPlatformTool = currentTool === 'platform' || currentTool === 'crumble' || currentTool === 'ash';
+  const isPlatformTool = currentTool === 'platform' || currentTool === 'crumble' || currentTool === 'ash' || currentTool === 'wall';
   if (isPlatformTool) {
     if (selectedEntity && selectedEntityType === 'platform') {
       const p = selectedEntity;
@@ -15119,6 +15143,10 @@ function placeNewEntity(tool, wx, wy) {
     selectEntityDirect(p, 'platform', lvl.platforms.length - 1);
   } else if (tool === 'ash') {
     const p = { x: x - 90, y: y - 11, w: 180, h: 22, platType: 'ash', isCrumble: false, isAsh: true, collapseDelay: 0, respawnDelay: 0 };
+    lvl.platforms.push(p);
+    selectEntityDirect(p, 'platform', lvl.platforms.length - 1);
+  } else if (tool === 'wall') {
+    const p = { x: x - 12, y: y - 110, w: 24, h: 220, platType: 'wall', climbable: true, isCrumble: false, isAsh: false, collapseDelay: 0, respawnDelay: 0 };
     lvl.platforms.push(p);
     selectEntityDirect(p, 'platform', lvl.platforms.length - 1);
   } else if (tool === 'spike') {
@@ -15524,7 +15552,8 @@ function hitTestEntities(wx, wy) {
   for (let i = lvl.spikes.length - 1; i >= 0; i--) {
     const s = lvl.spikes[i];
     const sy = s.y !== undefined ? s.y : 610;
-    if (wx >= s.x && wx <= s.x + s.w && wy >= sy - 35 && wy <= sy + 10) return { entity: s, type: 'spike', index: i };
+    const sh = s.h || 30;
+    if (wx >= s.x - 4 && wx <= s.x + s.w + 4 && wy >= sy - sh - 6 && wy <= sy + 8) return { entity: s, type: 'spike', index: i };
   }
 
   // 11. Floating Platforms (Check elevated platforms first)
@@ -15572,10 +15601,12 @@ function getHitResizeHandle(entity, wx, wy) {
 
   // Box Resizing (Platform, Spike, Bush, Tutcard, Trigger)
   if (box.w !== undefined && (box.h !== undefined || selectedEntityType === 'spike' || selectedEntityType === 'platform' || selectedEntityType === 'trigger')) {
+    const isSpike = selectedEntityType === 'spike';
+    const spikeH = entity.h || 30;
     const x = box.x || 0;
-    const y = box.y !== undefined ? box.y : (selectedEntityType === 'spike' ? 580 : 610);
+    const y = isSpike ? ((entity.y !== undefined ? entity.y : 610) - spikeH) : (box.y !== undefined ? box.y : 610);
     const w = box.w || 100;
-    const h = box.h || 22;
+    const h = isSpike ? spikeH : (box.h || 22);
 
     const right = x + w;
     const left = x;
@@ -15601,7 +15632,7 @@ function getHitResizeHandle(entity, wx, wy) {
     if (Math.abs(wx - left) <= tolEdge && wy >= top && wy <= bottom) return 'left';
 
     // 4. Top / Bottom edge borders (only if box is thick enough to not swallow interior)
-    if (h >= 36) {
+    if (h >= 24) {
       if (Math.abs(wy - bottom) <= 5 / camera.zoom && wx >= left && wx <= right) return 'bottom';
       if (Math.abs(wy - top) <= 5 / camera.zoom && wx >= left && wx <= right) return 'top';
     }
@@ -15809,7 +15840,8 @@ function renderInspector() {
         <div class="prop-row">
           <span class="prop-label">Type:</span>
           <select id="prop-plat-type">
-            <option value="solid" ${ent.platType === 'solid' && !ent.isAsh && !ent.isCrumble ? 'selected' : ''}>Solid Stone</option>
+            <option value="solid" ${ent.platType === 'solid' && !ent.isAsh && !ent.isCrumble && !ent.climbable && ent.platType !== 'wall' ? 'selected' : ''}>Solid Stone</option>
+            <option value="wall" ${ent.platType === 'wall' || ent.climbable ? 'selected' : ''}>🧗 Climbable Wall</option>
             <option value="crumble" ${isCr ? 'selected' : ''}>░ Crumbling Stone</option>
             <option value="ash" ${ent.platType === 'ash' || ent.isAsh ? 'selected' : ''}>🌫 Deep Ash (Slow)</option>
           </select>
@@ -16177,22 +16209,48 @@ function renderInspector() {
         <textarea id="prop-card-text" style="height:80px;">${escapeHtml(ent.text || '')}</textarea>
       </div>
     `;
-  } else {
-    // Generic X / Y entity (spikes, bushes, keys, etc.)
-    fieldsHtml = `
-      <div class="prop-row-2col">
-        <span class="prop-label">Position:</span>
-        <input type="number" id="prop-x" value="${Math.round(ent.x)}">
-        <input type="number" id="prop-y" value="${Math.round(ent.y || 610)}">
-      </div>
-      ${ent.w !== undefined ? `
-        <div class="prop-row">
-          <span class="prop-label">Width:</span>
-          <input type="number" id="prop-w" value="${Math.round(ent.w)}">
+  } else if (selectedEntityType === 'spike') {
+      const sw = Math.round(ent.w || 120);
+      const sh = Math.round(ent.h || 30);
+      fieldsHtml = `
+        <div class="prop-row-2col">
+          <span class="prop-label">Position:</span>
+          <input type="number" id="prop-x" value="${Math.round(ent.x)}">
+          <input type="number" id="prop-y" value="${Math.round(ent.y !== undefined ? ent.y : 610)}">
         </div>
-      ` : ''}
-    `;
-  }
+        <div class="prop-row-2col">
+          <span class="prop-label">Size (W/H):</span>
+          <input type="number" id="prop-w" value="${sw}">
+          <input type="number" id="prop-h" value="${sh}">
+        </div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px; margin-top:8px;">
+          <button class="btn" id="btn-spike-shrink" style="font-size:11px; padding:5px;">➖ -40px W</button>
+          <button class="btn btn-primary" id="btn-spike-grow" style="font-size:11px; padding:5px;">➕ +40px W</button>
+        </div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px; margin-top:6px;">
+          <button class="btn" id="btn-spike-short" style="font-size:11px; padding:5px;">▼ -10px H</button>
+          <button class="btn" id="btn-spike-tall" style="font-size:11px; padding:5px;">▲ +10px H</button>
+        </div>
+        <div style="margin-top:6px;">
+          <button class="btn" id="btn-spike-fit" style="width:100%; font-size:11px; padding:6px; color:#ffd76a;">⚡ Fit Platform Width</button>
+        </div>
+      `;
+    } else {
+      // Generic X / Y entity (bushes, keys, etc.)
+      fieldsHtml = `
+        <div class="prop-row-2col">
+          <span class="prop-label">Position:</span>
+          <input type="number" id="prop-x" value="${Math.round(ent.x)}">
+          <input type="number" id="prop-y" value="${Math.round(ent.y || 610)}">
+        </div>
+        ${ent.w !== undefined ? `
+          <div class="prop-row">
+            <span class="prop-label">Width:</span>
+            <input type="number" id="prop-w" value="${Math.round(ent.w)}">
+          </div>
+        ` : ''}
+      `;
+    }
 
   container.innerHTML = `
     <div class="inspector-section">
@@ -16231,6 +16289,7 @@ function renderInspector() {
     recordHistory();
     const val = e.target.value;
     ent.platType = val;
+    ent.climbable = val === 'wall';
     ent.isCrumble = val === 'crumble';
     ent.isAsh = val === 'ash';
     if (ent.isCrumble) {
@@ -16458,6 +16517,53 @@ function renderInspector() {
   bindField('prop-card-th', e => { if (!ent.trigger) ent.trigger = {}; ent.trigger.h = Math.max(20, parseInt(e.target.value, 10) || 20); });
   bindField('prop-card-text', e => { ent.text = e.target.value; });
 
+  // Spike Quick Resize Buttons
+  const btnSpikeShrink = document.getElementById('btn-spike-shrink');
+  if (btnSpikeShrink) btnSpikeShrink.addEventListener('click', () => {
+    recordHistory();
+    ent.w = Math.max(20, (ent.w || 120) - 40);
+    renderInspector();
+    saveToLocalStorage(true, false);
+  });
+  const btnSpikeGrow = document.getElementById('btn-spike-grow');
+  if (btnSpikeGrow) btnSpikeGrow.addEventListener('click', () => {
+    recordHistory();
+    ent.w = (ent.w || 120) + 40;
+    renderInspector();
+    saveToLocalStorage(true, false);
+  });
+  const btnSpikeShort = document.getElementById('btn-spike-short');
+  if (btnSpikeShort) btnSpikeShort.addEventListener('click', () => {
+    recordHistory();
+    ent.h = Math.max(15, (ent.h || 30) - 10);
+    renderInspector();
+    saveToLocalStorage(true, false);
+  });
+  const btnSpikeTall = document.getElementById('btn-spike-tall');
+  if (btnSpikeTall) btnSpikeTall.addEventListener('click', () => {
+    recordHistory();
+    ent.h = (ent.h || 30) + 10;
+    renderInspector();
+    saveToLocalStorage(true, false);
+  });
+  const btnSpikeFit = document.getElementById('btn-spike-fit');
+  if (btnSpikeFit) btnSpikeFit.addEventListener('click', () => {
+    const lvl = getCurrentLevel();
+    const sy = ent.y !== undefined ? ent.y : 610;
+    const hp = findPlatformUnder(ent.x + (ent.w || 120) / 2, sy, lvl);
+    if (hp) {
+      recordHistory();
+      ent.x = hp.x;
+      ent.w = hp.w;
+      ent.y = hp.y;
+      renderInspector();
+      saveToLocalStorage(true, false);
+      showToast(`⚡ Spike fitted to platform (${Math.round(hp.w)}px)`, 'success');
+    } else {
+      showToast('No platform found under spike', 'warning');
+    }
+  });
+
   const btnDup = document.getElementById('btn-inspect-dup');
   if (btnDup) btnDup.addEventListener('click', duplicateSelectedEntity);
   const btnDel = document.getElementById('btn-inspect-del');
@@ -16607,7 +16713,35 @@ function drawPlatform(p, isSelected) {
     ctx.beginPath();
     ctx.moveTo(p.x + 15, p.y + 3); ctx.lineTo(p.x + 35, p.y + p.h - 3);
     ctx.moveTo(p.x + p.w - 35, p.y + 3); ctx.lineTo(p.x + p.w - 15, p.y + p.h - 3);
-    ctx.stroke();
+  } else if (p.platType === 'wall' || p.climbable) {
+    // Climbable Vertical Wall Platform: Dojo timber slats & carved grip notches
+    const grad = ctx.createLinearGradient(p.x, p.y, p.x + p.w, p.y);
+    grad.addColorStop(0, '#3e2723');
+    grad.addColorStop(0.5, '#5d4037');
+    grad.addColorStop(1, '#271712');
+    ctx.fillStyle = grad;
+    ctx.fillRect(p.x, p.y, p.w, p.h);
+
+    ctx.strokeStyle = '#8d6e63';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(p.x, p.y, p.w, p.h);
+
+    // Carved wood slats / climbing ladder rungs
+    ctx.strokeStyle = 'rgba(255, 215, 106, 0.45)';
+    ctx.lineWidth = 2;
+    for (let y = p.y + 16; y < p.y + p.h - 10; y += 22) {
+      ctx.beginPath();
+      ctx.moveTo(p.x + 3, y);
+      ctx.lineTo(p.x + p.w - 3, y);
+      ctx.stroke();
+    }
+    // Subtle climbing icon label
+    if (p.h >= 60) {
+      ctx.fillStyle = 'rgba(255, 215, 106, 0.75)';
+      ctx.font = 'bold 9px Rajdhani';
+      ctx.textAlign = 'center';
+      ctx.fillText('🧗 CLIMB', p.x + p.w / 2, p.y + 12);
+    }
   } else {
     // Solid Platform / Ground
     ctx.fillStyle = isGround ? '#15161e' : '#1e202c';
@@ -16638,6 +16772,7 @@ function drawPlatform(p, isSelected) {
 
 function drawSpikes(s, isSelected) {
   ctx.save();
+  const sh = s.h || 30;
   const count = Math.max(1, Math.floor(s.w / 20));
   const sw = s.w / count;
   const sy = s.y !== undefined ? s.y : 610;
@@ -16647,7 +16782,7 @@ function drawSpikes(s, isSelected) {
     const bx = s.x + i * sw;
     ctx.beginPath();
     ctx.moveTo(bx, sy);
-    ctx.lineTo(bx + sw / 2, sy - 28);
+    ctx.lineTo(bx + sw / 2, sy - sh);
     ctx.lineTo(bx + sw, sy);
     ctx.closePath();
     ctx.fill();
@@ -16657,7 +16792,7 @@ function drawSpikes(s, isSelected) {
   }
 
   if (isSelected) {
-    drawSelectionBox(s.x, sy - 30, s.w, 30);
+    drawSelectionBox(s.x, sy - sh, s.w, sh);
   }
   ctx.restore();
 }
@@ -17330,7 +17465,7 @@ function drawRangeHandle(x, y, label) {
    IN-EDITOR LIVE PLAYTESTING RUNTIME
    ========================================================================== */
 
-const playKeys = { left: false, right: false, up: false, down: false, takedown: false };
+const playKeys = { left: false, right: false, up: false, down: false, takedown: false, climb: false };
 
 function togglePlaytest() {
   if (isPlaytesting) stopPlaytest();
@@ -17364,7 +17499,10 @@ function startPlaytest() {
       jumpsLeft: 2,
       facing: 1,
       hidden: false,
-      alive: true
+      alive: true,
+      isClimbing: false,
+      climbPrompt: false,
+      climbWallDir: 0
     },
     keysCollected: 0,
     kiCollected: 0,
@@ -17422,15 +17560,30 @@ function handlePlaytestKeyDown(e) {
 
   if (e.code === 'KeyA' || e.code === 'ArrowLeft') playKeys.left = true;
   if (e.code === 'KeyD' || e.code === 'ArrowRight') playKeys.right = true;
+  if (e.code === 'KeyW' || e.code === 'ArrowUp') {
+    playKeys.up = true;
+  }
   if (e.code === 'KeyW' || e.code === 'ArrowUp' || e.code === 'Space') {
-    if (playState && playState.ronin && playState.ronin.jumpsLeft > 0) {
-      playState.ronin.vy = -540;
-      playState.ronin.jumpsLeft--;
-      playState.ronin.onGround = false;
+    if (playState && playState.ronin) {
+      const r = playState.ronin;
+      if (r.isClimbing) {
+        // Wall Jump away from wall
+        r.vy = -620;
+        r.vx = -r.climbWallDir * 320;
+        r.isClimbing = false;
+        r.onGround = false;
+        r.jumpsLeft = 1;
+        showToast('🧗 WALL LEAP!', 'default');
+      } else if (r.jumpsLeft > 0) {
+        r.vy = -540;
+        r.jumpsLeft--;
+        r.onGround = false;
+      }
     }
     e.preventDefault();
   }
   if (e.code === 'KeyS' || e.code === 'ArrowDown') {
+    playKeys.down = true;
     if (playState && playState.ronin) {
       // Toggle bush hiding
       const r = playState.ronin;
@@ -17442,6 +17595,7 @@ function handlePlaytestKeyDown(e) {
     }
   }
   if (e.code === 'KeyE') {
+    playKeys.climb = true;
     if (playState && playState.activeTutPrompt) {
       playState.activeCard = playState.activeTutPrompt.card;
       playState.activeTutPrompt.card.seen = true;
@@ -17455,8 +17609,9 @@ function handlePlaytestKeyDown(e) {
 window.addEventListener('keyup', (e) => {
   if (e.code === 'KeyA' || e.code === 'ArrowLeft') playKeys.left = false;
   if (e.code === 'KeyD' || e.code === 'ArrowRight') playKeys.right = false;
-  if (e.code === 'KeyW' || e.code === 'ArrowUp' || e.code === 'Space') playKeys.up = false;
+  if (e.code === 'KeyW' || e.code === 'ArrowUp') playKeys.up = false;
   if (e.code === 'KeyS' || e.code === 'ArrowDown') playKeys.down = false;
+  if (e.code === 'KeyE') playKeys.climb = false;
 });
 
 function executeStealthTakedown() {
@@ -17577,8 +17732,56 @@ function updatePlaytest() {
 
   r.x += r.vx * dt;
 
-  // Gravity
-  r.vy += 1200 * dt;
+  // Wall Climbing Detection
+  let touchingWallPlat = null;
+  let touchingWallDir = 0;
+  (lvl.platforms || []).forEach((p, idx) => {
+    if (playState.platStates && playState.platStates[idx] && playState.platStates[idx].vState === 'gone') return;
+    const isClimbableWall = (p.platType === 'wall' || p.climbable);
+    if (!isClimbableWall) return;
+
+    // Check vertical overlap with wall
+    if (r.y + r.h > p.y && r.y < p.y + p.h) {
+      // Touching left side of wall (Ronin on left, wall on right)
+      if (Math.abs((r.x + r.w) - p.x) <= 8) {
+        touchingWallPlat = p;
+        touchingWallDir = 1;
+      }
+      // Touching right side of wall (Ronin on right, wall on left)
+      else if (Math.abs(r.x - (p.x + p.w)) <= 8) {
+        touchingWallPlat = p;
+        touchingWallDir = -1;
+      }
+    }
+  });
+
+  r.climbPrompt = !!touchingWallPlat;
+  r.climbWallDir = touchingWallDir;
+
+  const wantClimb = touchingWallPlat && (playKeys.climb || (r.isClimbing && playKeys.up));
+  if (wantClimb) {
+    r.isClimbing = true;
+    r.facing = touchingWallDir;
+    r.jumpsLeft = 2; // Reset jump so player can wall-jump freely
+    if (touchingWallDir === 1) r.x = touchingWallPlat.x - r.w;
+    else if (touchingWallDir === -1) r.x = touchingWallPlat.x + touchingWallPlat.w;
+
+    if (playKeys.up) {
+      r.vy = -190; // Ascend wall smoothly
+    } else if (playKeys.down) {
+      r.vy = 160; // Descend wall smoothly
+    } else {
+      r.vy = 0; // Solid friction grip / cling
+    }
+  } else {
+    r.isClimbing = false;
+  }
+
+  // Gravity (applied only when not clinging to wall)
+  if (!r.isClimbing) {
+    r.vy += 1200 * dt;
+    if (r.vy > 1400) r.vy = 1400;
+  }
   r.y += r.vy * dt;
   r.onGround = false;
 
@@ -17586,6 +17789,7 @@ function updatePlaytest() {
   (lvl.platforms || []).forEach((p, idx) => {
     if (playState.platStates && playState.platStates[idx] && playState.platStates[idx].vState === 'gone') return;
     if (playState.crumbleTimers[idx] && playState.crumbleTimers[idx].fallen) return;
+    if (p.platType === 'wall' || p.climbable) return; // Wall climb platforms are handled separately
 
     if (r.x + r.w > p.x && r.x < p.x + p.w && r.y + r.h >= p.y && r.y + r.h <= p.y + p.h + 16 && r.vy >= 0) {
       r.y = p.y - r.h;
@@ -18004,6 +18208,31 @@ function renderPlayScene() {
   ctx.moveTo(r.x + r.w / 2, r.y + 24);
   ctx.lineTo(r.x + r.w / 2 + r.facing * 18, r.y + 20);
   ctx.stroke();
+
+  // Wall Climbing Visual Pose & Prompt
+  if (r.alive && (r.isClimbing || r.climbPrompt)) {
+    // Grip limbs extended onto the wall
+    ctx.strokeStyle = '#ffd76a';
+    ctx.lineWidth = 2.5;
+    const gripX = r.x + (r.facing === 1 ? r.w + 4 : -4);
+    ctx.beginPath();
+    ctx.moveTo(r.x + r.w / 2, r.y + 20); ctx.lineTo(gripX, r.y + 14);
+    ctx.moveTo(r.x + r.w / 2, r.y + 36); ctx.lineTo(gripX, r.y + 40);
+    ctx.stroke();
+
+    // Floating climb prompt
+    const promptX = r.x + r.w / 2;
+    const promptY = r.y - 24;
+    ctx.fillStyle = 'rgba(26, 8, 10, 0.92)';
+    ctx.strokeStyle = r.isClimbing ? '#2ecc71' : '#ffd76a';
+    ctx.lineWidth = 1.5;
+    ctx.fillRect(promptX - 38, promptY - 10, 76, 20);
+    ctx.strokeRect(promptX - 38, promptY - 10, 76, 20);
+    ctx.fillStyle = r.isClimbing ? '#2ecc71' : '#ffd76a';
+    ctx.font = 'bold 9px Rajdhani';
+    ctx.textAlign = 'center';
+    ctx.fillText(r.isClimbing ? '🧗 CLIMBING' : '[E + ▲] CLIMB', promptX, promptY + 4);
+  }
 
   // Threat Meter Circular Progress Ring
   let maxFrac = 0;

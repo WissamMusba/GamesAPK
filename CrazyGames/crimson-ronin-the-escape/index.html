@@ -725,15 +725,18 @@ function syncCustomLevelsFromStorage(){
     const parsed = JSON.parse(savedEditorLevels);
     if (!Array.isArray(parsed) || parsed.length === 0) return;
 
-    function convertEditorLevel(el) {
+    function convertEditorLevel(el, optIndex) {
       const plats = [];
       (el.platforms || []).forEach(p => {
         if (p.y >= 610 && p.h >= 100 && p.w >= 2000) return;
         let t = 'n';
-        if (p.platType === 'ash' || p.isAsh) t = 'slow';
+        if (p.platType === 'wall' || p.climbable) t = 'wall';
+        else if (p.platType === 'ash' || p.isAsh) t = 'slow';
         else if (p.platType === 'crumble' || p.isCrumble) t = 'vanish';
         plats.push({
           x: p.x, y: p.y, w: p.w, h: p.h, t: t,
+          platType: p.platType || (t === 'wall' ? 'wall' : 'solid'),
+          climbable: t === 'wall' || !!p.climbable,
           initiallyHidden: !!p.initiallyHidden,
           collapseDelay: p.collapseDelay !== undefined ? p.collapseDelay : 0.45,
           respawnDelay: p.respawnDelay !== undefined ? p.respawnDelay : 3.0,
@@ -749,8 +752,14 @@ function syncCustomLevelsFromStorage(){
       const exitX = el.exit ? (el.exit.x + (el.exit.w || 96) + 300) : 2400;
       const calcW = Math.max(2400, maxPlatX + 150, maxKeyX + 250, maxGuardX + 150, exitX);
       const levelW = el.w ? Math.max(el.w, calcW) : calcW;
+      
+      let finalName = el.name || 'CUSTOM LEVEL';
+      if (optIndex !== undefined) {
+        const cleanTitle = (el.name || '').replace(/^(Level|ROOM)\s*\d+\s*:\s*/i, '').trim() || `Room ${optIndex + 1}`;
+        finalName = cleanTitle;
+      }
       return {
-        name: el.name || 'CUSTOM LEVEL',
+        name: finalName,
         w: levelW,
         par: 35,
         spawnX: el.spawn ? el.spawn.x : 80,
@@ -900,7 +909,7 @@ function syncCustomLevelsFromStorage(){
     const normal = parsed.filter(l => !l.isTutorial);
     if (normal.length > 0) {
       LEVELS.length = 0;
-      normal.forEach(l => LEVELS.push(convertEditorLevel(l)));
+      normal.forEach((l, idx) => LEVELS.push(convertEditorLevel(l, idx)));
       NLV = LEVELS.length;
     }
   } catch(err) {
@@ -961,7 +970,7 @@ let doorObj=null;
 let trapSpikes=[];
 let parts=[],texts=[];
 
-const keys={left:false,right:false};
+const keys={left:false,right:false,up:false,down:false,climb:false};
 const btn={left:false,right:false,jump:false,dash:false};
 const touch={isTouch:false};
 const activeTouches=new Map();
@@ -2404,8 +2413,24 @@ class Player{
     this.hidden=false;this.hideCrate=null;this.dead=false;
     this.facing=1;this.slow=false;this.standPlat=null;
     this.dashT=0;this.dashCd=0;this.dashDir=1;
+    this.climbing=false;this.climbPrompt=false;this.climbWallDir=0;
   }
-  requestJump(){this.buffer=0.13;}
+  requestJump(){
+    if(this.climbing && this.climbWallDir !== 0){
+      // Wall jump leap
+      this.vx = -this.climbWallDir * 340;
+      this.vy = -720;
+      this.facing = -this.climbWallDir;
+      this.climbing = false;
+      this.jumpsLeft = 1;
+      this.buffer = 0;
+      this.deform = 0.25;
+      Snd.jump();
+      burstDust(this.x + this.w / 2, this.y + this.h * 0.6, 6);
+      return;
+    }
+    this.buffer=0.13;
+  }
   cutJump(){if(!this.hidden&&this.vy<0&&this.dashT<=0)this.vy*=0.5;}
   tryDash(){
     if(state!=='play'||this.dead||this.hidden||this.dashT>0||this.dashCd>0)return false;
@@ -2414,6 +2439,7 @@ class Player{
     this.dashDir=dir;this.facing=dir;
     this.dashT=0.18;this.dashCd=1.2;
     this.vy=0;
+    this.climbing=false;
     Snd.dash();
     burstDust(this.x+this.w/2,this.y+this.h/2,10);
     if(settings.particles)parts.push(new Particle({type:'ring',x:this.x+this.w/2,y:this.y+this.h/2,
@@ -2422,6 +2448,18 @@ class Player{
     return true;
   }
   doJump(){
+    if(this.climbing && this.climbWallDir !== 0){
+      this.vx = -this.climbWallDir * 340;
+      this.vy = -720;
+      this.facing = -this.climbWallDir;
+      this.climbing = false;
+      this.jumpsLeft = 1;
+      this.buffer = 0;
+      this.deform = 0.25;
+      Snd.jump();
+      burstDust(this.x + this.w / 2, this.y + this.h * 0.6, 6);
+      return;
+    }
     const first=this.onGround||this.coyote>0;
     this.vy=first?-730:-680;
     if(first){this.jumpsLeft=1;Snd.jump();}
@@ -2439,6 +2477,7 @@ class Player{
     const left=keys.left||btn.left,right=keys.right||btn.right;
     const dir=(right?1:0)-(left?1:0);
     if(this.dashT>0){
+      this.climbing=false;
       // dash burst: fixed horizontal speed, gravity suspended, double-jump preserved
       this.dashT-=dt;
       this.vx=this.dashDir*560;
@@ -2479,14 +2518,74 @@ class Player{
     }
     this.x=clamp(this.x,0,L.w-this.w);
 
-    this.vy+=1900*dt;
-    if(this.vy>1500)this.vy=1500;
+    // Wall Detection for Vertical Climbable Walls
+    let touchingWallPlat = null;
+    let touchingWallDir = 0;
+    for(const p of plats){
+      if(!platSolid(p))continue;
+      if(p.climbable || p.t==='wall' || p.platType==='wall'){
+        if(this.y + this.h > p.y && this.y < p.y + p.h){
+          if(Math.abs((this.x + this.w) - p.x) <= 8){
+            touchingWallPlat = p;
+            touchingWallDir = 1;
+            break;
+          }else if(Math.abs(this.x - (p.x + p.w)) <= 8){
+            touchingWallPlat = p;
+            touchingWallDir = -1;
+            break;
+          }
+        }
+      }
+    }
+
+    this.climbPrompt = !!touchingWallPlat;
+    this.climbWallDir = touchingWallDir;
+
+    const wantClimb = touchingWallPlat && (keys.climb || (this.climbing && (keys.up || keys.down)));
+    if(wantClimb){
+      this.climbing = true;
+      this.facing = touchingWallDir;
+      this.jumpsLeft = 2;
+      this.coyote = 0.15;
+      if(touchingWallDir === 1) this.x = touchingWallPlat.x - this.w;
+      else if(touchingWallDir === -1) this.x = touchingWallPlat.x + touchingWallPlat.w;
+
+      if(keys.up){
+        this.vy = -200;
+      }else if(keys.down){
+        this.vy = 170;
+      }else{
+        this.vy = 0;
+      }
+    }else{
+      this.climbing = false;
+    }
+
+    if(!this.climbing){
+      this.vy+=1900*dt;
+      if(this.vy>1500)this.vy=1500;
+    }
     this.y+=this.vy*dt;
     const wasGround=this.onGround;
     this.onGround=false;
     this.standPlat=null;
     for(const p of plats){
       if(!platSolid(p))continue;
+      if(p.climbable || p.t==='wall' || p.platType==='wall'){
+        // Wall platform top landing support
+        if(this.x<p.x+p.w && this.x+this.w>p.x && this.y<p.y+p.h && this.y+this.h>p.y){
+          if(this.vy>0 && (this.y + this.h - this.vy * dt) <= p.y + 12){
+            this.y = p.y - this.h;
+            this.vy = 0;
+            this.onGround = true;
+            this.jumpsLeft = 2;
+            this.coyote = 0.1;
+            this.standPlat = p;
+            this.climbing = false;
+          }
+        }
+        continue;
+      }
       if(this.x<p.x+p.w&&this.x+this.w>p.x&&this.y<p.y+p.h&&this.y+this.h>p.y){
         if(this.vy>0){
           this.y=p.y-this.h;this.vy=0;
@@ -2512,7 +2611,7 @@ class Player{
       }
     }
     this.slow=!!(this.standPlat&&this.standPlat.t==='slow');
-    if(!this.onGround){
+    if(!this.onGround && !this.climbing){
       this.coyote-=dt;
       if(this.coyote<=0&&this.jumpsLeft===2)this.jumpsLeft=1;
     }
@@ -2573,6 +2672,13 @@ class Player{
       ctx.beginPath();ctx.moveTo(0,-40);
       ctx.lineTo(Math.sin(aa)*11,-40+Math.cos(aa)*14);
       ctx.stroke();
+    }else if(this.climbing){
+      // Climbing clinging limb pose
+      ctx.beginPath();ctx.moveTo(0,hipY);ctx.lineTo(8,-14);ctx.lineTo(14,-2);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(0,hipY);ctx.lineTo(-4,-10);ctx.lineTo(-2,2);ctx.stroke();
+      ctx.lineWidth=5.5;
+      ctx.beginPath();ctx.moveTo(0,-40);ctx.lineTo(12,-48);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(0,-40);ctx.lineTo(14,-32);ctx.stroke();
     }else if(!this.onGround){
       ctx.beginPath();ctx.moveTo(0,hipY);ctx.lineTo(13,-4);ctx.stroke();
       ctx.beginPath();ctx.moveTo(0,hipY);ctx.lineTo(-10,-9);ctx.stroke();
@@ -2609,6 +2715,25 @@ class Player{
     ctx.fillRect(5,-55,6.5,2.4);
     ctx.restore();
     ctx.restore();
+
+    // Floating Climb Prompt Badge
+    if((this.climbing || this.climbPrompt) && !this.dead && !this.hidden){
+      ctx.save();
+      const promptX = this.x + this.w / 2;
+      const promptY = this.y - 18;
+      ctx.fillStyle = 'rgba(20, 6, 8, 0.9)';
+      ctx.strokeStyle = this.climbing ? '#00d2d3' : '#ffd76a';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      rrectPath(promptX - 44, promptY - 12, 88, 22, 6);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = this.climbing ? '#00d2d3' : '#ffd76a';
+      ctx.font = '700 11px "Impact","Arial Black",sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(this.climbing ? '🧗 CLIMBING' : '[E + ▲] CLIMB', promptX, promptY + 4);
+      ctx.restore();
+    }
   }
 }
 const player=new Player();
@@ -2627,7 +2752,9 @@ function loadLevel(i){
     if(Array.isArray(p))plats.push({x:p[0],y:p[1],w:p[2],h:p[3],t:'n'});
     else{
       const np={
-        x:p.x,y:p.y,w:p.w,h:p.h,t:p.t||'n',
+        x:p.x,y:p.y,w:p.w,h:p.h,t:p.t||(p.platType==='wall'||p.climbable?'wall':'n'),
+        platType:p.platType||(p.t==='wall'?'wall':'solid'),
+        climbable:p.climbable!==undefined?p.climbable:(p.t==='wall'||p.platType==='wall'),
         initiallyHidden:!!p.initiallyHidden,
         collapseDelay:p.collapseDelay,
         respawnDelay:p.respawnDelay,
@@ -3138,6 +3265,9 @@ window.addEventListener('keydown',e=>{
   if(c==='KeyR'&&state==='dead'){reviveWithAd();return;}
   if(c==='KeyA'||c==='ArrowLeft'){keys.left=true;if(onboardT>0)onboardT=Math.min(onboardT,2);}
   if(c==='KeyD'||c==='ArrowRight'){keys.right=true;if(onboardT>0)onboardT=Math.min(onboardT,2);}
+  if(c==='KeyW'||c==='ArrowUp'){keys.up=true;}
+  if(c==='KeyS'||c==='ArrowDown'){keys.down=true;}
+  if(c==='KeyE'){keys.climb=true;}
   if(c==='KeyW'||c==='ArrowUp'||c==='Space')pressJumpAction();
   if((c==='KeyS'||c==='ArrowDown')&&state==='play')toggleHide();
   if((c==='KeyE'||c==='KeyX'||c==='KeyJ')&&state==='play'){
@@ -3152,10 +3282,13 @@ window.addEventListener('keyup',e=>{
   const c=e.code;
   if(c==='KeyA'||c==='ArrowLeft')keys.left=false;
   if(c==='KeyD'||c==='ArrowRight')keys.right=false;
+  if(c==='KeyW'||c==='ArrowUp')keys.up=false;
+  if(c==='KeyS'||c==='ArrowDown')keys.down=false;
+  if(c==='KeyE')keys.climb=false;
   if(c==='KeyW'||c==='ArrowUp'||c==='Space')releaseJump();
 });
 // Clear stuck keys when the window loses focus (prevents run-away movement).
-window.addEventListener('blur',()=>{keys.left=false;keys.right=false;});
+window.addEventListener('blur',()=>{keys.left=false;keys.right=false;keys.up=false;keys.down=false;keys.climb=false;});
 window.addEventListener('focus',()=>{awaitingFocus=false;});
 function pauseBtnRect(){return{x:W-46,y:14,w:32,h:32};}
 function inGame(){return['brief','ready','play','dead','cleared','win'].includes(state);}
@@ -3635,6 +3768,32 @@ function drawPlatforms(){
       ctx.fillStyle=p.vState==='shake'?(Math.sin(tGlobal*30)>0?'#ff5a3c':'#ff9a6a'):'#ff6e42';
       ctx.globalAlpha=0.7;
       ctx.fillRect(2,0,p.w-4,2.4);
+    }else if(p.t==='wall'||p.platType==='wall'||p.climbable){
+      // Climbable wall texture & slats
+      const g=ctx.createLinearGradient(0,0,p.w,0);
+      g.addColorStop(0,'#3a2016');g.addColorStop(0.3,'#523223');g.addColorStop(0.7,'#42261a');g.addColorStop(1,'#29150e');
+      ctx.fillStyle=g;
+      rrectPath(0,0,p.w,p.h,4);ctx.fill();
+      ctx.strokeStyle='rgba(255,190,110,0.3)';ctx.lineWidth=1.5;
+      ctx.stroke();
+      // Climbing wood rungs/slats along height
+      const step = 26;
+      ctx.fillStyle = '#6e442d';
+      ctx.strokeStyle = '#1e0e08';
+      ctx.lineWidth = 1;
+      for (let y = 14; y < p.h - 10; y += step) {
+        ctx.fillRect(3, y, p.w - 6, 5);
+        ctx.strokeRect(3, y, p.w - 6, 5);
+        // Highlight on top edge of slat
+        ctx.fillStyle = 'rgba(255, 215, 120, 0.45)';
+        ctx.fillRect(4, y, p.w - 8, 1.5);
+        ctx.fillStyle = '#6e442d';
+      }
+      // Top cap highlight
+      ctx.save();
+      ctx.shadowColor = '#ffd76a'; ctx.shadowBlur = 6 * shadowMul;
+      ctx.fillStyle = '#ffd76a';
+      ctx.fillRect(2, 0, p.w - 4, 3);
       ctx.restore();
     }else{
       if(texStone){
