@@ -14673,13 +14673,7 @@ function onCanvasMouseDown(e) {
   }
 
   if (e.button === 0) {
-    // 1. If an entity placement tool is active (anything other than 'select'), PLACE IT!
-    if (currentTool !== 'select') {
-      placeNewEntity(currentTool, w.x, w.y);
-      return;
-    }
-
-    // 2. Select tool: Check if clicking on resize handles of selected entity
+    // 1. Check if clicking on resize handles of selected entity
     if (selectedEntity) {
       const handle = getHitResizeHandle(selectedEntity, w.x, w.y);
       if (handle) {
@@ -14692,7 +14686,51 @@ function onCanvasMouseDown(e) {
       }
     }
 
-    // 3. Select tool: Click directly on any object -> Select it!
+    const isPlatformTool = currentTool === 'platform' || currentTool === 'crumble' || currentTool === 'ash';
+
+    // 2. In Solid / Platform mode: Select, drag or resize existing platforms directly
+    if (isPlatformTool) {
+      // 2a. Clicked on the currently selected platform -> Drag/Move it!
+      if (selectedEntity && selectedEntityType === 'platform') {
+        const p = selectedEntity;
+        const ph = p.h || 22;
+        const tol = Math.max(4, 6 / camera.zoom);
+        if (w.x >= p.x - tol && w.x <= p.x + p.w + tol && w.y >= p.y - tol && w.y <= p.y + ph + tol) {
+          recordHistory();
+          isDraggingEntity = true;
+          dragStartMouse = { x: w.x, y: w.y };
+          dragStartEntityState = JSON.parse(JSON.stringify(selectedEntity));
+          renderInspector();
+          return;
+        }
+      }
+
+      // 2b. Clicked on an existing platform in the level -> Select it (instead of creating a duplicate)!
+      const hitPlat = findPlatformAt(w.x, w.y);
+      if (hitPlat) {
+        recordHistory();
+        selectedEntity = hitPlat.entity;
+        selectedEntityType = 'platform';
+        selectedEntityIndex = hitPlat.index;
+        isDraggingEntity = true;
+        dragStartMouse = { x: w.x, y: w.y };
+        dragStartEntityState = JSON.parse(JSON.stringify(hitPlat.entity));
+        renderInspector();
+        return;
+      }
+
+      // 2c. Clicked in empty space -> Place a new platform!
+      placeNewEntity(currentTool, w.x, w.y);
+      return;
+    }
+
+    // 3. If any other entity placement tool is active (guard, spike, tower, etc.), PLACE IT!
+    if (currentTool !== 'select') {
+      placeNewEntity(currentTool, w.x, w.y);
+      return;
+    }
+
+    // 4. Select tool: Click directly on any object -> Select it!
     const hit = hitTestEntities(w.x, w.y);
     if (hit) {
       recordHistory();
@@ -14706,7 +14744,7 @@ function onCanvasMouseDown(e) {
       return;
     }
 
-    // 4. Clicked empty area in select mode -> Deselect
+    // 5. Clicked empty area in select mode -> Deselect
     selectedEntity = null;
     selectedEntityType = null;
     selectedEntityIndex = -1;
@@ -14811,7 +14849,41 @@ function onCanvasMouseMove(e) {
       return;
     }
   }
+
+  const isPlatformTool = currentTool === 'platform' || currentTool === 'crumble' || currentTool === 'ash';
+  if (isPlatformTool) {
+    if (selectedEntity && selectedEntityType === 'platform') {
+      const p = selectedEntity;
+      const ph = p.h || 22;
+      if (w.x >= p.x && w.x <= p.x + p.w && w.y >= p.y && w.y <= p.y + ph) {
+        canvas.style.cursor = 'move';
+        return;
+      }
+    }
+    const hoverPlat = findPlatformAt(w.x, w.y);
+    if (hoverPlat) {
+      canvas.style.cursor = 'pointer';
+      return;
+    }
+  }
+
   canvas.style.cursor = currentTool === 'select' ? 'default' : 'crosshair';
+}
+
+function findPlatformAt(wx, wy) {
+  const lvl = getCurrentLevel();
+  if (!lvl || !lvl.platforms) return null;
+  const tol = Math.max(6, 8 / camera.zoom);
+  for (let i = lvl.platforms.length - 1; i >= 0; i--) {
+    const p = lvl.platforms[i];
+    const isGround = p.y >= 610 && p.h >= 100 && p.w >= 2000;
+    if (isGround) continue;
+    const ph = p.h || 22;
+    if (wx >= p.x - tol && wx <= p.x + p.w + tol && wy >= p.y - tol && wy <= p.y + ph + tol) {
+      return { entity: p, type: 'platform', index: i };
+    }
+  }
+  return null;
 }
 
 function findPlatformUnder(x, y, lvl) {
@@ -15303,11 +15375,14 @@ function hitTestEntities(wx, wy) {
 function getHitResizeHandle(entity, wx, wy) {
   if (!entity) return null;
   const tol = 16 / camera.zoom;
+  const tolCorner = Math.max(5, 7 / camera.zoom);
+  const tolMid = Math.max(5, 7 / camera.zoom);
+  const tolEdge = Math.min(tolCorner, 6 / camera.zoom);
 
   const isTut = selectedEntityType === 'tutcard' && entity.trigger;
   const box = isTut ? entity.trigger : entity;
 
-  // Box Resizing (Platform, Spike, Bush, Tutcard)
+  // Box Resizing (Platform, Spike, Bush, Tutcard, Trigger)
   if (box.w !== undefined && (box.h !== undefined || selectedEntityType === 'spike' || selectedEntityType === 'platform' || selectedEntityType === 'trigger')) {
     const x = box.x || 0;
     const y = box.y !== undefined ? box.y : (selectedEntityType === 'spike' ? 580 : 610);
@@ -15318,18 +15393,30 @@ function getHitResizeHandle(entity, wx, wy) {
     const left = x;
     const top = y;
     const bottom = y + h;
+    const midX = left + w / 2;
+    const midY = top + h / 2;
 
-    // Corners
-    if (Math.hypot(wx - right, wy - bottom) < tol) return 'bottom-right';
-    if (Math.hypot(wx - left, wy - bottom) < tol) return 'bottom-left';
-    if (Math.hypot(wx - right, wy - top) < tol) return 'top-right';
-    if (Math.hypot(wx - left, wy - top) < tol) return 'top-left';
+    // 1. Corners (highest priority)
+    if (Math.hypot(wx - right, wy - bottom) <= tolCorner) return 'bottom-right';
+    if (Math.hypot(wx - left, wy - bottom) <= tolCorner) return 'bottom-left';
+    if (Math.hypot(wx - right, wy - top) <= tolCorner) return 'top-right';
+    if (Math.hypot(wx - left, wy - top) <= tolCorner) return 'top-left';
 
-    // Edges
-    if (Math.abs(wx - right) < tol && wy >= top - tol && wy <= bottom + tol) return 'right';
-    if (Math.abs(wx - left) < tol && wy >= top - tol && wy <= bottom + tol) return 'left';
-    if (Math.abs(wy - bottom) < tol && wx >= left - tol && wx <= right + tol) return 'bottom';
-    if (Math.abs(wy - top) < tol && wx >= left - tol && wx <= right + tol) return 'top';
+    // 2. Midpoint handles
+    if (Math.hypot(wx - midX, wy - top) <= tolMid) return 'top';
+    if (Math.hypot(wx - midX, wy - bottom) <= tolMid) return 'bottom';
+    if (Math.hypot(wx - right, wy - midY) <= tolCorner) return 'right';
+    if (Math.hypot(wx - left, wy - midY) <= tolCorner) return 'left';
+
+    // 3. Left / Right edge borders (easy horizontal resizing along vertical borders)
+    if (Math.abs(wx - right) <= tolEdge && wy >= top && wy <= bottom) return 'right';
+    if (Math.abs(wx - left) <= tolEdge && wy >= top && wy <= bottom) return 'left';
+
+    // 4. Top / Bottom edge borders (only if box is thick enough to not swallow interior)
+    if (h >= 36) {
+      if (Math.abs(wy - bottom) <= 5 / camera.zoom && wx >= left && wx <= right) return 'bottom';
+      if (Math.abs(wy - top) <= 5 / camera.zoom && wx >= left && wx <= right) return 'top';
+    }
   }
 
   // Guard Patrol Range Handles
