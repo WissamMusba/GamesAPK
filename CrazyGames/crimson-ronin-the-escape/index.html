@@ -554,27 +554,53 @@ function platSolid(p){
 function hasSpawnPlate(targetPlat){
   if(!targetPlat)return false;
   if(targetPlat.initiallyHidden)return true;
-  if(typeof plates==='undefined'||!plates||plates.length===0)return false;
-  return plates.some(pl=>{
-    if(!pl.platTrigger)return false;
-    const act=pl.platAction||(pl.fx==='spawn'?'spawn':'vanish');
-    if(act!=='spawn')return false;
-    if(pl.targetPlatX!==undefined&&pl.targetPlatY!==undefined){
-      return Math.abs(pl.targetPlatX-targetPlat.x)<6&&Math.abs(pl.targetPlatY-targetPlat.y)<6;
-    }
-    if(pl.targetPlatIndex!==undefined&&pl.targetPlatIndex!==null&&pl.targetPlatIndex>=0){
-      const match=plats[pl.targetPlatIndex+1]||plats[pl.targetPlatIndex];
-      return match===targetPlat;
-    }
-    let bd=1e9,closest=null;
-    for(let pi=1;pi<plats.length;pi++){
-      const p=plats[pi];
-      if(p.y>=G)continue;
-      const d=Math.hypot((p.x+p.w/2)-pl.x,(p.y+p.h/2)-pl.y);
-      if(d<bd){bd=d;closest=p;}
-    }
-    return closest===targetPlat;
-  });
+  if(typeof plates!=='undefined'&&plates&&plates.length>0){
+    const found=plates.some(pl=>{
+      if(!pl.platTrigger)return false;
+      const act=pl.platAction||(pl.fx==='spawn'?'spawn':'vanish');
+      if(act!=='spawn')return false;
+      if(pl.targetPlatX!==undefined&&pl.targetPlatY!==undefined){
+        return Math.abs(pl.targetPlatX-targetPlat.x)<6&&Math.abs(pl.targetPlatY-targetPlat.y)<6;
+      }
+      if(pl.targetPlatIndex!==undefined&&pl.targetPlatIndex!==null&&pl.targetPlatIndex>=0){
+        const match=plats[pl.targetPlatIndex+1]||plats[pl.targetPlatIndex];
+        return match===targetPlat;
+      }
+      let bd=1e9,closest=null;
+      for(let pi=1;pi<plats.length;pi++){
+        const p=plats[pi];
+        if(p.y>=G)continue;
+        const d=Math.hypot((p.x+p.w/2)-pl.x,(p.y+p.h/2)-pl.y);
+        if(d<bd){bd=d;closest=p;}
+      }
+      return closest===targetPlat;
+    });
+    if(found)return true;
+  }
+  if(typeof triggerZones!=='undefined'&&triggerZones&&triggerZones.length>0){
+    const found=triggerZones.some(tz=>{
+      if(!tz.platTrigger)return false;
+      const act=tz.platAction||'spawn';
+      if(act!=='spawn')return false;
+      if(tz.targetPlatX!==undefined&&tz.targetPlatY!==undefined){
+        return Math.abs(tz.targetPlatX-targetPlat.x)<6&&Math.abs(tz.targetPlatY-targetPlat.y)<6;
+      }
+      if(tz.targetPlatIndex!==undefined&&tz.targetPlatIndex!==null&&tz.targetPlatIndex>=0){
+        const match=plats[tz.targetPlatIndex+1]||plats[tz.targetPlatIndex];
+        return match===targetPlat;
+      }
+      let bd=1e9,closest=null;
+      for(let pi=1;pi<plats.length;pi++){
+        const p=plats[pi];
+        if(p.y>=G)continue;
+        const d=Math.hypot((p.x+p.w/2)-(tz.x+tz.w/2),(p.y+p.h/2)-(tz.y+tz.h/2));
+        if(d<bd){bd=d;closest=p;}
+      }
+      return closest===targetPlat;
+    });
+    if(found)return true;
+  }
+  return false;
 }
 function inView(x,y,w=100,h=100){
   return x+w>camX-100&&x<camX+W+100&&y+h>camY-100&&y<camY+H+100;
@@ -809,12 +835,13 @@ function syncCustomLevelsFromStorage(){
           spikeDelay: tz.spikeDelay !== undefined ? tz.spikeDelay : 0.4,
           alarmTrigger: !!tz.alarmTrigger,
           alarmDelay: tz.alarmDelay || 0,
-          platTrigger: !!tz.platTrigger,
+          platTrigger: !!(tz.platTrigger || tz.vanishTrigger),
           platAction: tz.platAction || 'vanish',
+          targetPlatIndex: tz.targetPlatIndex,
           targetPlatX: tz.targetPlatX,
           targetPlatY: tz.targetPlatY,
-          platDelay: tz.platDelay || 0,
-          platDuration: tz.platDuration || 4.0,
+          platDelay: tz.platDelay !== undefined ? tz.platDelay : 0,
+          platDuration: tz.platDuration !== undefined ? tz.platDuration : 4.0,
           triggerTutorial: !!tz.triggerTutorial,
           tutTitle: tz.tutTitle || 'TRIGGER ACTIVATED!',
           tutText: tz.tutText || '',
@@ -1209,12 +1236,13 @@ class TriggerZone {
     this.alarmTrigger = !!d.alarmTrigger;
     this.alarmDelay = d.alarmDelay || 0;
 
-    this.platTrigger = !!d.platTrigger;
-    this.platAction = d.platAction || 'vanish';
+    this.platTrigger = !!(d.platTrigger || d.vanishTrigger);
+    this.platAction = d.platAction || (d.targetType === 'spawn' || d.fx === 'spawn' ? 'spawn' : 'vanish');
+    this.targetPlatIndex = d.targetPlatIndex;
     this.targetPlatX = d.targetPlatX;
     this.targetPlatY = d.targetPlatY;
     this.platDelay = d.platDelay || 0;
-    this.platDuration = d.platDuration || 4.0;
+    this.platDuration = d.platDuration !== undefined ? d.platDuration : 4.0;
 
     this.triggerTutorial = !!d.triggerTutorial;
     this.tutTitle = d.tutTitle || 'TRIGGER ACTIVATED!';
@@ -1248,32 +1276,12 @@ class TriggerZone {
       this.platTimer -= dt;
       if (this.platTimer <= 0) {
         this.platTimer = -1;
-        let target = null;
-        if (this.targetPlatX !== undefined && this.targetPlatY !== undefined) {
-          target = plats.find(pl => Math.abs(pl.x - this.targetPlatX) < 6 && Math.abs(pl.y - this.targetPlatY) < 6);
-        }
-        if (target) {
-          if (this.platAction === 'spawn') {
-            target.vState = 'solid';
-            target.spawnTimer = this.platDuration > 0 ? this.platDuration : 0;
-            target.vT = 0;
-            Snd.doubleJump();
-            burstDust(target.x + target.w / 2, target.y + target.h / 2, 10);
-            texts.push(new FloatText(target.x + target.w / 2, target.y - 24, 'PLATFORM SPAWNED!', '#00d2d3'));
-          } else {
-            target.vState = 'gone';
-            target.spawnTimer = 0;
-            target.vT = this.platDuration > 0 ? this.platDuration : 3.2;
-            Snd.crumble();
-            burstDust(target.x + target.w / 2, target.y + target.h / 2, 8);
-            texts.push(new FloatText(target.x + target.w / 2, target.y - 24, 'COLLAPSED!', '#e74c3c'));
-          }
-        }
+        this.applyPlatAction(this.resolveTarget());
       }
     }
 
     if (this.oneShot && this.triggered) return;
-    if (state !== 'play' || mercyT > 0 || player.hidden || this.rearmTimer > 0) return;
+    if (state !== 'play' || this.rearmTimer > 0) return;
 
     // AABB check with player
     const px = player.x;
@@ -1287,7 +1295,14 @@ class TriggerZone {
 
       this.spikeTimer = this.spikeTrigger ? Math.max(0.01, this.spikeDelay) : -1;
       this.alarmTimer = this.alarmTrigger ? Math.max(0.01, this.alarmDelay) : -1;
-      this.platTimer = this.platTrigger ? Math.max(0.01, this.platDelay) : -1;
+
+      if (this.platTrigger) {
+        if (!this.platDelay || this.platDelay <= 0) {
+          this.applyPlatAction(this.resolveTarget());
+        } else {
+          this.platTimer = this.platDelay;
+        }
+      }
 
       executeEnhancedTrigger(this);
 
@@ -1299,6 +1314,67 @@ class TriggerZone {
         };
         Snd.alert();
       }
+    }
+  }
+
+  resolveTarget() {
+    let target = null;
+    // Method 1: Match by exact coordinate if stored
+    if (this.targetPlatX !== undefined && this.targetPlatY !== undefined) {
+      target = plats.find(pl => Math.abs(pl.x - this.targetPlatX) < 6 && Math.abs(pl.y - this.targetPlatY) < 6);
+    }
+    // Method 2: Match by targetPlatIndex
+    if (!target && this.targetPlatIndex !== undefined && this.targetPlatIndex !== null && this.targetPlatIndex >= 0) {
+      if (plats[this.targetPlatIndex + 1]) target = plats[this.targetPlatIndex + 1];
+      else if (plats[this.targetPlatIndex]) target = plats[this.targetPlatIndex];
+    }
+    // Method 3: Fallback closest platform
+    if (!target) {
+      const sx = this.x + this.w / 2;
+      const sy = this.y + this.h / 2;
+      if (this.platAction === 'spawn') {
+        let bd = 1e9;
+        for (let pi = 1; pi < plats.length; pi++) {
+          const p = plats[pi];
+          if (p.initiallyHidden) {
+            const d = Math.hypot((p.x + p.w / 2) - sx, (p.y + p.h / 2) - sy);
+            if (d < bd) { bd = d; target = p; }
+          }
+        }
+      }
+      if (!target) {
+        let bd = 1e9;
+        for (let pi = 1; pi < plats.length; pi++) {
+          const p = plats[pi];
+          if (p.y >= G) continue;
+          const d = Math.hypot((p.x + p.w / 2) - sx, (p.y + p.h / 2) - sy);
+          if (d < bd) { bd = d; target = p; }
+        }
+      }
+    }
+    return target;
+  }
+
+  applyPlatAction(target) {
+    if (!target) return;
+    if (this.platAction === 'spawn') {
+      target.vState = 'solid';
+      target.spawnTimer = this.platDuration > 0 ? this.platDuration : 0;
+      target.vT = 0;
+      Snd.doubleJump();
+      burstDust(target.x + target.w / 2, target.y + target.h / 2, 10);
+      texts.push(new FloatText(target.x + target.w / 2, target.y - 24, 'PLATFORM SPAWNED!', '#00d2d3'));
+    } else {
+      target.vState = 'gone';
+      target.spawnTimer = 0;
+      if (hasSpawnPlate(target)) {
+        target.vT = 0;
+      } else {
+        target.vT = this.platDuration > 0 ? this.platDuration : 3.2;
+      }
+      Snd.crumble();
+      burstDust(target.x + target.w / 2, target.y + target.h / 2, 8);
+      texts.push(new FloatText(target.x + target.w / 2, target.y - 24, 'COLLAPSED!', '#e74c3c'));
     }
   }
 }

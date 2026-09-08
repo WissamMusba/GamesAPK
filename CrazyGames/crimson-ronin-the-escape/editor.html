@@ -15201,6 +15201,7 @@ function placeNewEntity(tool, wx, wy) {
       spikeTrigger: false, spikeMode: 'custom', spikeX: tx, spikeY: 610, spikeDelay: 0.4,
       alarmTrigger: false, alarmDelay: 0.0,
       platTrigger: false, platAction: 'vanish', platDelay: 0.0, platDuration: 4.0,
+      targetPlatIndex: -1, targetPlatX: undefined, targetPlatY: undefined,
       triggerTutorial: false, tutTitle: 'TRIGGER ACTIVATED!', tutText: ''
     };
     lvl.triggerZones.push(tz);
@@ -16012,7 +16013,10 @@ function renderInspector() {
           </div>
           <div class="prop-row">
             <span class="prop-label">${ent.platAction === 'spawn' ? 'Active Time (s):' : 'Gone Time (s):'}</span>
-            <input type="number" id="prop-plate-plat-duration" step="0.5" value="${ent.platDuration !== undefined ? ent.platDuration : 4.0}">
+            <input type="number" id="prop-plate-plat-duration" step="0.5" min="0" value="${ent.platDuration !== undefined ? ent.platDuration : 4.0}">
+          </div>
+          <div style="font-size:11px;color:#fdcb6e;margin-top:2px;">
+            ${ent.platAction === 'spawn' ? '💡 Tip: Set Active Time to 0 to keep the spawned platform permanent!' : 'Platform collapses and reappears after gone time.'}
           </div>
         </div>
       ` : ''}
@@ -16294,6 +16298,15 @@ function renderInspector() {
   if (inPlatePlatTarget) inPlatePlatTarget.addEventListener('change', e => {
     recordHistory();
     ent.targetPlatIndex = parseInt(e.target.value, 10);
+    const curLvl = getCurrentLevel();
+    if (ent.targetPlatIndex >= 0 && curLvl && curLvl.platforms && curLvl.platforms[ent.targetPlatIndex]) {
+      ent.targetPlatX = curLvl.platforms[ent.targetPlatIndex].x;
+      ent.targetPlatY = curLvl.platforms[ent.targetPlatIndex].y;
+    } else {
+      ent.targetPlatX = undefined;
+      ent.targetPlatY = undefined;
+    }
+    renderEditor();
     saveToLocalStorage(true, false);
   });
 
@@ -16302,7 +16315,8 @@ function renderInspector() {
     ent.vanishDelay = ent.platDelay;
   });
   bindField('prop-plate-plat-duration', e => {
-    ent.platDuration = parseFloat(e.target.value) || 4.0;
+    const val = parseFloat(e.target.value);
+    ent.platDuration = !isNaN(val) ? val : 4.0;
   });
   bindField('prop-plate-rearm-delay', e => {
     ent.rearmDelay = parseFloat(e.target.value) || 1.0;
@@ -16638,6 +16652,44 @@ function drawBush(b, isSelected) {
   ctx.restore();
 }
 
+function resolveTargetPlat(source, lvl) {
+  if (!source || !lvl || !lvl.platforms || lvl.platforms.length === 0) return -1;
+  // 1. If explicit targetPlatIndex is given and valid
+  if (source.targetPlatIndex !== undefined && source.targetPlatIndex !== null && source.targetPlatIndex >= 0 && lvl.platforms[source.targetPlatIndex]) {
+    return source.targetPlatIndex;
+  }
+  // 2. If targetPlatX and targetPlatY are given
+  if (source.targetPlatX !== undefined && source.targetPlatY !== undefined) {
+    const matchIdx = lvl.platforms.findIndex(pl => Math.abs(pl.x - source.targetPlatX) < 6 && Math.abs(pl.y - source.targetPlatY) < 6);
+    if (matchIdx >= 0) return matchIdx;
+  }
+  // 3. Auto nearest fallback
+  const sx = source.x + (source.w !== undefined ? source.w / 2 : 0);
+  const sy = source.y !== undefined ? (source.y + (source.h !== undefined ? source.h / 2 : 0)) : 610;
+  const act = source.platAction || (source.targetType === 'spawn' || source.fx === 'spawn' ? 'spawn' : 'vanish');
+
+  if (act === 'spawn') {
+    // Prioritize closest initiallyHidden platform
+    let bestHiddenIdx = -1, bestHiddenDist = 1e9;
+    lvl.platforms.forEach((plat, pi) => {
+      if (plat.initiallyHidden) {
+        const d = Math.hypot((plat.x + plat.w / 2) - sx, (plat.y + plat.h / 2) - sy);
+        if (d < bestHiddenDist) { bestHiddenDist = d; bestHiddenIdx = pi; }
+      }
+    });
+    if (bestHiddenIdx >= 0) return bestHiddenIdx;
+  }
+
+  // Otherwise find closest non-ground platform
+  let bestIdx = -1, bestDist = 1e9;
+  lvl.platforms.forEach((plat, pi) => {
+    const isGround = plat.y >= 610 && plat.w >= 2000;
+    const d = Math.hypot((plat.x + plat.w / 2) - sx, (plat.y + plat.h / 2) - sy) + (isGround ? 50000 : 0);
+    if (d < bestDist) { bestDist = d; bestIdx = pi; }
+  });
+  return bestIdx;
+}
+
 function drawPlate(p, isSelected) {
   ctx.save();
   const px = p.x;
@@ -16675,11 +16727,9 @@ function drawPlate(p, isSelected) {
   // If platform target is configured, draw connector line & action tag
   if (p.platTrigger !== false && (p.platTrigger || p.vanishTrigger)) {
     const isSpawn = p.platAction === 'spawn';
-    let targetPlat = null;
     const curLvl = getCurrentLevel();
-    if (p.targetPlatIndex !== undefined && p.targetPlatIndex >= 0 && curLvl && curLvl.platforms && curLvl.platforms[p.targetPlatIndex]) {
-      targetPlat = curLvl.platforms[p.targetPlatIndex];
-    }
+    const tIdx = resolveTargetPlat(p, curLvl);
+    const targetPlat = (tIdx >= 0 && curLvl && curLvl.platforms) ? curLvl.platforms[tIdx] : null;
     if (targetPlat) {
       const tx = targetPlat.x + targetPlat.w / 2;
       const ty = targetPlat.y + targetPlat.h / 2;
@@ -16694,8 +16744,9 @@ function drawPlate(p, isSelected) {
 
       ctx.fillStyle = isSpawn ? '#00d2d3' : '#e74c3c';
       ctx.font = 'bold 9px Rajdhani';
-      const label = isSpawn ? `SPAWN (${p.platDuration || 4}s)` : `VANISH (${p.platDuration || 3}s)`;
-      ctx.fillText(label, (px + tx) / 2 - 20, (py + ty) / 2 - 6);
+      const durStr = p.platDuration === 0 ? 'PERM' : `${p.platDuration || 4}s`;
+      const label = isSpawn ? `SPAWN PLAT #${tIdx + 1} (${durStr})` : `VANISH PLAT #${tIdx + 1} (${durStr})`;
+      ctx.fillText(label, (px + tx) / 2 - 24, (py + ty) / 2 - 6);
     }
   }
 
@@ -17030,7 +17081,7 @@ function drawTriggerZone(tz, isSelected) {
   if (tz.slowMoTrigger) activeTags.push('⏳ ZEN');
   if (tz.spikeTrigger) activeTags.push('▲ SPIKE');
   if (tz.alarmTrigger) activeTags.push('🚨 ALARM');
-  if (tz.platTrigger) activeTags.push('🌫 PLAT');
+  if (tz.platTrigger || tz.vanishTrigger) activeTags.push(tz.platAction === 'spawn' ? '✨ SPAWN PLAT' : '░ VANISH PLAT');
 
   if (activeTags.length > 0) {
     ctx.font = 'bold 10px Rajdhani';
@@ -17083,6 +17134,56 @@ function drawTriggerZone(tz, isSelected) {
     ctx.fillStyle = '#e74c3c';
     ctx.font = 'bold 10px Rajdhani';
     ctx.fillText('⚔ ' + (tz.guardSpawnType || 'runner').toUpperCase(), gx - 24, gy - 48);
+  }
+
+  // Draw platform target line if platform control is active
+  if (tz.platTrigger !== false && (tz.platTrigger || tz.vanishTrigger)) {
+    const isSpawn = tz.platAction === 'spawn';
+    const curLvl = getCurrentLevel();
+    const tIdx = resolveTargetPlat(tz, curLvl);
+    const targetPlat = (tIdx >= 0 && curLvl && curLvl.platforms) ? curLvl.platforms[tIdx] : null;
+    if (targetPlat) {
+      const cx = x + w / 2;
+      const cy = y + h / 2;
+      const tx = targetPlat.x + targetPlat.w / 2;
+      const ty = targetPlat.y + targetPlat.h / 2;
+      ctx.strokeStyle = isSpawn ? 'rgba(0, 210, 211, 0.75)' : 'rgba(231, 76, 60, 0.75)';
+      ctx.lineWidth = 1.8;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(tx, ty);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = isSpawn ? '#00d2d3' : '#e74c3c';
+      ctx.font = 'bold 9px Rajdhani';
+      const durStr = tz.platDuration === 0 ? 'PERM' : `${tz.platDuration || 4}s`;
+      const label = isSpawn ? `SPAWN PLAT #${tIdx + 1} (${durStr})` : `VANISH PLAT #${tIdx + 1} (${durStr})`;
+      ctx.fillText(label, (cx + tx) / 2 - 24, (cy + ty) / 2 - 6);
+    }
+  }
+
+  // Draw custom spike line if custom spike is active
+  if (tz.spikeTrigger && tz.spikeMode === 'custom' && tz.spikeX !== undefined) {
+    const sx = tz.spikeX;
+    const sy = tz.spikeY !== undefined ? tz.spikeY : 610;
+    ctx.strokeStyle = 'rgba(231, 76, 60, 0.6)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(x + w / 2, y + h / 2);
+    ctx.lineTo(sx, sy - 12);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = 'rgba(231, 76, 60, 0.25)';
+    ctx.fillRect(sx - 16, sy - 24, 32, 24);
+    ctx.strokeStyle = '#e74c3c';
+    ctx.strokeRect(sx - 16, sy - 24, 32, 24);
+    ctx.fillStyle = '#e74c3c';
+    ctx.font = 'bold 9px Rajdhani';
+    ctx.fillText('TRAP SPIKE', sx - 22, sy - 28);
   }
 
   if (isSelected) {
@@ -17235,6 +17336,7 @@ function startPlaytest() {
     towerAngles: {},
     trapSpikes: [],
     plateStates: (lvl.plates || []).map(() => ({ state: 'idle', spikeTimer: -1, platTimer: -1, rearmTimer: 0, seen: false })),
+    tzStates: (lvl.triggerZones || []).map(() => ({ triggered: false, spikeTimer: -1, platTimer: -1, rearmTimer: 0 })),
     platStates: (lvl.platforms || []).map(p => ({ vState: p.initiallyHidden ? 'gone' : 'solid', spawnTimer: 0, reappearTimer: 0 }))
   };
 
@@ -17336,20 +17438,20 @@ function hasSpawnPlateInEditor(platIdx, lvl) {
   if (!lvl || !lvl.platforms || !lvl.platforms[platIdx]) return false;
   const targetPlat = lvl.platforms[platIdx];
   if (targetPlat.initiallyHidden) return true;
-  return (lvl.plates || []).some((pl) => {
+  const hasPlate = (lvl.plates || []).some((pl) => {
     if (pl.platTrigger === false && !pl.vanishTrigger) return false;
     const act = pl.platAction || (pl.targetType === 'spawn' || pl.fx === 'spawn' ? 'spawn' : 'vanish');
     if (act !== 'spawn') return false;
-    if (pl.targetPlatIndex !== undefined && pl.targetPlatIndex !== null && pl.targetPlatIndex >= 0) {
-      return pl.targetPlatIndex === platIdx;
-    }
-    let bd = 1e9, cIdx = -1;
-    (lvl.platforms || []).forEach((plat, pi) => {
-      const d = Math.hypot((plat.x + plat.w / 2) - pl.x, (plat.y + plat.h / 2) - (pl.y !== undefined ? pl.y : 610));
-      if (d < bd) { bd = d; cIdx = pi; }
-    });
-    return cIdx === platIdx;
+    return resolveTargetPlat(pl, lvl) === platIdx;
   });
+  if (hasPlate) return true;
+  const hasTrigger = (lvl.triggerZones || []).some((tz) => {
+    if (tz.platTrigger === false && !tz.vanishTrigger) return false;
+    const act = tz.platAction || 'spawn';
+    if (act !== 'spawn') return false;
+    return resolveTargetPlat(tz, lvl) === platIdx;
+  });
+  return hasTrigger;
 }
 
 function executePlaytestTriggerActions(actSource) {
@@ -17572,15 +17674,8 @@ function updatePlaytest() {
         ps.platTimer -= dt;
         if (ps.platTimer <= 0) {
           ps.platTimer = -1;
-          let tIdx = p.targetPlatIndex;
-          if ((tIdx === undefined || tIdx === null || tIdx < 0) && lvl.platforms && lvl.platforms.length > 0) {
-            let bd = 1e9;
-            lvl.platforms.forEach((plat, pi) => {
-              const d = Math.hypot((plat.x + plat.w / 2) - p.x, (plat.y + plat.h / 2) - py);
-              if (d < bd) { bd = d; tIdx = pi; }
-            });
-          }
-          if (tIdx !== undefined && tIdx !== null && playState.platStates && playState.platStates[tIdx]) {
+          const tIdx = resolveTargetPlat(p, lvl);
+          if (tIdx >= 0 && playState.platStates && playState.platStates[tIdx]) {
             const targetState = playState.platStates[tIdx];
             const act = p.platAction || 'spawn';
             const dur = p.platDuration !== undefined ? p.platDuration : 0;
@@ -17638,19 +17733,97 @@ function updatePlaytest() {
     }
   });
 
-  // Trigger Zones Collision Check
+  // Trigger Zones Collision Check & Action Updates
   (lvl.triggerZones || []).forEach((tz, idx) => {
     if (!playState.tzStates) playState.tzStates = [];
-    if (!playState.tzStates[idx]) playState.tzStates[idx] = { triggered: false, rearmTimer: 0 };
+    if (!playState.tzStates[idx]) playState.tzStates[idx] = { triggered: false, spikeTimer: -1, platTimer: -1, rearmTimer: 0 };
     const tzs = playState.tzStates[idx];
     if (tzs.rearmTimer > 0) tzs.rearmTimer -= dt;
+
+    // Active Timers
+    if (tzs.spikeTimer >= 0) {
+      tzs.spikeTimer -= dt;
+      if (tzs.spikeTimer <= 0) {
+        tzs.spikeTimer = -1;
+        const isCustom = tz.spikeMode === 'custom' && tz.spikeX !== undefined;
+        const sx = isCustom ? tz.spikeX : (tz.x + tz.w / 2);
+        const sy = isCustom && tz.spikeY !== undefined ? tz.spikeY : (tz.y + tz.h);
+        playState.trapSpikes.push({ x: sx, y: sy, t: 0, life: 1.9, w: 96 });
+      }
+    }
+
+    if (tzs.platTimer >= 0) {
+      tzs.platTimer -= dt;
+      if (tzs.platTimer <= 0) {
+        tzs.platTimer = -1;
+        const tIdx = resolveTargetPlat(tz, lvl);
+        if (tIdx >= 0 && playState.platStates && playState.platStates[tIdx]) {
+          const targetState = playState.platStates[tIdx];
+          const act = tz.platAction || 'spawn';
+          const dur = tz.platDuration !== undefined ? tz.platDuration : 0;
+          if (act === 'spawn') {
+            targetState.vState = 'solid';
+            targetState.spawnTimer = dur > 0 ? dur : 0;
+            targetState.reappearTimer = 0;
+            showToast('✨ Platform Spawned!', 'success');
+          } else {
+            targetState.vState = 'gone';
+            targetState.spawnTimer = 0;
+            if (hasSpawnPlateInEditor(tIdx, lvl)) {
+              targetState.reappearTimer = 0;
+            } else {
+              targetState.reappearTimer = dur > 0 ? dur : 3.0;
+            }
+            showToast('💥 Platform Collapsed!', 'warning');
+          }
+        }
+      }
+    }
+
     if (tz.oneShot && tzs.triggered) return;
     if (tzs.rearmTimer > 0) return;
 
+    // AABB intersection check with player Ronin
     if (r.x + r.w > tz.x && r.x < tz.x + tz.w && r.y + r.h > tz.y && r.y < tz.y + tz.h) {
       tzs.triggered = true;
       tzs.rearmTimer = tz.rearmDelay || 1.5;
+
+      if (tz.spikeTrigger) {
+        tzs.spikeTimer = Math.max(0.01, tz.spikeDelay !== undefined ? tz.spikeDelay : 0.4);
+      }
+      if (tz.platTrigger !== false && (tz.platTrigger || tz.vanishTrigger)) {
+        if (!tz.platDelay || tz.platDelay <= 0) {
+          const tIdx = resolveTargetPlat(tz, lvl);
+          if (tIdx >= 0 && playState.platStates && playState.platStates[tIdx]) {
+            const targetState = playState.platStates[tIdx];
+            const act = tz.platAction || 'spawn';
+            const dur = tz.platDuration !== undefined ? tz.platDuration : 0;
+            if (act === 'spawn') {
+              targetState.vState = 'solid';
+              targetState.spawnTimer = dur > 0 ? dur : 0;
+              targetState.reappearTimer = 0;
+              showToast('✨ Platform Spawned!', 'success');
+            } else {
+              targetState.vState = 'gone';
+              targetState.spawnTimer = 0;
+              if (hasSpawnPlateInEditor(tIdx, lvl)) {
+                targetState.reappearTimer = 0;
+              } else {
+                targetState.reappearTimer = dur > 0 ? dur : 3.0;
+              }
+              showToast('💥 Platform Collapsed!', 'warning');
+            }
+          }
+        } else {
+          tzs.platTimer = tz.platDelay;
+        }
+      }
+      if (tz.alarmTrigger) {
+        showToast('🚨 ALARM RAISED BY TRIGGER ZONE!', 'error');
+      }
+
       executePlaytestTriggerActions(tz);
+
       if (tz.triggerTutorial) {
         playState.activeCard = {
           title: tz.tutTitle || 'TRIGGER ACTIVATED!',
@@ -18234,7 +18407,62 @@ function serializeLevel(lvl) {
         triggerMode: c.triggerMode || 'prompt',
         text: c.text,
         trigger: c.trigger
-      }))
+      })),
+      triggerZones: (lvl.triggerZones || []).map(tz => {
+        const elevatedPlats = (lvl.platforms || []).filter(pl => !(pl.y >= 610 && pl.h >= 100 && pl.w >= 2000));
+        let mappedTargetIdx = -1;
+        let targetPlatX = tz.targetPlatX;
+        let targetPlatY = tz.targetPlatY;
+
+        let tIdx = tz.targetPlatIndex;
+        if ((tIdx === undefined || tIdx === null || tIdx < 0) && (tz.platTrigger || tz.vanishTrigger)) {
+          tIdx = resolveTargetPlat(tz, lvl);
+        }
+        if (tIdx !== undefined && tIdx !== null && tIdx >= 0 && lvl.platforms && lvl.platforms[tIdx]) {
+          const tPlat = lvl.platforms[tIdx];
+          targetPlatX = tPlat.x;
+          targetPlatY = tPlat.y;
+          mappedTargetIdx = elevatedPlats.indexOf(tPlat);
+        }
+
+        return {
+          x: tz.x,
+          y: tz.y,
+          w: tz.w || 160,
+          h: tz.h || 100,
+          oneShot: tz.oneShot !== undefined ? tz.oneShot : true,
+          rearmDelay: tz.rearmDelay !== undefined ? tz.rearmDelay : 1.5,
+          teleportTrigger: !!tz.teleportTrigger,
+          teleportX: tz.teleportX,
+          teleportY: tz.teleportY,
+          guardSpawnTrigger: !!tz.guardSpawnTrigger,
+          guardSpawnX: tz.guardSpawnX,
+          guardSpawnY: tz.guardSpawnY,
+          guardSpawnType: tz.guardSpawnType || 'runner',
+          launchTrigger: !!tz.launchTrigger,
+          launchPower: tz.launchPower || 18,
+          slowMoTrigger: !!tz.slowMoTrigger,
+          slowMoDuration: tz.slowMoDuration || 2.5,
+          spikeTrigger: !!tz.spikeTrigger,
+          spikeMode: tz.spikeMode || 'custom',
+          spikeX: tz.spikeX,
+          spikeY: tz.spikeY,
+          spikeDelay: tz.spikeDelay !== undefined ? tz.spikeDelay : 0.4,
+          alarmTrigger: !!tz.alarmTrigger,
+          alarmDelay: tz.alarmDelay || 0,
+          platTrigger: !!(tz.platTrigger || tz.vanishTrigger),
+          platAction: tz.platAction || 'vanish',
+          targetPlatIndex: mappedTargetIdx >= 0 ? mappedTargetIdx : (tz.targetPlatIndex !== undefined ? tz.targetPlatIndex : null),
+          targetPlatX: targetPlatX,
+          targetPlatY: targetPlatY,
+          platDelay: tz.platDelay !== undefined ? tz.platDelay : (tz.vanishDelay !== undefined ? tz.vanishDelay : 0.0),
+          platDuration: tz.platDuration !== undefined ? tz.platDuration : 4.0,
+          triggerTutorial: !!tz.triggerTutorial,
+          tutTitle: tz.tutTitle || 'TRIGGER ACTIVATED!',
+          tutText: tz.tutText || '',
+          tutKanji: tz.tutKanji || '発'
+        };
+      })
     };
 }
 window.serializeLevel = serializeLevel;
