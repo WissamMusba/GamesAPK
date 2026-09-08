@@ -13934,6 +13934,9 @@ function loadLevels() {
             saveToLocalStorage(true, false);
           }
         }
+        levels.forEach(lvl => (lvl.towers || []).forEach(t => {
+          if (t.alertTime === 1.1 || t.spotlightTime === 1.1) t.alertTime = 0.7;
+        }));
         showToast('Loaded saved levels from storage', 'success');
         return;
       }
@@ -15021,14 +15024,14 @@ function placeNewEntity(tool, wx, wy) {
     const py = hostPlat ? hostPlat.y : (y >= 500 ? 610 : y);
     const pMin = hostPlat ? Math.max(hostPlat.x + 10, x - 150) : x - 150;
     const pMax = hostPlat ? Math.min(hostPlat.x + hostPlat.w - 10, x + 150) : x + 150;
-    const t = { x: x, y: py, mount: 'bottom', minX: pMin, maxX: pMax, ty: py, speed: 0.55, alertTime: 1.1, beamSpread: 54 };
+    const t = { x: x, y: py, mount: 'bottom', minX: pMin, maxX: pMax, ty: py, speed: 0.55, alertTime: 0.7, beamSpread: 54 };
     lvl.towers.push(t);
     selectEntityDirect(t, 'tower', lvl.towers.length - 1);
   } else if (tool === 'ceiling_tower') {
     const ty = hostPlat ? hostPlat.y : 610;
     const pMin = hostPlat ? Math.max(hostPlat.x + 10, x - 150) : x - 150;
     const pMax = hostPlat ? Math.min(hostPlat.x + hostPlat.w - 10, x + 150) : x + 150;
-    const t = { x: x, y: 0, mount: 'top', isCeiling: true, minX: pMin, maxX: pMax, ty: ty, speed: 0.55, alertTime: 1.1, beamSpread: 54 };
+    const t = { x: x, y: 0, mount: 'top', isCeiling: true, minX: pMin, maxX: pMax, ty: ty, speed: 0.55, alertTime: 0.7, beamSpread: 54 };
     lvl.towers.push(t);
     selectEntityDirect(t, 'tower', lvl.towers.length - 1);
   } else if (tool === 'bush') {
@@ -15636,7 +15639,7 @@ function renderInspector() {
       </div>
       <div class="prop-row">
         <span class="prop-label" title="How long the player can stay in the beam before alarm triggers">Spotlight Grace:</span>
-        <input type="number" id="prop-tower-alert" step="0.1" value="${ent.alertTime !== undefined ? ent.alertTime : 1.1}">
+        <input type="number" id="prop-tower-alert" step="0.1" value="${ent.alertTime !== undefined ? (ent.alertTime === 1.1 ? 0.7 : ent.alertTime) : 0.7}">
       </div>
       <div class="prop-row">
         <span class="prop-label">Beam Spread:</span>
@@ -15997,7 +16000,7 @@ function renderInspector() {
   bindField('prop-tower-max', e => { ent.maxX = parseInt(e.target.value, 10) || 0; });
   bindField('prop-tower-ty', e => { ent.ty = parseInt(e.target.value, 10) || 610; });
   bindField('prop-tower-spd', e => { ent.speed = parseFloat(e.target.value) || 0.55; });
-  bindField('prop-tower-alert', e => { ent.alertTime = parseFloat(e.target.value) || 1.1; });
+  bindField('prop-tower-alert', e => { ent.alertTime = parseFloat(e.target.value) || 0.7; });
   bindField('prop-tower-spread', e => { ent.beamSpread = parseInt(e.target.value, 10) || 54; });
 
   // Plate specific fields
@@ -17251,7 +17254,8 @@ function updatePlaytest() {
     const angle = Math.sin(Date.now() * 0.001 * (t.speed || 0.55) * 3);
     playState.towerAngles[idx] = angle;
     const beamX = t.x + angle * ((t.maxX - t.minX) / 2);
-    const alertTime = t.alertTime !== undefined ? t.alertTime : (t.spotlightTime !== undefined ? t.spotlightTime : 1.1);
+    let alertTime = t.alertTime !== undefined ? t.alertTime : (t.spotlightTime !== undefined ? t.spotlightTime : 0.7);
+    if (alertTime === 1.1) alertTime = 0.7;
 
     if (!playState.towerExposure) playState.towerExposure = {};
     if (!playState.towerExposure[idx]) playState.towerExposure[idx] = 0;
@@ -17554,7 +17558,8 @@ function renderPlayScene() {
   let maxFrac = 0;
   (lvl.towers || []).forEach((t, idx) => {
     const exp = (playState.towerExposure && playState.towerExposure[idx]) || 0;
-    const alertTime = t.alertTime !== undefined ? t.alertTime : (t.spotlightTime !== undefined ? t.spotlightTime : 1.1);
+    let alertTime = t.alertTime !== undefined ? t.alertTime : (t.spotlightTime !== undefined ? t.spotlightTime : 0.7);
+    if (alertTime === 1.1) alertTime = 0.7;
     const frac = exp / Math.max(0.1, alertTime);
     if (frac > maxFrac) maxFrac = frac;
   });
@@ -17967,7 +17972,7 @@ function serializeLevel(lvl) {
         x2: t.maxX !== undefined ? t.maxX : t.x + 150,
         ty: t.ty !== undefined ? t.ty : 610,
         speed: t.speed || 0.55,
-        alertTime: t.alertTime !== undefined ? t.alertTime : 1.1,
+        alertTime: t.alertTime !== undefined ? (t.alertTime === 1.1 ? 0.7 : t.alertTime) : 0.7,
         beamSpread: t.beamSpread || 54
       })),
       guards: (lvl.guards || []).map(g => ({

@@ -830,7 +830,7 @@ function syncCustomLevelsFromStorage(){
           x2: t.maxX !== undefined ? t.maxX : (t.x2 !== undefined ? t.x2 : t.x + 150),
           ty: t.ty !== undefined ? t.ty : G,
           speed: t.speed || 0.55,
-          alertTime: t.alertTime !== undefined ? t.alertTime : (t.spotlightTime !== undefined ? t.spotlightTime : 1.1),
+          alertTime: (function() { const at = t.alertTime !== undefined ? t.alertTime : (t.spotlightTime !== undefined ? t.spotlightTime : 0.7); return at === 1.1 ? 0.7 : at; })(),
           beamSpread: t.beamSpread || 54
         })),
         guards: (el.guards || []).map(g => {
@@ -1639,7 +1639,8 @@ class Watchtower{
     this.ty=d.ty!==undefined?d.ty:G;
     this.h=d.h||175;
     this.speed=d.speed||0.6;
-    this.alertTime=d.alertTime!==undefined?d.alertTime:(d.spotlightTime!==undefined?d.spotlightTime:1.1);
+    const rawAlert=d.alertTime!==undefined?d.alertTime:(d.spotlightTime!==undefined?d.spotlightTime:0.7);
+    this.alertTime=rawAlert===1.1?0.7:rawAlert;
     this.beamSpread=d.beamSpread||54;
     this.phase=d.phase!==undefined?d.phase:d.x*0.011;
     this.exposure=0;
@@ -3649,9 +3650,10 @@ function drawHidePrompt(){
   }
 }
 function towerExposureData(){
-  let maxFrac=0, maxExp=0, maxLimit=1.1;
+  let maxFrac=0, maxExp=0, maxLimit=0.7;
   for(const t of towers){
-    const limit=t.alertTime!==undefined?t.alertTime:(t.spotlightTime!==undefined?t.spotlightTime:1.1);
+    const rawLimit=t.alertTime!==undefined?t.alertTime:(t.spotlightTime!==undefined?t.spotlightTime:0.7);
+    const limit=rawLimit===1.1?0.7:rawLimit;
     const effLimit=Math.max(0.1,limit);
     const frac=t.exposure/effLimit;
     if(frac>maxFrac){
