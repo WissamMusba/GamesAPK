@@ -14678,7 +14678,13 @@ function onCanvasMouseDown(e) {
   }
 
   if (e.button === 0) {
-    // 1. Check if clicking on resize handles of selected entity
+    // 1. If an entity placement tool is active (anything other than 'select'), PLACE IT!
+    if (currentTool !== 'select') {
+      placeNewEntity(currentTool, w.x, w.y);
+      return;
+    }
+
+    // 2. Select tool: Check if clicking on resize handles of selected entity
     if (selectedEntity) {
       const handle = getHitResizeHandle(selectedEntity, w.x, w.y);
       if (handle) {
@@ -14691,7 +14697,7 @@ function onCanvasMouseDown(e) {
       }
     }
 
-    // 2. Click directly on any object -> Select it!
+    // 3. Select tool: Click directly on any object -> Select it!
     const hit = hitTestEntities(w.x, w.y);
     if (hit) {
       recordHistory();
@@ -14705,17 +14711,11 @@ function onCanvasMouseDown(e) {
       return;
     }
 
-    // If tool is 'select' and clicked empty area -> Deselect
-    if (currentTool === 'select') {
-      selectedEntity = null;
-      selectedEntityType = null;
-      selectedEntityIndex = -1;
-      renderInspector();
-      return;
-    }
-
-    // 3. Placing New Entity via active tool
-    placeNewEntity(currentTool, w.x, w.y);
+    // 4. Clicked empty area in select mode -> Deselect
+    selectedEntity = null;
+    selectedEntityType = null;
+    selectedEntityIndex = -1;
+    renderInspector();
   }
 }
 
@@ -14817,12 +14817,12 @@ function findPlatformUnder(x, y, lvl) {
   // Filter out the ground plane
   const plats = lvl.platforms.filter(p => !(p.y >= 610 && p.w >= 2000 && p.h >= 80));
 
-  // Priority 1: Directly on or within close vertical distance to platform top surface
+  // Priority 1: Directly on or within generous vertical distance to platform top/body
   let bestDirect = null;
   let minDirectDist = Infinity;
   for (const p of plats) {
-    if (x >= p.x - 20 && x <= p.x + p.w + 20) {
-      if (y >= p.y - 45 && y <= p.y + Math.max(45, p.h + 15)) {
+    if (x >= p.x - 30 && x <= p.x + p.w + 30) {
+      if (y >= p.y - 65 && y <= p.y + Math.max(65, p.h + 35)) {
         const dist = Math.abs(y - p.y);
         if (dist < minDirectDist) {
           minDirectDist = dist;
@@ -14833,12 +14833,12 @@ function findPlatformUnder(x, y, lvl) {
   }
   if (bestDirect) return bestDirect;
 
-  // Priority 2: Cursor/entity is above platform within 240px
+  // Priority 2: Cursor/entity is above platform within 360px
   let bestAbove = null;
   let minAboveDist = Infinity;
   for (const p of plats) {
-    if (x >= p.x - 20 && x <= p.x + p.w + 20) {
-      if (y < p.y && (p.y - y) <= 240) {
+    if (x >= p.x - 30 && x <= p.x + p.w + 30) {
+      if (y < p.y && (p.y - y) <= 360) {
         const dist = p.y - y;
         if (dist < minAboveDist) {
           minAboveDist = dist;
@@ -14853,9 +14853,9 @@ function findPlatformUnder(x, y, lvl) {
   let fallback = null;
   let fallbackDist = Infinity;
   for (const p of plats) {
-    if (x >= p.x - 25 && x <= p.x + p.w + 25) {
+    if (x >= p.x - 35 && x <= p.x + p.w + 35) {
       const dist = Math.abs(y - p.y);
-      if (dist < fallbackDist && dist < 360) {
+      if (dist < fallbackDist && dist < 480) {
         fallbackDist = dist;
         fallback = p;
       }
@@ -14994,9 +14994,14 @@ function placeNewEntity(tool, wx, wy) {
     selectEntityDirect(s, 'spike', lvl.spikes.length - 1);
   } else if (tool === 'guard') {
     const gy = hostPlat ? hostPlat.y : (y < 580 ? y : 610);
-    const pMin = hostPlat ? Math.max(hostPlat.x + 10, x - 120) : x - 150;
-    const pMax = hostPlat ? Math.min(hostPlat.x + hostPlat.w - 10, x + 120) : x + 150;
-    const gx = hostPlat ? Math.max(pMin, Math.min(x, pMax)) : x;
+    let pMin = hostPlat ? Math.max(hostPlat.x + 8, x - 120) : x - 150;
+    let pMax = hostPlat ? Math.min(hostPlat.x + hostPlat.w - 8, x + 120) : x + 150;
+    let gx = hostPlat ? Math.max(pMin, Math.min(x, pMax)) : x;
+    if (hostPlat && pMin >= pMax) {
+      pMin = hostPlat.x + 8;
+      pMax = hostPlat.x + hostPlat.w - 8;
+      gx = hostPlat.x + hostPlat.w / 2;
+    }
     const g = { x: gx, y: gy, minX: pMin, maxX: pMax, visionLen: 240, speed: 1.2, dir: 1 };
     lvl.guards.push(g);
     selectEntityDirect(g, 'guard', lvl.guards.length - 1);

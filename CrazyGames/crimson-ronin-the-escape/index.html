@@ -540,7 +540,7 @@ function fmtTimeMs(t){const m=Math.floor(t/60),s=Math.floor(t%60),d=Math.floor((
 function pointInPlat(x,y){
   for(const p of plats){
     if(!platSolid(p))continue;
-    if(x>p.x&&x<p.x+p.w&&y>p.y&&y<p.y+p.h)return true;
+    if(x>p.x&&x<p.x+p.w&&y>=p.y&&y<=p.y+Math.max(16,p.h))return true;
   }
   return false;
 }
@@ -829,8 +829,8 @@ function syncCustomLevelsFromStorage(){
         })),
         guards: (el.guards || []).map(g => {
           let gy = g.y !== undefined ? g.y : G;
-          if (gy >= 600) {
-            const host = (el.platforms || []).find(p => p.y < 590 && g.x >= p.x - 15 && g.x <= p.x + p.w + 15 && (g.minX >= p.x - 20 || g.maxX <= p.x + p.w + 20));
+          if (gy >= 580) {
+            const host = (el.platforms || []).find(p => p.y < 580 && g.x >= p.x - 25 && g.x <= p.x + p.w + 25);
             if (host) gy = host.y;
           }
           return {
@@ -2132,7 +2132,7 @@ class Guard{
     this.x+=move;
     for(const p of plats){
       if(!platSolid(p))continue;
-      if(this.x-14<p.x+p.w&&this.x+14>p.x&&this.y-58<p.y+p.h&&this.y>p.y){
+      if(this.x-14<p.x+p.w&&this.x+14>p.x&&this.y-58<p.y+p.h&&this.y-10>p.y){
         if(move>0)this.x=p.x-14;
         else if(move<0)this.x=p.x+p.w+14;
       }
