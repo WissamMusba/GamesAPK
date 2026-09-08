@@ -14770,6 +14770,12 @@ function onCanvasMouseMove(e) {
     } else if (activeResizeHandle === 'plate-spike') {
       selectedEntity.spikeX = snap(dragStartEntityState.spikeX + dx, grid);
       selectedEntity.spikeY = snap((dragStartEntityState.spikeY !== undefined ? dragStartEntityState.spikeY : 610) + dy, grid);
+    } else if (activeResizeHandle === 'teleport-dest') {
+      selectedEntity.teleportX = snap(dragStartEntityState.teleportX + dx, grid);
+      selectedEntity.teleportY = snap((dragStartEntityState.teleportY !== undefined ? dragStartEntityState.teleportY : 610) + dy, grid);
+    } else if (activeResizeHandle === 'guard-ambush') {
+      selectedEntity.guardSpawnX = snap(dragStartEntityState.guardSpawnX + dx, grid);
+      selectedEntity.guardSpawnY = snap((dragStartEntityState.guardSpawnY !== undefined ? dragStartEntityState.guardSpawnY : 610) + dy, grid);
     }
 
     renderInspector();
@@ -14805,6 +14811,7 @@ function onCanvasMouseMove(e) {
       if (handle === 'bottom-right' || handle === 'top-left') canvas.style.cursor = 'nwse-resize';
       else if (handle === 'top-right' || handle === 'bottom-left') canvas.style.cursor = 'nesw-resize';
       else if (handle === 'top' || handle === 'bottom') canvas.style.cursor = 'ns-resize';
+      else if (handle === 'teleport-dest' || handle === 'guard-ambush' || handle === 'plate-spike' || handle === 'tower-ty') canvas.style.cursor = 'move';
       else canvas.style.cursor = 'ew-resize';
       return;
     }
@@ -14814,54 +14821,48 @@ function onCanvasMouseMove(e) {
 
 function findPlatformUnder(x, y, lvl) {
   if (!lvl || !lvl.platforms || lvl.platforms.length === 0) return null;
-  // Filter out the ground plane
-  const plats = lvl.platforms.filter(p => !(p.y >= 610 && p.w >= 2000 && p.h >= 80));
+  const groundY = 610;
 
-  // Priority 1: Directly on or within generous vertical distance to platform top/body
-  let bestDirect = null;
-  let minDirectDist = Infinity;
-  for (const p of plats) {
-    if (x >= p.x - 30 && x <= p.x + p.w + 30) {
-      if (y >= p.y - 65 && y <= p.y + Math.max(65, p.h + 35)) {
-        const dist = Math.abs(y - p.y);
-        if (dist < minDirectDist) {
-          minDirectDist = dist;
-          bestDirect = p;
-        }
-      }
+  // Filter floating platforms that encompass x horizontally (with 20px margin)
+  const floatingPlats = (lvl.platforms || []).filter(p => {
+    const isGround = p.y >= 600 && p.w >= 1800;
+    if (isGround) return false;
+    return (x >= p.x - 20 && x <= p.x + p.w + 20);
+  });
+
+  if (floatingPlats.length === 0) return null;
+
+  // Find floating platform closest vertically to cursor y
+  let bestPlat = null;
+  let minPlatDist = Infinity;
+  for (const p of floatingPlats) {
+    const dist = Math.abs(y - p.y);
+    if (dist < minPlatDist) {
+      minPlatDist = dist;
+      bestPlat = p;
     }
   }
-  if (bestDirect) return bestDirect;
 
-  // Priority 2: Cursor/entity is above platform within 360px
-  let bestAbove = null;
-  let minAboveDist = Infinity;
-  for (const p of plats) {
-    if (x >= p.x - 30 && x <= p.x + p.w + 30) {
-      if (y < p.y && (p.y - y) <= 360) {
-        const dist = p.y - y;
-        if (dist < minAboveDist) {
-          minAboveDist = dist;
-          bestAbove = p;
-        }
-      }
-    }
-  }
-  if (bestAbove) return bestAbove;
+  const distToGround = Math.abs(y - groundY);
 
-  // Priority 3: Any platform within horizontal range where y is reasonably close
-  let fallback = null;
-  let fallbackDist = Infinity;
-  for (const p of plats) {
-    if (x >= p.x - 35 && x <= p.x + p.w + 35) {
-      const dist = Math.abs(y - p.y);
-      if (dist < fallbackDist && dist < 480) {
-        fallbackDist = dist;
-        fallback = p;
-      }
-    }
+  // If cursor is closer to ground (y=610) than to any platform and cursor is low (y > 510),
+  // snap to ground (return null)
+  if (distToGround < minPlatDist && y > 510) {
+    return null;
   }
-  return fallback;
+
+  // If clicked within 85px of platform, or within 120px above it, snap to it
+  if (bestPlat && (minPlatDist <= 85 || (y < bestPlat.y && (bestPlat.y - y) <= 120))) {
+    if (distToGround < minPlatDist && y > 520) return null;
+    return bestPlat;
+  }
+
+  // If closer to ground than to the platform, return ground (null)
+  if (distToGround <= minPlatDist) {
+    return null;
+  }
+
+  return minPlatDist < 90 ? bestPlat : null;
 }
 
 function updateLevelQuickStats() {
@@ -14934,6 +14935,25 @@ function onCanvasMouseUp() {
         } else if (selectedEntityType === 'exit') {
           selectedEntity.y = hostPlat.y - (selectedEntity.h || 158);
         }
+      } else {
+        // hostPlat is null: dropped in open area or near floor (currentY >= 500) -> snap cleanly to ground (610)
+        if (currentY >= 500) {
+          if (selectedEntityType === 'guard' || selectedEntityType === 'spike' || selectedEntityType === 'bush' || selectedEntityType === 'plate') {
+            selectedEntity.y = 610;
+            if (selectedEntityType === 'plate') selectedEntity.spikeY = 610;
+            if (selectedEntityType === 'guard') {
+              if (selectedEntity.maxX - selectedEntity.minX < 80) {
+                selectedEntity.minX = selectedEntity.x - 140;
+                selectedEntity.maxX = selectedEntity.x + 140;
+              }
+            }
+          } else if (selectedEntityType === 'tower') {
+            if (selectedEntity.mount !== 'top') {
+              selectedEntity.y = 610;
+              selectedEntity.ty = 610;
+            }
+          }
+        }
       }
     }
     isDraggingEntity = false;
@@ -14986,16 +15006,16 @@ function placeNewEntity(tool, wx, wy) {
     lvl.platforms.push(p);
     selectEntityDirect(p, 'platform', lvl.platforms.length - 1);
   } else if (tool === 'spike') {
-    const sy = hostPlat ? hostPlat.y : (y < 580 ? y : 610);
+    const sy = hostPlat ? hostPlat.y : (y >= 500 ? 610 : y);
     const sw = hostPlat ? Math.min(100, Math.max(30, hostPlat.w)) : 120;
     const sx = hostPlat ? Math.max(hostPlat.x, Math.min(x - sw / 2, hostPlat.x + hostPlat.w - sw)) : (x - 60);
     const s = { x: sx, y: sy, w: sw };
     lvl.spikes.push(s);
     selectEntityDirect(s, 'spike', lvl.spikes.length - 1);
   } else if (tool === 'guard') {
-    const gy = hostPlat ? hostPlat.y : (y < 580 ? y : 610);
-    let pMin = hostPlat ? Math.max(hostPlat.x + 8, x - 120) : x - 150;
-    let pMax = hostPlat ? Math.min(hostPlat.x + hostPlat.w - 8, x + 120) : x + 150;
+    const gy = hostPlat ? hostPlat.y : (y >= 500 ? 610 : y);
+    let pMin = hostPlat ? Math.max(hostPlat.x + 8, x - 120) : (x - 150);
+    let pMax = hostPlat ? Math.min(hostPlat.x + hostPlat.w - 8, x + 120) : (x + 150);
     let gx = hostPlat ? Math.max(pMin, Math.min(x, pMax)) : x;
     if (hostPlat && pMin >= pMax) {
       pMin = hostPlat.x + 8;
@@ -15006,7 +15026,7 @@ function placeNewEntity(tool, wx, wy) {
     lvl.guards.push(g);
     selectEntityDirect(g, 'guard', lvl.guards.length - 1);
   } else if (tool === 'tower') {
-    const py = hostPlat ? hostPlat.y : (y < 580 ? y : 610);
+    const py = hostPlat ? hostPlat.y : (y >= 500 ? 610 : y);
     const pMin = hostPlat ? Math.max(hostPlat.x + 10, x - 150) : x - 150;
     const pMax = hostPlat ? Math.min(hostPlat.x + hostPlat.w - 10, x + 150) : x + 150;
     const t = { x: x, y: py, mount: 'bottom', minX: pMin, maxX: pMax, ty: py, speed: 0.55, alertTime: 1.1, beamSpread: 54 };
@@ -15020,20 +15040,24 @@ function placeNewEntity(tool, wx, wy) {
     lvl.towers.push(t);
     selectEntityDirect(t, 'tower', lvl.towers.length - 1);
   } else if (tool === 'bush') {
-    const by = hostPlat ? hostPlat.y : (y < 580 ? y : 610);
+    const by = hostPlat ? hostPlat.y : (y >= 500 ? 610 : y);
     const bw = 78;
     const bx = hostPlat ? Math.max(hostPlat.x, Math.min(x - bw / 2, hostPlat.x + hostPlat.w - bw)) : (x - 39);
     const b = { x: bx, y: by, w: bw, h: 48, hideType: 'bush' };
     lvl.bushes.push(b);
     selectEntityDirect(b, 'bush', lvl.bushes.length - 1);
   } else if (tool === 'plate') {
-    const py = hostPlat ? hostPlat.y : (y < 580 ? y : 610);
+    const py = hostPlat ? hostPlat.y : (y >= 500 ? 610 : y);
     const px = hostPlat ? Math.max(hostPlat.x + 8, Math.min(x, hostPlat.x + hostPlat.w - 8)) : x;
     const p = {
       x: px, y: py, w: 38,
       spikeTrigger: true, spikeMode: 'behind', spikeX: px, spikeY: py, spikeDelay: 0.6,
       alarmTrigger: false, alarmDelay: 0.0,
-      vanishTrigger: false, vanishDelay: 0.0,
+      platTrigger: false, platAction: 'vanish', platDelay: 0.0, platDuration: 4.0,
+      teleportTrigger: false, teleportX: px + 300, teleportY: py,
+      guardSpawnTrigger: false, guardSpawnX: px, guardSpawnY: 610, guardSpawnType: 'runner',
+      launchTrigger: false, launchPower: 18,
+      slowMoTrigger: false, slowMoDuration: 2.5,
       triggerTutorial: false,
       tutTitle: 'PRESSURE PLATE TRIGGERED!',
       tutText: 'You just stepped on a pressure plate!\nA deadly trap spike will thrust out of the ground behind you in 0.6s!\nLEAP FORWARD IMMEDIATELY to avoid getting impaled!'
@@ -15221,7 +15245,20 @@ function hitTestEntities(wx, wy) {
     if (wx >= bx && wx <= bx + bw && wy >= by && wy <= by + bh) return { entity: b, type: 'bush', index: i };
   }
 
-  // 9. Pressure Plates
+  // 9. Trigger Zones (Check banner and interior so they are easily clickable)
+  if (lvl.triggerZones) {
+    for (let i = lvl.triggerZones.length - 1; i >= 0; i--) {
+      const tz = lvl.triggerZones[i];
+      const bannerW = Math.min(tz.w, 180);
+      const inBanner = wx >= tz.x - 6 && wx <= tz.x + bannerW + 6 && wy >= tz.y - 24 && wy <= tz.y;
+      const inBox = wx >= tz.x - 6 && wx <= tz.x + tz.w + 6 && wy >= tz.y - 6 && wy <= tz.y + tz.h + 6;
+      if (inBanner || inBox) {
+        return { entity: tz, type: 'trigger', index: i };
+      }
+    }
+  }
+
+  // 9b. Pressure Plates
   for (let i = lvl.plates.length - 1; i >= 0; i--) {
     const p = lvl.plates[i];
     const py = p.y !== undefined ? p.y : 610;
@@ -15276,7 +15313,7 @@ function getHitResizeHandle(entity, wx, wy) {
   const box = isTut ? entity.trigger : entity;
 
   // Box Resizing (Platform, Spike, Bush, Tutcard)
-  if (box.w !== undefined && (box.h !== undefined || selectedEntityType === 'spike' || selectedEntityType === 'platform')) {
+  if (box.w !== undefined && (box.h !== undefined || selectedEntityType === 'spike' || selectedEntityType === 'platform' || selectedEntityType === 'trigger')) {
     const x = box.x || 0;
     const y = box.y !== undefined ? box.y : (selectedEntityType === 'spike' ? 580 : 610);
     const w = box.w || 100;
@@ -15319,6 +15356,18 @@ function getHitResizeHandle(entity, wx, wy) {
   if (selectedEntityType === 'plate' && entity.spikeTrigger && entity.spikeMode === 'custom' && entity.spikeX !== undefined) {
     const sy = entity.spikeY !== undefined ? entity.spikeY : 610;
     if (Math.hypot(wx - entity.spikeX, wy - sy) < tol * 1.5) return 'plate-spike';
+  }
+
+  // Teleport Destination Handle (for Trigger Zone or Plate)
+  if ((selectedEntityType === 'trigger' || selectedEntityType === 'plate') && entity.teleportTrigger && entity.teleportX !== undefined) {
+    const ty = entity.teleportY !== undefined ? entity.teleportY : (entity.y !== undefined ? entity.y : 610);
+    if (Math.hypot(wx - entity.teleportX, wy - ty) < tol * 1.8) return 'teleport-dest';
+  }
+
+  // Guard Ambush Spawn Handle (for Trigger Zone or Plate)
+  if ((selectedEntityType === 'trigger' || selectedEntityType === 'plate') && entity.guardSpawnTrigger && entity.guardSpawnX !== undefined) {
+    const gy = entity.guardSpawnY !== undefined ? entity.guardSpawnY : 610;
+    if (Math.hypot(wx - entity.guardSpawnX, wy - gy) < tol * 1.8) return 'guard-ambush';
   }
 
   return null;
@@ -15602,74 +15651,112 @@ function renderInspector() {
         <input type="number" id="prop-tower-spread" value="${ent.beamSpread || 54}">
       </div>
     `;
-  } else if (selectedEntityType === 'plate') {
+  } else if (selectedEntityType === 'trigger' || selectedEntityType === 'plate') {
+    const isTrigger = selectedEntityType === 'trigger';
     const isCustomSpike = ent.spikeMode === 'custom';
+    headerTitle.textContent = isTrigger ? 'Trigger Zone Settings' : 'Pressure Plate Settings';
+
     fieldsHtml = `
       <div class="prop-row-2col">
         <span class="prop-label">Position:</span>
         <input type="number" id="prop-x" value="${Math.round(ent.x)}">
-        <input type="number" id="prop-y" value="${Math.round(ent.y || 610)}">
+        <input type="number" id="prop-y" value="${Math.round(ent.y !== undefined ? ent.y : 610)}">
       </div>
-      <div class="prop-row">
-        <span class="prop-label">Width:</span>
-        <input type="number" id="prop-w" value="${Math.round(ent.w || 38)}">
+      <div class="prop-row-2col">
+        <span class="prop-label">Size:</span>
+        <input type="number" id="prop-w" value="${Math.round(ent.w || (isTrigger ? 160 : 38))}">
+        ${isTrigger ? `<input type="number" id="prop-h" value="${Math.round(ent.h || 90)}">` : '<span>(Floor)</span>'}
       </div>
+      ${isTrigger ? `
+        <div class="prop-row">
+          <span class="prop-label">Trigger Mode:</span>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;">
+            <input type="checkbox" id="prop-tz-oneshot" ${ent.oneShot !== false ? 'checked' : ''} style="width:auto;">
+            <span>One-Shot Only (Disarms after first touch)</span>
+          </label>
+        </div>
+      ` : ''}
       <div class="prop-row">
-        <span class="prop-label" title="Cooldown duration (in seconds) before plate can trigger again while standing on it">Retrigger Delay:</span>
-        <input type="number" id="prop-plate-rearm-delay" step="0.1" min="0.1" value="${ent.rearmDelay !== undefined ? ent.rearmDelay : 1.0}">
+        <span class="prop-label" title="Cooldown duration (in seconds) before this can trigger again">Retrigger Delay:</span>
+        <input type="number" id="prop-plate-rearm-delay" step="0.1" min="0.1" value="${ent.rearmDelay !== undefined ? ent.rearmDelay : (isTrigger ? 1.5 : 1.0)}">
       </div>
 
-      <div class="prop-section-header">Plate Actions & Hazards</div>
-      
-      <!-- Spikes Hazard Checkbox -->
+      <div class="prop-section-header">${isTrigger ? 'TRIGGER ZONE ACTIONS' : 'PLATE ACTIONS & HAZARDS'}</div>
+
+      <!-- 1. SHADOW TELEPORTATION -->
       <label class="prop-check-row">
-        <input type="checkbox" id="prop-plate-has-spike" ${ent.spikeTrigger !== false ? 'checked' : ''}>
-        <span>Thrust Trap Spikes</span>
+        <input type="checkbox" id="prop-act-teleport" ${ent.teleportTrigger ? 'checked' : ''}>
+        <span style="color:#00d2d3;font-weight:bold;">⛩ Shadow Teleportation Warp</span>
       </label>
-      ${ent.spikeTrigger !== false ? `
-        <div class="prop-subgroup">
+      ${ent.teleportTrigger ? `
+        <div class="prop-subgroup" style="border-left-color:#00d2d3;">
+          <div class="prop-row-2col">
+            <span class="prop-label">Dest (X, Y):</span>
+            <input type="number" id="prop-act-teleport-x" value="${Math.round(ent.teleportX !== undefined ? ent.teleportX : ent.x + 300)}">
+            <input type="number" id="prop-act-teleport-y" value="${Math.round(ent.teleportY !== undefined ? ent.teleportY : (ent.y || 610))}">
+          </div>
+          <div style="font-size:11px;color:#00d2d3;margin-top:2px;">Warps Ronin to this coordinate upon trigger!</div>
+        </div>
+      ` : ''}
+
+      <!-- 2. GUARD AMBUSH -->
+      <label class="prop-check-row">
+        <input type="checkbox" id="prop-act-guard" ${ent.guardSpawnTrigger ? 'checked' : ''}>
+        <span style="color:#ff6b6b;font-weight:bold;">⚔ Enemy Guard Ambush</span>
+      </label>
+      ${ent.guardSpawnTrigger ? `
+        <div class="prop-subgroup" style="border-left-color:#ff6b6b;">
+          <div class="prop-row-2col">
+            <span class="prop-label">Spawn Pos:</span>
+            <input type="number" id="prop-act-guard-x" value="${Math.round(ent.guardSpawnX !== undefined ? ent.guardSpawnX : ent.x)}">
+            <input type="number" id="prop-act-guard-y" value="${Math.round(ent.guardSpawnY !== undefined ? ent.guardSpawnY : (ent.y || 610))}">
+          </div>
           <div class="prop-row">
-            <span class="prop-label">Location:</span>
-            <select id="prop-plate-spike-mode">
-              <option value="behind" ${!isCustomSpike ? 'selected' : ''}>Behind Player (Auto)</option>
-              <option value="custom" ${isCustomSpike ? 'selected' : ''}>Custom Coordinate</option>
+            <span class="prop-label">Archetype:</span>
+            <select id="prop-act-guard-type">
+              <option value="runner" ${ent.guardSpawnType === 'runner' || !ent.guardSpawnType ? 'selected' : ''}>🏃 Runner (Fast & Deadly)</option>
+              <option value="walker" ${ent.guardSpawnType === 'walker' ? 'selected' : ''}>🚶 Walker (Standard Patrol)</option>
+              <option value="watcher" ${ent.guardSpawnType === 'watcher' ? 'selected' : ''}>👁 Watcher (Stationary Sniper)</option>
             </select>
           </div>
-          ${isCustomSpike ? `
-            <div class="prop-row-2col">
-              <span class="prop-label">Spike Pos:</span>
-              <input type="number" id="prop-plate-spike-x" value="${Math.round(ent.spikeX !== undefined ? ent.spikeX : ent.x)}">
-              <input type="number" id="prop-plate-spike-y" value="${Math.round(ent.spikeY !== undefined ? ent.spikeY : (ent.y || 610))}">
-            </div>
-          ` : ''}
-          <div class="prop-row">
-            <span class="prop-label">Delay (sec):</span>
-            <input type="number" id="prop-plate-spike-delay" step="0.1" value="${ent.spikeDelay !== undefined ? ent.spikeDelay : 0.6}">
-          </div>
         </div>
       ` : ''}
 
-      <!-- Alarm Checkbox -->
+      <!-- 3. NINJA UPDRAFT -->
       <label class="prop-check-row">
-        <input type="checkbox" id="prop-plate-has-alarm" ${ent.alarmTrigger ? 'checked' : ''}>
-        <span>Raise Dojo Alarm</span>
+        <input type="checkbox" id="prop-act-launch" ${ent.launchTrigger ? 'checked' : ''}>
+        <span style="color:#f1c40f;font-weight:bold;">💨 Ninja Updraft (High Leap)</span>
       </label>
-      ${ent.alarmTrigger ? `
-        <div class="prop-subgroup">
+      ${ent.launchTrigger ? `
+        <div class="prop-subgroup" style="border-left-color:#f1c40f;">
           <div class="prop-row">
-            <span class="prop-label">Alarm Delay:</span>
-            <input type="number" id="prop-plate-alarm-delay" step="0.1" value="${ent.alarmDelay !== undefined ? ent.alarmDelay : 0.0}">
+            <span class="prop-label">Launch Power:</span>
+            <input type="number" id="prop-act-launch-power" step="1" min="10" max="40" value="${ent.launchPower || 20}">
           </div>
         </div>
       ` : ''}
 
-      <!-- Platform Control Checkbox (Vanish / Spawn) -->
+      <!-- 4. SLOW-MO ZEN -->
+      <label class="prop-check-row">
+        <input type="checkbox" id="prop-act-slowmo" ${ent.slowMoTrigger ? 'checked' : ''}>
+        <span style="color:#a29bfe;font-weight:bold;">⏳ Slow-Mo Zen Focus</span>
+      </label>
+      ${ent.slowMoTrigger ? `
+        <div class="prop-subgroup" style="border-left-color:#a29bfe;">
+          <div class="prop-row">
+            <span class="prop-label">Duration (s):</span>
+            <input type="number" id="prop-act-slowmo-dur" step="0.5" min="0.5" max="10" value="${ent.slowMoDuration || 2.5}">
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- 5. PLATFORM CONTROL (VANISH / SPAWN) -->
       <label class="prop-check-row">
         <input type="checkbox" id="prop-plate-has-plat" ${(ent.platTrigger || ent.vanishTrigger) ? 'checked' : ''}>
-        <span>Control Platform (Vanish / Spawn)</span>
+        <span style="color:#fdcb6e;font-weight:bold;">▬ Platform Control (Vanish / Spawn)</span>
       </label>
       ${(ent.platTrigger || ent.vanishTrigger) ? `
-        <div class="prop-subgroup">
+        <div class="prop-subgroup" style="border-left-color:#fdcb6e;">
           <div class="prop-row">
             <span class="prop-label">Action:</span>
             <select id="prop-plate-plat-action">
@@ -15699,20 +15786,62 @@ function renderInspector() {
         </div>
       ` : ''}
 
-      <!-- Tutorial Popup Checkbox -->
+      <!-- 6. SPIKES HAZARD -->
+      <label class="prop-check-row">
+        <input type="checkbox" id="prop-plate-has-spike" ${ent.spikeTrigger ? 'checked' : ''}>
+        <span>▲ Thrust Trap Spikes</span>
+      </label>
+      ${ent.spikeTrigger ? `
+        <div class="prop-subgroup">
+          <div class="prop-row">
+            <span class="prop-label">Location:</span>
+            <select id="prop-plate-spike-mode">
+              <option value="behind" ${!isCustomSpike ? 'selected' : ''}>Behind Player (Auto)</option>
+              <option value="custom" ${isCustomSpike ? 'selected' : ''}>Custom Coordinate</option>
+            </select>
+          </div>
+          ${isCustomSpike ? `
+            <div class="prop-row-2col">
+              <span class="prop-label">Spike Pos:</span>
+              <input type="number" id="prop-plate-spike-x" value="${Math.round(ent.spikeX !== undefined ? ent.spikeX : ent.x)}">
+              <input type="number" id="prop-plate-spike-y" value="${Math.round(ent.spikeY !== undefined ? ent.spikeY : (ent.y || 610))}">
+            </div>
+          ` : ''}
+          <div class="prop-row">
+            <span class="prop-label">Delay (sec):</span>
+            <input type="number" id="prop-plate-spike-delay" step="0.1" value="${ent.spikeDelay !== undefined ? ent.spikeDelay : 0.6}">
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- 7. ALARM -->
+      <label class="prop-check-row">
+        <input type="checkbox" id="prop-plate-has-alarm" ${ent.alarmTrigger ? 'checked' : ''}>
+        <span>🚨 Raise Dojo Alarm</span>
+      </label>
+      ${ent.alarmTrigger ? `
+        <div class="prop-subgroup">
+          <div class="prop-row">
+            <span class="prop-label">Alarm Delay:</span>
+            <input type="number" id="prop-plate-alarm-delay" step="0.1" value="${ent.alarmDelay !== undefined ? ent.alarmDelay : 0.0}">
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- 8. COACHING CARD -->
       <label class="prop-check-row">
         <input type="checkbox" id="prop-plate-has-tut" ${ent.triggerTutorial ? 'checked' : ''}>
-        <span>Show Coaching Card on Step</span>
+        <span>📜 Show Coaching Prompt Card</span>
       </label>
       ${ent.triggerTutorial ? `
         <div class="prop-subgroup">
           <div class="prop-row">
             <span class="prop-label">Title:</span>
-            <input type="text" id="prop-plate-tut-title" value="${escapeHtml(ent.tutTitle || 'PRESSURE PLATE TRIGGERED!')}">
+            <input type="text" id="prop-plate-tut-title" value="${escapeHtml(ent.tutTitle || (isTrigger ? 'TRIGGER ACTIVATED!' : 'PRESSURE PLATE TRIGGERED!'))}">
           </div>
           <div style="margin-top:4px;">
             <span class="prop-label" style="display:block; margin-bottom:2px;">Message:</span>
-            <textarea id="prop-plate-tut-text" style="height:60px;">${escapeHtml(ent.tutText || 'You just stepped on a pressure plate!\\nA deadly trap spike will thrust out of the ground behind you in 0.6s!\\nLEAP FORWARD IMMEDIATELY to avoid getting impaled!')}</textarea>
+            <textarea id="prop-plate-tut-text" style="height:60px;">${escapeHtml(ent.tutText || (isTrigger ? 'You stepped into a secret trigger zone!' : 'You just stepped on a pressure plate!'))}</textarea>
           </div>
         </div>
       ` : ''}
@@ -15956,6 +16085,73 @@ function renderInspector() {
   });
   bindField('prop-plate-tut-title', e => { ent.tutTitle = e.target.value; });
   bindField('prop-plate-tut-text', e => { ent.tutText = e.target.value; });
+
+  // Trigger Zone oneshot
+  const inTzOneShot = document.getElementById('prop-tz-oneshot');
+  if (inTzOneShot) inTzOneShot.addEventListener('change', e => {
+    recordHistory();
+    ent.oneShot = e.target.checked;
+    saveToLocalStorage(true, false);
+  });
+
+  // Teleportation Action Binds
+  const inActTeleport = document.getElementById('prop-act-teleport');
+  if (inActTeleport) inActTeleport.addEventListener('change', e => {
+    recordHistory();
+    ent.teleportTrigger = e.target.checked;
+    if (ent.teleportTrigger && ent.teleportX === undefined) {
+      ent.teleportX = Math.round(ent.x + 300);
+      ent.teleportY = Math.round(ent.y !== undefined ? ent.y : 610);
+    }
+    renderInspector();
+    saveToLocalStorage(true, false);
+  });
+  bindField('prop-act-teleport-x', e => { ent.teleportX = parseInt(e.target.value, 10) || 0; });
+  bindField('prop-act-teleport-y', e => { ent.teleportY = parseInt(e.target.value, 10) || 610; });
+
+  // Guard Ambush Action Binds
+  const inActGuard = document.getElementById('prop-act-guard');
+  if (inActGuard) inActGuard.addEventListener('change', e => {
+    recordHistory();
+    ent.guardSpawnTrigger = e.target.checked;
+    if (ent.guardSpawnTrigger && ent.guardSpawnX === undefined) {
+      ent.guardSpawnX = Math.round(ent.x);
+      ent.guardSpawnY = Math.round(ent.y !== undefined ? ent.y : 610);
+      ent.guardSpawnType = 'runner';
+    }
+    renderInspector();
+    saveToLocalStorage(true, false);
+  });
+  bindField('prop-act-guard-x', e => { ent.guardSpawnX = parseInt(e.target.value, 10) || 0; });
+  bindField('prop-act-guard-y', e => { ent.guardSpawnY = parseInt(e.target.value, 10) || 610; });
+  const inActGuardType = document.getElementById('prop-act-guard-type');
+  if (inActGuardType) inActGuardType.addEventListener('change', e => {
+    recordHistory();
+    ent.guardSpawnType = e.target.value;
+    saveToLocalStorage(true, false);
+  });
+
+  // Ninja Updraft Action Binds
+  const inActLaunch = document.getElementById('prop-act-launch');
+  if (inActLaunch) inActLaunch.addEventListener('change', e => {
+    recordHistory();
+    ent.launchTrigger = e.target.checked;
+    if (ent.launchTrigger && !ent.launchPower) ent.launchPower = 20;
+    renderInspector();
+    saveToLocalStorage(true, false);
+  });
+  bindField('prop-act-launch-power', e => { ent.launchPower = parseInt(e.target.value, 10) || 20; });
+
+  // Slow-Mo Action Binds
+  const inActSlowMo = document.getElementById('prop-act-slowmo');
+  if (inActSlowMo) inActSlowMo.addEventListener('change', e => {
+    recordHistory();
+    ent.slowMoTrigger = e.target.checked;
+    if (ent.slowMoTrigger && !ent.slowMoDuration) ent.slowMoDuration = 2.5;
+    renderInspector();
+    saveToLocalStorage(true, false);
+  });
+  bindField('prop-act-slowmo-dur', e => { ent.slowMoDuration = parseFloat(e.target.value) || 2.5; });
 
   // Text specific fields (Text (X))
   bindField('prop-text-size', e => { ent.size = parseInt(e.target.value, 10) || 16; });
@@ -16268,10 +16464,62 @@ function drawPlate(p, isSelected) {
     }
   }
 
+  // If teleport trigger configured
+  if (p.teleportTrigger && p.teleportX !== undefined) {
+    const tx = p.teleportX;
+    const ty = p.teleportY !== undefined ? p.teleportY : (p.y !== undefined ? p.y : 610);
+    ctx.strokeStyle = '#00d2d3';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.lineTo(tx, ty);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = 'rgba(0, 210, 211, 0.2)';
+    ctx.beginPath();
+    ctx.arc(tx, ty, 20, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#00d2d3';
+    ctx.stroke();
+    ctx.fillStyle = '#00d2d3';
+    ctx.font = 'bold 9px Rajdhani';
+    ctx.fillText('⛩ WARP DEST', tx - 28, ty - 24);
+  }
+
+  // If guard ambush configured
+  if (p.guardSpawnTrigger && p.guardSpawnX !== undefined) {
+    const gx = p.guardSpawnX;
+    const gy = p.guardSpawnY !== undefined ? p.guardSpawnY : 610;
+    ctx.strokeStyle = '#e74c3c';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.lineTo(gx, gy - 20);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = 'rgba(231, 76, 60, 0.3)';
+    ctx.fillRect(gx - 14, gy - 44, 28, 44);
+    ctx.strokeStyle = '#e74c3c';
+    ctx.strokeRect(gx - 14, gy - 44, 28, 44);
+    ctx.fillStyle = '#e74c3c';
+    ctx.font = 'bold 9px Rajdhani';
+    ctx.fillText('⚔ ' + (p.guardSpawnType || 'runner').toUpperCase(), gx - 24, gy - 48);
+  }
+
   if (isSelected) {
     drawSelectionBox(px - pw / 2 - 4, py - 4, pw + 8, 14);
     if (p.spikeTrigger !== false && p.spikeMode === 'custom' && p.spikeX !== undefined) {
       drawRangeHandle(p.spikeX, p.spikeY !== undefined ? p.spikeY : 610, 'SPIKE TARGET');
+    }
+    if (p.teleportTrigger && p.teleportX !== undefined) {
+      drawRangeHandle(p.teleportX, p.teleportY !== undefined ? p.teleportY : (p.y !== undefined ? p.y : 610), 'WARP DEST');
+    }
+    if (p.guardSpawnTrigger && p.guardSpawnX !== undefined) {
+      drawRangeHandle(p.guardSpawnX, p.guardSpawnY !== undefined ? p.guardSpawnY : 610, 'AMBUSH SPAWN');
     }
   }
   ctx.restore();
@@ -16604,6 +16852,12 @@ function drawTriggerZone(tz, isSelected) {
 
   if (isSelected) {
     drawSelectionBox(x, y, w, h);
+    if (tz.teleportTrigger && tz.teleportX !== undefined) {
+      drawRangeHandle(tz.teleportX, tz.teleportY !== undefined ? tz.teleportY : y, 'WARP DEST');
+    }
+    if (tz.guardSpawnTrigger && tz.guardSpawnX !== undefined) {
+      drawRangeHandle(tz.guardSpawnX, tz.guardSpawnY !== undefined ? tz.guardSpawnY : 610, 'AMBUSH SPAWN');
+    }
   }
   ctx.restore();
 }
@@ -17646,7 +17900,14 @@ Click Cancel to ADD it as a NEW level.`);
 function serializeLevel(lvl) {
     return {
       name: lvl.name,
-      w: Math.max(2400, lvl.exit ? lvl.exit.x + 300 : 2400),
+      w: (function() {
+        const maxPlatX = (lvl.platforms || []).reduce((max, p) => Math.max(max, p.x + (p.w || 0)), 0);
+        const maxKeyX = (lvl.keys || []).reduce((max, k) => Math.max(max, k.x + 200), 0);
+        const maxGuardX = (lvl.guards || []).reduce((max, g) => Math.max(max, g.maxX || g.x || 0), 0);
+        const exitX = lvl.exit ? (lvl.exit.x + (lvl.exit.w || 96) + 300) : 2400;
+        const calcW = Math.max(2400, maxPlatX + 150, maxKeyX + 250, maxGuardX + 150, exitX);
+        return lvl.w ? Math.max(lvl.w, calcW) : calcW;
+      })(),
       par: 35,
       spawnX: lvl.spawn ? lvl.spawn.x : 80,
       spawnY: lvl.spawn ? lvl.spawn.y : 564,
