@@ -834,11 +834,7 @@ function syncCustomLevelsFromStorage(){
           beamSpread: t.beamSpread || 54
         })),
         guards: (el.guards || []).map(g => {
-          let gy = g.y !== undefined ? g.y : G;
-          if (gy >= 580) {
-            const host = (el.platforms || []).find(p => p.y < 580 && g.x >= p.x - 25 && g.x <= p.x + p.w + 25);
-            if (host) gy = host.y;
-          }
+          const gy = g.y !== undefined ? g.y : G;
           return {
             type: g.type || (g.speed > 1.8 ? 'runner' : (g.speed === 0 ? 'watcher' : 'walker')),
             x: g.x,

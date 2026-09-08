@@ -13934,14 +13934,6 @@ function loadLevels() {
             saveToLocalStorage(true, false);
           }
         }
-        levels.forEach(lvl => {
-          (lvl.guards || []).forEach(g => {
-            if (g.y === undefined || g.y >= 600) {
-              const host = (lvl.platforms || []).find(p => p.y < 590 && g.x >= p.x - 15 && g.x <= p.x + p.w + 15 && (g.minX >= p.x - 20 || g.maxX <= p.x + p.w + 20));
-              if (host) g.y = host.y;
-            }
-          });
-        });
         showToast('Loaded saved levels from storage', 'success');
         return;
       }
