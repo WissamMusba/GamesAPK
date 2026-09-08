@@ -13939,6 +13939,19 @@ function loadLevels() {
         levels.forEach(lvl => (lvl.towers || []).forEach(t => {
           if (t.alertTime === 1.1 || t.spotlightTime === 1.1) t.alertTime = 0.7;
         }));
+        // Ensure proper Level 1 to 30 naming across saved levels
+        let regularCount = 1;
+        levels.forEach((lvl, idx) => {
+          if (lvl.isTutorial || lvl.id === 'tutorial' || idx === 0) {
+            if (!lvl.name || !lvl.name.toLowerCase().includes('tutorial')) {
+              lvl.name = 'Tutorial: The Path of Shadows';
+            }
+          } else {
+            const rawTitle = (lvl.name || '').replace(/^Level\s*\d+\s*:\s*/i, '').trim() || `Room ${regularCount}`;
+            lvl.name = `Level ${regularCount}: ${rawTitle}`;
+            regularCount++;
+          }
+        });
         showToast('Loaded saved levels from storage', 'success');
         return;
       }
@@ -14324,13 +14337,16 @@ function renderLevelList() {
     item.className = 'level-item' + (idx === currentLevelIndex ? ' active' : '');
     item.onclick = () => selectLevel(idx);
 
+    const isTut = lvl.isTutorial || lvl.id === 'tutorial' || idx === 0;
+    const fallbackName = isTut ? 'Tutorial: The Path of Shadows' : `Level ${idx}: Custom Room`;
+
     const titleSpan = document.createElement('span');
-    titleSpan.textContent = lvl.name || `Level ${idx + 1}`;
+    titleSpan.textContent = lvl.name || fallbackName;
     item.appendChild(titleSpan);
 
     const tagSpan = document.createElement('span');
     tagSpan.className = 'level-tag';
-    tagSpan.textContent = lvl.isTutorial ? 'TUT' : `L${idx}`;
+    tagSpan.textContent = isTut ? 'TUT' : `L${idx}`;
     item.appendChild(tagSpan);
 
     container.appendChild(item);
@@ -14338,7 +14354,7 @@ function renderLevelList() {
     // Top Dropdown
     const opt = document.createElement('option');
     opt.value = idx;
-    opt.textContent = lvl.name || `Level ${idx + 1}`;
+    opt.textContent = lvl.name || fallbackName;
     if (idx === currentLevelIndex) opt.selected = true;
     selectTop.appendChild(opt);
   });
@@ -14969,7 +14985,8 @@ function updateLevelQuickStats() {
   const statsEl = document.getElementById('level-quick-stats');
   const tagBadge = document.getElementById('current-level-tag-badge');
   if (!statsEl || !lvl) return;
-  if (tagBadge) tagBadge.textContent = lvl.isTutorial ? 'TUTORIAL' : `LEVEL ${currentLevelIndex}`;
+  const isTut = lvl.isTutorial || lvl.id === 'tutorial' || currentLevelIndex === 0;
+  if (tagBadge) tagBadge.textContent = isTut ? 'TUTORIAL' : `LEVEL ${currentLevelIndex}`;
 
   const solidCount = (lvl.platforms || []).filter(p => !p.isCrumble && !p.isAsh && !(p.y >= 610 && p.w >= 2000)).length;
   const crumbleCount = (lvl.platforms || []).filter(p => p.isCrumble).length;
@@ -18201,7 +18218,8 @@ function openExportModal() {
   levels.forEach((lvl, idx) => {
     const opt = document.createElement('option');
     opt.value = idx;
-    opt.textContent = `${idx + 1}. ${lvl.name || 'Level ' + (idx + 1)}${lvl.isTutorial ? ' [TUTORIAL]' : ''}`;
+    const isTut = lvl.isTutorial || lvl.id === 'tutorial' || idx === 0;
+    opt.textContent = isTut ? 'Tutorial: The Path of Shadows' : (lvl.name || `Level ${idx}`);
     if (idx === currentLevelIndex) opt.selected = true;
     select.appendChild(opt);
   });
@@ -18225,7 +18243,8 @@ function updateExportModalPreview() {
     const idx = parseInt(document.getElementById('export-level-select').value, 10) || 0;
     const lvl = levels[idx] || getCurrentLevel();
     payload = lvl;
-    summaryTitle = `⛩ Level ${idx + 1}: ${lvl.name}${lvl.isTutorial ? ' (Tutorial)' : ''}`;
+    const isTut = lvl.isTutorial || lvl.id === 'tutorial' || idx === 0;
+    summaryTitle = `⛩ ${isTut ? 'Tutorial' : ('Level ' + idx)}: ${lvl.name || ''}`;
     statsText = `▬ ${(lvl.platforms || []).length} Plats | ⚔ ${(lvl.guards || []).length} Guards | 🗼 ${(lvl.towers || []).length} Towers | ▤ ${(lvl.plates || []).length} Plates`;
   } else {
     payload = levels;
@@ -18492,8 +18511,8 @@ function openGitModal() {
   saveToLocalStorage(true, true);
   const lvl = getCurrentLevel();
   const lvlName = lvl ? (lvl.name || 'Level') : 'Level';
-  const isTut = lvl && (lvl.isTutorial || currentLevelIndex === 0);
-  const badgeText = isTut ? 'TUTORIAL' : ('LEVEL ' + (currentLevelIndex + 1));
+  const isTut = lvl && (lvl.isTutorial || lvl.id === 'tutorial' || currentLevelIndex === 0);
+  const badgeText = isTut ? 'TUTORIAL' : ('LEVEL ' + currentLevelIndex);
 
   document.getElementById('git-level-badge').textContent = badgeText;
   document.getElementById('git-level-name').textContent = lvlName;
@@ -18535,7 +18554,8 @@ function openCodeModal() {
   levels.forEach((lvl, idx) => {
     const opt = document.createElement('option');
     opt.value = idx;
-    opt.textContent = `${idx + 1}. ${lvl.name}`;
+    const isTut = lvl.isTutorial || lvl.id === 'tutorial' || idx === 0;
+    opt.textContent = isTut ? 'Tutorial: The Path of Shadows' : (lvl.name || `Level ${idx}`);
     if (idx === currentLevelIndex) opt.selected = true;
     select.appendChild(opt);
   });
@@ -18555,11 +18575,12 @@ function updateCodeModalPreview() {
   if (isSingle) {
     const idx = parseInt(select.value, 10) || 0;
     const lvl = levels[idx] || getCurrentLevel();
-    const varName = lvl.isTutorial ? 'TUTORIAL_LEVEL' : ('LEVEL_' + (idx + 1));
-    code = '// --- ' + (lvl.name || 'Level') + ' ---\nconst ' + varName + ' = ' + JSON.stringify(serializeLevel(lvl), null, 2) + ';';
+    const isTut = lvl.isTutorial || lvl.id === 'tutorial' || idx === 0;
+    const varName = isTut ? 'TUTORIAL_LEVEL' : ('LEVEL_' + idx);
+    code = '// --- ' + (lvl.name || (isTut ? 'Tutorial' : `Level ${idx}`)) + ' ---\nconst ' + varName + ' = ' + JSON.stringify(serializeLevel(lvl), null, 2) + ';';
   } else {
-    const tutLvl = levels.find(l => l.isTutorial) || levels[0];
-    const normalLevels = levels.filter(l => !l.isTutorial);
+    const tutLvl = levels.find(l => l.isTutorial || l.id === 'tutorial') || levels[0];
+    const normalLevels = levels.filter((l, i) => !l.isTutorial && l.id !== 'tutorial' && i > 0);
     code = '// --- TUTORIAL LEVEL ---\nconst TUTORIAL_LEVEL = ' + JSON.stringify(serializeLevel(tutLvl), null, 2) + ';\n\n// --- GAME LEVELS ---\nconst LEVELS = ' + JSON.stringify(normalLevels.map(serializeLevel), null, 2) + ';';
   }
 
