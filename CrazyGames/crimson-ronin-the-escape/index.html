@@ -3788,6 +3788,7 @@ function drawPlatforms(){
       ctx.fillStyle=p.vState==='shake'?(Math.sin(tGlobal*30)>0?'#ff5a3c':'#ff9a6a'):'#ff6e42';
       ctx.globalAlpha=0.7;
       ctx.fillRect(2,0,p.w-4,2.4);
+      ctx.restore();
     }else if(p.t==='wall'||p.platType==='wall'||p.climbable){
       // Climbable wall texture & slats
       const g=ctx.createLinearGradient(0,0,p.w,0);
