@@ -17832,11 +17832,34 @@ function updatePlaytest() {
   r.y += r.vy * dt;
   r.onGround = false;
 
+  // Auto-mantle onto top of wall when climbing reaches top edge
+  if (r.isClimbing && touchingWallPlat && (r.y + r.h <= touchingWallPlat.y + 16) && playKeys.up) {
+    r.y = touchingWallPlat.y - r.h;
+    r.x = touchingWallPlat.x + (touchingWallPlat.w - r.w) / 2;
+    r.vy = 0;
+    r.vx = 0;
+    r.isClimbing = false;
+    r.onGround = true;
+    r.jumpsLeft = 2;
+  }
+
   // Platform Collisions
   (lvl.platforms || []).forEach((p, idx) => {
     if (playState.platStates && playState.platStates[idx] && playState.platStates[idx].vState === 'gone') return;
     if (playState.crumbleTimers[idx] && playState.crumbleTimers[idx].fallen) return;
-    if (p.platType === 'wall' || p.climbable) return; // Wall climb platforms are handled separately
+
+    const isWall = (p.platType === 'wall' || p.climbable);
+    if (isWall) {
+      // Allow standing/landing on the top edge of a wall platform
+      if (r.x + r.w > p.x - 4 && r.x < p.x + p.w + 4 && r.y + r.h >= p.y && r.y + r.h <= p.y + 20 && r.vy >= 0) {
+        r.y = p.y - r.h;
+        r.vy = 0;
+        r.onGround = true;
+        r.jumpsLeft = 2;
+        r.isClimbing = false;
+      }
+      return;
+    }
 
     if (r.x + r.w > p.x && r.x < p.x + p.w && r.y + r.h >= p.y && r.y + r.h <= p.y + p.h + 16 && r.vy >= 0) {
       r.y = p.y - r.h;
