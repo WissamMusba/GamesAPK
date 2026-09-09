@@ -806,6 +806,7 @@ function syncCustomLevelsFromStorage(){
           tutTitle: p.tutTitle || 'PRESSURE PLATE TRIGGERED!',
           tutText: p.tutText || 'You just stepped on a pressure plate!\nA deadly trap spike will thrust out of the ground behind you in 0.6s!\nLEAP FORWARD IMMEDIATELY to avoid getting impaled!',
           tutKanji: p.tutKanji || '罠',
+          popupText: p.popupText !== undefined ? p.popupText : true,
           teleportTrigger: !!p.teleportTrigger,
           teleportX: p.teleportX,
           teleportY: p.teleportY,
@@ -826,6 +827,7 @@ function syncCustomLevelsFromStorage(){
           h: tz.h || 100,
           oneShot: tz.oneShot !== undefined ? tz.oneShot : true,
           rearmDelay: tz.rearmDelay || 1.5,
+          popupText: tz.popupText !== undefined ? tz.popupText : true,
           teleportTrigger: !!tz.teleportTrigger,
           teleportX: tz.teleportX,
           teleportY: tz.teleportY,
@@ -1033,7 +1035,7 @@ function burstDeath(x,y){
   parts.push(new Particle({type:'ring',x,y,color:'rgba(255,240,220,0.9)',life:0.4,vr:520}));
 }
 
-function soundAlarm(ax){
+function soundAlarm(ax, showText = true){
   Snd.alarm();
   for(const g of guards){
     if(g.type==='watcher')continue;
@@ -1042,7 +1044,7 @@ function soundAlarm(ax){
       g.lastSeen={x:ax,y:player.y+player.h};
     }
   }
-  texts.push(new FloatText(ax,player.y-34,'ALARM!','#ff5340'));
+  if(showText !== false) texts.push(new FloatText(ax,player.y-34,'ALARM!','#ff5340'));
   if(settings.particles)parts.push(new Particle({type:'ring',x:ax,y:player.y+20,color:'rgba(255,70,40,0.8)',life:0.5,vr:600}));
 }
 function towerAlarm(tower){
@@ -1159,6 +1161,7 @@ class Blade{
 // TRIGGER ZONE & ENHANCED TRAP ACTION RUNTIME
 // =========================================================================
 function executeEnhancedTrigger(src) {
+  const showText = src.popupText !== false;
   // 1. Shadow Teleport Portal
   if (src.teleportTrigger && src.teleportX !== undefined) {
     burstDust(player.x, player.y - 15, 20);
@@ -1168,7 +1171,7 @@ function executeEnhancedTrigger(src) {
     player.vy = 0;
     burstDust(player.x, player.y - 15, 20);
     Snd.dash();
-    texts.push(new FloatText(player.x, player.y - 30, 'SHADOW WARP!', '#00d2d3'));
+    if (showText) texts.push(new FloatText(player.x, player.y - 30, 'SHADOW WARP!', '#00d2d3'));
   }
 
   // 2. Guard Ambush
@@ -1188,7 +1191,7 @@ function executeEnhancedTrigger(src) {
     guards.push(newG);
     burstDust(gx, gy - 15, 24);
     Snd.alert();
-    texts.push(new FloatText(gx, gy - 32, 'AMBUSH!', '#e74c3c'));
+    if (showText) texts.push(new FloatText(gx, gy - 32, 'AMBUSH!', '#e74c3c'));
   }
 
   // 3. Ninja Updraft (Launch Leap)
@@ -1198,14 +1201,14 @@ function executeEnhancedTrigger(src) {
     player.onGround = false;
     burstDust(player.x, player.y, 16);
     Snd.doubleJump();
-    texts.push(new FloatText(player.x, player.y - 30, 'NINJA LEAP!', '#f1c40f'));
+    if (showText) texts.push(new FloatText(player.x, player.y - 30, 'NINJA LEAP!', '#f1c40f'));
   }
 
   // 4. Slow-Mo Zen Focus
   if (src.slowMoTrigger) {
     slowMoTimer = Math.max(slowMoTimer, src.slowMoDuration || 2.5);
     Snd.alert();
-    texts.push(new FloatText(player.x, player.y - 30, 'ZEN FOCUS ⏳', '#a29bfe'));
+    if (showText) texts.push(new FloatText(player.x, player.y - 30, 'ZEN FOCUS ⏳', '#a29bfe'));
   }
 }
 
@@ -1258,6 +1261,7 @@ class TriggerZone {
     this.tutText = d.tutText || '';
     this.tutKanji = d.tutKanji || '発';
 
+    this.popupText = d.popupText !== undefined ? d.popupText : true;
     this.spikeTimer = -1;
     this.alarmTimer = -1;
     this.platTimer = -1;
@@ -1278,7 +1282,7 @@ class TriggerZone {
       this.alarmTimer -= dt;
       if (this.alarmTimer <= 0) {
         this.alarmTimer = -1;
-        soundAlarm(this.x);
+        soundAlarm(this.x, this.popupText !== false);
       }
     }
     if (this.platTimer >= 0) {
@@ -1366,13 +1370,14 @@ class TriggerZone {
 
   applyPlatAction(target) {
     if (!target) return;
+    const showText = this.popupText !== false;
     if (this.platAction === 'spawn') {
       target.vState = 'solid';
       target.spawnTimer = this.platDuration > 0 ? this.platDuration : 0;
       target.vT = 0;
       Snd.doubleJump();
       burstDust(target.x + target.w / 2, target.y + target.h / 2, 10);
-      texts.push(new FloatText(target.x + target.w / 2, target.y - 24, 'PLATFORM SPAWNED!', '#00d2d3'));
+      if (showText) texts.push(new FloatText(target.x + target.w / 2, target.y - 24, 'PLATFORM SPAWNED!', '#00d2d3'));
     } else {
       target.vState = 'gone';
       target.spawnTimer = 0;
@@ -1383,7 +1388,7 @@ class TriggerZone {
       }
       Snd.crumble();
       burstDust(target.x + target.w / 2, target.y + target.h / 2, 8);
-      texts.push(new FloatText(target.x + target.w / 2, target.y - 24, 'COLLAPSED!', '#e74c3c'));
+      if (showText) texts.push(new FloatText(target.x + target.w / 2, target.y - 24, 'COLLAPSED!', '#e74c3c'));
     }
   }
 }
@@ -1394,6 +1399,7 @@ class Plate{
       this.x=d.x;
       this.y=(d.y!==undefined?d.y:G);
       this.w=d.w||38;
+      this.popupText=d.popupText!==undefined?d.popupText:true;
       this.spikeTrigger=d.spikeTrigger!==undefined?d.spikeTrigger:(d.fx==='spike'||!d.fx);
       this.spikeMode=d.spikeMode||(d.spikeX!==undefined?'custom':'behind');
       this.spikeX=d.spikeX!==undefined?d.spikeX:d.x;
@@ -1436,6 +1442,7 @@ class Plate{
       this.fx=fx||'spike';
       this.y=(y!==undefined?y:G);
       this.w=38;
+      this.popupText=true;
       this.spikeTrigger=this.fx==='spike';
       this.spikeMode='behind';
       this.spikeX=this.x;
@@ -1494,7 +1501,7 @@ class Plate{
         this.alarmTimer-=dt;
         if(this.alarmTimer<=0){
           this.alarmTimer=-1;
-          soundAlarm(this.x);
+          soundAlarm(this.x, this.popupText !== false);
         }
       }
       if(this.platTimer>=0){
@@ -1522,13 +1529,14 @@ class Plate{
             }
           }
           if(target){
+            const showText = this.popupText !== false;
             if(this.platAction==='spawn'){
               target.vState='solid';
               target.spawnTimer=this.platDuration>0?this.platDuration:0;
               target.vT=0;
               Snd.doubleJump();
               burstDust(target.x+target.w/2,target.y+target.h/2,10);
-              texts.push(new FloatText(target.x+target.w/2,target.y-24,'PLATFORM SPAWNED!','#00d2d3'));
+              if (showText) texts.push(new FloatText(target.x+target.w/2,target.y-24,'PLATFORM SPAWNED!','#00d2d3'));
             }else{
               target.vState='gone';
               target.spawnTimer=0;
@@ -1539,7 +1547,7 @@ class Plate{
               }
               Snd.crumble();
               burstDust(target.x+target.w/2,target.y+target.h/2,8);
-              texts.push(new FloatText(target.x+target.w/2,target.y-24,'COLLAPSED!','#e74c3c'));
+              if (showText) texts.push(new FloatText(target.x+target.w/2,target.y-24,'COLLAPSED!','#e74c3c'));
             }
           }
         }
@@ -1560,7 +1568,7 @@ class Plate{
         this.platTimer=this.platTrigger?Math.max(0.01,this.platDelay):-1;
         executeEnhancedTrigger(this);
         Snd.plate();
-        texts.push(new FloatText(this.x,this.y-26,'click...','rgba(255,150,120,0.9)'));
+        if(this.popupText !== false) texts.push(new FloatText(this.x,this.y-26,'click...','rgba(255,150,120,0.9)'));
         if((this.triggerTutorial && !tutTriggered['plate_'+this.x]) || (isTutorial && !tutTriggered['plate_tut_intro'])){
           tutTriggered['plate_tut_intro']=true;
           if(this.triggerTutorial) tutTriggered['plate_'+this.x]=true;
@@ -2503,7 +2511,8 @@ class Player{
       this.buffer-=dt;
       return;
     }
-    const spd=300*(this.slow?0.45:1);
+    const zenBoost = (typeof slowMoTimer !== 'undefined' && slowMoTimer > 0) ? 1.25 : 1.0;
+    const spd=300*(this.slow?0.45:1)*zenBoost;
     this.vx=dir*spd;
     if(this.vx>10)this.facing=1;
     else if(this.vx<-10)this.facing=-1;
@@ -3482,7 +3491,8 @@ function update(dt){
     }
 
     const canSense=mercyT<=0;
-    for(const g of guards)g.update(dt,canSense);
+    const guardDt = (slowMoTimer > 0) ? dt * 0.7 : dt;
+    for(const g of guards)g.update(guardDt,canSense);
     for(const p of plates)p.update(dt);
   if (typeof triggerZones !== 'undefined') { for(const tz of triggerZones) tz.update(dt); }
     for(const ts of trapSpikes)ts.update(dt);
