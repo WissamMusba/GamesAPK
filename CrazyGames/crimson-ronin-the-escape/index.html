@@ -886,10 +886,10 @@ function syncCustomLevelsFromStorage(){
         }),
         crates: (el.crates || []).map(c => (typeof c === 'object' ? (c.y !== undefined ? { x: c.x, y: c.y } : c.x) : c)),
         bushes: (el.bushes || []).map(b => (typeof b === 'object' ? (b.y !== undefined ? { x: b.x, y: b.y } : b.x) : b)),
-        keys: (el.keys || []).map(k => ({ x: k.x, y: k.y })),
-        doorX: el.exit ? el.exit.x : 2200,
-        orbs: (el.ki || []).map(k => [k.x, k.y]),
-        signs: (el.texts || []).map(t => [t.x, t.y, t.text]),
+        keys: (el.keys || []).map(k => (typeof k === 'object' ? { x: k.x !== undefined ? k.x : (Array.isArray(k) ? k[0] : 0), y: k.y !== undefined ? k.y : (Array.isArray(k) ? k[1] : 500) } : { x: k, y: 500 })),
+        doorX: el.exit ? el.exit.x : (el.doorX !== undefined ? el.doorX : 2200),
+        orbs: (el.ki || el.orbs || []).map(k => (Array.isArray(k) ? [k[0], k[1]] : [k.x !== undefined ? k.x : 0, k.y !== undefined ? k.y : 500])),
+        signs: (el.texts || el.signs || []).map(t => (Array.isArray(t) ? t : [t.x, t.y, t.text])),
         tutorialCards: (el.tutorialCards || []).map(c => ({
           id: c.id || ('tut_' + Math.random().toString(36).substring(2, 6)),
           title: c.title || 'TUTORIAL INSTRUCTION',
@@ -957,6 +957,7 @@ let onboardT=0;
 const visitedLevels=new Set();
 let doorOpenedSfx=false;
 let currentCheckpointX=90;
+let currentCheckpointY=580;
 
 // KEYBOARD FOCUS FIX: only show the "take control" prompt when the
 // window/iframe doesn't have focus (e.g. embedded on CrazyGames).
@@ -2415,7 +2416,10 @@ class Guard{
 class Player{
   constructor(){this.w=38;this.h=62;this.reset();}
   reset(){
-    this.x=currentCheckpointX;this.y=G-this.h;this.vx=0;this.vy=0;
+    this.x=currentCheckpointX;
+    this.y=(typeof currentCheckpointY!=='undefined' && currentCheckpointY<=G)?(currentCheckpointY-this.h):(G-this.h);
+    if(this.y<0)this.y=G-this.h;
+    this.vx=0;this.vy=0;
     this.onGround=true;this.jumpsLeft=2;this.coyote=0;this.buffer=0;
     this.runPhase=0;this.deform=0;this.dustT=0;this.stepT=0;
     this.hidden=false;this.hideCrate=null;this.dead=false;
@@ -2756,6 +2760,7 @@ function loadLevel(i){
   L=d;curName=d.name;parTime=d.par;
   keysNeed=d.keys.length;keyGotCount=0;
   currentCheckpointX=d.spawnX!==undefined?d.spawnX:90;
+  currentCheckpointY=d.spawnY!==undefined?d.spawnY:G;
   plats=[{x:0,y:G,w:d.w,h:110,t:'n'}];
   for(const p of d.plats){
     if(Array.isArray(p))plats.push({x:p[0],y:p[1],w:p[2],h:p[3],t:'n'});
@@ -3260,6 +3265,10 @@ window.addEventListener('keydown',e=>{
     if(c==='Space'||c==='Enter'){dismissTutCard();e.preventDefault();}
     return;
   }
+  if(state==='brief'){
+    startReady(0.15);
+    if(c==='Space'||c==='Enter')e.preventDefault();
+  }
   if((c==='Escape'||c==='KeyP')&&inGame()&&state!=='dead'&&state!=='cleared'&&state!=='win'){
     if(state==='paused'){state='play';}
     else openPause();
@@ -3305,6 +3314,7 @@ function handlePointerDown(x,y){
   if(adActive)return true;
   if(awaitingFocus){awaitingFocus=false;tryFocus();}
   if(activeTutCard){dismissTutCard();return true;}
+  if(state==='brief'){startReady(0.15);return true;}
   if(activeTutPrompt&&tutPromptRect&&state==='play'){
     if(x>=tutPromptRect.x&&x<=tutPromptRect.x+tutPromptRect.w&&y>=tutPromptRect.y&&y<=tutPromptRect.y+tutPromptRect.h){
       if(tryOpenTutPrompt())return true;
@@ -4630,6 +4640,7 @@ if(targetLvl==='tutorial'||targetLvl==='-1'){
   syncCustomLevelsFromStorage();
   const lvlIdx=parseInt(targetLvl,10);
   if(lvlIdx>=0&&lvlIdx<LEVELS.length){
+    visitedLevels.add(lvlIdx);
     CG.gameplayStart();
     startLevelRun(lvlIdx);
   }else{
