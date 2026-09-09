@@ -14739,26 +14739,55 @@ function onCanvasMouseDown(e) {
       }
     }
 
-    const isPlatformTool = currentTool === 'platform' || currentTool === 'crumble' || currentTool === 'ash' || currentTool === 'wall';
-
-    // 2. In Solid / Platform mode: Select, drag or resize existing platforms directly
-    if (isPlatformTool) {
-      // 2a. Clicked on the currently selected platform -> Drag/Move it!
-      if (selectedEntity && selectedEntityType === 'platform') {
-        const p = selectedEntity;
-        const ph = p.h || 22;
+    // 1b. Direct hit on currently selected entity -> Start dragging immediately
+    if (selectedEntity) {
+      let hitSelected = false;
+      if (selectedEntityType === 'key') {
+        if (Math.hypot(w.x - selectedEntity.x, w.y - selectedEntity.y) < 26 || (w.x >= selectedEntity.x - 22 && w.x <= selectedEntity.x + 26 && w.y >= selectedEntity.y - 16 && w.y <= selectedEntity.y + 16)) hitSelected = true;
+      } else if (selectedEntityType === 'ki') {
+        if (Math.hypot(w.x - selectedEntity.x, w.y - selectedEntity.y) < 24 || (w.x >= selectedEntity.x - 18 && w.x <= selectedEntity.x + 18 && w.y >= selectedEntity.y - 20 && w.y <= selectedEntity.y + 20)) hitSelected = true;
+      } else if (selectedEntityType === 'spawn') {
+        if (Math.hypot(w.x - (selectedEntity.x + 12), w.y - (selectedEntity.y + 24)) < 26) hitSelected = true;
+      } else if (selectedEntityType === 'exit') {
+        if (w.x >= selectedEntity.x - 10 && w.x <= selectedEntity.x + (selectedEntity.w || 96) + 10 && w.y >= selectedEntity.y - 10 && w.y <= selectedEntity.y + (selectedEntity.h || 158) + 10) hitSelected = true;
+      } else if (selectedEntityType === 'platform') {
+        const ph = selectedEntity.h || 22;
         const tol = Math.max(4, 6 / camera.zoom);
-        if (w.x >= p.x - tol && w.x <= p.x + p.w + tol && w.y >= p.y - tol && w.y <= p.y + ph + tol) {
-          recordHistory();
-          isDraggingEntity = true;
-          dragStartMouse = { x: w.x, y: w.y };
-          dragStartEntityState = JSON.parse(JSON.stringify(selectedEntity));
-          renderInspector();
-          return;
-        }
+        if (w.x >= selectedEntity.x - tol && w.x <= selectedEntity.x + selectedEntity.w + tol && w.y >= selectedEntity.y - tol && w.y <= selectedEntity.y + ph + tol) hitSelected = true;
+      } else {
+        const hit = hitTestEntities(w.x, w.y);
+        if (hit && hit.entity === selectedEntity) hitSelected = true;
       }
 
-      // 2b. Clicked on an existing platform in the level -> Select it (instead of creating a duplicate)!
+      if (hitSelected) {
+        recordHistory();
+        isDraggingEntity = true;
+        dragStartMouse = { x: w.x, y: w.y };
+        dragStartEntityState = JSON.parse(JSON.stringify(selectedEntity));
+        renderInspector();
+        return;
+      }
+    }
+
+    // 2. Clicked on ANY existing non-platform entity in level (key, ki, guard, plate, text, spawn, exit, tower, etc.) -> Select & Drag it!
+    const hitEntity = hitTestEntities(w.x, w.y);
+    if (hitEntity) {
+      recordHistory();
+      selectedEntity = hitEntity.entity;
+      selectedEntityType = hitEntity.type;
+      selectedEntityIndex = hitEntity.index;
+      isDraggingEntity = true;
+      dragStartMouse = { x: w.x, y: w.y };
+      dragStartEntityState = JSON.parse(JSON.stringify(hitEntity.entity));
+      renderInspector();
+      return;
+    }
+
+    const isPlatformTool = currentTool === 'platform' || currentTool === 'crumble' || currentTool === 'ash' || currentTool === 'wall';
+
+    // 3. In Solid / Platform mode: Select, drag or resize existing platforms directly
+    if (isPlatformTool) {
+      // 3a. Clicked on an existing platform in the level -> Select it (instead of creating a duplicate)!
       const hitPlat = findPlatformAt(w.x, w.y);
       if (hitPlat) {
         recordHistory();
@@ -14772,32 +14801,32 @@ function onCanvasMouseDown(e) {
         return;
       }
 
-      // 2c. Clicked in empty space -> Place a new platform!
+      // 3b. Clicked in empty space -> Place a new platform!
       placeNewEntity(currentTool, w.x, w.y);
       return;
     }
 
-    // 3. If any other entity placement tool is active (guard, spike, tower, etc.), PLACE IT!
+    // 4. If any other entity placement tool is active (guard, spike, tower, key, ki, etc.), PLACE IT!
     if (currentTool !== 'select') {
       placeNewEntity(currentTool, w.x, w.y);
       return;
     }
 
-    // 4. Select tool: Click directly on any object -> Select it!
-    const hit = hitTestEntities(w.x, w.y);
-    if (hit) {
+    // 5. Select tool: Clicked on a platform?
+    const hitPlat = findPlatformAt(w.x, w.y);
+    if (hitPlat) {
       recordHistory();
-      selectedEntity = hit.entity;
-      selectedEntityType = hit.type;
-      selectedEntityIndex = hit.index;
+      selectedEntity = hitPlat.entity;
+      selectedEntityType = 'platform';
+      selectedEntityIndex = hitPlat.index;
       isDraggingEntity = true;
       dragStartMouse = { x: w.x, y: w.y };
-      dragStartEntityState = JSON.parse(JSON.stringify(hit.entity));
+      dragStartEntityState = JSON.parse(JSON.stringify(hitPlat.entity));
       renderInspector();
       return;
     }
 
-    // 5. Clicked empty area in select mode -> Deselect
+    // 6. Clicked empty area in select mode -> Deselect
     selectedEntity = null;
     selectedEntityType = null;
     selectedEntityIndex = -1;
@@ -14922,8 +14951,15 @@ function onCanvasMouseMove(e) {
     }
   }
 
+  // Hover over any existing entity in level
+  const hoverEntity = hitTestEntities(w.x, w.y);
+  if (hoverEntity) {
+    canvas.style.cursor = 'pointer';
+    return;
+  }
+
   const isPlatformTool = currentTool === 'platform' || currentTool === 'crumble' || currentTool === 'ash' || currentTool === 'wall';
-  if (isPlatformTool) {
+  if (isPlatformTool || currentTool === 'select') {
     if (selectedEntity && selectedEntityType === 'platform') {
       const p = selectedEntity;
       const ph = p.h || 22;
@@ -15068,8 +15104,6 @@ function onCanvasMouseUp() {
             selectedEntity.y = hostPlat.y;
             selectedEntity.ty = hostPlat.y;
           }
-        } else if (selectedEntityType === 'key' || selectedEntityType === 'ki') {
-          selectedEntity.y = hostPlat.y - 28;
         } else if (selectedEntityType === 'spawn') {
           selectedEntity.y = hostPlat.y - 46;
         } else if (selectedEntityType === 'exit') {
@@ -15209,16 +15243,12 @@ function placeNewEntity(tool, wx, wy) {
     lvl.plates.push(p);
     selectEntityDirect(p, 'plate', lvl.plates.length - 1);
   } else if (tool === 'key') {
-    const ky = hostPlat ? (hostPlat.y - 28) : y;
-    const kx = hostPlat ? Math.max(hostPlat.x + 10, Math.min(x, hostPlat.x + hostPlat.w - 10)) : x;
-    const k = { x: kx, y: ky };
+    const k = { x: x, y: y };
     lvl.keys.push(k);
     lvl.reqKeys = lvl.keys.length;
     selectEntityDirect(k, 'key', lvl.keys.length - 1);
   } else if (tool === 'ki') {
-    const ky = hostPlat ? (hostPlat.y - 26) : y;
-    const kx = hostPlat ? Math.max(hostPlat.x + 10, Math.min(x, hostPlat.x + hostPlat.w - 10)) : x;
-    const k = { x: kx, y: ky };
+    const k = { x: x, y: y };
     lvl.ki.push(k);
     selectEntityDirect(k, 'ki', lvl.ki.length - 1);
   } else if (tool === 'spawn') {
@@ -15471,13 +15501,13 @@ function hitTestEntities(wx, wy) {
   // 3. Keys
   for (let i = lvl.keys.length - 1; i >= 0; i--) {
     const k = lvl.keys[i];
-    if (Math.hypot(wx - k.x, wy - k.y) < 24) return { entity: k, type: 'key', index: i };
+    if (Math.hypot(wx - k.x, wy - k.y) < 26 || (wx >= k.x - 22 && wx <= k.x + 26 && wy >= k.y - 16 && wy <= k.y + 16)) return { entity: k, type: 'key', index: i };
   }
 
   // 4. KI Orbs
   for (let i = lvl.ki.length - 1; i >= 0; i--) {
     const k = lvl.ki[i];
-    if (Math.hypot(wx - k.x, wy - k.y) < 20) return { entity: k, type: 'ki', index: i };
+    if (Math.hypot(wx - k.x, wy - k.y) < 24 || (wx >= k.x - 18 && wx <= k.x + 18 && wy >= k.y - 20 && wy <= k.y + 20)) return { entity: k, type: 'ki', index: i };
   }
 
   // 5. Floating Texts (Accurate multiline bounding box hit testing, prioritized over platforms)
@@ -16250,7 +16280,7 @@ function renderInspector() {
         <div class="prop-row-2col">
           <span class="prop-label">Position:</span>
           <input type="number" id="prop-x" value="${Math.round(ent.x)}">
-          <input type="number" id="prop-y" value="${Math.round(ent.y || 610)}">
+          <input type="number" id="prop-y" value="${ent.y !== undefined ? Math.round(ent.y) : 610}">
         </div>
         ${ent.w !== undefined ? `
           <div class="prop-row">
