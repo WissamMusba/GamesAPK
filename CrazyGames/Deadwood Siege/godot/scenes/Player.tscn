@@ -1,0 +1,31 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/player.gd" id="1_player"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_player"]
+radius = 24.0
+
+[node name="Player" type="CharacterBody2D" groups=["player"]]
+collision_layer = 1
+collision_mask = 15
+script = ExtResource("1_player")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_player")
+
+[node name="Body" type="Node2D" parent="."]
+
+[node name="HandPivot" type="Node2D" parent="."]
+
+[node name="SwingArea" type="Area2D" parent="HandPivot"]
+collision_layer = 0
+collision_mask = 6
+monitorable = false
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="HandPivot/SwingArea"]
+polygon = PackedVector2Array(0, 0, 56.07, -67.83, 65.38, -58.9, 73.29, -48.72, 79.62, -37.48, 84.24, -25.44, 87.06, -12.86, 88, 0, 87.06, 12.86, 84.24, 25.44, 79.62, 37.48, 73.29, 48.72, 65.38, 58.9, 56.07, 67.83)
+
+[node name="Camera2D" type="Camera2D" parent="."]
+position_smoothing_enabled = true
+position_smoothing_speed = 16.0
+zoom = Vector2(2.4, 2.4)

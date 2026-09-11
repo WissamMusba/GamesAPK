@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 170 230" width="340" height="460">
+  <title>Deadwood Siege — Crossbow Turret v3 (flat, no blob highlights)</title>
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <!-- 2x3 grid footprint -->
+    <rect x="37" y="33" width="96" height="144" fill="none" stroke="rgba(0,0,0,0.3)" stroke-width="2" stroke-dasharray="6 4"/>
+    <line x1="85" y1="33" x2="85" y2="177" stroke="rgba(0,0,0,0.3)" stroke-width="2" stroke-dasharray="6 4"/>
+    <line x1="37" y1="81" x2="133" y2="81" stroke="rgba(0,0,0,0.3)" stroke-width="2" stroke-dasharray="6 4"/>
+    <line x1="37" y1="129" x2="133" y2="129" stroke="rgba(0,0,0,0.3)" stroke-width="2" stroke-dasharray="6 4"/>
+    <!-- wooden ground platform: flat -->
+    <rect x="33" y="55" width="104" height="122" rx="10" fill="#7A5C4E" stroke="#333B4F" stroke-width="4"/>
+    <line x1="59" y1="60" x2="59" y2="172" stroke="#5D463A" stroke-width="2.5"/>
+    <line x1="85" y1="60" x2="85" y2="172" stroke="#5D463A" stroke-width="2.5"/>
+    <line x1="111" y1="60" x2="111" y2="172" stroke="#5D463A" stroke-width="2.5"/>
+    <g fill="#333B4F" stroke="none">
+      <circle cx="42" cy="64" r="2.5"/><circle cx="128" cy="64" r="2.5"/>
+      <circle cx="42" cy="168" r="2.5"/><circle cx="128" cy="168" r="2.5"/>
+    </g>
+    <!-- stone pivot: flat, no inner blob -->
+    <circle cx="85" cy="122" r="20" fill="#8B8FA8" stroke="#333B4F" stroke-width="4"/>
+    <!-- bow arms: flat -->
+    <path d="M25,95 Q85,70 145,95" fill="none" stroke="#333B4F" stroke-width="19"/>
+    <path d="M25,95 Q85,70 145,95" fill="none" stroke="#8B8FA8" stroke-width="11"/>
+    <circle cx="25" cy="95" r="7" fill="#5D463A" stroke="#333B4F" stroke-width="3.5"/>
+    <circle cx="145" cy="95" r="7" fill="#5D463A" stroke="#333B4F" stroke-width="3.5"/>
+    <!-- drawn string -->
+    <path d="M27,95 L85,128 L143,95" fill="none" stroke="#333B4F" stroke-width="2.5"/>
+    <!-- loaded bolt (big, flat) -->
+    <line x1="85" y1="128" x2="85" y2="45" stroke="#333B4F" stroke-width="10"/>
+    <line x1="85" y1="128" x2="85" y2="45" stroke="#E4D6B8" stroke-width="6"/>
+    <polygon points="85,30 93,46 77,46" fill="#8B8FA8" stroke="#333B4F" stroke-width="3"/>
+    <polygon points="85,128 75,112 80,108" fill="#A63A50" stroke="none"/>
+    <polygon points="85,128 95,112 90,108" fill="#A63A50" stroke="none"/>
+    <!-- side crank detail -->
+    <circle cx="133" cy="150" r="8" fill="#8B8FA8" stroke="#333B4F" stroke-width="3.5"/>
+    <line x1="139" y1="155" x2="150" y2="162" stroke="#8A6B4F" stroke-width="6"/>
+    <circle cx="151" cy="163" r="4" fill="#5D463A" stroke="#333B4F" stroke-width="2.5"/>
+    <text x="85" y="208" font-family="monospace" font-size="14" fill="#2A332A" text-anchor="middle">footprint: 2 x 3</text>
+  </g>
+</svg>

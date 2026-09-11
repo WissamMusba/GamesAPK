@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 80" width="160" height="80">
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <g transform="translate(14, 40)">
+      <polygon points="-12,-28 0,-34 12,-28 12,28 0,34 -12,28" fill="#6E4F32" stroke="#222633" stroke-width="3.5"/>
+      <ellipse cx="0" cy="-14" rx="8" ry="10" fill="#967048"/>
+    </g>
+    <g transform="translate(40, 40)">
+      <polygon points="-13,-30 0,-36 13,-30 13,30 0,36 -13,30" fill="#483420" stroke="#222633" stroke-width="3.5"/>
+      <ellipse cx="0" cy="-15" rx="9" ry="11" fill="#6E4F32"/>
+    </g>
+    <g transform="translate(67, 40)">
+      <polygon points="-13,-28 0,-35 13,-28 13,28 0,35 -13,28" fill="#6E4F32" stroke="#222633" stroke-width="3.5"/>
+      <ellipse cx="0" cy="-14" rx="9" ry="10" fill="#967048"/>
+    </g>
+    <g transform="translate(93, 40)">
+      <polygon points="-13,-30 0,-36 13,-30 13,30 0,36 -13,30" fill="#483420" stroke="#222633" stroke-width="3.5"/>
+      <ellipse cx="0" cy="-15" rx="9" ry="11" fill="#6E4F32"/>
+    </g>
+    <g transform="translate(120, 40)">
+      <polygon points="-13,-28 0,-34 13,-28 13,28 0,34 -13,28" fill="#6E4F32" stroke="#222633" stroke-width="3.5"/>
+      <ellipse cx="0" cy="-14" rx="9" ry="10" fill="#967048"/>
+    </g>
+    <g transform="translate(146, 40)">
+      <polygon points="-12,-28 0,-34 12,-28 12,28 0,34 -12,28" fill="#483420" stroke="#222633" stroke-width="3.5"/>
+      <ellipse cx="0" cy="-14" rx="8" ry="10" fill="#6E4F32"/>
+    </g>
+    <rect x="6" y="34" width="148" height="12" rx="2" fill="#444958" stroke="#222633" stroke-width="3"/>
+    <line x1="8" y1="40" x2="152" y2="40" stroke="#A2A8BC" stroke-width="1.5"/>
+    <circle cx="20" cy="40" r="2.5" fill="#D8DEEE" stroke="#222633" stroke-width="1.5"/>
+    <circle cx="47" cy="40" r="2.5" fill="#D8DEEE" stroke="#222633" stroke-width="1.5"/>
+    <circle cx="80" cy="40" r="2.5" fill="#D8DEEE" stroke="#222633" stroke-width="1.5"/>
+    <circle cx="113" cy="40" r="2.5" fill="#D8DEEE" stroke="#222633" stroke-width="1.5"/>
+    <circle cx="140" cy="40" r="2.5" fill="#D8DEEE" stroke="#222633" stroke-width="1.5"/>
+  </g>
+</svg>

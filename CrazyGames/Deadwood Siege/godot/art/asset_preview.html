@@ -1,0 +1,1107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Deadwood Siege — Stylized 2D Art Gallery</title>
+  <style>
+    :root {
+      --bg-dark: #12141A;
+      --panel-bg: #1A1E27;
+      --card-bg: #222633;
+      --border-col: #32384A;
+      --gold-accent: #E6C25A;
+      --text-main: #E8EBF2;
+      --text-muted: #8E95A8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg-dark);
+      color: var(--text-main);
+      font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      padding: 32px 24px;
+      line-height: 1.5;
+    }
+    header {
+      max-width: 1200px;
+      margin: 0 auto 36px;
+      text-align: center;
+    }
+    h1 {
+      font-size: 32px;
+      letter-spacing: 1.5px;
+      color: var(--gold-accent);
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    p.subtitle {
+      color: var(--text-muted);
+      font-size: 16px;
+    }
+    .badge {
+      display: inline-block;
+      background: #2D3446;
+      border: 1px solid var(--gold-accent);
+      color: var(--gold-accent);
+      font-size: 12px;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-weight: bold;
+      margin-top: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .container {
+      max-width: 1240px;
+      margin: 0 auto;
+    }
+    .category-header {
+      margin: 40px 0 16px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid var(--border-col);
+    }
+    .category-header h2 {
+      font-size: 20px;
+      color: var(--gold-accent);
+      letter-spacing: 1px;
+    }
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 20px;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 2px solid var(--border-col);
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.15s ease, border-color 0.15s ease;
+    }
+    .card:hover {
+      transform: translateY(-3px);
+      border-color: var(--gold-accent);
+    }
+    .preview-box {
+      background: #627F52; /* Game ground color preview */
+      background-image:
+        radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px),
+        linear-gradient(to right, rgba(0,0,0,0.08) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(0,0,0,0.08) 1px, transparent 1px);
+      background-size: 24px 24px, 48px 48px, 48px 48px;
+      height: 180px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      border-bottom: 1px solid var(--border-col);
+    }
+    .preview-box svg {
+      max-width: 100%;
+      max-height: 100%;
+      filter: drop-shadow(0 6px 8px rgba(0,0,0,0.45));
+    }
+    .card-info {
+      padding: 16px;
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .card-title {
+      font-weight: bold;
+      font-size: 15px;
+      color: #FFF;
+      margin-bottom: 2px;
+    }
+    .card-filename {
+      font-family: monospace;
+      font-size: 11px;
+      color: var(--gold-accent);
+      margin-bottom: 8px;
+    }
+    .card-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+    /* Interactive Turret Assembly Sandbox */
+    .turret-sandbox {
+      background: var(--panel-bg);
+      border: 2px solid var(--gold-accent);
+      border-radius: 12px;
+      padding: 24px;
+      margin: 40px 0;
+    }
+    .turret-sandbox h3 {
+      color: var(--gold-accent);
+      margin-bottom: 12px;
+      font-size: 18px;
+    }
+    .sandbox-stage {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 40px;
+      align-items: center;
+      justify-content: center;
+    }
+    .turret-view {
+      position: relative;
+      width: 180px;
+      height: 180px;
+      background: #627F52;
+      border-radius: 50%;
+      border: 4px solid var(--card-bg);
+      box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+    }
+    .turret-layer {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .turret-layer svg { width: 140px; height: 140px; }
+    .turret-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 240px;
+    }
+    input[type=range] {
+      width: 100%;
+      accent-color: var(--gold-accent);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Deadwood Siege — Stylized 2D Art Gallery</h1>
+    <p class="subtitle">Dark Fantasy MooMoo.io / Kingdom Rush / Brotato Visual Direction</p>
+    <div class="badge">Pure 90° Overhead Top-Down &bull; Bold Comic Outlines &bull; 24 Custom Assets</div>
+  </header>
+
+  <div class="container">
+    <div class="turret-sandbox">
+      <h3>Interactive Turret 360° Rotation Sandbox</h3>
+      <p style="color:var(--text-muted); font-size:13px; margin-bottom:16px;">
+        Verifying 2-layer composite architecture: Base remains fixed while Head smoothly rotates 360° facing East (0° at rest).
+      </p>
+      <div class="sandbox-stage">
+        <!-- Crossbow Composite -->
+        <div style="text-align:center;">
+          <div class="turret-view">
+            <div class="turret-layer" id="cb-base"></div>
+            <div class="turret-layer" id="cb-head"></div>
+          </div>
+          <div style="margin-top:8px; font-size:13px; font-weight:bold;">Crossbow Turret</div>
+        </div>
+
+        <!-- Ballista Composite -->
+        <div style="text-align:center;">
+          <div class="turret-view">
+            <div class="turret-layer" id="bal-base"></div>
+            <div class="turret-layer" id="bal-head"></div>
+          </div>
+          <div style="margin-top:8px; font-size:13px; font-weight:bold;">Ballista Turret</div>
+        </div>
+
+        <!-- Rotation Slider -->
+        <div class="turret-controls">
+          <label id="deg-label" style="font-size:13px; color:var(--gold-accent);">Aim Angle: 0° (East)</label>
+          <input type="range" id="aim-slider" min="0" max="360" value="0">
+          <button id="auto-btn" style="background:#2D3446; border:1px solid var(--gold-accent); color:var(--gold-accent); padding:6px 14px; border-radius:6px; cursor:pointer; font-weight:bold;">Auto-Spin: ON</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="category-header"><h2>Player & Weapons</h2></div><div class="card-grid">
+      <div class="card">
+        <div class="preview-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="160" height="160">
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <ellipse cx="80" cy="86" rx="34" ry="32" fill="#151821" opacity="0.35"/>
+    <g id="hand-left">
+      <ellipse cx="92" cy="52" rx="9" ry="8" fill="#483420" stroke="#222633" stroke-width="3"/>
+      <path d="M 86 51 Q 92 48 98 51" stroke="#222633" stroke-width="2" fill="none"/>
+      <circle cx="92" cy="51" r="1.5" fill="#F0C446"/>
+    </g>
+    <g id="axe">
+      <line x1="68" y1="44" x2="132" y2="44" stroke="#222633" stroke-width="8"/>
+      <line x1="70" y1="44" x2="130" y2="44" stroke="#6E4F32" stroke-width="5"/>
+      <line x1="70" y1="43" x2="130" y2="43" stroke="#967048" stroke-width="1.5"/>
+      <line x1="84" y1="44" x2="100" y2="44" stroke="#483420" stroke-width="6"/>
+      <line x1="86" y1="42" x2="88" y2="46" stroke="#222633" stroke-width="1.5"/>
+      <line x1="92" y1="42" x2="94" y2="46" stroke="#222633" stroke-width="1.5"/>
+      <line x1="98" y1="42" x2="100" y2="46" stroke="#222633" stroke-width="1.5"/>
+      <circle cx="68" cy="44" r="5" fill="#C89524" stroke="#222633" stroke-width="2.5"/>
+      <circle cx="68" cy="44" r="2" fill="#F0C446"/>
+      <rect x="114" y="39" width="10" height="10" rx="2" fill="#444958" stroke="#222633" stroke-width="2.5"/>
+      <circle cx="119" cy="44" r="1.5" fill="#D8DEEE"/>
+      <polygon points="115,41 106,44 115,47" fill="#72788C" stroke="#222633" stroke-width="2.5"/>
+      <path d="M 122 40 L 138 34 Q 146 54 136 74 L 122 56 Q 124 47 122 40 Z" fill="#72788C" stroke="#222633" stroke-width="3"/>
+      <path d="M 136 35 Q 144 54 134 72" stroke="#D8DEEE" stroke-width="2.5" fill="none"/>
+      <path d="M 124 43 L 132 40 Q 136 53 129 63 L 124 53 Z" fill="#444958"/>
+    </g>
+    <g id="hand-right">
+      <ellipse cx="110" cy="46" rx="9.5" ry="8.5" fill="#483420" stroke="#222633" stroke-width="3"/>
+      <circle cx="110" cy="45" r="1.5" fill="#F0C446"/>
+    </g>
+    <circle cx="76" cy="88" r="28" fill="#483420" stroke="#222633" stroke-width="4"/>
+    <circle cx="76" cy="88" r="25" fill="#543A28"/>
+    <path d="M 54 74 L 98 102" stroke="#222633" stroke-width="6"/>
+    <path d="M 54 74 L 98 102" stroke="#3A261A" stroke-width="3.5"/>
+    <rect x="72" y="84" width="8" height="8" rx="1.5" fill="#C89524" stroke="#222633" stroke-width="2"/>
+    <circle cx="76" cy="88" r="1.5" fill="#F0C446"/>
+    <path d="M 52 82 Q 50 72 58 68 Q 64 64 72 65 Q 80 62 88 66 Q 96 70 98 78 Q 104 88 98 96 Q 96 102 88 104 Q 82 108 74 106 Q 64 106 58 98 Q 52 92 52 82 Z" fill="#B5A68E" stroke="#222633" stroke-width="3"/>
+    <path d="M 58 72 Q 62 67 68 70" stroke="#DDD4C4" stroke-width="2" fill="none"/>
+    <path d="M 74 67 Q 80 64 86 68" stroke="#DDD4C4" stroke-width="2" fill="none"/>
+    <path d="M 90 70 Q 96 74 95 82" stroke="#DDD4C4" stroke-width="2" fill="none"/>
+    <ellipse cx="76" cy="85" rx="12" ry="11" fill="#151821"/>
+    <ellipse cx="76" cy="86" rx="8" ry="7" fill="#3D291C"/>
+  </g>
+</svg>
+</div>
+        <div class="card-info">
+          <div class="card-title">PLAYER</div>
+          <div class="card-filename">player.svg</div>
+          <div class="card-desc">Circular dark-brown leather tunic, fur mantle collar trim, two floating leather-gloved hands holding a bearded woodcutter's battle axe.</div>
+        </div>
+      </div>
+    </div><div class="category-header"><h2>Turrets (Base + 360° Rotating Head)</h2></div><div class="card-grid">
+      <div class="card">
+        <div class="preview-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="160" height="160">
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <circle cx="80" cy="80" r="54" fill="#444958" stroke="#222633" stroke-width="5"/>
+    <circle cx="80" cy="80" r="50" fill="#72788C"/>
+    <path d="M 80 26 L 80 40 M 80 120 L 80 134 M 26 80 L 40 80 M 120 80 L 134 80" stroke="#222633" stroke-width="3"/>
+    <path d="M 42 42 L 52 52 M 118 42 L 108 52 M 42 118 L 52 108 M 118 118 L 108 108" stroke="#222633" stroke-width="3"/>
+    <circle cx="80" cy="80" r="42" fill="none" stroke="#222633" stroke-width="6"/>
+    <circle cx="80" cy="80" r="42" fill="none" stroke="#444958" stroke-width="3"/>
+    <g fill="#A2A8BC" stroke="#222633" stroke-width="1.5">
+      <circle cx="80" cy="38" r="3"/><circle cx="80" cy="122" r="3"/>
+      <circle cx="38" cy="80" r="3"/><circle cx="122" cy="80" r="3"/>
+      <circle cx="50" cy="50" r="3"/><circle cx="110" cy="50" r="3"/>
+      <circle cx="50" cy="110" r="3"/><circle cx="110" cy="110" r="3"/>
+    </g>
+    <circle cx="80" cy="80" r="31" fill="#8A6216" stroke="#222633" stroke-width="3.5"/>
+    <circle cx="80" cy="80" r="27" fill="#C89524"/>
+    <g stroke="#222633" stroke-width="2" fill="#F0C446">
+      <rect x="77" y="50" width="6" height="5" rx="1"/>
+      <rect x="77" y="105" width="6" height="5" rx="1"/>
+      <rect x="50" y="77" width="5" height="6" rx="1"/>
+      <rect x="105" y="77" width="5" height="6" rx="1"/>
+    </g>
+    <circle cx="80" cy="80" r="16" fill="#151821" stroke="#222633" stroke-width="3"/>
+    <circle cx="80" cy="80" r="10" fill="#444958"/>
+    <circle cx="80" cy="80" r="5" fill="#F0C446" stroke="#222633" stroke-width="1.5"/>
+  </g>
+</svg>
+</div>
+        <div class="card-info">
+          <div class="card-title">TURRET CROSSBOW BASE</div>
+          <div class="card-filename">turret-crossbow-base.svg</div>
+          <div class="card-desc">Circular stone foundation with iron rivets and brass swivel gear ring.</div>
+        </div>
+      </div>
+    
+      <div class="card">
+        <div class="preview-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="160" height="160">
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <path d="M 126 73 L 138 73 Q 144 80 138 87 L 126 87" fill="none" stroke="#222633" stroke-width="4"/>
+    <path d="M 126 74 L 137 74 Q 142 80 137 86 L 126 86" fill="none" stroke="#72788C" stroke-width="2"/>
+    <rect x="40" y="73" width="86" height="14" rx="3" fill="#483420" stroke="#222633" stroke-width="3.5"/>
+    <rect x="44" y="75" width="80" height="10" rx="1.5" fill="#6E4F32"/>
+    <line x1="44" y1="77" x2="122" y2="77" stroke="#967048" stroke-width="1.5"/>
+    <line x1="58" y1="72" x2="58" y2="88" stroke="#222633" stroke-width="4"/>
+    <line x1="58" y1="73" x2="58" y2="87" stroke="#A2A8BC" stroke-width="2"/>
+    <line x1="102" y1="72" x2="102" y2="88" stroke="#222633" stroke-width="4"/>
+    <line x1="102" y1="73" x2="102" y2="87" stroke="#A2A8BC" stroke-width="2"/>
+    <rect x="36" y="71" width="12" height="18" rx="2" fill="#444958" stroke="#222633" stroke-width="3"/>
+    <line x1="42" y1="64" x2="42" y2="96" stroke="#222633" stroke-width="5"/>
+    <line x1="42" y1="65" x2="42" y2="95" stroke="#C89524" stroke-width="2.5"/>
+    <circle cx="42" cy="63" r="3.5" fill="#483420" stroke="#222633" stroke-width="1.5"/>
+    <circle cx="42" cy="97" r="3.5" fill="#483420" stroke="#222633" stroke-width="1.5"/>
+    <path d="M 88 32 Q 112 48 112 80 Q 112 112 88 128" fill="none" stroke="#222633" stroke-width="10"/>
+    <path d="M 88 32 Q 112 48 112 80 Q 112 112 88 128" fill="none" stroke="#444958" stroke-width="6"/>
+    <path d="M 89 33 Q 111 49 111 80 Q 111 111 89 127" fill="none" stroke="#A2A8BC" stroke-width="2"/>
+    <circle cx="88" cy="32" r="5" fill="#D8DEEE" stroke="#222633" stroke-width="2"/>
+    <circle cx="88" cy="128" r="5" fill="#D8DEEE" stroke="#222633" stroke-width="2"/>
+    <polyline points="88,32 78,80 88,128" fill="none" stroke="#222633" stroke-width="4.5"/>
+    <polyline points="88,32 78,80 88,128" fill="none" stroke="#FAF0D8" stroke-width="2"/>
+    <circle cx="78" cy="80" r="5.5" fill="#C89524" stroke="#222633" stroke-width="2"/>
+    <circle cx="78" cy="80" r="2.5" fill="#F0C446"/>
+    <line x1="78" y1="80" x2="128" y2="80" stroke="#222633" stroke-width="6"/>
+    <line x1="79" y1="80" x2="126" y2="80" stroke="#967048" stroke-width="3"/>
+    <polygon points="80,80 88,75 94,80" fill="#B81C2C" stroke="#222633" stroke-width="1.5"/>
+    <polygon points="80,80 88,85 94,80" fill="#B81C2C" stroke="#222633" stroke-width="1.5"/>
+    <polygon points="124,76 138,80 124,84" fill="#D8DEEE" stroke="#222633" stroke-width="2"/>
+  </g>
+</svg>
+</div>
+        <div class="card-info">
+          <div class="card-title">TURRET CROSSBOW HEAD</div>
+          <div class="card-filename">turret-crossbow-head.svg</div>
+          <div class="card-desc">Medieval heavy crossbow facing East (0°), iron bow prods, taut string, loaded quarrel bolt.</div>
+        </div>
+      </div>
+    
+      <div class="card">
+        <div class="preview-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="160" height="160">
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <polygon points="26,38 134,38 144,48 144,112 134,122 26,122 16,112 16,48" fill="#483420" stroke="#222633" stroke-width="5"/>
+    <polygon points="30,42 130,42 140,52 140,108 130,118 30,118 20,108 20,52" fill="#6E4F32"/>
+    <line x1="20" y1="67" x2="140" y2="67" stroke="#222633" stroke-width="2.5"/>
+    <line x1="20" y1="93" x2="140" y2="93" stroke="#222633" stroke-width="2.5"/>
+    <polygon points="16,48 26,38 52,38 52,48 26,48 26,74 16,74" fill="#444958" stroke="#222633" stroke-width="2.5"/>
+    <circle cx="34" cy="43" r="2.5" fill="#D8DEEE" stroke="#222633" stroke-width="1"/>
+    <polygon points="144,48 134,38 108,38 108,48 134,48 134,74 144,74" fill="#444958" stroke="#222633" stroke-width="2.5"/>
+    <circle cx="126" cy="43" r="2.5" fill="#D8DEEE" stroke="#222633" stroke-width="1"/>
+    <polygon points="16,112 26,122 52,122 52,112 26,112 26,86 16,86" fill="#444958" stroke="#222633" stroke-width="2.5"/>
+    <circle cx="34" cy="117" r="2.5" fill="#D8DEEE" stroke="#222633" stroke-width="1"/>
+    <polygon points="144,112 134,122 108,122 108,112 134,112 134,86 144,86" fill="#444958" stroke="#222633" stroke-width="2.5"/>
+    <circle cx="126" cy="117" r="2.5" fill="#D8DEEE" stroke="#222633" stroke-width="1"/>
+    <circle cx="80" cy="80" r="32" fill="#444958" stroke="#222633" stroke-width="4"/>
+    <circle cx="80" cy="80" r="26" fill="#C89524"/>
+    <circle cx="80" cy="80" r="18" fill="#151821" stroke="#222633" stroke-width="3"/>
+    <circle cx="80" cy="80" r="8" fill="#D8DEEE" stroke="#222633" stroke-width="2"/>
+  </g>
+</svg>
+</div>
+        <div class="card-info">
+          <div class="card-title">TURRET BALLISTA BASE</div>
+          <div class="card-filename">turret-ballista-base.svg</div>
+          <div class="card-desc">Heavy dark oak chassis with steel corner brackets and turntable swivel ring.</div>
+        </div>
+      </div>
+    
+      <div class="card">
+        <div class="preview-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" width="180" height="180">
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <rect x="24" y="80" width="118" height="20" rx="3" fill="#483420" stroke="#222633" stroke-width="4"/>
+    <rect x="28" y="83" width="110" height="14" rx="2" fill="#6E4F32"/>
+    <line x1="28" y1="85" x2="136" y2="85" stroke="#967048" stroke-width="1.5"/>
+    <rect x="20" y="78" width="14" height="24" rx="2" fill="#444958" stroke="#222633" stroke-width="3"/>
+    <line x1="27" y1="64" x2="27" y2="116" stroke="#222633" stroke-width="6"/>
+    <line x1="27" y1="65" x2="27" y2="115" stroke="#72788C" stroke-width="3"/>
+    <circle cx="27" cy="62" r="5" fill="#C89524" stroke="#222633" stroke-width="2"/>
+    <circle cx="27" cy="118" r="5" fill="#C89524" stroke="#222633" stroke-width="2"/>
+    <rect x="110" y="52" width="16" height="76" rx="3" fill="#483420" stroke="#222633" stroke-width="3.5"/>
+    <rect x="108" y="44" width="20" height="26" rx="4" fill="#8A6216" stroke="#222633" stroke-width="3"/>
+    <circle cx="118" cy="57" r="4" fill="#F0C446" stroke="#222633" stroke-width="1.5"/>
+    <rect x="108" y="110" width="20" height="26" rx="4" fill="#8A6216" stroke="#222633" stroke-width="3"/>
+    <circle cx="118" cy="123" r="4" fill="#F0C446" stroke="#222633" stroke-width="1.5"/>
+    <path d="M 118 57 Q 106 32 76 20" fill="none" stroke="#222633" stroke-width="12"/>
+    <path d="M 118 57 Q 106 32 76 20" fill="none" stroke="#483420" stroke-width="7"/>
+    <circle cx="76" cy="20" r="7" fill="#444958" stroke="#222633" stroke-width="2.5"/>
+    <circle cx="76" cy="20" r="3" fill="#F0C446"/>
+    <path d="M 118 123 Q 106 148 76 160" fill="none" stroke="#222633" stroke-width="12"/>
+    <path d="M 118 123 Q 106 148 76 160" fill="none" stroke="#483420" stroke-width="7"/>
+    <circle cx="76" cy="160" r="7" fill="#444958" stroke="#222633" stroke-width="2.5"/>
+    <circle cx="76" cy="160" r="3" fill="#F0C446"/>
+    <polyline points="76,20 62,90 76,160" fill="none" stroke="#222633" stroke-width="6"/>
+    <polyline points="76,20 62,90 76,160" fill="none" stroke="#F4EDE0" stroke-width="3"/>
+    <line x1="62" y1="90" x2="148" y2="90" stroke="#222633" stroke-width="8"/>
+    <line x1="64" y1="90" x2="146" y2="90" stroke="#72788C" stroke-width="4.5"/>
+    <polygon points="144,83 170,90 144,97 148,90" fill="#D8DEEE" stroke="#222633" stroke-width="3"/>
+    <polygon points="148,84 136,76 142,88" fill="#444958" stroke="#222633" stroke-width="2"/>
+    <polygon points="148,96 136,104 142,92" fill="#444958" stroke="#222633" stroke-width="2"/>
+  </g>
+</svg>
+</div>
+        <div class="card-info">
+          <div class="card-title">TURRET BALLISTA HEAD</div>
+          <div class="card-filename">turret-ballista-head.svg</div>
+          <div class="card-desc">Massive torsion dual-crank siege head facing East (0°) with barbed iron harpoon bolt.</div>
+        </div>
+      </div>
+    </div><div class="category-header"><h2>Defense Structures</h2></div><div class="card-grid">
+      <div class="card">
+        <div class="preview-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 80" width="160" height="80">
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <g transform="translate(14, 40)">
+      <polygon points="-12,-28 0,-34 12,-28 12,28 0,34 -12,28" fill="#6E4F32" stroke="#222633" stroke-width="3.5"/>
+      <ellipse cx="0" cy="-14" rx="8" ry="10" fill="#967048"/>
+    </g>
+    <g transform="translate(40, 40)">
+      <polygon points="-13,-30 0,-36 13,-30 13,30 0,36 -13,30" fill="#483420" stroke="#222633" stroke-width="3.5"/>
+      <ellipse cx="0" cy="-15" rx="9" ry="11" fill="#6E4F32"/>
+    </g>
+    <g transform="translate(67, 40)">
+      <polygon points="-13,-28 0,-35 13,-28 13,28 0,35 -13,28" fill="#6E4F32" stroke="#222633" stroke-width="3.5"/>
+      <ellipse cx="0" cy="-14" rx="9" ry="10" fill="#967048"/>
+    </g>
+    <g transform="translate(93, 40)">
+      <polygon points="-13,-30 0,-36 13,-30 13,30 0,36 -13,30" fill="#483420" stroke="#222633" stroke-width="3.5"/>
+      <ellipse cx="0" cy="-15" rx="9" ry="11" fill="#6E4F32"/>
+    </g>
+    <g transform="translate(120, 40)">
+      <polygon points="-13,-28 0,-34 13,-28 13,28 0,34 -13,28" fill="#6E4F32" stroke="#222633" stroke-width="3.5"/>
+      <ellipse cx="0" cy="-14" rx="9" ry="10" fill="#967048"/>
+    </g>
+    <g transform="translate(146, 40)">
+      <polygon points="-12,-28 0,-34 12,-28 12,28 0,34 -12,28" fill="#483420" stroke="#222633" stroke-width="3.5"/>
+      <ellipse cx="0" cy="-14" rx="8" ry="10" fill="#6E4F32"/>
+    </g>
+    <rect x="6" y="34" width="148" height="12" rx="2" fill="#444958" stroke="#222633" stroke-width="3"/>
+    <line x1="8" y1="40" x2="152" y2="40" stroke="#A2A8BC" stroke-width="1.5"/>
+    <circle cx="20" cy="40" r="2.5" fill="#D8DEEE" stroke="#222633" stroke-width="1.5"/>
+    <circle cx="47" cy="40" r="2.5" fill="#D8DEEE" stroke="#222633" stroke-width="1.5"/>
+    <circle cx="80" cy="40" r="2.5" fill="#D8DEEE" stroke="#222633" stroke-width="1.5"/>
+    <circle cx="113" cy="40" r="2.5" fill="#D8DEEE" stroke="#222633" stroke-width="1.5"/>
+    <circle cx="140" cy="40" r="2.5" fill="#D8DEEE" stroke="#222633" stroke-width="1.5"/>
+  </g>
+</svg>
+</div>
+        <div class="card-info">
+          <div class="card-title">WALL T1 PALISADE</div>
+          <div class="card-filename">wall-t1-palisade.svg</div>
+          <div class="card-desc">Tier 1: Pointed split pine timber logs bound with heavy riveted iron strap.</div>
+        </div>
+      </div>
+    
+      <div class="card">
+        <div class="preview-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 80" width="160" height="80">
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <rect x="8" y="16" width="144" height="48" rx="4" fill="#444958" stroke="#222633" stroke-width="4.5"/>
+    <rect x="11" y="19" width="138" height="42" rx="2" fill="#72788C"/>
+    <rect x="12" y="20" width="44" height="19" fill="#A2A8BC" stroke="#222633" stroke-width="2.5"/>
+    <rect x="58" y="20" width="44" height="19" fill="#72788C" stroke="#222633" stroke-width="2.5"/>
+    <rect x="104" y="20" width="44" height="19" fill="#A2A8BC" stroke="#222633" stroke-width="2.5"/>
+    <rect x="12" y="41" width="22" height="19" fill="#72788C" stroke="#222633" stroke-width="2.5"/>
+    <rect x="36" y="41" width="44" height="19" fill="#A2A8BC" stroke="#222633" stroke-width="2.5"/>
+    <rect x="82" y="41" width="44" height="19" fill="#72788C" stroke="#222633" stroke-width="2.5"/>
+    <rect x="128" y="41" width="20" height="19" fill="#A2A8BC" stroke="#222633" stroke-width="2.5"/>
+    <rect x="53" y="28" width="10" height="3" fill="#222633"/>
+    <circle cx="54" cy="29.5" r="1.5" fill="#D8DEEE"/>
+    <circle cx="62" cy="29.5" r="1.5" fill="#D8DEEE"/>
+    <rect x="99" y="28" width="10" height="3" fill="#222633"/>
+    <circle cx="100" cy="29.5" r="1.5" fill="#D8DEEE"/>
+    <circle cx="108" cy="29.5" r="1.5" fill="#D8DEEE"/>
+    <rect x="77" y="49" width="10" height="3" fill="#222633"/>
+    <circle cx="78" cy="50.5" r="1.5" fill="#D8DEEE"/>
+    <circle cx="86" cy="50.5" r="1.5" fill="#D8DEEE"/>
+  </g>
+</svg>
+</div>
+        <div class="card-info">
+          <div class="card-title">WALL T2 STONE</div>
+          <div class="card-filename">wall-t2-stone.svg</div>
+          <div class="card-desc">Tier 2: Ashlar cut granite blocks with staggered courses and iron masonry cramps.</div>
+        </div>
+      </div>
+    
+      <div class="card">
+        <div class="preview-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 80" width="160" height="80">
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <rect x="8" y="16" width="144" height="48" rx="4" fill="#151821" stroke="#222633" stroke-width="4.5"/>
+    <rect x="11" y="19" width="138" height="42" rx="2" fill="#444958"/>
+    <polygon points="20,16 28,4 36,16" fill="#72788C" stroke="#222633" stroke-width="2.5"/>
+    <polygon points="56,16 64,4 72,16" fill="#72788C" stroke="#222633" stroke-width="2.5"/>
+    <polygon points="92,16 100,4 108,16" fill="#72788C" stroke="#222633" stroke-width="2.5"/>
+    <polygon points="128,16 136,4 144,16" fill="#72788C" stroke="#222633" stroke-width="2.5"/>
+    <polygon points="20,64 28,76 36,64" fill="#72788C" stroke="#222633" stroke-width="2.5"/>
+    <polygon points="56,64 64,76 72,64" fill="#72788C" stroke="#222633" stroke-width="2.5"/>
+    <polygon points="92,64 100,76 108,64" fill="#72788C" stroke="#222633" stroke-width="2.5"/>
+    <polygon points="128,64 136,76 144,64" fill="#72788C" stroke="#222633" stroke-width="2.5"/>
+    <rect x="12" y="24" width="136" height="32" rx="2" fill="#363A48" stroke="#222633" stroke-width="2.5"/>
+    <rect x="14" y="32" width="132" height="16" fill="#4B5162"/>
+    <line x1="14" y1="40" x2="146" y2="40" stroke="#D8DEEE" stroke-width="1.5"/>
+    <circle cx="20" cy="40" r="3" fill="#F0C446" stroke="#222633" stroke-width="1.5"/>
+    <circle cx="44" cy="40" r="3" fill="#F0C446" stroke="#222633" stroke-width="1.5"/>
+    <circle cx="68" cy="40" r="3" fill="#F0C446" stroke="#222633" stroke-width="1.5"/>
+    <circle cx="92" cy="40" r="3" fill="#F0C446" stroke="#222633" stroke-width="1.5"/>
+    <circle cx="116" cy="40" r="3" fill="#F0C446" stroke="#222633" stroke-width="1.5"/>
+    <circle cx="140" cy="40" r="3" fill="#F0C446" stroke="#222633" stroke-width="1.5"/>
+  </g>
+</svg>
+</div>
+        <div class="card-info">
+          <div class="card-title">WALL T3 FORTRESS</div>
+          <div class="card-filename">wall-t3-fortress.svg</div>
+          <div class="card-desc">Tier 3: Imposing blackened iron fortress wall with spikes and gold rivets.</div>
+        </div>
+      </div>
+    
+      <div class="card">
+        <div class="preview-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 80" width="160" height="80">
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <rect x="6" y="14" width="18" height="52" rx="3" fill="#444958" stroke="#222633" stroke-width="4"/>
+    <rect x="136" y="14" width="18" height="52" rx="3" fill="#444958" stroke="#222633" stroke-width="4"/>
+    <rect x="24" y="18" width="112" height="44" rx="2" fill="#483420" stroke="#222633" stroke-width="3.5"/>
+    <rect x="26" y="20" width="108" height="40" fill="#6E4F32"/>
+    <line x1="44" y1="20" x2="44" y2="60" stroke="#222633" stroke-width="2"/>
+    <line x1="62" y1="20" x2="62" y2="60" stroke="#222633" stroke-width="2"/>
+    <line x1="80" y1="18" x2="80" y2="62" stroke="#222633" stroke-width="3.5"/>
+    <line x1="98" y1="20" x2="98" y2="60" stroke="#222633" stroke-width="2"/>
+    <line x1="116" y1="20" x2="116" y2="60" stroke="#222633" stroke-width="2"/>
+    <rect x="10" y="24" width="46" height="8" rx="2" fill="#444958" stroke="#222633" stroke-width="2.5"/>
+    <circle cx="16" cy="28" r="2.5" fill="#D8DEEE" stroke="#222633" stroke-width="1"/>
+    <circle cx="30" cy="28" r="2.5" fill="#D8DEEE" stroke="#222633" stroke-width="1"/>
+    <rect x="10" y="48" width="46" height="8" rx="2" fill="#444958" stroke="#222633" stroke-width="2.5"/>
+    <circle cx="16" cy="52" r="2.5" fill="#D8DEEE" stroke="#222633" stroke-width="1"/>
+    <circle cx="30" cy="52" r="2.5" fill="#D8DEEE" stroke="#222633" stroke-width="1"/>
+    <rect x="104" y="24" width="46" height="8" rx="2" fill="#444958" stroke="#222633" stroke-width="2.5"/>
+    <circle cx="144" cy="28" r="2.5" fill="#D8DEEE" stroke="#222633" stroke-width="1"/>
+    <circle cx="130" cy="28" r="2.5" fill="#D8DEEE" stroke="#222633" stroke-width="1"/>
+    <rect x="104" y="48" width="46" height="8" rx="2" fill="#444958" stroke="#222633" stroke-width="2.5"/>
+    <circle cx="144" cy="52" r="2.5" fill="#D8DEEE" stroke="#222633" stroke-width="1"/>
+    <circle cx="130" cy="52" r="2.5" fill="#D8DEEE" stroke="#222633" stroke-width="1"/>
+    <circle cx="80" cy="40" r="7" fill="#C89524" stroke="#222633" stroke-width="2"/>
+    <circle cx="80" cy="40" r="4" fill="#F0C446"/>
+    <circle cx="80" cy="39" r="1.5" fill="#151821"/>
+  </g>
+</svg>
+</div>
+        <div class="card-info">
+          <div class="card-title">DOOR</div>
+          <div class="card-filename">door.svg</div>
+          <div class="card-desc">Reinforced dark timber gate with heavy wrought-iron strap hinges and brass lock.</div>
+        </div>
+      </div>
+    
+      <div class="card">
+        <div class="preview-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 140" width="140" height="140">
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <rect x="16" y="16" width="108" height="108" rx="6" fill="#483420" stroke="#222633" stroke-width="4.5"/>
+    <rect x="22" y="22" width="96" height="96" rx="3" fill="#3D291C"/>
+    <g transform="translate(42, 42)">
+      <circle cx="0" cy="0" r="15" fill="#6E4F32" stroke="#222633" stroke-width="3"/>
+      <polygon points="-8,8 0,-16 8,8" fill="#444958" stroke="#222633" stroke-width="2"/>
+      <polygon points="-5,5 0,-16 5,5" fill="#A2A8BC"/>
+      <line x1="0" y1="-16" x2="0" y2="4" stroke="#D8DEEE" stroke-width="1.5"/>
+    </g>
+    <g transform="translate(98, 42)">
+      <circle cx="0" cy="0" r="15" fill="#6E4F32" stroke="#222633" stroke-width="3"/>
+      <polygon points="-8,8 0,-16 8,8" fill="#444958" stroke="#222633" stroke-width="2"/>
+      <polygon points="-5,5 0,-16 5,5" fill="#A2A8BC"/>
+      <line x1="0" y1="-16" x2="0" y2="4" stroke="#D8DEEE" stroke-width="1.5"/>
+    </g>
+    <g transform="translate(42, 98)">
+      <circle cx="0" cy="0" r="15" fill="#6E4F32" stroke="#222633" stroke-width="3"/>
+      <polygon points="-8,8 0,-16 8,8" fill="#444958" stroke="#222633" stroke-width="2"/>
+      <polygon points="-5,5 0,-16 5,5" fill="#A2A8BC"/>
+      <line x1="0" y1="-16" x2="0" y2="4" stroke="#D8DEEE" stroke-width="1.5"/>
+    </g>
+    <g transform="translate(98, 98)">
+      <circle cx="0" cy="0" r="15" fill="#6E4F32" stroke="#222633" stroke-width="3"/>
+      <polygon points="-8,8 0,-16 8,8" fill="#444958" stroke="#222633" stroke-width="2"/>
+      <polygon points="-5,5 0,-16 5,5" fill="#A2A8BC"/>
+      <line x1="0" y1="-16" x2="0" y2="4" stroke="#D8DEEE" stroke-width="1.5"/>
+    </g>
+    <g transform="translate(70, 70)">
+      <circle cx="0" cy="0" r="20" fill="#483420" stroke="#222633" stroke-width="3.5"/>
+      <circle cx="0" cy="0" r="16" fill="#6E4F32"/>
+      <polygon points="-11,11 0,-22 11,11" fill="#444958" stroke="#222633" stroke-width="2.5"/>
+      <polygon points="-7,7 0,-22 7,7" fill="#D8DEEE"/>
+      <line x1="0" y1="-22" x2="0" y2="6" stroke="#D8DEEE" stroke-width="2"/>
+    </g>
+  </g>
+</svg>
+</div>
+        <div class="card-info">
+          <div class="card-title">SPIKES</div>
+          <div class="card-filename">spikes.svg</div>
+          <div class="card-desc">Fire-hardened charred wooden stakes capped with triangular wrought-iron impaling tips.</div>
+        </div>
+      </div>
+    
+      <div class="card">
+        <div class="preview-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="160" height="160">
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <rect x="14" y="14" width="132" height="132" rx="6" fill="#483420" stroke="#222633" stroke-width="4.5"/>
+    <rect x="20" y="20" width="120" height="120" rx="3" fill="#2E2016"/>
+    <rect x="24" y="26" width="112" height="28" rx="4" fill="#3D2B1E" stroke="#222633" stroke-width="2"/>
+    <line x1="28" y1="40" x2="132" y2="40" stroke="#22160E" stroke-width="3"/>
+    <rect x="24" y="66" width="112" height="28" rx="4" fill="#3D2B1E" stroke="#222633" stroke-width="2"/>
+    <line x1="28" y1="80" x2="132" y2="80" stroke="#22160E" stroke-width="3"/>
+    <rect x="24" y="106" width="112" height="28" rx="4" fill="#3D2B1E" stroke="#222633" stroke-width="2"/>
+    <line x1="28" y1="120" x2="132" y2="120" stroke="#22160E" stroke-width="3"/>
+    <g transform="translate(42, 40)"><circle cx="0" cy="0" r="12" fill="#4B7836" stroke="#222633" stroke-width="2"/><circle cx="-2" cy="-2" r="8" fill="#6EA650"/><circle cx="-3" cy="2" r="4" fill="#B81C2C"/><circle cx="3" cy="-1" r="3.5" fill="#F03044"/></g>
+    <g transform="translate(80, 40)"><circle cx="0" cy="0" r="14" fill="#4B7836" stroke="#222633" stroke-width="2"/><circle cx="-2" cy="-2" r="9" fill="#6EA650"/><circle cx="-4" cy="-2" r="4" fill="#B81C2C"/><circle cx="2" cy="3" r="4" fill="#F03044"/></g>
+    <g transform="translate(118, 40)"><circle cx="0" cy="0" r="12" fill="#4B7836" stroke="#222633" stroke-width="2"/><circle cx="-2" cy="-2" r="8" fill="#6EA650"/><circle cx="-2" cy="1" r="3.5" fill="#F03044"/><circle cx="3" cy="-2" r="4" fill="#B81C2C"/></g>
+    <g transform="translate(42, 80)"><circle cx="0" cy="0" r="13" fill="#4B7836" stroke="#222633" stroke-width="2"/><circle cx="-2" cy="-2" r="8.5" fill="#6EA650"/><circle cx="-3" cy="-1" r="4" fill="#B81C2C"/><circle cx="3" cy="2" r="3.5" fill="#F03044"/></g>
+    <g transform="translate(80, 80)"><circle cx="0" cy="0" r="15" fill="#4B7836" stroke="#222633" stroke-width="2"/><circle cx="-2" cy="-2" r="10" fill="#6EA650"/><circle cx="-4" cy="1" r="4" fill="#B81C2C"/><circle cx="2" cy="-3" r="4.5" fill="#F03044"/></g>
+    <g transform="translate(118, 80)"><circle cx="0" cy="0" r="13" fill="#4B7836" stroke="#222633" stroke-width="2"/><circle cx="-2" cy="-2" r="8.5" fill="#6EA650"/><circle cx="-2" cy="-2" r="3.5" fill="#F03044"/><circle cx="2" cy="2" r="4" fill="#B81C2C"/></g>
+    <g transform="translate(42, 120)"><circle cx="0" cy="0" r="12" fill="#4B7836" stroke="#222633" stroke-width="2"/><circle cx="-2" cy="-2" r="8" fill="#6EA650"/><circle cx="-2" cy="2" r="4" fill="#B81C2C"/><circle cx="3" cy="-1" r="3.5" fill="#F03044"/></g>
+    <g transform="translate(80, 120)"><circle cx="0" cy="0" r="14" fill="#4B7836" stroke="#222633" stroke-width="2"/><circle cx="-2" cy="-2" r="9" fill="#6EA650"/><circle cx="-3" cy="-2" r="4" fill="#B81C2C"/><circle cx="3" cy="2" r="4" fill="#F03044"/></g>
+    <g transform="translate(118, 120)"><circle cx="0" cy="0" r="12" fill="#4B7836" stroke="#222633" stroke-width="2"/><circle cx="-2" cy="-2" r="8" fill="#6EA650"/><circle cx="0" cy="0" r="4" fill="#F03044"/></g>
+  </g>
+</svg>
+</div>
+        <div class="card-info">
+          <div class="card-title">FARM</div>
+          <div class="card-filename">farm.svg</div>
+          <div class="card-desc">Rich dark tilled soil furrows with sprawling lush foliage and ripe red berries.</div>
+        </div>
+      </div>
+    
+      <div class="card">
+        <div class="preview-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="160" height="160">
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <rect x="14" y="14" width="132" height="132" rx="8" fill="#483420" stroke="#222633" stroke-width="4.5"/>
+    <rect x="20" y="20" width="120" height="120" rx="4" fill="#241B14"/>
+    <rect x="26" y="26" width="108" height="108" rx="8" fill="#151821" stroke="#222633" stroke-width="3"/>
+    <rect x="28" y="28" width="104" height="104" rx="6" fill="#1C1819"/>
+    <ellipse cx="64" cy="64" rx="30" ry="24" fill="#2B202C" opacity="0.6"/>
+    <ellipse cx="96" cy="92" rx="26" ry="22" fill="#1E2828" opacity="0.5"/>
+    <circle cx="70" cy="74" r="14" fill="#2E2426" stroke="#222633" stroke-width="2"/>
+    <circle cx="67" cy="71" r="9" fill="#3D3234"/>
+    <circle cx="65" cy="69" r="3" fill="#6A585C"/>
+    <circle cx="106" cy="56" r="10" fill="#2E2426" stroke="#222633" stroke-width="2"/>
+    <circle cx="104" cy="54" r="6" fill="#3D3234"/>
+    <circle cx="52" cy="106" r="11" fill="#2E2426" stroke="#222633" stroke-width="2"/>
+    <circle cx="50" cy="104" r="7" fill="#3D3234"/>
+  </g>
+</svg>
+</div>
+        <div class="card-info">
+          <div class="card-title">TAR PIT</div>
+          <div class="card-filename">tar-pit.svg</div>
+          <div class="card-desc">Charred timber framed pit with viscous black tar pool and bubbling sludge domes.</div>
+        </div>
+      </div>
+    
+      <div class="card">
+        <div class="preview-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="160" height="160">
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <circle cx="80" cy="80" r="64" fill="#221814" stroke="#222633" stroke-width="4"/>
+    <circle cx="80" cy="80" r="54" fill="#6E2412"/>
+    <circle cx="80" cy="80" r="48" fill="#B83A14"/>
+    <circle cx="80" cy="80" r="42" fill="#E67218"/>
+    <line x1="80" y1="80" x2="80" y2="18" stroke="#222633" stroke-width="9"/>
+    <line x1="80" y1="80" x2="80" y2="20" stroke="#444958" stroke-width="5"/>
+    <line x1="80" y1="80" x2="26" y2="112" stroke="#222633" stroke-width="9"/>
+    <line x1="80" y1="80" x2="28" y2="110" stroke="#444958" stroke-width="5"/>
+    <line x1="80" y1="80" x2="134" y2="112" stroke="#222633" stroke-width="9"/>
+    <line x1="80" y1="80" x2="132" y2="110" stroke="#444958" stroke-width="5"/>
+    <circle cx="80" cy="80" r="38" fill="#444958" stroke="#222633" stroke-width="5"/>
+    <circle cx="80" cy="80" r="33" fill="#323642"/>
+    <circle cx="80" cy="80" r="33" fill="none" stroke="#222633" stroke-width="4"/>
+    <circle cx="80" cy="45" r="4" fill="#D8DEEE" stroke="#222633" stroke-width="2"/>
+    <circle cx="80" cy="115" r="4" fill="#D8DEEE" stroke="#222633" stroke-width="2"/>
+    <circle cx="45" cy="80" r="4" fill="#D8DEEE" stroke="#222633" stroke-width="2"/>
+    <circle cx="115" cy="80" r="4" fill="#D8DEEE" stroke="#222633" stroke-width="2"/>
+    <circle cx="80" cy="80" r="26" fill="#8A6216" stroke="#222633" stroke-width="2.5"/>
+    <circle cx="80" cy="80" r="23" fill="#C89524"/>
+    <circle cx="78" cy="78" r="18" fill="#F0C446"/>
+    <circle cx="73" cy="72" r="7" fill="#FFE27A" stroke="#222633" stroke-width="1.5"/>
+    <circle cx="71" cy="70" r="3" fill="#FFFFFF"/>
+    <circle cx="88" cy="84" r="5" fill="#FFE27A" stroke="#222633" stroke-width="1.5"/>
+    <circle cx="76" cy="89" r="4" fill="#8A6216"/>
+  </g>
+</svg>
+</div>
+        <div class="card-info">
+          <div class="card-title">CAULDRON</div>
+          <div class="card-filename">cauldron.svg</div>
+          <div class="card-desc">Iron tripod cauldron over glowing ember hearth with bubbling golden-toxic pitch.</div>
+        </div>
+      </div>
+    </div><div class="category-header"><h2>Resources</h2></div><div class="card-grid">
+      <div class="card">
+        <div class="preview-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="160" height="160">
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <ellipse cx="80" cy="88" rx="60" ry="54" fill="#151821" opacity="0.32"/>
+    <polygon points="80,18 100,44 136,36 122,68 146,84 124,106 138,134 104,124 80,146 56,124 22,134 36,106 14,84 38,68 24,36 60,44" fill="#2C4524" stroke="#222633" stroke-width="4.5"/>
+    <polygon points="80,28 98,50 126,44 114,70 134,84 114,100 126,122 98,114 80,132 62,114 34,122 46,100 26,84 46,70 34,44 62,50" fill="#3E6132" stroke="#222633" stroke-width="3.5"/>
+    <path d="M 80 80 L 110 58 M 80 80 L 52 64 M 80 80 L 98 104 M 80 80 L 56 100" stroke="#483420" stroke-width="5" fill="none"/>
+    <path d="M 80 80 L 110 58 M 80 80 L 52 64 M 80 80 L 98 104 M 80 80 L 56 100" stroke="#6E4F32" stroke-width="2.5" fill="none"/>
+    <polygon points="80,40 94,56 114,52 106,72 120,84 104,96 112,110 94,104 80,118 66,104 48,110 56,96 40,84 54,72 46,52 66,56" fill="#558044" stroke="#222633" stroke-width="3"/>
+    <polygon points="80,54 90,66 102,64 96,78 106,86 94,94 98,104 88,100 80,108 72,100 62,104 66,94 54,86 64,78 58,64 70,66" fill="#70A458" stroke="#222633" stroke-width="2.5"/>
+    <circle cx="80" cy="80" r="10" fill="#88BF6C" stroke="#222633" stroke-width="2"/>
+    <circle cx="80" cy="80" r="4" fill="#A8DA8A"/>
+  </g>
+</svg>
+</div>
+        <div class="card-info">
+          <div class="card-title">TREE DEADWOOD PINE</div>
+          <div class="card-filename">tree-deadwood-pine.svg</div>
+          <div class="card-desc">Multi-tier gnarled deadwood pine canopy with contact shadow and star needle clusters.</div>
+        </div>
+      </div>
+    
+      <div class="card">
+        <div class="preview-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="160" height="160">
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <polygon points="26,88 44,56 94,48 140,74 144,116 112,142 54,138 24,114" fill="#151821" opacity="0.35"/>
+    <polygon points="28,82 46,50 96,42 136,66 140,108 110,134 52,130 24,106" fill="#444958" stroke="#222633" stroke-width="5"/>
+    <polygon points="46,50 96,42 108,76 66,84" fill="#A2A8BC" stroke="#222633" stroke-width="2.5"/>
+    <polygon points="96,42 136,66 114,94 108,76" fill="#D8DEEE" stroke="#222633" stroke-width="2.5"/>
+    <polygon points="28,82 46,50 66,84 48,110 24,106" fill="#444958" stroke="#222633" stroke-width="2.5"/>
+    <polygon points="66,84 108,76 114,94 98,124 58,118 48,110" fill="#72788C" stroke="#222633" stroke-width="2.5"/>
+    <polygon points="136,66 140,108 122,126 114,94" fill="#444958" stroke="#222633" stroke-width="2.5"/>
+    <polygon points="48,110 58,118 98,124 122,126 110,134 52,130" fill="#363A48" stroke="#222633" stroke-width="2.5"/>
+    <line x1="82" y1="48" x2="88" y2="72" stroke="#D8DEEE" stroke-width="2"/>
+    <line x1="88" y1="72" x2="82" y2="108" stroke="#222633" stroke-width="2.5"/>
+  </g>
+</svg>
+</div>
+        <div class="card-info">
+          <div class="card-title">ROCK GRANITE BOULDER</div>
+          <div class="card-filename">rock-granite-boulder.svg</div>
+          <div class="card-desc">Faceted stylized granite rock with comic-book outlines and quartz vein highlight.</div>
+        </div>
+      </div>
+    
+      <div class="card">
+        <div class="preview-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="160" height="160">
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <ellipse cx="80" cy="86" rx="54" ry="48" fill="#151821" opacity="0.35"/>
+    <path d="M 44 48 Q 28 66 32 94 Q 38 124 68 128 Q 98 132 124 116 Q 138 98 134 68 Q 126 36 94 34 Q 64 32 44 48 Z" fill="#35522A" stroke="#222633" stroke-width="5"/>
+    <path d="M 42 74 Q 68 86 98 70 M 74 50 Q 86 84 76 116 M 54 104 Q 84 94 118 98" stroke="#483420" stroke-width="4" fill="none"/>
+    <circle cx="56" cy="62" r="22" fill="#4B743B" stroke="#222633" stroke-width="3"/>
+    <circle cx="104" cy="60" r="24" fill="#4B743B" stroke="#222633" stroke-width="3"/>
+    <circle cx="62" cy="100" r="22" fill="#4B743B" stroke="#222633" stroke-width="3"/>
+    <circle cx="106" cy="98" r="22" fill="#4B743B" stroke="#222633" stroke-width="3"/>
+    <circle cx="80" cy="80" r="26" fill="#62924E" stroke="#222633" stroke-width="3"/>
+    <circle cx="54" cy="58" r="14" fill="#78AC62"/>
+    <circle cx="102" cy="56" r="15" fill="#78AC62"/>
+    <circle cx="80" cy="76" r="18" fill="#78AC62"/>
+    <g stroke="#222633" stroke-width="2">
+      <circle cx="48" cy="52" r="6" fill="#B81C2C"/><circle cx="58" cy="46" r="5" fill="#F03044"/>
+      <circle cx="108" cy="50" r="6.5" fill="#B81C2C"/><circle cx="118" cy="58" r="5" fill="#F03044"/>
+      <circle cx="76" cy="74" r="7" fill="#F03044"/><circle cx="88" cy="78" r="6" fill="#B81C2C"/>
+      <circle cx="58" cy="104" r="6" fill="#F03044"/><circle cx="104" cy="106" r="6.5" fill="#B81C2C"/>
+    </g>
+    <circle cx="47" cy="50" r="1.5" fill="#FFFFFF"/>
+    <circle cx="107" cy="48" r="1.5" fill="#FFFFFF"/>
+    <circle cx="75" cy="72" r="2" fill="#FFFFFF"/>
+  </g>
+</svg>
+</div>
+        <div class="card-info">
+          <div class="card-title">BUSH BERRY</div>
+          <div class="card-filename">bush-berry.svg</div>
+          <div class="card-desc">Dense thorny bramble bush with organic foliage lobes and glowing ruby berries.</div>
+        </div>
+      </div>
+    
+      <div class="card">
+        <div class="preview-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="160" height="160">
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <polygon points="24,84 44,52 98,44 142,70 144,116 112,142 52,136 22,112" fill="#151821" opacity="0.35"/>
+    <polygon points="26,80 46,48 100,40 138,66 140,110 110,136 50,130 24,106" fill="#444958" stroke="#222633" stroke-width="5"/>
+    <polygon points="46,48 100,40 112,74 68,82" fill="#A2A8BC" stroke="#222633" stroke-width="2.5"/>
+    <polygon points="100,40 138,66 116,92 112,74" fill="#D8DEEE" stroke="#222633" stroke-width="2.5"/>
+    <polygon points="26,80 46,48 68,82 46,110 24,106" fill="#444958" stroke="#222633" stroke-width="2.5"/>
+    <polygon points="68,82 112,74 116,92 96,122 56,118 46,110" fill="#72788C" stroke="#222633" stroke-width="2.5"/>
+    <polygon points="46,110 56,118 96,122 110,136 50,130" fill="#363A48" stroke="#222633" stroke-width="2.5"/>
+    <path d="M 52 64 L 74 62 L 86 78 L 76 96" stroke="#222633" stroke-width="7" fill="none"/>
+    <path d="M 52 64 L 74 62 L 86 78 L 76 96" stroke="#C89524" stroke-width="5" fill="none"/>
+    <path d="M 54 63 L 74 62 L 86 78 L 76 96" stroke="#FFE27A" stroke-width="2" fill="none"/>
+    <path d="M 98 54 L 118 70 L 106 88 L 126 102" stroke="#222633" stroke-width="6" fill="none"/>
+    <path d="M 98 54 L 118 70 L 106 88 L 126 102" stroke="#C89524" stroke-width="4" fill="none"/>
+    <path d="M 98 54 L 118 70 L 106 88 L 126 102" stroke="#FFE27A" stroke-width="1.5" fill="none"/>
+    <polygon points="60,94 70,88 74,98 64,104" fill="#FFE27A" stroke="#222633" stroke-width="2"/>
+    <polygon points="102,96 112,92 114,102 104,106" fill="#FFE27A" stroke="#222633" stroke-width="2"/>
+  </g>
+</svg>
+</div>
+        <div class="card-info">
+          <div class="card-title">GOLD MINE</div>
+          <div class="card-filename">gold-mine.svg</div>
+          <div class="card-desc">Faceted stone boulder with glowing raw gold veins and embedded gold nuggets.</div>
+        </div>
+      </div>
+    </div><div class="category-header"><h2>8 Zombie Types (90° Top-Down Silhouettes)</h2></div><div class="card-grid">
+      <div class="card">
+        <div class="preview-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 140" width="140" height="140">
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <ellipse cx="68" cy="72" rx="26" ry="24" fill="#151821" opacity="0.35"/>
+    <g id="arm-north">
+      <path d="M 72 52 Q 88 44 100 48" stroke="#222633" stroke-width="9" fill="none"/>
+      <path d="M 72 52 Q 88 44 100 48" stroke="#3E5C33" stroke-width="6" fill="none"/>
+      <polygon points="100,48 108,44 104,49 110,48 104,52 108,54 100,53" fill="#151821" stroke="#222633" stroke-width="1"/>
+    </g>
+    <g id="arm-south">
+      <path d="M 72 88 Q 88 96 100 92" stroke="#222633" stroke-width="9" fill="none"/>
+      <path d="M 72 88 Q 88 96 100 92" stroke="#3E5C33" stroke-width="6" fill="none"/>
+      <polygon points="100,92 108,88 104,93 110,92 104,96 108,98 100,97" fill="#151821" stroke="#222633" stroke-width="1"/>
+    </g>
+    <circle cx="68" cy="70" r="22" fill="#3E5C33" stroke="#222633" stroke-width="4"/>
+    <circle cx="66" cy="68" r="18" fill="#537845"/>
+    <circle cx="74" cy="62" r="4.5" fill="#2E4426"/>
+    <circle cx="60" cy="76" r="3.5" fill="#2E4426"/>
+    <line x1="60" y1="62" x2="74" y2="76" stroke="#781422" stroke-width="3"/>
+    <line x1="62" y1="61" x2="66" y2="65" stroke="#222633" stroke-width="1.5"/>
+    <line x1="68" y1="67" x2="72" y2="71" stroke="#222633" stroke-width="1.5"/>
+  </g>
+</svg>
+</div>
+        <div class="card-info">
+          <div class="card-title">ZOMBIE SHAMBLER</div>
+          <div class="card-filename">zombie-shambler.svg</div>
+          <div class="card-desc">Decaying olive-green flesh with outstretched jagged dark claws and wound stitches.</div>
+        </div>
+      </div>
+    
+      <div class="card">
+        <div class="preview-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 140" width="140" height="140">
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <ellipse cx="68" cy="72" rx="24" ry="20" fill="#151821" opacity="0.35"/>
+    <g id="arm-north">
+      <path d="M 70 54 Q 92 48 106 50" stroke="#222633" stroke-width="8" fill="none"/>
+      <path d="M 70 54 Q 92 48 106 50" stroke="#456B38" stroke-width="5" fill="none"/>
+      <polygon points="106,50 116,46 112,50 118,51 112,54 116,57 106,55" fill="#B81C2C" stroke="#222633" stroke-width="1.5"/>
+      <circle cx="114" cy="51" r="1.5" fill="#F03044"/>
+    </g>
+    <g id="arm-south">
+      <path d="M 70 86 Q 92 92 106 90" stroke="#222633" stroke-width="8" fill="none"/>
+      <path d="M 70 86 Q 92 92 106 90" stroke="#456B38" stroke-width="5" fill="none"/>
+      <polygon points="106,90 116,86 112,90 118,91 112,94 116,97 106,95" fill="#B81C2C" stroke="#222633" stroke-width="1.5"/>
+      <circle cx="114" cy="91" r="1.5" fill="#F03044"/>
+    </g>
+    <ellipse cx="68" cy="70" rx="19" ry="16" fill="#456B38" stroke="#222633" stroke-width="4"/>
+    <ellipse cx="66" cy="69" rx="15" ry="13" fill="#629450"/>
+    <line x1="58" y1="64" x2="76" y2="72" stroke="#B81C2C" stroke-width="2.5"/>
+    <circle cx="78" cy="65" r="2.5" fill="#B81C2C"/>
+    <circle cx="62" cy="74" r="2" fill="#B81C2C"/>
+  </g>
+</svg>
+</div>
+        <div class="card-info">
+          <div class="card-title">ZOMBIE RUNNER</div>
+          <div class="card-filename">zombie-runner.svg</div>
+          <div class="card-desc">Lean athletic pale green silhouette with blood-red dripping claws.</div>
+        </div>
+      </div>
+    
+      <div class="card">
+        <div class="preview-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 140" width="140" height="140">
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <ellipse cx="66" cy="72" rx="30" ry="26" fill="#151821" opacity="0.35"/>
+    <rect x="32" y="52" width="26" height="36" rx="4" fill="#483420" stroke="#222633" stroke-width="3.5"/>
+    <rect x="34" y="54" width="22" height="32" rx="2" fill="#6E4F32"/>
+    <line x1="32" y1="58" x2="58" y2="58" stroke="#222633" stroke-width="3.5"/>
+    <line x1="32" y1="58" x2="58" y2="58" stroke="#A2A8BC" stroke-width="2"/>
+    <line x1="32" y1="82" x2="58" y2="82" stroke="#222633" stroke-width="3.5"/>
+    <line x1="32" y1="82" x2="58" y2="82" stroke="#A2A8BC" stroke-width="2"/>
+    <path d="M 32 64 Q 22 62 18 56" stroke="#C8B898" stroke-width="2.5" fill="none"/>
+    <circle cx="17" cy="55" r="4" fill="#F0C446" stroke="#222633" stroke-width="1.5"/>
+    <circle cx="17" cy="55" r="2" fill="#F03044"/>
+    <ellipse cx="88" cy="54" rx="7" ry="6" fill="#36522C" stroke="#222633" stroke-width="2.5"/>
+    <ellipse cx="88" cy="86" rx="7" ry="6" fill="#36522C" stroke="#222633" stroke-width="2.5"/>
+    <circle cx="70" cy="70" r="22" fill="#36522C" stroke="#222633" stroke-width="4"/>
+    <circle cx="72" cy="70" r="18" fill="#444958" stroke="#222633" stroke-width="3.5"/>
+    <circle cx="71" cy="69" r="15" fill="#72788C"/>
+    <path d="M 72 52 Q 88 70 72 88" fill="none" stroke="#222633" stroke-width="4"/>
+    <path d="M 72 53 Q 86 70 72 87" fill="none" stroke="#D8DEEE" stroke-width="2"/>
+    <circle cx="76" cy="60" r="2" fill="#D8DEEE" stroke="#222633" stroke-width="1"/>
+    <circle cx="82" cy="70" r="2.5" fill="#D8DEEE" stroke="#222633" stroke-width="1"/>
+    <circle cx="76" cy="80" r="2" fill="#D8DEEE" stroke="#222633" stroke-width="1"/>
+  </g>
+</svg>
+</div>
+        <div class="card-info">
+          <div class="card-title">ZOMBIE SAPPER</div>
+          <div class="card-filename">zombie-sapper.svg</div>
+          <div class="card-desc">Reinforced iron siege helmet + explosive gunpowder keg backpack with spark fuse.</div>
+        </div>
+      </div>
+    
+      <div class="card">
+        <div class="preview-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 140" width="140" height="140">
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <ellipse cx="68" cy="72" rx="25" ry="22" fill="#151821" opacity="0.35"/>
+    <ellipse cx="50" cy="80" rx="12" ry="9" fill="#483420" stroke="#222633" stroke-width="3"/>
+    <path d="M 50 56 L 76 92" stroke="#222633" stroke-width="4.5"/>
+    <path d="M 50 56 L 76 92" stroke="#483420" stroke-width="2.5"/>
+    <ellipse cx="90" cy="54" rx="6.5" ry="5.5" fill="#4A5C2E" stroke="#222633" stroke-width="2.5"/>
+    <ellipse cx="90" cy="86" rx="6.5" ry="5.5" fill="#4A5C2E" stroke="#222633" stroke-width="2.5"/>
+    <circle cx="68" cy="70" r="20" fill="#4A5C2E" stroke="#222633" stroke-width="4"/>
+    <path d="M 54 62 Q 58 52 70 54 Q 82 56 84 66 Q 86 78 78 84 Q 66 88 56 82 Q 50 74 54 62 Z" fill="#867446" stroke="#222633" stroke-width="3"/>
+    <ellipse cx="68" cy="70" rx="10" ry="8" fill="#5C4E2C"/>
+    <line x1="56" y1="80" x2="52" y2="86" stroke="#222633" stroke-width="2"/>
+    <line x1="74" y1="84" x2="76" y2="90" stroke="#222633" stroke-width="2"/>
+  </g>
+</svg>
+</div>
+        <div class="card-info">
+          <div class="card-title">ZOMBIE SCAVENGER</div>
+          <div class="card-filename">zombie-scavenger.svg</div>
+          <div class="card-desc">Ragged yellow-green flesh, tattered mud-brown scavenger hood and scrap satchel.</div>
+        </div>
+      </div>
+    
+      <div class="card">
+        <div class="preview-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="160" height="160">
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <ellipse cx="76" cy="84" rx="42" ry="38" fill="#151821" opacity="0.45"/>
+    <circle cx="114" cy="50" r="12" fill="#2E4726" stroke="#222633" stroke-width="4"/>
+    <circle cx="114" cy="110" r="12" fill="#2E4726" stroke="#222633" stroke-width="4"/>
+    <circle cx="76" cy="80" r="34" fill="#2E4726" stroke="#222633" stroke-width="5"/>
+    <circle cx="74" cy="78" r="29" fill="#415E36"/>
+    <g id="rusted-pauldron">
+      <path d="M 52 50 Q 76 34 100 48 Q 96 74 72 76 Q 50 72 52 50 Z" fill="#5E4636" stroke="#222633" stroke-width="4"/>
+      <path d="M 56 52 Q 76 40 96 50" stroke="#444958" stroke-width="3" fill="none"/>
+      <polygon points="66,42 70,28 76,42" fill="#A2A8BC" stroke="#222633" stroke-width="2"/>
+      <polygon points="84,46 90,32 96,48" fill="#A2A8BC" stroke="#222633" stroke-width="2"/>
+      <circle cx="62" cy="56" r="2.5" fill="#F0C446" stroke="#222633" stroke-width="1.5"/>
+      <circle cx="80" cy="62" r="2.5" fill="#F0C446" stroke="#222633" stroke-width="1.5"/>
+    </g>
+    <path d="M 58 78 Q 74 88 92 82" stroke="#781422" stroke-width="4" fill="none"/>
+    <line x1="64" y1="78" x2="66" y2="84" stroke="#222633" stroke-width="2"/>
+    <line x1="76" y1="82" x2="78" y2="88" stroke="#222633" stroke-width="2"/>
+    <line x1="86" y1="80" x2="88" y2="86" stroke="#222633" stroke-width="2"/>
+  </g>
+</svg>
+</div>
+        <div class="card-info">
+          <div class="card-title">ZOMBIE BRUTE</div>
+          <div class="card-filename">zombie-brute.svg</div>
+          <div class="card-desc">Colossal hulking dark-green behemoth with heavy spiked rusted iron shoulder armor.</div>
+        </div>
+      </div>
+    
+      <div class="card">
+        <div class="preview-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 140" width="140" height="140">
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <ellipse cx="68" cy="72" rx="28" ry="26" fill="#151821" opacity="0.38"/>
+    <ellipse cx="94" cy="50" rx="7.5" ry="6.5" fill="#5A4A2A" stroke="#222633" stroke-width="3"/>
+    <circle cx="96" cy="48" r="2.5" fill="#F0C446"/>
+    <ellipse cx="94" cy="90" rx="7.5" ry="6.5" fill="#5A4A2A" stroke="#222633" stroke-width="3"/>
+    <circle cx="96" cy="92" r="2.5" fill="#F0C446"/>
+    <ellipse cx="68" cy="70" rx="24" ry="22" fill="#5A4A2A" stroke="#222633" stroke-width="4.5"/>
+    <ellipse cx="66" cy="68" rx="20" ry="18" fill="#78663C"/>
+    <circle cx="54" cy="62" r="9" fill="#F0C446" stroke="#222633" stroke-width="2.5"/>
+    <circle cx="52" cy="60" r="4" fill="#FFE27A"/>
+    <circle cx="60" cy="78" r="8" fill="#F0C446" stroke="#222633" stroke-width="2.5"/>
+    <circle cx="58" cy="76" r="3.5" fill="#FFE27A"/>
+    <circle cx="48" cy="74" r="7" fill="#C89524" stroke="#222633" stroke-width="2"/>
+    <circle cx="46" cy="72" r="2.5" fill="#FFE27A"/>
+    <circle cx="68" cy="60" r="6" fill="#F0C446" stroke="#222633" stroke-width="2"/>
+    <circle cx="78" cy="70" r="3" fill="#88B82A" stroke="#222633" stroke-width="1"/>
+  </g>
+</svg>
+</div>
+        <div class="card-info">
+          <div class="card-title">ZOMBIE ROTSPITTER</div>
+          <div class="card-filename">zombie-rotspitter.svg</div>
+          <div class="card-desc">Bloated corpse flesh with cluster of glowing toxic-yellow bile pustules on back.</div>
+        </div>
+      </div>
+    
+      <div class="card">
+        <div class="preview-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="160" height="160">
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <ellipse cx="78" cy="84" rx="40" ry="36" fill="#151821" opacity="0.45"/>
+    <g transform="translate(114, 52)">
+      <circle cx="0" cy="0" r="10" fill="#444958" stroke="#222633" stroke-width="3"/>
+      <polygon points="4,-4 14,0 4,4" fill="#D8DEEE" stroke="#222633" stroke-width="1.5"/>
+    </g>
+    <g transform="translate(114, 108)">
+      <circle cx="0" cy="0" r="10" fill="#444958" stroke="#222633" stroke-width="3"/>
+      <polygon points="4,-4 14,0 4,4" fill="#D8DEEE" stroke="#222633" stroke-width="1.5"/>
+    </g>
+    <circle cx="78" cy="80" r="30" fill="#781422" stroke="#222633" stroke-width="5"/>
+    <circle cx="76" cy="78" r="26" fill="#8B2636"/>
+    <polygon points="58,66 94,66 102,80 94,94 58,94 66,80" fill="#444958" stroke="#222633" stroke-width="3.5"/>
+    <polygon points="62,69 90,69 97,80 90,91 62,91 69,80" fill="#484D5E"/>
+    <line x1="62" y1="80" x2="96" y2="80" stroke="#F0C446" stroke-width="3"/>
+    <line x1="78" y1="67" x2="78" y2="93" stroke="#F0C446" stroke-width="3"/>
+    <circle cx="78" cy="80" r="3" fill="#FFE27A"/>
+    <path d="M 58 54 Q 78 44 94 54 Q 86 66 64 66 Z" fill="#444958" stroke="#222633" stroke-width="3"/>
+    <polygon points="72,46 76,32 82,46" fill="#D8DEEE" stroke="#222633" stroke-width="2"/>
+    <polygon points="86,49 92,38 96,52" fill="#D8DEEE" stroke="#222633" stroke-width="2"/>
+    <path d="M 58 106 Q 78 116 94 106 Q 86 94 64 94 Z" fill="#444958" stroke="#222633" stroke-width="3"/>
+    <polygon points="72,114 76,128 82,114" fill="#D8DEEE" stroke="#222633" stroke-width="2"/>
+    <polygon points="86,111 92,122 96,108" fill="#D8DEEE" stroke="#222633" stroke-width="2"/>
+  </g>
+</svg>
+</div>
+        <div class="card-info">
+          <div class="card-title">ZOMBIE CHAMPION</div>
+          <div class="card-filename">zombie-champion.svg</div>
+          <div class="card-desc">Dark crimson warplate, blackened steel breastplate with gold trim and spiked pauldrons.</div>
+        </div>
+      </div>
+    
+      <div class="card">
+        <div class="preview-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" width="180" height="180">
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <ellipse cx="88" cy="94" rx="54" ry="48" fill="#151821" opacity="0.55"/>
+    <path d="M 52 50 C 24 54 18 70 26 84 C 16 94 20 114 36 122 C 48 128 62 126 70 120 L 60 90 L 70 60 Z" fill="#781422" stroke="#222633" stroke-width="4.5"/>
+    <path d="M 50 56 C 28 62 24 74 30 84" stroke="#A82436" stroke-width="2" fill="none"/>
+    <path d="M 28 92 C 24 104 30 114 40 120" stroke="#A82436" stroke-width="2" fill="none"/>
+    <g transform="translate(136, 56)">
+      <circle cx="0" cy="0" r="13" fill="#444958" stroke="#222633" stroke-width="3.5"/>
+      <circle cx="0" cy="0" r="9" fill="#151821"/>
+      <polygon points="6,-5 18,0 6,5" fill="#D8DEEE" stroke="#222633" stroke-width="2"/>
+      <circle cx="-2" cy="0" r="2.5" fill="#F03044"/>
+    </g>
+    <g transform="translate(136, 124)">
+      <circle cx="0" cy="0" r="13" fill="#444958" stroke="#222633" stroke-width="3.5"/>
+      <circle cx="0" cy="0" r="9" fill="#151821"/>
+      <polygon points="6,-5 18,0 6,5" fill="#D8DEEE" stroke="#222633" stroke-width="2"/>
+      <circle cx="-2" cy="0" r="2.5" fill="#F03044"/>
+    </g>
+    <circle cx="88" cy="90" r="42" fill="#2E1C22" stroke="#222633" stroke-width="6"/>
+    <circle cx="86" cy="88" r="37" fill="#45242C"/>
+    <circle cx="88" cy="90" r="32" fill="#444958" stroke="#222633" stroke-width="4"/>
+    <polygon points="56,76 42,70 54,82" fill="#151821" stroke="#222633" stroke-width="2"/>
+    <polygon points="56,104 42,110 54,98" fill="#151821" stroke="#222633" stroke-width="2"/>
+    <polygon points="68,60 60,46 76,56" fill="#151821" stroke="#222633" stroke-width="2"/>
+    <polygon points="68,120 60,134 76,124" fill="#151821" stroke="#222633" stroke-width="2"/>
+    <ellipse cx="94" cy="90" rx="20" ry="18" fill="#DDD6C6" stroke="#222633" stroke-width="3.5"/>
+    <ellipse cx="102" cy="83" rx="4" ry="3.5" fill="#151821" stroke="#222633" stroke-width="1.5"/>
+    <circle cx="102" cy="83" r="2" fill="#F03044"/>
+    <ellipse cx="102" cy="97" rx="4" ry="3.5" fill="#151821" stroke="#222633" stroke-width="1.5"/>
+    <circle cx="102" cy="97" r="2" fill="#F03044"/>
+    <path d="M 88 74 Q 80 44 100 24 Q 94 36 94 56 Q 96 68 96 74 Z" fill="#DDD6C6" stroke="#222633" stroke-width="3.5"/>
+    <line x1="88" y1="46" x2="94" y2="44" stroke="#151821" stroke-width="2"/>
+    <line x1="90" y1="36" x2="96" y2="34" stroke="#151821" stroke-width="2"/>
+    <path d="M 88 106 Q 80 136 100 156 Q 94 144 94 124 Q 96 112 96 106 Z" fill="#DDD6C6" stroke="#222633" stroke-width="3.5"/>
+    <line x1="88" y1="134" x2="94" y2="136" stroke="#151821" stroke-width="2"/>
+    <line x1="90" y1="144" x2="96" y2="146" stroke="#151821" stroke-width="2"/>
+  </g>
+</svg>
+</div>
+        <div class="card-info">
+          <div class="card-title">ZOMBIE WARLORD</div>
+          <div class="card-filename">zombie-warlord.svg</div>
+          <div class="card-desc">Towering boss: demonic horned skull helm, black iron spikes, and billowing ragged crimson cape.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const cbBase = document.querySelector('img, svg');
+    // Load turret SVGs into sandbox
+    fetch('turret-crossbow-base.svg').then(r => r.text()).then(t => document.getElementById('cb-base').innerHTML = t);
+    fetch('turret-crossbow-head.svg').then(r => r.text()).then(t => document.getElementById('cb-head').innerHTML = t);
+    fetch('turret-ballista-base.svg').then(r => r.text()).then(t => document.getElementById('bal-base').innerHTML = t);
+    fetch('turret-ballista-head.svg').then(r => r.text()).then(t => document.getElementById('bal-head').innerHTML = t);
+
+    const slider = document.getElementById('aim-slider');
+    const degLabel = document.getElementById('deg-label');
+    const autoBtn = document.getElementById('auto-btn');
+    let autoSpin = true;
+    let angle = 0;
+
+    slider.addEventListener('input', (e) => {
+      autoSpin = false;
+      autoBtn.innerText = 'Auto-Spin: OFF';
+      setAim(e.target.value);
+    });
+
+    autoBtn.addEventListener('click', () => {
+      autoSpin = !autoSpin;
+      autoBtn.innerText = autoSpin ? 'Auto-Spin: ON' : 'Auto-Spin: OFF';
+    });
+
+    function setAim(deg) {
+      document.getElementById('cb-head').style.transform = 'rotate(' + deg + 'deg)';
+      document.getElementById('bal-head').style.transform = 'rotate(' + deg + 'deg)';
+      degLabel.innerText = 'Aim Angle: ' + Math.round(deg) + '°';
+    }
+
+    function loop() {
+      if (autoSpin) {
+        angle = (angle + 0.8) % 360;
+        slider.value = angle;
+        setAim(angle);
+      }
+      requestAnimationFrame(loop);
+    }
+    loop();
+  </script>
+</body>
+</html>

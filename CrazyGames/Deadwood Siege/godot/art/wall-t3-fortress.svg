@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 80" width="160" height="80">
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <rect x="8" y="16" width="144" height="48" rx="4" fill="#151821" stroke="#222633" stroke-width="4.5"/>
+    <rect x="11" y="19" width="138" height="42" rx="2" fill="#444958"/>
+    <polygon points="20,16 28,4 36,16" fill="#72788C" stroke="#222633" stroke-width="2.5"/>
+    <polygon points="56,16 64,4 72,16" fill="#72788C" stroke="#222633" stroke-width="2.5"/>
+    <polygon points="92,16 100,4 108,16" fill="#72788C" stroke="#222633" stroke-width="2.5"/>
+    <polygon points="128,16 136,4 144,16" fill="#72788C" stroke="#222633" stroke-width="2.5"/>
+    <polygon points="20,64 28,76 36,64" fill="#72788C" stroke="#222633" stroke-width="2.5"/>
+    <polygon points="56,64 64,76 72,64" fill="#72788C" stroke="#222633" stroke-width="2.5"/>
+    <polygon points="92,64 100,76 108,64" fill="#72788C" stroke="#222633" stroke-width="2.5"/>
+    <polygon points="128,64 136,76 144,64" fill="#72788C" stroke="#222633" stroke-width="2.5"/>
+    <rect x="12" y="24" width="136" height="32" rx="2" fill="#363A48" stroke="#222633" stroke-width="2.5"/>
+    <rect x="14" y="32" width="132" height="16" fill="#4B5162"/>
+    <line x1="14" y1="40" x2="146" y2="40" stroke="#D8DEEE" stroke-width="1.5"/>
+    <circle cx="20" cy="40" r="3" fill="#F0C446" stroke="#222633" stroke-width="1.5"/>
+    <circle cx="44" cy="40" r="3" fill="#F0C446" stroke="#222633" stroke-width="1.5"/>
+    <circle cx="68" cy="40" r="3" fill="#F0C446" stroke="#222633" stroke-width="1.5"/>
+    <circle cx="92" cy="40" r="3" fill="#F0C446" stroke="#222633" stroke-width="1.5"/>
+    <circle cx="116" cy="40" r="3" fill="#F0C446" stroke="#222633" stroke-width="1.5"/>
+    <circle cx="140" cy="40" r="3" fill="#F0C446" stroke="#222633" stroke-width="1.5"/>
+  </g>
+</svg>

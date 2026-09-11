@@ -139,7 +139,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--txt);
     </select>
   </label>
   <button class="btn play" id="b-play">▶ TEST LEVEL</button>
-  <button class="btn full" id="b-game" title="Open tag_game.html">🚀 Full Game ↗</button>
+  <button class="btn full" id="b-game" title="Open the game (../index.html)">🚀 Full Game ↗</button>
   <button class="btn hist" id="b-saves" title="Save history & snapshots">🕰 Saves (<span id="save-n">1</span>)</button>
   <button class="btn" id="b-save" title="Quick save (Ctrl+S)">💾 Quick Save</button>
   <button class="btn" id="b-link-file" title="Link directly to index.html for direct disk saving without Python">📁 Link index.html</button>
@@ -950,7 +950,7 @@ document.getElementById('b-game').onclick=()=>{
      straight into that match (2 players, double jump ON, collision OFF). */
   try{localStorage.setItem('tag_arena_launch_v1',JSON.stringify({
     map:cur,doubleJump:true,collision:false,slots:[0,2,-1,-1]}));}catch(e){}
-  window.open('tag_game.html','_blank');
+  window.open('../index.html','_blank');
 };
 document.getElementById('b-save').onclick=quickSave;
 document.getElementById('b-link-file').onclick=linkIndexFile;
@@ -959,7 +959,7 @@ document.getElementById('b-export').onclick=()=>{expMode='one';expPayload=mapJS(
 document.getElementById('b-import').onclick=()=>{document.getElementById('imp-err').textContent='';openM('m-import');};
 document.getElementById('b-code').onclick=async()=>{
   const js=mapJS(map());
-  try{await navigator.clipboard.writeText(js);toast('Map JS copied ✓ — paste into MAPS in tag_game.html');}
+  try{await navigator.clipboard.writeText(js);toast('Map JS copied ✓ — paste into MAPS in index.html');}
   catch(e){expMode='one';expPayload=js;document.getElementById('exp-text').value=js;openM('m-export');}};
 document.getElementById('b-snap-one').onclick=()=>recordSnap('Snapshot — '+map().name+' — '+new Date().toLocaleString());
 document.getElementById('b-snap-all').onclick=()=>recordSnap('Snapshot — all '+maps.length+' maps — '+new Date().toLocaleString());

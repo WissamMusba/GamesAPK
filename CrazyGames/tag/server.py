@@ -124,7 +124,7 @@ if __name__ == '__main__':
     print("=" * 65)
     print(f"  TAG GAME & MAP EDITOR LOCAL DEV SERVER")
     print(f"  Serving at: http://127.0.0.1:{port}/")
-    print(f"  Editor URL: http://127.0.0.1:{port}/tag_map_editor.html")
+    print(f"  Editor URL: http://127.0.0.1:{port}/editor/")
     print(f"  Game URL:   http://127.0.0.1:{port}/index.html")
     print(f"  Auto-saves directly to index.html on Ctrl+S or 'Quick Save'")
     print("=" * 65)

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 110" width="240" height="220">
+  <title>Deadwood Siege — Mini zombie v2 (flat, faceless)</title>
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <circle cx="45" cy="62" r="7.5" fill="#9FB086" stroke="#333B4F" stroke-width="4"/>
+    <circle cx="75" cy="62" r="7.5" fill="#9FB086" stroke="#333B4F" stroke-width="4"/>
+    <circle cx="60" cy="60" r="15" fill="#9FB086" stroke="#333B4F" stroke-width="4"/>
+    <circle cx="65" cy="66" r="2.8" fill="#7A8B66" stroke="none"/>
+  </g>
+</svg>

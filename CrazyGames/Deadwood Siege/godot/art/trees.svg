@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 300" width="840" height="300">
+  <title>Deadwood Siege — 7 tree types v3 (top-down, canopy only, flat)</title>
+  <g stroke-linejoin="round" stroke-linecap="round" text-anchor="middle" font-family="sans-serif" font-size="11" letter-spacing="1">
+    <!-- T1: classic 5-point medium -->
+    <g transform="translate(70,130)">
+      <polygon points="0,-34 9.4,-12.9 32.3,-10.5 15.2,4.9 20,27.5 0,16 -20,27.5 -15.2,4.9 -32.3,-10.5 -9.4,-12.9" fill="#6E8F5A" stroke="#333B4F" stroke-width="4"/>
+    </g>
+    <text x="70" y="220" fill="#2A332A">T1 · 5PT</text>
+    <!-- T2: 6-point tall -->
+    <g transform="translate(190,125)">
+      <polygon points="0,-36 9,-15.6 31.2,-18 18,0 31.2,18 9,15.6 0,36 -9,15.6 -31.2,18 -18,0 -31.2,-18 -9,-15.6" fill="#6E8F5A" stroke="#333B4F" stroke-width="4"/>
+    </g>
+    <text x="190" y="220" fill="#2A332A">T2 · 6PT TALL</text>
+    <!-- T3: 7-point wide -->
+    <g transform="translate(315,135)">
+      <polygon points="0,-30 6.9,-14.4 23.5,-18.7 15.6,-3.6 29.2,6.7 12.5,10 13,27 0,16 -13,27 -12.5,10 -29.2,6.7 -15.6,-3.6 -23.5,-18.7 -6.9,-14.4" fill="#6E8F5A" stroke="#333B4F" stroke-width="4"/>
+    </g>
+    <text x="315" y="220" fill="#2A332A">T3 · 7PT</text>
+    <!-- T4: 8-point big -->
+    <g transform="translate(445,120)">
+      <polygon points="0,-38 7.7,-18.5 26.9,-26.9 18.5,-7.7 38,0 18.5,7.7 26.9,26.9 7.7,18.5 0,38 -7.7,18.5 -26.9,26.9 -18.5,7.7 -38,0 -18.5,-7.7 -26.9,-26.9 -7.7,-18.5" fill="#6E8F5A" stroke="#333B4F" stroke-width="4"/>
+    </g>
+    <text x="445" y="220" fill="#2A332A">T4 · 8PT BIG</text>
+    <!-- T5: 5-point sapling (small) -->
+    <g transform="translate(565,150)">
+      <polygon points="0,-22 6.5,-8.9 20.9,-6.8 10.5,3.4 12.9,17.8 0,11 -12.9,17.8 -10.5,3.4 -20.9,-6.8 -6.5,-8.9" fill="#6E8F5A" stroke="#333B4F" stroke-width="3.5"/>
+    </g>
+    <text x="565" y="220" fill="#2A332A">T5 · SAPLING</text>
+    <!-- T6: 6-point stubby -->
+    <g transform="translate(675,145)">
+      <polygon points="0,-26 6.5,-11.3 22.5,-13 13,0 22.5,13 6.5,11.3 0,26 -6.5,11.3 -22.5,13 -13,0 -22.5,-13 -6.5,-11.3" fill="#6E8F5A" stroke="#333B4F" stroke-width="4"/>
+    </g>
+    <text x="675" y="220" fill="#2A332A">T6 · 6PT ROUND</text>
+    <!-- T7: 7-point elder (biggest) -->
+    <g transform="translate(780,115)">
+      <polygon points="0,-40 8.7,-18 31.3,-24.9 19.5,-4.5 39,8.9 15.6,12.5 17.4,36 0,20 -17.4,36 -15.6,12.5 -39,8.9 -19.5,-4.5 -31.3,-24.9 -8.7,-18" fill="#6E8F5A" stroke="#333B4F" stroke-width="4"/>
+    </g>
+    <text x="780" y="220" fill="#2A332A">T7 · ELDER</text>
+  </g>
+</svg>

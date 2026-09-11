@@ -451,7 +451,6 @@ function startMatch(){
   matchIndex++;
   /* AUTOMATIC CLEAN GRADIENT BACKGROUND CHANGE ON EVERY MATCH */
   currentThemeIdx=(matchIndex-1)%THEMES.length;
-  const act=activeSlots();
   const N=act.length;
   let it;
   if(matchIndex%2===1)it=Math.floor(rand(N));

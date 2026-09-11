@@ -1,0 +1,27 @@
+[gd_resource type="Theme" format=3]
+
+[resource]
+# DEADWOOD SIEGE — locked palette tokens (bible §02 + v5 contract). All code must read from here.
+ColorPalette/ground = Color(0.478, 0.608, 0.404, 1)
+ColorPalette/treeFill = Color(0.431, 0.561, 0.353, 1)
+ColorPalette/treeInner = Color(0.522, 0.659, 0.424, 1)
+ColorPalette/bush = Color(0.373, 0.498, 0.306, 1)
+ColorPalette/berry = Color(0.651, 0.227, 0.314, 1)
+ColorPalette/stone = Color(0.545, 0.561, 0.659, 1)
+ColorPalette/stoneInner = Color(0.651, 0.667, 0.761, 1)
+ColorPalette/outline = Color(0.2, 0.231, 0.31, 1)
+ColorPalette/player = Color(0.478, 0.361, 0.306, 1)
+ColorPalette/playerShade = Color(0.541, 0.42, 0.357, 1)
+ColorPalette/uiPanel = Color(0.118, 0.149, 0.118, 0.722)
+ColorPalette/wood = Color(0.541, 0.42, 0.294, 1)
+ColorPalette/darkWood = Color(0.361, 0.275, 0.227, 1)
+ColorPalette/steel = Color(0.545, 0.561, 0.659, 1)
+ColorPalette/lightSteel = Color(0.651, 0.667, 0.761, 1)
+ColorPalette/gold = Color(0.902, 0.761, 0.353, 1)
+ColorPalette/beige = Color(0.894, 0.839, 0.722, 1)
+ColorPalette/zombie = Color(0.247, 0.365, 0.208, 1)
+ColorPalette/zombieShade = Color(0.184, 0.278, 0.157, 1)
+ColorPalette/ink = Color(0.2, 0.231, 0.31, 1)
+ColorPalette/grass = Color(0.478, 0.608, 0.404, 1)
+
+[ext_resource type="FontFile" path="res://fonts/space-grotesk.ttf" id="1_font" optional=true]

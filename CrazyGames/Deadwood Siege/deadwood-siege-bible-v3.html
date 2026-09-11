@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DEADWOOD SIEGE — Wave & Progression Bible v3</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/css/space-grotesk@latest/index.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/css/jetbrains-mono@latest/index.css">
+<style>
+/* ============================================================
+   DEADWOOD SIEGE — DESIGN BIBLE (webdev render of the GDD)
+   NOTE: the 200-wave table, structure ladder and modifier table
+   are GENERATED at runtime from the canonical spec formulas
+   below (section 7 JS). Rendered output = 200 rows x 7 columns
+   of data (~1400 data cells) + 60 ladder rows, so the document
+   contains thousands of lines of *data* without bloating source.
+   ============================================================ */
+:root{
+  --bg:#101511; --bg2:#161d17; --panel:#1b241c; --panel2:#212c22;
+  --ink:#e8efe6; --ink-dim:#a8b5a4; --ink-faint:#6f7d6c;
+  --line:#2c3a2d; --line2:#3a4b3b;
+  --moss:#86b06c; --moss-dk:#5d8a4a; --amber:#d9a441; --rust:#c96f4a;
+  --violet:#9a7bd0; --rose:#d05c6c; --sky:#7aa2f7; --gold:#e6c25a;
+  --code-bg:#0c110d;
+  --radius:10px;
+  --sidebar-w:270px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:'Space Grotesk',system-ui,sans-serif;
+  font-size:15.5px; line-height:1.65;
+}
+code,pre,.mono{font-family:'JetBrains Mono',monospace}
+
+/* ---------- layout ---------- */
+#side{
+  position:fixed; inset:0 auto 0 0; width:var(--sidebar-w);
+  background:var(--bg2); border-right:1px solid var(--line);
+  padding:22px 16px; overflow-y:auto; z-index:50;
+}
+#side .brand{
+  font-weight:700; font-size:17px; letter-spacing:.4px;
+  color:var(--moss); margin-bottom:2px;
+}
+#side .brand small{display:block;color:var(--ink-faint);font-weight:400;font-size:11px;letter-spacing:1.4px;text-transform:uppercase}
+#side nav{margin-top:18px; display:flex; flex-direction:column; gap:2px}
+#side nav a{
+  color:var(--ink-dim); text-decoration:none; font-size:13.5px;
+  padding:6px 10px; border-radius:6px; border-left:2px solid transparent;
+  transition:.15s;
+}
+#side nav a:hover{background:var(--panel); color:var(--ink); border-left-color:var(--moss)}
+#side nav a.h2{padding-left:22px; font-size:12.5px; color:var(--ink-faint)}
+main{margin-left:var(--sidebar-w); padding:0 44px 90px; max-width:1180px}
+
+/* ---------- hero ---------- */
+.hero{padding:56px 0 30px; border-bottom:1px solid var(--line); margin-bottom:36px}
+.hero h1{font-size:40px; line-height:1.12; letter-spacing:-.5px}
+.hero h1 span{color:var(--moss)}
+.hero p.sub{color:var(--ink-dim); max-width:760px; margin-top:14px; font-size:16px}
+.chips{display:flex; flex-wrap:wrap; gap:8px; margin-top:20px}
+.chip{
+  background:var(--panel); border:1px solid var(--line2); border-radius:999px;
+  padding:4px 13px; font-size:12px; color:var(--ink-dim);
+}
+.chip b{color:var(--ink)}
+
+/* ---------- sections ---------- */
+section{margin-top:52px}
+h2{
+  font-size:26px; letter-spacing:-.3px; margin-bottom:6px;
+  padding-bottom:10px; border-bottom:1px solid var(--line);
+  display:flex; align-items:baseline; gap:12px;
+}
+h2 .num{color:var(--moss-dk); font-family:'JetBrains Mono',monospace; font-size:18px}
+h3{font-size:18px; margin:26px 0 10px; color:var(--gold)}
+h4{font-size:15px; margin:18px 0 8px; color:var(--moss)}
+p{margin:10px 0; max-width:860px}
+p.dim, li.dim{color:var(--ink-dim)}
+ul,ol{margin:10px 0 10px 22px; max-width:860px}
+li{margin:5px 0}
+strong{color:var(--ink)}
+em{color:var(--amber); font-style:normal}
+.layman{
+  background:var(--panel); border-left:3px solid var(--moss);
+  padding:12px 16px; border-radius:0 8px 8px 0; margin:14px 0;
+  color:var(--ink-dim); max-width:860px;
+}
+.layman b{color:var(--moss)}
+.warn{
+  background:#241a12; border-left:3px solid var(--rust);
+  padding:12px 16px; border-radius:0 8px 8px 0; margin:14px 0; color:#e8c9b4; max-width:860px;
+}
+
+/* ---------- tables ---------- */
+.tablewrap{overflow-x:auto; border:1px solid var(--line); border-radius:var(--radius); margin:16px 0; background:var(--panel)}
+table{border-collapse:collapse; width:100%; font-size:13.5px; min-width:760px}
+th{
+  text-align:left; padding:10px 12px; background:var(--panel2);
+  color:var(--ink-dim); font-size:11.5px; text-transform:uppercase; letter-spacing:1px;
+  border-bottom:1px solid var(--line2); position:sticky; top:0; z-index:2;
+}
+td{padding:8px 12px; border-bottom:1px solid var(--line); vertical-align:top}
+tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:#202b21}
+td.n{font-family:'JetBrains Mono',monospace; color:var(--gold); white-space:nowrap}
+td.small{font-size:12.5px; color:var(--ink-dim)}
+
+/* badges */
+.b{display:inline-block; padding:1px 9px; border-radius:999px; font-size:11px; font-weight:700; letter-spacing:.4px; white-space:nowrap}
+.b.e1{background:#22301c; color:#a9d18e; border:1px solid #3c5a2c}
+.b.e2{background:#33270f; color:#e8c069; border:1px solid #5c451a}
+.b.e3{background:#332015; color:#e09a76; border:1px solid #5c3a24}
+.b.e4{background:#281f38; color:#bfa4e8; border:1px solid #463661}
+.b.e5{background:#361720; color:#e88b98; border:1px solid #5c2836}
+.b.e6{background:#182436; color:#9dbdf7; border:1px solid #2c4260}
+.b.arch{background:#20282e; color:#a9bccb; border:1px solid #38464f}
+.b.boss{background:#3d1420; color:#ff9db0; border:1px solid #6b2437}
+.b.rest{background:#1d2b21; color:#9ed3a8; border:1px solid #33513b}
+.b.mod{background:#2c2410; color:#e6c25a; border:1px solid #4d3f1c}
+.b.unlock{background:#12302a; color:#7fd8c4; border:1px solid #23554a}
+
+/* ---------- cards ---------- */
+.cards{display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:14px; margin:16px 0}
+.card{
+  background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+  padding:16px 18px; transition:.15s;
+}
+.card:hover{border-color:var(--line2); transform:translateY(-2px)}
+.card h4{margin:0 0 6px; font-size:15.5px; color:var(--ink)}
+.card p{font-size:13px; color:var(--ink-dim); margin:0}
+.card .tag{font-size:10.5px; letter-spacing:1.2px; text-transform:uppercase; color:var(--moss-dk); font-weight:700}
+
+/* rhythm chips */
+.beat{display:flex; gap:8px; flex-wrap:wrap; margin:14px 0}
+.beat span{
+  padding:8px 14px; border-radius:8px; font-size:12.5px; font-weight:700;
+  background:var(--panel2); border:1px solid var(--line2); color:var(--ink-dim);
+}
+.beat span.hot{background:#332015; color:#e09a76; border-color:#5c3a24}
+.beat span.calm{background:#1d2b21; color:#9ed3a8; border-color:#33513b}
+.beat span.boss{background:#3d1420; color:#ff9db0; border-color:#6b2437}
+
+/* ---------- wave controls ---------- */
+.controls{
+  display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+  background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+  padding:12px 14px; margin:14px 0; position:sticky; top:0; z-index:5;
+}
+.controls button{
+  background:var(--panel2); color:var(--ink-dim); border:1px solid var(--line2);
+  border-radius:999px; padding:5px 14px; font-family:inherit; font-size:12.5px; cursor:pointer; transition:.15s;
+}
+.controls button:hover{color:var(--ink)}
+.controls button.on{background:var(--moss-dk); border-color:var(--moss); color:#fff}
+.controls input[type=text]{
+  background:var(--code-bg); border:1px solid var(--line2); color:var(--ink);
+  border-radius:8px; padding:6px 12px; font-family:'JetBrains Mono',monospace; font-size:12.5px; width:190px;
+}
+.controls label{font-size:12px; color:var(--ink-faint); display:flex; gap:6px; align-items:center; cursor:pointer}
+#rowCount{margin-left:auto; font-size:12px; color:var(--ink-faint); font-family:'JetBrains Mono',monospace}
+
+/* ---------- code ---------- */
+.codewrap{position:relative; margin:16px 0}
+.codewrap .cap{
+  display:flex; justify-content:space-between; align-items:center;
+  background:var(--panel2); border:1px solid var(--line); border-bottom:none;
+  border-radius:var(--radius) var(--radius) 0 0; padding:8px 14px;
+  font-size:12px; color:var(--ink-dim);
+}
+.codewrap button{
+  background:var(--panel); border:1px solid var(--line2); color:var(--ink-dim);
+  border-radius:6px; padding:3px 10px; font-size:11px; cursor:pointer; font-family:inherit;
+}
+.codewrap button:hover{color:var(--moss)}
+pre{
+  background:var(--code-bg); border:1px solid var(--line); border-radius:0 0 var(--radius) var(--radius);
+  padding:16px 18px; overflow-x:auto; font-size:12.8px; line-height:1.6; color:#cfe3c8;
+}
+pre .c{color:#5f7359} pre .k{color:#e0a458} pre .s{color:#9ed3a8} pre .f{color:#9dbdf7}
+
+/* ---------- details / edge cases ---------- */
+details{
+  background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+  margin:10px 0; overflow:hidden;
+}
+summary{
+  cursor:pointer; padding:13px 18px; font-weight:700; font-size:14.5px;
+  background:var(--panel2); list-style:none; display:flex; justify-content:space-between; align-items:center;
+}
+summary::-webkit-details-marker{display:none}
+summary:after{content:'+'; color:var(--moss); font-size:18px; font-family:'JetBrains Mono',monospace}
+details[open] summary:after{content:'–'}
+details .body{padding:14px 20px; border-top:1px solid var(--line)}
+details .body li{margin:10px 0}
+.sym{color:var(--rose); font-weight:700}
+.cau{color:var(--amber); font-weight:700}
+.fix{color:var(--moss); font-weight:700}
+
+footer{margin-top:70px; padding-top:22px; border-top:1px solid var(--line); color:var(--ink-faint); font-size:13px}
+
+@media (max-width:960px){
+  #side{display:none}
+  main{margin-left:0; padding:0 20px 70px}
+  .hero h1{font-size:30px}
+}
+</style>
+</head>
+<body>
+
+<aside id="side">
+  <div class="brand">DEADWOOD SIEGE<small>Wave &amp; Progression Bible v3</small></div>
+  <nav>
+    <a href="#philosophy">1 · Wave Philosophy</a>
+    <a href="#roster">2 · Zombie Roster &amp; Costs</a>
+    <a href="#archetypes">3 · Wave Archetypes</a>
+    <a href="#modifiers">4 · Mutation Modifiers</a>
+    <a href="#rhythm">5 · The Rhythm Calendar</a>
+    <a href="#waves">6 · THE TABLE — Waves 1–200</a>
+    <a href="#beyond">7 · Beyond 200 (Infinite)</a>
+    <a href="#ladder">8 · Structure &amp; Upgrade Ladder</a>
+    <a href="#tools">9 · Tool &amp; Player Upgrades</a>
+    <a href="#economy">10 · Economy Curve</a>
+    <a href="#code">11 · Reference GDScript</a>
+    <a href="#edge">12 · Edge-Case &amp; Crash Catalog</a>
+    <a href="#mcp">13 · MCP Art Toolkit</a>
+    <a href="#mobile">14 · Mobile Plan</a>
+  </nav>
+</aside>
+
+<main>
+
+<header class="hero">
+  <h1>DEADWOOD <span>SIEGE</span></h1>
+  <p class="sub">The complete wave-system, progression, unlock, edge-case and porting bible.
+  Every wave from 1 to 200 is specified by a deterministic <strong>beat-sheet + seeded director</strong>:
+  the skeleton is always the same (so runs feel fair and learnable), the flesh changes every run
+  (so it never feels scripted). Rendered live from the canonical formulas in §6.</p>
+  <div class="chips">
+    <span class="chip"><b>Engine</b> Godot 4.7 · WebGL2</span>
+    <span class="chip"><b>Target</b> CrazyGames (web)</span>
+    <span class="chip"><b>Doc</b> v3.0</span>
+    <span class="chip"><b>Scope</b> 200 scripted waves + infinite</span>
+    <span class="chip"><b>Rewind</b> 2s snapshot ring buffer</span>
+  </div>
+</header>
+
+<!-- ================= 1 ================= -->
+<section id="philosophy">
+  <h2><span class="num">01</span>Wave Philosophy — "Same Skeleton, Different Flesh"</h2>
+  <p>You asked for waves that <strong>never repeat</strong> but always <strong>feel familiar</strong>. That is solved by
+  splitting a wave into two layers:</p>
+  <ul>
+    <li><strong>The Beat Sheet (fixed, common thread).</strong> Archetype order, zombie-type introduction waves,
+      boss cadence (every 10), mini-boss cadence (every 5 from 25), and the 7-beat pressure/breather rhythm are
+      <em>hard-coded</em>. A player learns the <em>language</em> of the game: "ah, it's a Siege beat, walls up."</li>
+    <li><strong>The Director Roll (variable flesh).</strong> Exact unit counts, mix ratios, elite rolls and which
+      mutation modifier appears are rolled from a <em>seeded RNG</em>. New run = new seed = new flesh on the same skeleton.</li>
+  </ul>
+  <div class="layman"><b>Layman:</b> the beat sheet is the chord progression of a song; the director roll is the solo.
+  Every cover of the song sounds different, but you always recognise the song.</div>
+  <h4>Seeding rules</h4>
+  <ul>
+    <li><strong>Endless run seed</strong> = random per run (variation).</li>
+    <li><strong>Daily Challenge seed</strong> = date hash → every player worldwide gets the identical 200-wave gauntlet that day → fair leaderboards.</li>
+    <li><strong>This document's table</strong> uses the canonical reference seed <code class="mono">9137</code> so designers can quote exact waves.</li>
+    <li>Variance guard: any rolled count is clamped to ±15% of the reference budget so a lucky seed can never produce an impossible wave.</li>
+  </ul>
+</section>
+
+<!-- ================= 2 ================= -->
+<section id="roster">
+  <h2><span class="num">02</span>Zombie Roster &amp; Budget Costs</h2>
+  <p>Every wave is bought with a <strong>budget</strong> (see formula in §6). Each unit spends part of it.
+  Costs are the balancing lever: raising a cost delays when a type can appear in quantity.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Unit</th><th>Cost</th><th>First seen</th><th>Target priority</th><th>Role in the mix</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Shambler</strong></td><td class="n">1.0</td><td class="n">W1</td><td class="small">Player → wall in path → turret</td><td class="small">Chaff, filler, wall-of-flesh</td></tr>
+      <tr><td><strong>Runner</strong></td><td class="n">1.5</td><td class="n">W6</td><td class="small">Player only</td><td class="small">Pressure, punishes open bases</td></tr>
+      <tr><td><strong>Sapper</strong></td><td class="n">2.0</td><td class="n">W9</td><td class="small">Walls only</td><td class="small">Siege unit, breaks turtle strategies</td></tr>
+      <tr><td><strong>Scavenger</strong></td><td class="n">2.0</td><td class="n">W14</td><td class="small">Farms &amp; food stores</td><td class="small">Economic attack, forces inner defence</td></tr>
+      <tr><td><strong>Brute</strong></td><td class="n">4.0</td><td class="n">W18</td><td class="small">Defences only</td><td class="small">Tank, front shield vs arrows</td></tr>
+      <tr><td><strong>Rotspitter</strong></td><td class="n">3.0</td><td class="n">W22</td><td class="small">Defences from range</td><td class="small">Artillery, forces spread building</td></tr>
+      <tr><td><strong>Champ (mini-boss)</strong></td><td class="n">12</td><td class="n">W25</td><td class="small">Strongest defence</td><td class="small">Every 5th wave, elite Brute</td></tr>
+      <tr><td><strong>WARLORD (boss)</strong></td><td class="n">40+</td><td class="n">W10</td><td class="small">PLAYER only</td><td class="small">Every 10th wave, run-ender</td></tr>
+    </tbody>
+  </table></div>
+  <p class="dim">Elite variants (tinted, ×2.2 hp, ×1.15 speed) start at wave 101 with 15% chance, 30% at 151+, capped 50% in infinite.</p>
+</section>
+
+<!-- ================= 3 ================= -->
+<section id="archetypes">
+  <h2><span class="num">03</span>Wave Archetypes (the beat vocabulary)</h2>
+  <div class="cards">
+    <div class="card"><span class="tag">beat</span><h4>Mix</h4><p>Balanced blend of everything unlocked. The "default" wave; teaches combined-arms defence.</p></div>
+    <div class="card"><span class="tag">beat</span><h4>Rush</h4><p>Runner-heavy sprint wave. Short, violent, punishes slow trap layouts and open gates.</p></div>
+    <div class="card"><span class="tag">beat</span><h4>Siege</h4><p>Sapper + Brute heavy. Attacks your <em>walls</em>, not you. Forces layered wall depth.</p></div>
+    <div class="card"><span class="tag">beat</span><h4>Raid</h4><p>Scavenger + Rotspitter heavy. Attacks your <em>economy</em> from the edges. Forces inner sanctum farms.</p></div>
+    <div class="card"><span class="tag">beat</span><h4>Swarm</h4><p>Mass Shambler wall. Cheap units, huge counts. Tests AoE (cauldrons, organ guns, trebuchets).</p></div>
+    <div class="card"><span class="tag">calm</span><h4>Breather</h4><p>Every 7th beat. 35% pressure, guaranteed supply drop. The exhale before the next spike.</p></div>
+    <div class="card"><span class="tag">boss</span><h4>Warlord Assault</h4><p>Every 10th wave. Boss + 50% add mix. The exam of everything you have built.</p></div>
+  </div>
+  <p class="dim">Beat order cycles on a 7-step wheel: <span class="mono">Mix → Rush → Siege → Mix → Raid → Swarm → Breather</span>,
+  overridden by Boss on multiples of 10 and by Champ-adds on multiples of 5 (from W25).</p>
+</section>
+
+<!-- ================= 4 ================= -->
+<section id="modifiers">
+  <h2><span class="num">04</span>Mutation Modifiers (the spice, never before W12)</h2>
+  <p>Modifiers are the main "never the same twice" lever. They unlock into a pool on fixed waves
+  (common thread) but <em>which</em> one fires is a seeded roll (variation). Breather waves never carry modifiers.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Modifier</th><th>Joins pool</th><th>Effect</th><th>Counter-play it teaches</th></tr></thead>
+    <tbody id="modBody"><!-- js --></tbody>
+  </table></div>
+  <h4>Stacking rules per era</h4>
+  <ul>
+    <li><strong>Era II (21–50):</strong> 35% chance of 1 modifier.</li>
+    <li><strong>Era III (51–100):</strong> 60% chance of 1.</li>
+    <li><strong>Era IV (101–150):</strong> always 1, +20% chance of a 2nd.</li>
+    <li><strong>Era V (151–200):</strong> always 1, +30% 2nd, +10% 3rd. Chaos is the point.</li>
+  </ul>
+</section>
+
+<!-- ================= 5 ================= -->
+<section id="rhythm">
+  <h2><span class="num">05</span>The Rhythm Calendar</h2>
+  <p>Pressure must breathe or players numb out. The 7-beat wheel plus boss overlays produces this repeating feel:</p>
+  <div class="beat">
+    <span class="hot">1 Mix</span><span class="hot">2 Rush</span><span class="hot">3 Siege</span>
+    <span class="hot">4 Mix</span><span class="hot">5 Raid</span><span class="hot">6 Swarm</span>
+    <span class="calm">7 Breather ☂ supply</span>
+  </div>
+  <div class="beat">
+    <span class="hot">8 Mix</span><span class="hot">9 Siege</span><span class="boss">10 WARLORD</span>
+    <span class="hot">11 Mix</span><span class="hot">12 Raid</span><span class="hot">13 Swarm</span>
+    <span class="calm">14 Breather ☂</span>
+  </div>
+  <ul>
+    <li><strong>Boss cadence:</strong> every 10. Double Warlord at 100 &amp; 150. Triple at 200.</li>
+    <li><strong>Champ cadence:</strong> every 5 (when not a boss wave), from W25. Two Champs in Era V.</li>
+    <li><strong>Supply drops</strong> (breathers): +40 wood, +25 stone, +15 food — scaled ×(1 + wave/60) in later eras.</li>
+    <li><strong>Buffer:</strong> 30s between waves in Endless; player-triggered in Siege mode (unlocks gate progress).</li>
+  </ul>
+</section>
+
+<!-- ================= 6 ================= -->
+<section id="waves">
+  <h2><span class="num">06</span>THE TABLE — Waves 1–200 (reference seed 9137)</h2>
+  <p>Generated live from the canonical formulas below. In-game, counts jitter ±15% per run seed;
+  archetype / intro / boss / breather columns <strong>never</strong> change.</p>
+
+  <div class="codewrap">
+    <div class="cap"><span>budget(n) — how many zombies a wave may "buy"</span><button data-copy="budgetCode">copy</button></div>
+    <pre id="budgetCode">n &lt;= 50   : budget = 3 + 1.6*n + 0.35 * n^1.3
+50 &lt; n &lt;= 120 : budget = 142 + (n-50) * 2.6
+n &gt; 120  : budget = 324 + (n-120) * 3.2
+Boss waves: adds get only 50% of budget (boss cost is extra).
+Breather waves: budget *= 0.35.</pre>
+  </div>
+
+  <div class="controls">
+    <button data-era="all" class="on">All eras</button>
+    <button data-era="1">I · 1–20</button>
+    <button data-era="2">II · 21–50</button>
+    <button data-era="3">III · 51–100</button>
+    <button data-era="4">IV · 101–150</button>
+    <button data-era="5">V · 151–200</button>
+    <input type="text" id="waveSearch" placeholder="filter… e.g. boss, sapper, 42">
+    <label><input type="checkbox" id="onlyBoss"> bosses</label>
+    <label><input type="checkbox" id="onlyRest"> breathers</label>
+    <span id="rowCount"></span>
+  </div>
+
+  <div class="tablewrap"><table>
+    <thead><tr>
+      <th>Wave</th><th>Era</th><th>Archetype</th><th>Composition (reference)</th>
+      <th>Modifiers</th><th>Unlocks / Rewards</th><th>Designer notes</th>
+    </tr></thead>
+    <tbody id="waveBody"><!-- js generates 200 rows --></tbody>
+  </table></div>
+</section>
+
+<!-- ================= 7 ================= -->
+<section id="beyond">
+  <h2><span class="num">07</span>Beyond Wave 200 — The Infinite Formula</h2>
+  <p>After the scripted finale the director switches to pure formula so the leaderboard never ends:</p>
+  <div class="codewrap">
+    <div class="cap"><span>infinite(n) for n &gt; 200</span><button data-copy="infCode">copy</button></div>
+    <pre id="infCode">budget(n)  = 580 + (n-200)*3.5 + floor((n-200)/10)*40
+hp_scale(n) = 1.12^200 capped → switch to linear: hp = base * (K + 0.08*(n-200))
+modifiers  = always 2, +30% chance of 3
+elites     = 50% of units
+bosses     = every 10, +1 extra Warlord per 50 waves past 200
+archetype  = free seeded roll (no beat wheel), breather still every 7</pre>
+  </div>
+  <div class="warn"><strong>Numeric safety:</strong> never let hp keep compounding exponentially past ~W200 or
+  floats lose precision and crossbow damage rounds to 0 (the "immortal zombie" bug). Switch to linear + multiplier tiers as above.</div>
+</section>
+
+<!-- ================= 8 ================= -->
+<section id="ladder">
+  <h2><span class="num">08</span>Structure &amp; Upgrade Ladder (20 lines × 3 tiers)</h2>
+  <p>T1 = blueprint unlock (wave cleared). T2 upgrades <strong>begin at W13–14</strong> (first Reinforced tier),
+  T3 <strong>begin at W35</strong>. Upgrading is in-place: pay cost, 4s build animation, structure vulnerable while upgrading.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>#</th><th>Structure</th><th>T1 unlock / cost</th><th>T2 (Reinforced)</th><th>T3 (Heavy)</th></tr></thead>
+    <tbody id="structBody"><!-- js --></tbody>
+  </table></div>
+  <p class="dim">Costs shown as W/S/F = wood / stone / food. T2 cost ≈ ×2.1 of T1, T3 ≈ ×2.3 of T2 (auto-derived, table shows exact numbers).</p>
+</section>
+
+<!-- ================= 9 ================= -->
+<section id="tools">
+  <h2><span class="num">09</span>Tool &amp; Player Upgrade Timeline</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Wave</th><th>Unlock</th><th>Cost</th><th>Effect</th></tr></thead>
+    <tbody id="toolBody"><!-- js --></tbody>
+  </table></div>
+</section>
+
+<!-- ================= 10 ================= -->
+<section id="economy">
+  <h2><span class="num">10</span>Economy Curve (why the ladder paces itself)</h2>
+  <ul>
+    <li><strong>Trees / stone nodes</strong> are long-lasting with slow regen (your spec): income ≈ constant per minute, so <em>time</em> is the real currency.</li>
+    <li><strong>Food</strong> is the throttle: swinging and dashing burn energy; farms inside walls are the only late-game source → Scavenger raids hurt exactly when they should.</li>
+    <li><strong>Wave loot:</strong> each kill drops scraps (wood 60% / stone 25% / food 15% weighted) auto-collected moomoo-style; breather supply drops top up the missing type.</li>
+    <li><strong>Sink curve:</strong> total T1 blueprint costs ≈ 620 W / 335 S / 65 F across all 20 — reachable by ~W40 of diligent play, so the ladder never hard-gates, only soft-paces.</li>
+  </ul>
+</section>
+
+<!-- ================= 11 ================= -->
+<section id="code">
+  <h2><span class="num">11</span>Reference GDScript (skeletons, not full impl)</h2>
+  <div class="codewrap">
+    <div class="cap"><span>wave_director.gd — beat sheet + seeded roll</span><button data-copy="gd1">copy</button></div>
+    <pre id="gd1"><span class="c"># Autoload: WaveDirector — the common thread + the flesh</span>
+<span class="k">signal</span> wave_started(n: int, plan: Dictionary)
+<span class="k">signal</span> wave_cleared(n: int)
+
+<span class="k">var</span> run_seed: int = 0
+<span class="k">var</span> wave: int = 0
+<span class="k">const</span> BEATS := [<span class="s">"Mix"</span>,<span class="s">"Rush"</span>,<span class="s">"Siege"</span>,<span class="s">"Mix"</span>,<span class="s">"Raid"</span>,<span class="s">"Swarm"</span>,<span class="s">"Breather"</span>]
+
+<span class="k">func</span> <span class="f">start_run</span>(seed_override: int = -1) -&gt; void:
+    run_seed = seed_override <span class="k">if</span> seed_override &gt;= 0 <span class="k">else</span> randi()
+    wave = 0; next_wave()
+
+<span class="k">func</span> <span class="f">next_wave</span>() -&gt; void:
+    wave += 1
+    <span class="k">var</span> rng := RandomNumberGenerator.new()
+    rng.seed = run_seed + wave * 7919        <span class="c"># flesh roll, reproducible</span>
+    <span class="k">var</span> arch := <span class="s">"Boss"</span> <span class="k">if</span> wave % 10 == 0 <span class="k">else</span> BEATS[(wave - 1) % 7]
+    <span class="k">var</span> plan := {
+        <span class="s">"wave"</span>: wave,
+        <span class="s">"arch"</span>: arch,
+        <span class="s">"budget"</span>: budget(wave) * (0.35 <span class="k">if</span> arch == <span class="s">"Breather"</span> <span class="k">else</span> 1.0),
+        <span class="s">"mods"</span>: roll_mods(wave, rng),
+        <span class="s">"mix"</span>: roll_mix(arch, wave, rng),   <span class="c"># clamped ±15% of reference</span>
+    }
+    wave_started.emit(wave, plan)
+
+<span class="k">func</span> <span class="f">budget</span>(n: int) -&gt; float:
+    <span class="k">if</span> n &lt;= 50:  <span class="k">return</span> 3 + 1.6*n + 0.35 * pow(n, 1.3)
+    <span class="k">if</span> n &lt;= 120: <span class="k">return</span> 142 + (n-50) * 2.6
+    <span class="k">return</span> 324 + (n-120) * 3.2</pre>
+  </div>
+  <div class="codewrap">
+    <div class="cap"><span>time_crystals.gd — 2s snapshot ring buffer (30 slots = 60s)</span><button data-copy="gd2">copy</button></div>
+    <pre id="gd2"><span class="c"># Ring buffer of serialized states; oldest auto-evicted.</span>
+<span class="k">const</span> INTERVAL := 2.0
+<span class="k">const</span> SLOTS := 30            <span class="c"># 30 * 2s = 60s max rewind</span>
+<span class="k">var</span> buf: Array[Dictionary] = []
+<span class="k">var</span> acc := 0.0
+
+<span class="k">func</span> <span class="f">_process</span>(d: float) -&gt; void:
+    <span class="k">if</span> paused <span class="k">or</span> ad_open: <span class="k">return</span>      <span class="c"># never snapshot mid-ad / mid-pause</span>
+    acc += d
+    <span class="k">if</span> acc &gt;= INTERVAL:
+        acc = 0.0
+        buf.append(SaveState.snapshot())   <span class="c"># pure data, no Node refs — IDs only</span>
+        <span class="k">if</span> buf.size() &gt; SLOTS: buf.pop_front()
+
+<span class="k">func</span> <span class="f">rewind</span>(seconds: int) -&gt; void:      <span class="c"># 30 or 60, ad-gated, cooldown outside</span>
+    <span class="k">var</span> idx := buf.size() - 1 - int(seconds / INTERVAL)
+    <span class="k">if</span> idx &lt; 0: <span class="k">return</span>
+    fade_out()                              <span class="c"># hides the rebuild hitch</span>
+    World.wipe_dynamic()                    <span class="c"># zombies, arrows, particles</span>
+    SaveState.restore(buf[idx])
+    buf = buf.slice(0, idx + 1)             <span class="c"># future is deleted — no redo</span>
+    fade_in()</pre>
+  </div>
+</section>
+
+<!-- ================= 12 ================= -->
+<section id="edge">
+  <h2><span class="num">12</span>Edge-Case &amp; Crash Catalog (read before you ship)</h2>
+  <p class="dim">Every item: <span class="sym">SYMPTOM</span> → <span class="cau">CAUSE</span> → <span class="fix">FIX</span>. Grouped by subsystem.</p>
+
+  <details><summary>A · Rewind / snapshot system</summary><div class="body"><ul>
+    <li><span class="sym">Rewind restores a zombie mid-swing and it instantly double-hits.</span> <span class="cau">Snapshot taken mid-attack-cooldown; cooldowns not serialized.</span> <span class="fix">Serialize every cooldown/attack timer per entity; on restore, clamp all "time since hit" values to ≥ 0.5s grace.</span></li>
+    <li><span class="sym">Crash: "Trying to release a freed object" after rewind.</span> <span class="cau">Structures/turrets stored Node references in the snapshot instead of integer IDs.</span> <span class="fix">Snapshots hold IDs + data only; restore re-creates nodes and re-links by ID.</span></li>
+    <li><span class="sym">Rewound run behaves differently than before (RNG desync).</span> <span class="cau">Global <code class="mono">randf()</code> state not saved.</span> <span class="fix">Use one seeded RandomNumberGenerator for gameplay; store its <code class="mono">state</code> in the snapshot.</span></li>
+    <li><span class="sym">Rewind during an ad callback duplicates the player.</span> <span class="cau">Ad SDK callback fires on the same frame as restore; wipe_dynamic skipped the player branch.</span> <span class="fix">Gate restore behind a <code class="mono">restoring</code> flag checked in _process; queue ad callbacks until flag clears.</span></li>
+    <li><span class="sym">Memory creeps up over a 40-minute run.</span> <span class="cau">Snapshot dicts retaining pooled-array references.</span> <span class="fix">Deep-copy into PackedArrays (float32/int16 quantized positions) — ~4KB/snapshot cap.</span></li>
+  </ul></div></details>
+
+  <details><summary>B · Browser / WebGL / CrazyGames platform</summary><div class="body"><ul>
+    <li><span class="sym">Zombies teleport across the map after alt-tab.</span> <span class="cau">Tab hidden stops rAF; on return, one giant delta tick.</span> <span class="fix">Clamp delta to 0.05s max; listen to <code class="mono">visibilitychange</code> → auto-pause.</span></li>
+    <li><span class="sym">Black screen + "context lost" on weak laptops.</span> <span class="cau">WebGL context dropped by driver under memory pressure.</span> <span class="fix">Handle <code class="mono">webglcontextlost</code>: show a styled "reload" card that restores last snapshot from sessionStorage.</span></li>
+    <li><span class="sym">Stuck keys after clicking an ad iframe.</span> <span class="cau">Window blur swallowed the key-up event.</span> <span class="fix">On <code class="mono">window.blur</code>, clear the entire input-action state map.</span></li>
+    <li><span class="sym">Ad never resolves → rewind button dead forever.</span> <span class="cau">Ad-blocker or SDK timeout; callback never fires.</span> <span class="fix">Wrap rewarded-ad call in a 12s timeout promise; on fail, toast "ad unavailable" and refund nothing.</span></li>
+    <li><span class="sym">Save corrupt in private browsing.</span> <span class="cau">localStorage throws QuotaExceeded/SecurityError in some private modes.</span> <span class="fix">try/catch every storage call; fall back to in-memory session-only mode with a small notice.</span></li>
+    <li><span class="sym">Audio silent on first load.</span> <span class="cau">Browser autoplay policy requires a user gesture.</span> <span class="fix">Unlock AudioContext on first click/keypress (the "tap to start" splash does double duty).</span></li>
+  </ul></div></details>
+
+  <details><summary>C · Physics &amp; AI glitches</summary><div class="body"><ul>
+    <li><span class="sym">Runner phases through a thin wall at low FPS.</span> <span class="cau">Tunnelling: per-frame movement &gt; wall thickness.</span> <span class="fix">Cap zombie speed × delta; walls ≥ 24px thick; enable continuous collision only for Runners (cheap subset).</span></li>
+    <li><span class="sym">Zombie vibrates/jitters in a wall corner forever.</span> <span class="cau">Seek vector fights collision normal; separation push adds oscillation.</span> <span class="fix">Unstuck timer: if displacement &lt; 2px for 1.5s, apply a perpendicular slide nudge for 0.4s.</span></li>
+    <li><span class="sym">Zombies explode outward when a wall is destroyed.</span> <span class="cau">Depenetration: bodies overlapping the wall get pushed out simultaneously.</span> <span class="fix">On wall death, run one relaxation pass that re-positions overlapping zombies to nearest free grid cell before re-enabling collisions.</span></li>
+    <li><span class="sym">Crossbow aims at a zombie that already died (arrow wasted).</span> <span class="cau">Target reference held one frame past queue-free.</span> <span class="fix">Targets stored as IDs; validate <code class="mono">is_instance_id_valid</code> + alive flag each retarget tick.</span></li>
+    <li><span class="sym">NaN positions — zombie flies to infinity.</span> <span class="cau">normalize() on a zero-length vector when zombie is exactly on target.</span> <span class="fix">Guard: if distance &lt; 0.001 skip movement; use <code class="mono">safe_normalized()</code> helper everywhere.</span></li>
+    <li><span class="sym">Boss knocked out of the map by pendulum.</span> <span class="cau">Knockback applied without boundary clamp.</span> <span class="fix">Clamp all entity positions to map rect every physics tick; knockback uses move_toward not position +=.</span></li>
+  </ul></div></details>
+
+  <details><summary>D · Wave / logic ordering</summary><div class="body"><ul>
+    <li><span class="sym">Wave ends while a Scavenger is mid-bite on a farm → food vanishes next wave.</span> <span class="cau">Event order: wave-clear fired before steal tick.</span> <span class="fix">Fixed tick order per frame: input → AI → combat → economy → wave-state. Wave-clear evaluated last.</span></li>
+    <li><span class="sym">Two players build on the same cell → one structure overlaps/ghosts.</span> <span class="cau">Occupancy checked then written non-atomically across two input handlers.</span> <span class="fix">Single BuildGrid authority: reserve cell on ghost-open, commit-or-release on place/cancel.</span></li>
+    <li><span class="sym">Spawn drip stalls: wave never finishes.</span> <span class="cau">Spawn queue waiting for a free pool slot that never frees (arrow pinned in a dead turret's queue).</span> <span class="fix">Pool acquire with timeout fallback allocate; wave-complete checks queue-empty AND field-empty with a 90s failsafe that force-spawns the remainder.</span></li>
+    <li><span class="sym">Leaderboard score jumps by billions.</span> <span class="cau">Score int overflowed after hp-scale switch, or kill-credit double-fired on rewind restore.</span> <span class="fix">int64 for score; kill-credit guarded by a per-zombie <code class="mono">credited</code> flag serialized in snapshots.</span></li>
+  </ul></div></details>
+
+  <details><summary>E · Split-screen / input</summary><div class="body"><ul>
+    <li><span class="sym">P2's keys move P1.</span> <span class="cau">Input actions read globally instead of per-device.</span> <span class="fix">Each Player holds a device id; keyboard P2 uses its own action set (arrows/numpad), never shared names.</span></li>
+    <li><span class="sym">Both players press keys, some inputs die.</span> <span class="cau">Hardware keyboard ghosting (3–6 key rollover on cheap boards).</span> <span class="fix">Ship an in-menu "key conflict test"; recommend one controller; document ghosting in the co-op tooltip.</span></li>
+    <li><span class="sym">Rewind in split-screen restores only P1.</span> <span class="cau">Snapshot taken per-player instead of globally.</span> <span class="fix">One global snapshot containing BOTH players + shared world; rewind is always a world event, never per-player.</span></li>
+  </ul></div></details>
+
+  <details><summary>F · Content / versioning</summary><div class="body"><ul>
+    <li><span class="sym">Old saves crash after you add a new structure.</span> <span class="cau">Deserialize assumes keys that don't exist in v1 saves.</span> <span class="fix">Versioned saves + migration chain (v1→v2→v3); every getter uses <code class="mono">get(key, default)</code>.</span></li>
+    <li><span class="sym">New unlock makes an old wave trivially easy (meta stagnation).</span> <span class="cau">Balance drift as content grows.</span> <span class="fix">Keep a regression sheet: script a headless sim of waves 10/50/100/200 with baseline builds; CI-fail if win-rate shifts &gt; 8%.</span></li>
+  </ul></div></details>
+</section>
+
+<!-- ================= 13 ================= -->
+<section id="mcp">
+  <h2><span class="num">13</span>MCP Toolkit — making the art &amp; pipeline look way better</h2>
+  <div class="layman"><b>Layman:</b> an MCP server is a universal USB-C port for your AI assistant: plug it in and the AI can
+  actually <em>open and operate</em> another program (Figma, Godot, a browser, an image model) instead of just typing at you.</div>
+  <div class="cards">
+    <div class="card"><span class="tag">vector art</span><h4>Recraft / vector-gen MCP</h4><p>Recraft specialises in true SVG vector output — exactly your flat-polygon language. Generate icon/structure sets in-style, then import into Godot (rasterized crisp at 4×).</p></div>
+    <div class="card"><span class="tag">ui design</span><h4>Figma MCP (or Penpot MCP)</h4><p>Design HUD/panels in Figma with your palette tokens; the MCP lets the AI read frames and emit matching Godot Theme/StyleBox code — pixel-faithful UI, zero hand-tuning.</p></div>
+    <div class="card"><span class="tag">engine</span><h4>Godot MCP (community)</h4><p>AI drives the editor: create nodes, tweak Polygon2D points, run the scene, grab screenshots. Iterate on "does this tree read like moomoo?" in a loop instead of tab-switching.</p></div>
+    <div class="card"><span class="tag">qa</span><h4>Playwright MCP</h4><p>Auto-open your WebGL build in a real browser, click through waves, screenshot HUD states, capture performance traces. Catches the §12 browser bugs before players do.</p></div>
+    <div class="card"><span class="tag">concept</span><h4>Image-model MCP (Flux / Replicate)</h4><p>Moodboards and silhouette exploration for bosses/eras. Output is raster → use only as reference, then re-draw as vectors (or vectorize) to keep the style pure.</p></div>
+    <div class="card"><span class="tag">audio</span><h4>ElevenLabs / audio MCP</h4><p>Generate thwips, thuds, war-horns and UI clicks on demand; LLMs can't author audio files themselves, so this fills the gap in your Muse Spark workflow.</p></div>
+    <div class="card"><span class="tag">pipeline</span><h4>GitHub MCP</h4><p>AI opens issues, branches and PRs for each balance change; your wave-formula tweaks get versioned like code, not lost in chat.</p></div>
+    <div class="card"><span class="tag">style lock</span><h4>Palette-token file</h4><p>Not an MCP, but the glue: one <code class="mono">style.tres</code> + SVG style-rules doc fed to every tool above so all generated art shares fill/outline/inner-shade rules.</p></div>
+  </div>
+</section>
+
+<!-- ================= 14 ================= -->
+<section id="mobile">
+  <h2><span class="num">14</span>Mobile Plan (small, phased, after web launch)</h2>
+  <div class="cards">
+    <div class="card"><span class="tag">phase A · 0–6 wks post-launch</span><h4>Mobile-web via CrazyGames app</h4><p>Touch controls: left thumb virtual stick (move), right thumb aim/ghost-drag with grid-snap assist; radial build wheel replaces hotbar; UI scale ×1.4; zombie cap 60 + particles halved; optional 30 FPS battery mode. No new content — pure port.</p></div>
+    <div class="card"><span class="tag">phase B</span><h4>Native Android (Godot export)</h4><p>Same codebase, Google Play build: offline endless, local save, rewarded-ad crystals via store-safe SDK, controller support (BT gamepads), 120 Hz path for flagships.</p></div>
+    <div class="card"><span class="tag">phase C</span><h4>iOS + cross-progression</h4><p>Cloud save keyed by account; daily-seed challenge shared across web/mobile leaderboards; portrait-locked <em>menu</em> only, gameplay stays landscape.</p></div>
+  </div>
+  <ul>
+    <li><strong>Why phase A first:</strong> CrazyGames already ships your web build to mobile browsers — you learn touch-feel for free before spending on store compliance.</li>
+    <li><strong>Touch golden rule:</strong> never require drag-and-drop precision; ghost previews snap to grid and auto-rotate to face outward. Thumbs are blunt instruments.</li>
+    <li><strong>Rewind on mobile:</strong> same ring buffer works unchanged (it's pure data); the ad gate becomes the store's rewarded-video or a gem purchase.</li>
+  </ul>
+</section>
+
+<footer>
+  DEADWOOD SIEGE · Wave &amp; Progression Bible v3 · reference seed 9137 ·
+  generated tables are the single source of truth — mirror the §6 formulas 1:1 in <code class="mono">wave_director.gd</code>.
+</footer>
+
+</main>
+
+<script>
+/* ================================================================
+   CANONICAL SPEC — mirror of wave_director.gd (keep in sync!)
+   ================================================================ */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+
+var COST={Sham:1,Run:1.5,Sap:2,Scav:2,Spit:3,Brute:4};
+var FIRST={Sham:1,Run:6,Sap:9,Scav:14,Brute:18,Spit:22};
+var ARCH_MIX={
+  Mix:{Sham:3,Run:2,Sap:1.5,Scav:1,Spit:1,Brute:1},
+  Rush:{Run:4,Sham:2,Scav:1},
+  Siege:{Sap:4,Brute:2,Sham:1},
+  Raid:{Scav:3,Run:2,Spit:1},
+  Swarm:{Sham:5,Run:2},
+  Breather:{Sham:2,Run:1}
+};
+var MODS=[
+  {n:"Nightfall",w:12,e:"Vision -30%, tower range -10%",c:"Light sources & Watchtower auras"},
+  {n:"Bloodlust",w:18,e:"Zombie speed +12%",c:"Slow fields: tar, caltrops, moat"},
+  {n:"Armored Column",w:24,e:"30% of units gain front plate (-50% front dmg)",c:"Flank lanes, pendulums, mines"},
+  {n:"Split Attack",w:30,e:"Spawns from 2 opposite edges",c:"Crossfire layout, central keep"},
+  {n:"Grave Wind",w:40,e:"Spawns from all 4 edges",c:"360° defence ring, murder-holes"},
+  {n:"Silence",w:50,e:"2 random defences jammed for first 10s",c:"Redundancy: never single-point DPS"},
+  {n:"Undying",w:60,e:"12% of zombies revive once at 35% hp",c:"Execute sources: impaler, reaper"},
+  {n:"War Drums",w:75,e:"Boss/Champ arrives with 6 escort Runners",c:"Anti-swarm AoE near boss lane"},
+  {n:"Frost Rot",w:90,e:"All tower fire-rate -15%",c:"War Drum buff auras"}
+];
+var STRUCTS=[
+  {n:"Palisade → Stone → Fortress Wall",t:[1,13,33],c:[["W",10],["S",15],["S",40,"W",20]]},
+  {n:"Crossbow Turret",t:[2,14,36],c:[["W",20],["W",40,"S",10],["W",80,"S",30]]},
+  {n:"Spike Trap",t:[3,13,35],c:[["W",15,"S",5],["W",30,"S",12],["W",60,"S",26]]},
+  {n:"Archer Tower",t:[4,16,40],c:[["W",35,"F",10],["W",70,"F",20],["W",140,"S",40,"F",40]]},
+  {n:"Tar Pit",t:[5,15,38],c:[["W",10,"S",5],["W",22,"S",12],["W",45,"S",25]]},
+  {n:"Oil Cauldron",t:[6,18,42],c:[["W",25,"S",20],["W",50,"S",42],["W",100,"S",85]]},
+  {n:"Ballista",t:[7,20,48],c:[["W",40,"S",15],["W",82,"S",32],["W",165,"S",65]]},
+  {n:"Caltrops",t:[8,21,46],c:[["S",10],["S",22],["S",45,"W",20]]},
+  {n:"Guard Barracks",t:[10,24,55],c:[["W",45,"F",20],["W",92,"F",42],["W",185,"F",85]]},
+  {n:"Moat (dug)",t:[11,25,58],c:[["W",5],["W",12,"S",6],["W",25,"S",14]]},
+  {n:"Spear Wall",t:[12,28,60],c:[["W",30,"S",10],["W",62,"S",22],["W",125,"S",45]]},
+  {n:"Log Roller",t:[15,30,62],c:[["W",35],["W",72,"S",15],["W",145,"S",32]]},
+  {n:"Watchtower (range aura)",t:[17,35,64],c:[["W",50],["W",102,"S",25],["W",205,"S",52]]},
+  {n:"Scythe Pendulum",t:[21,38,66],c:[["W",40,"S",20],["W",82,"S",42],["W",165,"S",85]]},
+  {n:"Hornet Nest",t:[23,41,68],c:[["W",20,"F",15],["W",42,"F",32],["W",85,"F",65]]},
+  {n:"Catapult",t:[26,44,70],c:[["W",60,"S",40],["W",122,"S",82],["W",245,"S",165]]},
+  {n:"Powder Keg Mine",t:[29,47,74],c:[["W",20,"S",25],["W",42,"S",52],["W",85,"S",105]]},
+  {n:"War Drum (buff aura)",t:[31,50,78],c:[["W",45,"F",25],["W",92,"F",52],["W",185,"F",105]]},
+  {n:"Organ Gun (ribauldequin)",t:[34,52,80],c:[["W",50,"S",35,"F",15],["W",102,"S",72,"F",32],["W",205,"S",145,"F",65]]},
+  {n:"Murder-Hole Tower",t:[39,57,84],c:[["W",35,"S",45],["W",72,"S",92],["W",145,"S",185]]}
+];
+var TOOLS=[
+  [0,"Bare Hands","—","Baseline swing, 1 yield"],
+  [0,"Crude Stone Axe (craft)","W15 S5","2× yield vs trees"],
+  [4,"Dash utility","F20","Short burst movement"],
+  [8,"Iron Axe","W30 S20","3× yield, unlocks hard nodes"],
+  [9,"Carry Belt","W25","+50% pickup radius"],
+  [16,"Crystal Attunement","F40","+1 Time Crystal slot"],
+  [20,"Steel War-Pick","W50 S45","4× yield vs stone"],
+  [30,"Siege Foreman","W60 F30","Structures build 25% faster"],
+  [45,"Warforged Reaver","S80 F30","6× yield, clears 3 nodes per swing"]
+];
+
+/* ---------- formulas ---------- */
+function budget(n){
+  if(n<=50) return 3+1.6*n+0.35*Math.pow(n,1.3);
+  if(n<=120) return 142+(n-50)*2.6;
+  return 324+(n-120)*3.2;
+}
+function eraOf(n){return n<=20?1:n<=50?2:n<=100?3:n<=150?4:5}
+var ERA_NAME={1:"I · First Blood",2:"II · Rotting Tide",3:"III · The Long Night",4:"IV · Iron Harvest",5:"V · Apex Rot"};
+function archOf(n){
+  if(n%10===0) return "Boss";
+  var b=["Mix","Rush","Siege","Mix","Raid","Swarm","Breather"][(n-1)%7];
+  return b;
+}
+function availTypes(n){return Object.keys(FIRST).filter(function(k){return FIRST[k]<=n})}
+function rollMix(arch,n,rng){
+  var w=ARCH_MIX[arch]||ARCH_MIX.Mix, types=availTypes(n), out={}, rem=budget(n);
+  if(arch==="Boss") rem*=0.5;
+  if(arch==="Breather") rem*=0.35;
+  var pool=types.filter(function(t){return (w[t]||0)>0});
+  if(pool.length===0) pool=["Sham"];
+  var guard=0;
+  while(rem>=1 && guard<4000){
+    guard++;
+    var tot=0; pool.forEach(function(t){tot+=w[t]});
+    var r=rng()*tot, pick=pool[0];
+    for(var i=0;i<pool.length;i++){r-=w[pool[i]];if(r<=0){pick=pool[i];break}}
+    var c=COST[pick];
+    if(c>rem){ // try cheapest affordable
+      var cheap=pool.slice().sort(function(a,b){return COST[a]-COST[b]})[0];
+      if(COST[cheap]<=rem){pick=cheap;c=COST[cheap]} else break;
+    }
+    out[pick]=(out[pick]||0)+1; rem-=c;
+  }
+  return out;
+}
+function rollMods(n,rng){
+  if(n<12) return [];
+  var arch=archOf(n); if(arch==="Breather") return [];
+  var e=eraOf(n), count=0;
+  if(e===2) count=rng()<0.35?1:0;
+  else if(e===3) count=rng()<0.60?1:0;
+  else if(e===4) count=1+(rng()<0.20?1:0);
+  else count=1+(rng()<0.30?1:0)+(rng()<0.10?1:0);
+  var pool=MODS.filter(function(m){return m.w<=n}).map(function(m){return m.n});
+  var res=[];
+  while(res.length<count&&pool.length){ res.push(pool.splice(Math.floor(rng()*pool.length),1)[0]); }
+  return res;
+}
+function unlockLabels(n){
+  var out=[];
+  STRUCTS.forEach(function(s){ if(s.t[0]===n) out.push("🔓 "+s.n.split(" → ")[0]+" T1"); });
+  TOOLS.forEach(function(t){ if(t[0]===n) out.push("⚒ "+t[1]); });
+  return out;
+}
+function wavePlan(n){
+  var rng=mulberry32(9137+n*7919);
+  var arch=archOf(n), mix=rollMix(arch,n,rng), mods=rollMods(n,rng), notes=[], rewards=unlockLabels(n);
+  var e=eraOf(n);
+  if(n%10===0){
+    var bosses=n===100||n===150?2:(n===200?3:1);
+    mix["WARLORD"]=bosses;
+    notes.push("WARLORD assault ×"+bosses);
+    rewards.push("💎 War Cache: +1 crystal, +60W +40S +25F");
+  }
+  if(n>=25&&n%5===0&&n%10!==0){ mix["Champ"]=e>=5?2:1; notes.push("Champ mini-boss"); }
+  if(arch==="Breather"){ rewards.push("☂ Supply drop +40W +25S +15F (×"+(1+n/60).toFixed(1)+")"); notes.push("Breather — exhale"); }
+  Object.keys(FIRST).forEach(function(k){ if(FIRST[k]===n) notes.push("Introduces "+k); });
+  MODS.forEach(function(m){ if(m.w===n) notes.push("Modifier pool: "+m.n+" joins"); });
+  if(e>=4) notes.push("Elites "+(e===4?"15%":"30%"));
+  if([21,51,101,151].indexOf(n)>=0) notes.push("— ERA SHIFT: "+ERA_NAME[e]+" —");
+  if(n===200) notes.push("FINAL SCRIPTED WAVE");
+  return {n:n,era:e,arch:arch,mix:mix,mods:mods,rewards:rewards,notes:notes};
+}
+
+/* ---------- render: modifiers ---------- */
+(function(){
+  var tb=document.getElementById("modBody"), html="";
+  MODS.forEach(function(m){
+    html+="<tr><td><span class='b mod'>"+m.n+"</span></td><td class='n'>W"+m.w+"</td><td class='small'>"+m.e+"</td><td class='small'>"+m.c+"</td></tr>";
+  });
+  tb.innerHTML=html;
+})();
+
+/* ---------- render: structures ---------- */
+(function(){
+  var tb=document.getElementById("structBody"), html="";
+  STRUCTS.forEach(function(s,i){
+    function costStr(c){ var m={W:"W",S:"S",F:"F"}, out=[]; for(var j=0;j<c.length;j+=2){ out.push(c[j+1]+" "+c[j]); } return out.join(" · "); }
+    html+="<tr><td class='n'>"+(i+1)+"</td><td><strong>"+s.n+"</strong></td>"+
+      "<td class='small'>W"+s.t[0]+" — "+costStr(s.c[0])+"</td>"+
+      "<td class='small'>W"+s.t[1]+" — "+costStr(s.c[1])+"</td>"+
+      "<td class='small'>W"+s.t[2]+" — "+costStr(s.c[2])+"</td></tr>";
+  });
+  tb.innerHTML=html;
+})();
+
+/* ---------- render: tools ---------- */
+(function(){
+  var tb=document.getElementById("toolBody"), html="";
+  TOOLS.forEach(function(t){
+    html+="<tr><td class='n'>W"+t[0]+"</td><td><strong>"+t[1]+"</strong></td><td class='small'>"+t[2]+"</td><td class='small'>"+t[3]+"</td></tr>";
+  });
+  tb.innerHTML=html;
+})();
+
+/* ---------- render: 200 waves ---------- */
+var ROWS=[];
+(function(){
+  var tb=document.getElementById("waveBody"), frag=document.createDocumentFragment();
+  for(var n=1;n<=200;n++){
+    var p=wavePlan(n);
+    var mixStr=Object.keys(p.mix).map(function(k){return p.mix[k]+"×"+k}).join("  ");
+    var tr=document.createElement("tr");
+    tr.dataset.era=p.era;
+    tr.dataset.boss=(p.arch==="Boss")?"1":"0";
+    tr.dataset.rest=(p.arch==="Breather")?"1":"0";
+    tr.dataset.text=(n+" "+p.arch+" "+mixStr+" "+p.mods.join(" ")+" "+p.rewards.join(" ")+" "+p.notes.join(" ")).toLowerCase();
+    var archBadge = p.arch==="Boss" ? "<span class='b boss'>WARLORD</span>"
+      : p.arch==="Breather" ? "<span class='b rest'>Breather</span>"
+      : "<span class='b arch'>"+p.arch+"</span>";
+    tr.innerHTML =
+      "<td class='n'>"+n+"</td>"+
+      "<td><span class='b e"+p.era+"'>"+ERA_NAME[p.era]+"</span></td>"+
+      "<td>"+archBadge+"</td>"+
+      "<td class='small mono'>"+mixStr+"</td>"+
+      "<td class='small'>"+(p.mods.length?p.mods.map(function(m){return "<span class='b mod'>"+m+"</span>"}).join(" "):"<span style='color:#6f7d6c'>—</span>")+"</td>"+
+      "<td class='small'>"+(p.rewards.length?p.rewards.join("<br>"):"—")+"</td>"+
+      "<td class='small'>"+p.notes.join(" · ")+"</td>";
+    frag.appendChild(tr); ROWS.push(tr);
+  }
+  tb.appendChild(frag);
+})();
+
+/* ---------- filters ---------- */
+var state={era:"all",q:"",boss:false,rest:false};
+function applyFilters(){
+  var shown=0;
+  ROWS.forEach(function(tr){
+    var ok=true;
+    if(state.era!=="all"&&tr.dataset.era!==state.era) ok=false;
+    if(state.boss&&tr.dataset.boss!=="1") ok=false;
+    if(state.rest&&tr.dataset.rest!=="1") ok=false;
+    if(state.q&&tr.dataset.text.indexOf(state.q)<0) ok=false;
+    tr.style.display=ok?"":"none";
+    if(ok) shown++;
+  });
+  document.getElementById("rowCount").textContent=shown+" / 200 waves";
+}
+document.querySelectorAll(".controls button[data-era]").forEach(function(btn){
+  btn.addEventListener("click",function(){
+    document.querySelectorAll(".controls button[data-era]").forEach(function(b){b.classList.remove("on")});
+    btn.classList.add("on"); state.era=btn.dataset.era; applyFilters();
+  });
+});
+document.getElementById("waveSearch").addEventListener("input",function(e){ state.q=e.target.value.trim().toLowerCase(); applyFilters(); });
+document.getElementById("onlyBoss").addEventListener("change",function(e){ state.boss=e.target.checked; applyFilters(); });
+document.getElementById("onlyRest").addEventListener("change",function(e){ state.rest=e.target.checked; applyFilters(); });
+applyFilters();
+
+/* ---------- copy buttons ---------- */
+document.querySelectorAll("[data-copy]").forEach(function(btn){
+  btn.addEventListener("click",function(){
+    var el=document.getElementById(btn.dataset.copy);
+    if(!el) return;
+    var txt=el.innerText;
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt); }
+    else{
+      var ta=document.createElement("textarea"); ta.value=txt; document.body.appendChild(ta);
+      ta.select(); document.execCommand("copy"); document.body.removeChild(ta);
+    }
+    btn.textContent="copied ✓"; setTimeout(function(){btn.textContent="copy"},1400);
+  });
+});
+</script>
+</body>
+</html>

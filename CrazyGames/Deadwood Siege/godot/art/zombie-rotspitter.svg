@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 140" width="140" height="140">
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <ellipse cx="68" cy="72" rx="28" ry="26" fill="#151821" opacity="0.38"/>
+    <ellipse cx="94" cy="50" rx="7.5" ry="6.5" fill="#5A4A2A" stroke="#222633" stroke-width="3"/>
+    <circle cx="96" cy="48" r="2.5" fill="#F0C446"/>
+    <ellipse cx="94" cy="90" rx="7.5" ry="6.5" fill="#5A4A2A" stroke="#222633" stroke-width="3"/>
+    <circle cx="96" cy="92" r="2.5" fill="#F0C446"/>
+    <ellipse cx="68" cy="70" rx="24" ry="22" fill="#5A4A2A" stroke="#222633" stroke-width="4.5"/>
+    <ellipse cx="66" cy="68" rx="20" ry="18" fill="#78663C"/>
+    <circle cx="54" cy="62" r="9" fill="#F0C446" stroke="#222633" stroke-width="2.5"/>
+    <circle cx="52" cy="60" r="4" fill="#FFE27A"/>
+    <circle cx="60" cy="78" r="8" fill="#F0C446" stroke="#222633" stroke-width="2.5"/>
+    <circle cx="58" cy="76" r="3.5" fill="#FFE27A"/>
+    <circle cx="48" cy="74" r="7" fill="#C89524" stroke="#222633" stroke-width="2"/>
+    <circle cx="46" cy="72" r="2.5" fill="#FFE27A"/>
+    <circle cx="68" cy="60" r="6" fill="#F0C446" stroke="#222633" stroke-width="2"/>
+    <circle cx="78" cy="70" r="3" fill="#88B82A" stroke="#222633" stroke-width="1"/>
+  </g>
+</svg>
