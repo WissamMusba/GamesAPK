@@ -549,9 +549,10 @@ function zoneAtFeet(p,type){
 
 function landOn(p,gp,impact,wasG){
   p.grounded=true;p.gp=gp;p.lastGp=gp;p.airJumps=settings.doubleJump?1:0;p.wallJumps=0;
+  // Subtle squash on landing — scaled down ~50% so it reads as weight, not a gag.
   if(!wasG){
-    if(impact>430){p.sy=0.74;p.sx=1.26;p.landT=0.16;sfx('land');dust(p.x+p.w/2,p.y+p.h,8,90);}
-    else if(impact>140){p.sy=0.88;p.sx=1.1;}
+    if(impact>430){p.sy=0.87;p.sx=1.13;p.landT=0.12;sfx('land');dust(p.x+p.w/2,p.y+p.h,8,90);}
+    else if(impact>140){p.sy=0.93;p.sx=1.07;}
   }
 }
 function inputFor(p){
@@ -637,7 +638,7 @@ function physUpdate(p,dt,allow){
       p.vx=clamp(p.vx,-baseMax*1.1,baseMax*1.1);
       if(boost>1){sfx('boost');ringP(p.x+p.w/2,p.y+p.h,'#4a90e2');}else sfx('jump');
       p.grounded=false;p.coyote=0;p.jbuf=0;p.holdT=HOLD_LIFT_T;p.airJumps=settings.doubleJump?1:0;
-      p.sy=1.20;p.sx=0.84;dust(p.x+p.w/2,p.y+p.h,5,70);
+      p.sy=1.10;p.sx=0.93;dust(p.x+p.w/2,p.y+p.h,5,70);
     }else if(onWall&&p.wallJumps<2){
       /* KICK OFF WALL! (Wall-Jump: Max 2 consecutive) */
       p.wallJumps++;
@@ -646,12 +647,12 @@ function physUpdate(p,dt,allow){
       p.face=-p.wallSide;
       p.sideT=0;p.jbuf=0;p.holdT=HOLD_LIFT_T;
       p.airJumps=settings.doubleJump?1:0;
-      p.sy=1.18;p.sx=0.85;
+      p.sy=1.09;p.sx=0.92;
       sfx('walljump');
       dust(p.x+(p.wallSide<0?0:p.w),p.y+p.h/2,4,80);
     }else if(p.airJumps>0){
       p.vy=-JUMP_V*0.95;p.airJumps--;p.jbuf=0;p.holdT=HOLD_LIFT_T;p.vx=clamp(p.vx,-baseMax*1.1,baseMax*1.1);sfx('djump');
-      ringP(p.x+p.w/2,p.y+p.h/2,'#ffffff');p.sy=1.15;p.sx=0.88;
+      ringP(p.x+p.w/2,p.y+p.h/2,'#ffffff');p.sy=1.08;p.sx=0.94;
     }
   }
 
