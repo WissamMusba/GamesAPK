@@ -349,7 +349,7 @@ let currentThemeIdx=0;
 
 /* ================= menu ================= */
 let screen='menu',tGlobal=0;
-const menu={mode:'slots',slotColor:[0,2,-1,-1],row:1,rule:0,toast:null,toastT:0};
+const menu={mode:'slots',slotColor:[0,2,-1,-1],row:4,rule:0,toast:null,toastT:0};
 const ROWS=['CHANGE PLAYERS','MAP','TIMER','RULES','START'];
 const RULE_NAMES=['DOUBLE JUMP','BUMP','SPECIAL'];
 function toast(m){menu.toast=m;menu.toastT=2.2;}
@@ -409,21 +409,22 @@ function updateMenu(dt){
   if(anyPressed(['KeyM'])){muted=!muted;if(master)master.gain.value=muted?0:0.5;}
   menu.toastT-=dt;
   if(menu.mode==='slots'){
-    // WASD + arrows aliases: any slot can use W/A for prev colour and S/D for next.
-    // Keeps per-slot stick aliases (arrows/JL/FH) too so a second tester isn't broken.
+    // Per-card cycling: only the matching slot responds. WASD = slot 0 (W/A prev, S/D next),
+    // arrows = slot 1, IJKL = slot 2, TFGH = slot 3. W/S mirrors A/D but per-card, never broadcast.
     if(anyPressed(['KeyA','KeyW']))cycleSlot(0,-1);
     if(anyPressed(['KeyD','KeyS']))cycleSlot(0,1);
-    if(anyPressed(['KeyA','KeyW']))cycleSlot(1,-1);
-    if(anyPressed(['KeyD','KeyS']))cycleSlot(1,1);
-    if(anyPressed(['KeyA','KeyW']))cycleSlot(2,-1);
-    if(anyPressed(['KeyD','KeyS']))cycleSlot(2,1);
-    if(anyPressed(['KeyA','KeyW']))cycleSlot(3,-1);
-    if(anyPressed(['KeyD','KeyS']))cycleSlot(3,1);
     if(pressed.has('ArrowLeft'))cycleSlot(1,-1);
     if(pressed.has('ArrowRight'))cycleSlot(1,1);
+    if(anyPressed(['KeyW']))cycleSlot(1,-1);
+    if(anyPressed(['KeyS']))cycleSlot(1,1);
     if(pressed.has('KeyJ'))cycleSlot(2,-1);
     if(pressed.has('KeyL'))cycleSlot(2,1);
+    if(anyPressed(['KeyW']))cycleSlot(2,-1);
+    if(anyPressed(['KeyS']))cycleSlot(2,1);
     if(pressed.has('KeyF'))cycleSlot(3,-1);
+    if(pressed.has('KeyH'))cycleSlot(3,1);
+    if(anyPressed(['KeyW']))cycleSlot(3,-1);
+    if(anyPressed(['KeyS']))cycleSlot(3,1);
     if(pressed.has('KeyH'))cycleSlot(3,1);
     for(let i=0;i<4;i++){const pd=PAD[i];if(!pd)continue;
       if(pd.leftE)cycleSlot(i,-1);
@@ -550,6 +551,7 @@ function drawInterior(){
 
 /* ================= PHYSICS: RELIABLE PINK DROP/JUMP-THROUGH & AIRTIGHT SOLIDS ================= */
 function hitRect(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;}
+function hitRectInclusive(a,b){return a.x<=b.x+b.w&&a.x+a.w>=b.x&&a.y<=b.y+b.h&&a.y+a.h>=b.y;}
 
 function zoneAtFeet(p,type){
   const feet=p.y+p.h;
@@ -871,14 +873,14 @@ function pairCollide(){
     }
   }
 }
-function tagBox(p){const s=1;return{x:p.x+s,y:p.y+s,w:p.w-2*s,h:p.h-2*s};}
+function tagBox(p){const pad=5;return{x:p.x-pad,y:p.y-pad,w:p.w+2*pad,h:p.h+2*pad};}
 function checkTag(){
   if(match.state!=='playing'||match.cooldown>0)return;
   const P=match.players,it=P[match.it];
   for(let j=0;j<P.length;j++){
     if(j===match.it)continue;
-    // Border-touch = tag (no deep overlap needed). 1px inset keeps full 44x44 skin; hitRect uses strict >/< so skins just kissing counts.
-    if(hitRect(tagBox(it),tagBox(P[j]))){
+    // Inclusive border + 5px expansion: outline/edge touch now tags, and near-miss grazes count.
+    if(hitRectInclusive(tagBox(it),tagBox(P[j]))){
       match.it=j;
       match.cooldown=3;
       match.tags[j]++;
@@ -964,7 +966,8 @@ function selectMapQuick(idx){
 function updateGame(dt){
   if(!match)return;
   if(anyPressed(['KeyM']))toggleSound();
-  if(anyPressed(['KeyF']))toggleFullscreen();
+  // Fullscreen was on F — that collides with TFGH left (F). O is free in-game (O is font-prev only in menu).
+  if(anyPressed(['KeyO']))toggleFullscreen();
   if(anyPressed(['KeyP']))togglePause();
   if(anyPressed(['KeyN']))selectMapQuick(settings.map+1);
   if(anyPressed(['KeyB']))cycleTheme();
