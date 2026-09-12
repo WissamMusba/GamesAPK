@@ -31,15 +31,12 @@ function rgba(hex,a){const n=parseInt(hex.slice(1),16);return'rgba('+(n>>16)+','
 const FT=px=>'900 '+px+'px "'+FAMILIES[fontIdx]+'",system-ui,sans-serif';
 const FN=(px,w)=>(w||800)+' '+px+'px "'+FAMILIES[fontIdx]+'",system-ui,sans-serif';
 const FAMILIES=['Outfit','Bebas Neue','Anton','Bangers','Black Han Sans','Luckiest Guy','Righteous','Fredoka One','Baloo 2','Nunito','Poppins','Montserrat','Titan One','Chewy','MuseoModerno','Comfortaa','Space Grotesk','Orbitron','Russo One','Staatliches'];
-const FONTS_READY_P=new Set(['Outfit']);
 let fontIdx=0;
 try{const s=Number(localStorage.getItem('tag_font_idx'));if(Number.isInteger(s)&&s>=0&&s<FAMILIES.length)fontIdx=s;}catch(e){}
-if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>FONTS_READY_P.add(FAMILIES[fontIdx]));
 function cycleFont(d){
   fontIdx=(fontIdx+d+FAMILIES.length)%FAMILIES.length;
   try{localStorage.setItem('tag_font_idx',String(fontIdx));}catch(e){}
-  // Preload the family so the next frame actually shows it
-  if(document.fonts&&document.fonts.load)document.fonts.load('900 32px "'+FAMILIES[fontIdx]+'"').then(()=>FONTS_READY_P.add(FAMILIES[fontIdx])).catch(()=>{});
+  if(document.fonts&&document.fonts.load)document.fonts.load('900 32px "'+FAMILIES[fontIdx]+'"').catch(()=>{});
   toast('FONT: '+(fontIdx+1)+'/20 — '+FAMILIES[fontIdx]);
 }
 const INK='#141414';
@@ -1472,8 +1469,12 @@ function drawMenu(){
   const ly=CH*0.13;
   const word='TAG';
   g.font=FT(Math.min(90,CW*0.12));
+  // Slight letter-spacing so caps-heavy fonts don't mush together
+  g.letterSpacing='0.06em';
+  const ls=6; // px gap between letters, scaled with font
   const ws=[];let widths=0;
   for(let i=0;i<3;i++){ws.push(g.measureText(word[i]).width);widths+=ws[i];}
+  widths+=ls*2;
   let xx=CW/2-widths/2;
   for(let i=0;i<3;i++){
     g.save();
@@ -1484,8 +1485,9 @@ function drawMenu(){
     g.strokeText(word[i],0,0);
     g.fillStyle='#ffffff';g.fillText(word[i],0,0);
     g.restore();
-    xx+=ws[i];
+    xx+=ws[i]+ls;
   }
+  g.letterSpacing='0em';
   const si=44;
   rr(g,CW-si-12,12,si,si,10);
   g.fillStyle='rgba(255,255,255,0.85)';g.fill();g.lineWidth=3;g.strokeStyle=INK;g.stroke();
@@ -1498,29 +1500,23 @@ function drawMenu(){
     const r=rects[i],col=menu.slotColor[i];
     const locked=isTouch&&i>=2;
     rr(g,r.x-4,r.y-4,r.w+8,r.h+8,12);
-    g.fillStyle='rgba(255,255,255,0.92)';g.fill();g.lineWidth=4;g.strokeStyle=INK;g.stroke();
-    // Unified card style: all 4 match cards 3-4 (dark controller look).
-    // Active = tinted with player's colour + pad glyph + chevrons. Idle = dark muted.
-    const active=col>=0;
-    const baseFill=active?rgba(PALETTE[col].c,0.22):'rgba(34, 48, 63, 0.85)';
+    g.fillStyle='#ffffff';g.fill();g.lineWidth=4;g.strokeStyle=INK;g.stroke();
     rr(g,r.x,r.y,r.w,r.h,8);
-    g.fillStyle=baseFill;g.fill();
-    g.lineWidth=2.5;g.strokeStyle=active?'rgba(255,255,255,0.9)':'rgba(255,255,255,0.18)';g.stroke();
+    g.fillStyle=col>=0?PALETTE[col].c:(locked?'#20281c':'#25303f');
+    g.fill();
+    g.lineWidth=3;g.strokeStyle=col>=0?INK:'rgba(255,255,255,0.25)';g.stroke();
     const cx=r.x+r.w/2,cy=r.y+r.h/2;
-    if(active){
-      // Selected: controller icon tinted by player colour
-      g.save();
-      // subtle colour wash behind glyph
-      rr(g,r.x+8,r.y+8,r.w-16,r.h-26,6);
-      g.fillStyle=rgba(PALETTE[col].c,0.35);g.fill();
+    if(col>=0){
+      // Old vivid fill + controller glyph overlaid + chevrons — colour stays strong, icon stays.
+      g.save();g.globalAlpha=0.55;
+      padGlyph(cx,cy-8,r.w*0.22,true);
       g.restore();
+      txt('◀   ▶',cx,r.y+r.h-16,FN(Math.min(16,r.w*0.12),900),'rgba(255,255,255,0.85)');
+    }else if(PAD[i]){
       padGlyph(cx,cy-6,r.w*0.20,true);
       txt('◀   ▶',cx,r.y+r.h-16,FN(Math.min(16,r.w*0.12),900),'rgba(255,255,255,0.85)');
     }else if(locked){
       txt('—',cx,cy,FN(18,900),'rgba(255,255,255,0.4)');
-    }else if(PAD[i]){
-      padGlyph(cx,cy-6,r.w*0.20,true);
-      txt('◀   ▶',cx,r.y+r.h-16,FN(Math.min(16,r.w*0.12),900),'rgba(255,255,255,0.7)');
     }else{
       g.save();g.globalAlpha=0.45;
       padGlyph(cx,cy-6,r.w*0.18,false);
@@ -1573,8 +1569,8 @@ function drawMenu(){
     zone(CW*0.08,ry0+menu.row*step-26,CW*0.12,52,{fn:()=>rowEdit(-1)});
     zone(CW*0.80,ry0+menu.row*step-26,CW*0.12,52,{fn:()=>rowEdit(1)});
   }
-  ptxt(menu.mode==='slots'?'P1-4: W/A/S/D cycles colour  •  Arrows / J-L / F-H also work  •  P3: IJKL or PAD  P4: TFGH or PAD   •   ENTER = CONTINUE'
-                         :'UP/DN SELECT   L/R CHANGE   ENTER OK   •   HOTKEYS: 1-0 = MAP, B = THEME',
+  ptxt(menu.mode==='slots'?'P1-4: W/A/S/D cycles colour  •  Arrows / J-L / F-H also work  •  P3: IJKL or PAD  P4: TFGH or PAD   •   ENTER = CONTINUE  •  O/P = FONT'
+                         :'UP/DN SELECT   L/R CHANGE   ENTER OK   •   HOTKEYS: 1-0 = MAP, B = THEME  •  O/P = FONT',
     CW/2,CH*0.955,FN(Math.min(13,CW*0.024),800),'rgba(255,255,255,0.6)');
   if(menu.toastT>0&&menu.toast){
     const a=clamp(menu.toastT,0,1);
