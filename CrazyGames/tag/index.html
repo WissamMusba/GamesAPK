@@ -409,22 +409,14 @@ function updateMenu(dt){
   if(anyPressed(['KeyM'])){muted=!muted;if(master)master.gain.value=muted?0:0.5;}
   menu.toastT-=dt;
   if(menu.mode==='slots'){
-    // Per-card cycling: only the matching slot responds. WASD = slot 0 (W/A prev, S/D next),
-    // arrows = slot 1, IJKL = slot 2, TFGH = slot 3. W/S mirrors A/D but per-card, never broadcast.
-    if(anyPressed(['KeyA','KeyW']))cycleSlot(0,-1);
-    if(anyPressed(['KeyD','KeyS']))cycleSlot(0,1);
+    // AD only for WASD slot 0 (WS removed). IJKL/TFGH use per-slot keys, arrows for slot 1 — no WS broadcast.
+    if(pressed.has('KeyA'))cycleSlot(0,-1);
+    if(pressed.has('KeyD'))cycleSlot(0,1);
     if(pressed.has('ArrowLeft'))cycleSlot(1,-1);
     if(pressed.has('ArrowRight'))cycleSlot(1,1);
-    if(anyPressed(['KeyW']))cycleSlot(1,-1);
-    if(anyPressed(['KeyS']))cycleSlot(1,1);
     if(pressed.has('KeyJ'))cycleSlot(2,-1);
     if(pressed.has('KeyL'))cycleSlot(2,1);
-    if(anyPressed(['KeyW']))cycleSlot(2,-1);
-    if(anyPressed(['KeyS']))cycleSlot(2,1);
     if(pressed.has('KeyF'))cycleSlot(3,-1);
-    if(pressed.has('KeyH'))cycleSlot(3,1);
-    if(anyPressed(['KeyW']))cycleSlot(3,-1);
-    if(anyPressed(['KeyS']))cycleSlot(3,1);
     if(pressed.has('KeyH'))cycleSlot(3,1);
     for(let i=0;i<4;i++){const pd=PAD[i];if(!pd)continue;
       if(pd.leftE)cycleSlot(i,-1);
