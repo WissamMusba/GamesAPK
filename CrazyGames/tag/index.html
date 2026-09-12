@@ -355,7 +355,6 @@ const RULE_NAMES=['DOUBLE JUMP','BUMP','SPECIAL'];
 function toast(m){menu.toast=m;menu.toastT=2.2;}
 function activeSlots(){const r=[];for(let i=0;i<4;i++)if(menu.slotColor[i]>=0)r.push(i);return r;}
 function cycleSlot(i,d){
-  if(isTouch&&i>=2)return;
   const taken=menu.slotColor.filter((c,k)=>c>=0&&k!==i);
   const list=[-1].concat(PALETTE.map((p,idx)=>idx).filter(idx=>taken.indexOf(idx)<0));
   let cur=list.indexOf(menu.slotColor[i]);
@@ -410,10 +409,16 @@ function updateMenu(dt){
   if(anyPressed(['KeyM'])){muted=!muted;if(master)master.gain.value=muted?0:0.5;}
   menu.toastT-=dt;
   if(menu.mode==='slots'){
-    // Colour cycling: each slot has WASD as alias. AD and WS are interchangeable — W/A = prev, S/D = next.
-    // Kept per-slot so a press cycles one slot at a time; cycleSlot() handles palette exclusivity.
+    // WASD + arrows aliases: any slot can use W/A for prev colour and S/D for next.
+    // Keeps per-slot stick aliases (arrows/JL/FH) too so a second tester isn't broken.
     if(anyPressed(['KeyA','KeyW']))cycleSlot(0,-1);
     if(anyPressed(['KeyD','KeyS']))cycleSlot(0,1);
+    if(anyPressed(['KeyA','KeyW']))cycleSlot(1,-1);
+    if(anyPressed(['KeyD','KeyS']))cycleSlot(1,1);
+    if(anyPressed(['KeyA','KeyW']))cycleSlot(2,-1);
+    if(anyPressed(['KeyD','KeyS']))cycleSlot(2,1);
+    if(anyPressed(['KeyA','KeyW']))cycleSlot(3,-1);
+    if(anyPressed(['KeyD','KeyS']))cycleSlot(3,1);
     if(pressed.has('ArrowLeft'))cycleSlot(1,-1);
     if(pressed.has('ArrowRight'))cycleSlot(1,1);
     if(pressed.has('KeyJ'))cycleSlot(2,-1);
@@ -1498,30 +1503,30 @@ function drawMenu(){
   const rects=slotCardRects();
   for(let i=0;i<4;i++){
     const r=rects[i],col=menu.slotColor[i];
-    const locked=isTouch&&i>=2;
+    const padHere=!!PAD[i];
+    const locked=false; // all 4 slots playable via controller now; still allow touch but not locked off
     rr(g,r.x-4,r.y-4,r.w+8,r.h+8,12);
     g.fillStyle='#ffffff';g.fill();g.lineWidth=4;g.strokeStyle=INK;g.stroke();
     rr(g,r.x,r.y,r.w,r.h,8);
-    g.fillStyle=col>=0?PALETTE[col].c:(locked?'#20281c':'#25303f');
+    g.fillStyle=col>=0?PALETTE[col].c:(padHere?'#2a3548':'#25303f');
     g.fill();
     g.lineWidth=3;g.strokeStyle=col>=0?INK:'rgba(255,255,255,0.25)';g.stroke();
     const cx=r.x+r.w/2,cy=r.y+r.h/2;
     if(col>=0){
-      // Old vivid fill + controller glyph overlaid + chevrons — colour stays strong, icon stays.
-      g.save();g.globalAlpha=0.55;
-      padGlyph(cx,cy-8,r.w*0.22,true);
+      // Active: vivid fill + controller glyph overlaid + chevrons + binding label that shows real input
+      const isPad=!!PAD[i];
+      const label=isPad?'⦾ PAD':SLOTS[i].label;
+      g.save();g.globalAlpha=0.62;
+      padGlyph(cx,cy-12,r.w*0.18,true);
       g.restore();
+      ptxt(label,cx,cy+12,FN(Math.min(14,r.w*0.10),900),'#ffffff');
       txt('◀   ▶',cx,r.y+r.h-16,FN(Math.min(16,r.w*0.12),900),'rgba(255,255,255,0.85)');
-    }else if(PAD[i]){
+    }else if(padHere){
       padGlyph(cx,cy-6,r.w*0.20,true);
       txt('◀   ▶',cx,r.y+r.h-16,FN(Math.min(16,r.w*0.12),900),'rgba(255,255,255,0.85)');
-    }else if(locked){
-      txt('—',cx,cy,FN(18,900),'rgba(255,255,255,0.4)');
     }else{
-      g.save();g.globalAlpha=0.45;
-      padGlyph(cx,cy-6,r.w*0.18,false);
-      g.restore();
-      txt('◀   ▶',cx,r.y+r.h-16,FN(Math.min(16,r.w*0.12),900),'rgba(255,255,255,0.55)');
+      ptxt(SLOTS[i].label,cx,cy-4,FN(Math.min(20,r.w*0.14),900),'#cfe9c9');
+      txt('◀   ▶',cx,r.y+r.h-16,FN(Math.min(16,r.w*0.12),900),'rgba(255,255,255,0.7)');
     }
     if(!locked){
       zone(r.x-4,r.y-4,r.w*0.4+4,r.h+8,{fn:()=>cycleSlot(i,-1)});
@@ -1569,7 +1574,7 @@ function drawMenu(){
     zone(CW*0.08,ry0+menu.row*step-26,CW*0.12,52,{fn:()=>rowEdit(-1)});
     zone(CW*0.80,ry0+menu.row*step-26,CW*0.12,52,{fn:()=>rowEdit(1)});
   }
-  ptxt(menu.mode==='slots'?'P1-4: W/A/S/D cycles colour  •  Arrows / J-L / F-H also work  •  P3: IJKL or PAD  P4: TFGH or PAD   •   ENTER = CONTINUE  •  O/P = FONT'
+  ptxt(menu.mode==='slots'?'P1-4: W/A/S/D cycles colour  •  P1 WASD  •  P2 Arrows  •  P3 IJKL or PAD  •  P4 TFGH or PAD — up to 4 controllers  •   ENTER = CONTINUE  •  O/P = FONT'
                          :'UP/DN SELECT   L/R CHANGE   ENTER OK   •   HOTKEYS: 1-0 = MAP, B = THEME  •  O/P = FONT',
     CW/2,CH*0.955,FN(Math.min(13,CW*0.024),800),'rgba(255,255,255,0.6)');
   if(menu.toastT>0&&menu.toast){
