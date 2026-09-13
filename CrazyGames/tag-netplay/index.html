@@ -10,6 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link id="font-link-1" href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800;900&family=Rubik:ital,wght@0,700;0,800;0,900;1,900&display=swap" rel="stylesheet"/>
+<script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <link id="font-link-20" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Anton&family=Bangers&family=Black+Han+Sans&family=Luckiest+Guy&family=Righteous&family=Fredoka+One&family=Baloo+2:wght@700;800&family=Nunito:wght@800;900&family=Poppins:wght@700;800;900&family=Montserrat:wght@700;800;900&family=Titan+One&family=Chewy&family=MuseoModerno:wght@700;900&family=Comfortaa:wght@700&family=Space+Grotesk:wght@600;700&family=Orbitron:wght@700;900&family=Russo+One&family=Staatliches&display=swap" rel="stylesheet"/>
 <style>
@@ -478,7 +479,7 @@ let currentThemeIdx=0;
 let screen='menu',tGlobal=0;
 const menu={mode:'rows',slotColor:[0,2,-1,-1],row:4,rule:0,toast:null,toastT:0};
 const ROWS=['CHANGE PLAYERS','MAP','TIMER','RULES','START'];
-const RULE_NAMES=['DOUBLE JUMP','BUMP','SPECIAL'];
+const RULE_NAMES=['DOUBLE JUMP','BUMP'];
 function toast(m){menu.toast=m;menu.toastT=2.2;}
 function activeSlots(){const r=[];for(let i=0;i<4;i++)if(menu.slotColor[i]>=0)r.push(i);return r;}
 function cycleSlot(i,d){
@@ -494,19 +495,20 @@ function cycleSlot(i,d){
   }
   sfx('ui');
 }
-function ruleValue(){return [settings.doubleJump,settings.collision,settings.special][menu.rule];}
+function ruleValue(){return [settings.doubleJump,settings.collision][menu.rule];}
 function toggleRule(){
   if(menu.rule===0)settings.doubleJump=!settings.doubleJump;
-  else if(menu.rule===1)settings.collision=!settings.collision;
-  else{settings.special=!settings.special;buildLevel();}
+  else settings.collision=!settings.collision;
   sfx('ui');
+  if(NET.isHost) netBroadcastSettings();
 }
 function rowEdit(d){
   switch(menu.row){
     case 1:settings.map=(settings.map+d+MAPS.length)%MAPS.length;buildLevel();sfx('ui');break;
     case 2:settings.timeIdx=(settings.timeIdx+d+TIMES.length)%TIMES.length;sfx('ui');break;
-    case 3:menu.rule=(menu.rule+d+3)%3;sfx('ui');break;
+    case 3:menu.rule=(menu.rule+d+2)%2;sfx('ui');break;
   }
+  if(NET.isHost) netBroadcastSettings();
 }
 function rowEnter(){
   if(menu.row===0){menu.mode='slots';sfx('ok');}
@@ -748,8 +750,10 @@ function physUpdate(p,dt,allow){
      seam) does nothing, so holding S while walking across never clips you. */
   const fullyOn=(plat)=>{
     if(!plat||plat.t!=='drop')return false;
-    if(plat.dy)return false; /* sloped pink: require the grounded-platform path only */
-    return (p.x+6>=plat.x)&&(p.x+p.w-6<=plat.x+plat.w);
+    if(!plat.dy) return (p.x+6>=plat.x)&&(p.x+p.w-6<=plat.x+plat.w);
+    if(!(p.x+6>=plat.x && p.x+p.w-6<=plat.x+plat.w)) return false;
+    const sy=plat.y + (p.x - plat.x)*plat.dy/plat.w;
+    return Math.abs(sy - (p.y+p.h)) < 20;
   };
   const planted=p.grounded&&p.gp&&fullyOn(p.gp);
   const hoverPlat=!p.grounded&&p.vy>-60&&p.vy<160?zoneAtFeet(p,'drop'):null;
@@ -804,8 +808,6 @@ function physUpdate(p,dt,allow){
   else{p.vy+=G*dt;if(jumpHeld&&p.vy>=0)p.holdT=0;}
   if(p.vy>MAXFALL)p.vy=MAXFALL;
 
-  const headBefore=p.y,feetBefore=p.y+p.h;
-
   /* Horizontal collision, sub-stepped so sprinters can't tunnel thin walls */
   const hSteps=(Math.abs(p.vx)*dt>13)?2:1;
   for(let hs=0;hs<hSteps;hs++){
@@ -841,9 +843,13 @@ function physUpdate(p,dt,allow){
   }
   } /* end sub-step loop */
   
-  /* Vertical collision: Slopes & solids are 100% solid! Pink is one-way & fall-through */
+  /* Vertical collision: Slopes & solids are 100% solid! Pink is one-way & fall-through - vertical sub-stepped to prevent tunneling */
   p.grounded=false;
-  p.y+=p.vy*dt;
+  const vSteps=(Math.abs(p.vy)*dt>23)?2:1;
+  const subDt=dt/vSteps;
+  for(let vs=0;vs<vSteps;vs++){
+    const headBefore=p.y,feetBefore=p.y+p.h;
+    p.y+=p.vy*subDt;
   
   for(const s of SOLIDS){
     if(!s.dy){
@@ -917,14 +923,14 @@ function physUpdate(p,dt,allow){
           p.vy=0;
           landOn(p,s,imp,wasG);
           p.grounded=true;
-          p.vx+=Math.sign(s.dy)*600*dt;
+          p.vx+=Math.sign(s.dy)*600*subDt;
         }
         continue;
       }
       
       if(p.vy>=0){
         if(p.dropT>0||downHeld){
-          const hasDropAtY=SOLIDS.some(d=>d.t==='drop'&&Math.abs(d.y-syTop)<=12&&p.x+p.w>d.x&&p.x<d.x+d.w);
+          const hasDropAtY=SOLIDS.some(d=>d.t==='drop'&&Math.abs(d.y-syTop)<=12&&p.x+p.w>d.x+2&&p.x<d.x+d.w-2&&(p.x+6>=d.x)&&(p.x+p.w-6<=d.x+d.w));
           if(hasDropAtY)continue;
         }
         /* Landing on top of slope */
@@ -934,7 +940,7 @@ function physUpdate(p,dt,allow){
           p.vy=0;
           landOn(p,s,imp,wasG);
           p.grounded=true;
-          p.vx+=Math.sign(s.dy)*600*dt;
+          p.vx+=Math.sign(s.dy)*600*subDt;
         }
       }else if(p.vy<0){
         /* Jumping UP into slope: head hits bottom, unless rising through pink at the seam */
@@ -947,6 +953,7 @@ function physUpdate(p,dt,allow){
       }
     }
   }
+  }
   
   p.x=clamp(p.x,WALL,W-WALL-p.w);
   if(p.x<=WALL){p.wallSide=-1;if(!p.grounded&&p.vy>-20)p.sideT=0.28;}
@@ -955,7 +962,7 @@ function physUpdate(p,dt,allow){
   if(p.y>=H-WALL-p.h){
     /* Arena floor counts as a landing: squash, dust and sound included */
     if(!wasG&&!p.grounded)landOn(p,SOLIDS[1],p.vy,wasG);
-    else{p.grounded=true;p.wallJumps=0;}
+    else{p.grounded=true;p.gp=SOLIDS[1];p.lastGp=SOLIDS[1];p.wallJumps=0;}
     p.vy=0;
   }
   p.sx+=(1-p.sx)*Math.min(1,dt*11);
@@ -1165,9 +1172,8 @@ function updateGame(dt){
 }
 function update(dt){
   pollGamepads();
-  if(screen==='menu')updateMenu(dt);
+  if(screen==='menu'){updateMenu(dt);updateCam(dt);}
   else updateGame(dt);
-  updateCam(dt);
 }
 
 /* ================= text/ui ================= */
@@ -1988,7 +1994,8 @@ function drawGame(){
 /* Protocol: host runs physics at fixed 60Hz and broadcasts STATE 20/s.
    Guests send INPUT 30/s (dir+edge+hold) with seq, interpolate host STATE. */
 const NET={peer:null,conns:new Map(),role:null,room:'',myId:'',mySlot:-1,isHost:false,
-  tick:0,seq:0,hostInputs:new Map(),guestPrev:{x:0,y:0},guestNext:{x:0,y:0},lastRecvT:0};
+  tick:0,seq:0,hostInputs:new Map(),guestPrev:null,guestNext:null,lastRecvT:0,
+  last3:[], _startLock:0, _guestTimeout:null};
 function netToast(m){const t=document.getElementById('netToast');if(!t)return;t.textContent=m;t.style.display='block';clearTimeout(t._h);t._h=setTimeout(()=>t.style.display='none',2200);}
 function netStatus(m){const el=document.getElementById('netStatus');if(el)el.textContent=m||'';}
 function netRoster(){
@@ -1999,7 +2006,14 @@ function netRoster(){
 }
 function netShow(on){const el=document.getElementById('netUI');if(el)el.classList.toggle('on',!!on);}
 function netLink(room){
-  const base=location.origin+location.pathname.replace(/\/[^\/]*$/,'/'); // keep /tag-netplay/
+  // Edge: when served as /tag-netplay (no trailing slash, no file) the old
+  // replace(/\/[^\/]*$/,'/') would return "/" and drop the prefix. Handle
+  // file vs directory vs bare prefix explicitly.
+  let p=location.pathname;
+  if(p.endsWith('/')){ /* keep as-is */ }
+  else if(/\/[^\/]+\.[a-z]+$/i.test(p)) p=p.replace(/\/[^\/]*$/,'/');
+  else p=p+'/';
+  const base=location.origin+p;
   return base+'?room='+room.toUpperCase();
 }
 function netMakeCode(){const a='ABCDEFGHJKMNPQRSTUVWXYZ23456789';let s='';for(let i=0;i<6;i++)s+=a[Math.floor(Math.random()*a.length)];return s;}
@@ -2034,10 +2048,12 @@ function inputForNet(p){
 // Patch inputFor globally
 inputFor=inputForNet;
 
-/* PeerJS setup */
+/* PeerJS setup — explicit STUN; TURN fallback requires paid relay (known limit) */
 function netConnectPeer(room, isHost){
   const id='tag-'+room.toLowerCase()+(isHost?'-host':'-g'+Math.floor(Math.random()*1e6));
-  NET.peer=new Peer(id,{debug:0});
+  // Explicit STUN config: PeerJS default already includes Google STUN, but we
+  // make it explicit for QA visibility. No TURN relay (needs paid server/cache).
+  NET.peer=new Peer(id,{debug:0,config:{iceServers:[{urls:'stun:stun.l.google.com:19302'}]}});
   NET.peer.on('open',id2=>{
     NET.myId=id2;
     if(isHost){
@@ -2048,22 +2064,30 @@ function netConnectPeer(room, isHost){
       setTimeout(()=>netBroadcastSettings(),400);
     }else{
       const conn=NET.peer.connect('tag-'+room.toLowerCase()+'-host',{reliable:true});
-      conn.on('open',()=>netWireConn(conn,false));
+      conn.on('open',()=>{
+        if(NET._guestTimeout){ clearTimeout(NET._guestTimeout); NET._guestTimeout=null; }
+        netWireConn(conn,false);
+      });
       conn.on('error',()=>netStatus('Could not reach host. Try again or check code.'));
-      // timeout if not open
-      setTimeout(()=>{if(!NET.conns.has(conn.peer)) netStatus('Host not found. Check the 6-letter code.');},4000);
+      // timeout if not open — cleared on conn open
+      NET._guestTimeout=setTimeout(()=>{if(!NET.conns.has(conn.peer)) netStatus('Host not found. Check the 6-letter code.');},4000);
     }
   });
   NET.peer.on('error',e=>{
     const t=String(e.type||e.message||'error');
-    if(t.includes('peer-unavailable')) netStatus('Room not found. Ask host to regenerate the link.');
-    else if(t.includes('unavailable-id')) netStatus('That room is taken. Pick a different code.');
+    const low=t.toLowerCase();
+    if(low.includes('peer-unavailable')){
+      netStatus('Room not found. Ask host to regenerate the link.');
+      netToast('If this fails on school/work WiFi, try mobile data - direct connection blocked.');
+    } else if(low.includes('unavailable-id')) netStatus('That room is taken. Pick a different code.');
     else netStatus('Connection hiccup: '+t.slice(0,60));
   });
-  NET.peer.on('disconnected',()=>{try{NET.peer.reconnect();}catch(e){}});
+  NET.peer.on('disconnected',()=>{ netStatus('Reconnecting...'); try{NET.peer.reconnect();}catch(e){ netToast('Connection lost. Refresh to rejoin.'); }});
+  NET.peer.on('close',()=>{ netToast('Session ended'); NET.role=null; netShow(true); });
 }
 function netWireConn(conn,isHostSide){
   conn.on('open',()=>{
+    if(NET._guestTimeout){ clearTimeout(NET._guestTimeout); NET._guestTimeout=null; }
     NET.conns.set(conn.peer,conn);
     if(!isHostSide){
       // guest: tell host which slot we want (first free)
@@ -2076,10 +2100,17 @@ function netWireConn(conn,isHostSide){
   conn.on('data',d=>netOnData(d,conn));
   conn.on('close',()=>{
     NET.conns.delete(conn.peer);
-    // host: free slot for that peer
+    // host: free slot for that peer + reset colour to avoid leak
     if(NET.isHost){
-      for(let i=0;i<4;i++){if(NET.hostInputs.has(i) && NET.hostInputs.get(i).owner===conn.peer){NET.hostInputs.delete(i);break;}}
+      for(let i=0;i<4;i++){
+        const ent=NET.hostInputs.get(i);
+        if(ent && ent.owner===conn.peer){ NET.hostInputs.delete(i); menu.slotColor[i]=-1; break; }
+      }
       netBroadcastSettings();
+      netRoster();
+    } else {
+      // guest cleanup
+      netRoster();
     }
     netStatus(NET.isHost?NET.conns.size+' guest(s)':'' );
     netRoster();
@@ -2139,12 +2170,20 @@ function netOnData(m,c){
     buildLevel();
     netRoster();
   } else if(m.t==='input' && NET.isHost){
-    // guest input for its slot
+    // guest input for its slot — supports triple-resend (m.inputs = last 3)
     const ent=NET.hostInputs.get(m.slot);
     if(!ent || ent.owner!==c.peer) return;
-    if(m.seq<=ent.seq) return;
-    ent.seq=m.seq; ent.dir=m.dir|0; ent.jumpHeld=!!m.jumpHeld; ent.downHeld=!!m.downHeld;
-    if(m.jumpEdge) ent.consumeEdge=true; // one-shot
+    if(m.inputs && Array.isArray(m.inputs)){
+      for(const inp of m.inputs){
+        if(!inp || inp.seq<=ent.seq) continue;
+        ent.seq=inp.seq; ent.dir=inp.dir|0; ent.jumpHeld=!!inp.jumpHeld; ent.downHeld=!!inp.downHeld;
+        if(inp.jumpEdge) ent.consumeEdge=true;
+      }
+    } else {
+      if(m.seq<=ent.seq) return;
+      ent.seq=m.seq; ent.dir=m.dir|0; ent.jumpHeld=!!m.jumpHeld; ent.downHeld=!!m.downHeld;
+      if(m.jumpEdge) ent.consumeEdge=true; // one-shot
+    }
   } else if(m.t==='state' && !NET.isHost){
     // host authoritative state
     NET.lastRecvT=performance.now();
@@ -2152,8 +2191,9 @@ function netOnData(m,c){
     if(m.settings){
       settings.map=m.settings.map; settings.doubleJump=m.settings.doubleJump; settings.collision=m.settings.collision;
     }
-    // stash for interpolation
-    NET.guestPrev=NET.guestNext||m.players[NET.mySlot>=0?NET.mySlot:0];
+    // stash for interpolation — guestPrev is a full STATE object (not a single player)
+    // 100ms delay target: lerp between prev and next so jitter is smoothed.
+    NET.guestPrev=NET.guestNext||m;
     NET.guestNext=m;
   } else if(m.t==='full'){
     netStatus('Room full (4 players). You are now spectating.');
@@ -2181,8 +2221,11 @@ function netBroadcastState(state){
 
 /* Match bootstrap wrappers */
 function startMatchNetGuest(p){
-  // p: {tick,it,cooldownN,map,time,playersMeta}
-  // Build same match as host but don't pick who is IT — host says it.
+  // p: host-computed payload {it,cooldownN,matchIndex,currentThemeIdx,lastStartIT}
+  // Apply authoritative host counters so rematches stay in lockstep
+  if(p.matchIndex!=null) matchIndex=p.matchIndex;
+  if(p.currentThemeIdx!=null) currentThemeIdx=p.currentThemeIdx;
+  if(p.lastStartIT!=null) lastStartIT=p.lastStartIT;
   const act=activeSlots();
   buildLevel();
   const players=act.map((slot,i)=>makePlayer(i,slot,menu.slotColor[slot]));
@@ -2194,12 +2237,17 @@ function startMatchNetGuest(p){
   sfx('count');
 }
 
-/* Host physics + net tick */
+/* Host physics + net tick
+   Physics is variable dt clamped to 1/30 (0.033) — not fixed-step 60Hz — but
+   deterministic enough for 20Hz host broadcast authority. Guest never sims;
+   it interpolates host STATE and just sends input. If true fixed-step is
+   needed later use: acc+=dt; while(acc>=1/60){ physForAll(1/60); acc-=1/60; }
+   For now host broadcast includes timer/tick/cooldown so guest stays in sync. */
 let _netStateT=0,_netInputT=0;
 function netTick(dt){
   if(NET.role===null) return;
   if(NET.isHost){
-    // send state 20/s
+    // send state 20/s (host authoritative: timer/tick/it/cooldown/tagPop)
     _netStateT+=dt;
     if(_netStateT>=0.05 && match){ // 20 Hz
       _netStateT=0;
@@ -2207,23 +2255,32 @@ function netTick(dt){
       netBroadcastState({players:players,it:match.it,cooldown:match.cooldown,timer:match.timer,payloadTagPop:match.tagPop,tick:NET.tick++,settings:{map:settings.map,doubleJump:settings.doubleJump,collision:settings.collision}});
     }
   } else {
-    // guest: send input 30/s
+    // guest: send input 30/s — spectator (slot -1) does not send
+    if(NET.mySlot===-1) return;
     _netInputT+=dt;
     if(_netInputT>=0.033){
       _netInputT=0;
-      // sample local input for owned slot
-      const s=SLOTS[NET.mySlot>=0?NET.mySlot:0];
+      // sample local input for owned slot — pad fallback to PAD[0] if slot pad not bound
+      const s=SLOTS[NET.mySlot];
       let dir=0,jumpEdge=false,jumpHeld=false,downHeld=false;
       if(s){
-        const m=s.map,pd=NET.mySlot>=0?PAD[NET.mySlot]:null;
+        const m=s.map;
+        const pd=PAD[NET.mySlot]||PAD[0]||null;
+        // fallback scan: first connected pad if neither mySlot nor 0 is connected
+        let effPd=pd;
+        if(!effPd || !effPd.connected){
+          for(let pi=0;pi<4;pi++){ if(PAD[pi]&&PAD[pi].connected){ effPd=PAD[pi]; break; } }
+        }
         dir=(keys.has(m.R)?1:0)-(keys.has(m.L)?1:0);
         jumpEdge=pressed.has(m.U);
         jumpHeld=keys.has(m.U);
         downHeld=keys.has(m.D);
-        if(pd){ dir+=(pd.right?1:0)-(pd.left?1:0); jumpEdge=jumpEdge||pd.jumpE; jumpHeld=jumpHeld||pd.jumpHeld; downHeld=downHeld||pd.dropHeld; }
+        if(effPd){ dir+=(effPd.right?1:0)-(effPd.left?1:0); jumpEdge=jumpEdge||effPd.jumpE; jumpHeld=jumpHeld||effPd.jumpHeld; downHeld=downHeld||effPd.dropHeld; }
       }
+      const cur={dir:clamp(dir,-1,1),jumpEdge:jumpEdge,jumpHeld:jumpHeld,downHeld:downHeld,seq:++NET.seq};
+      NET.last3.push(cur); if(NET.last3.length>3) NET.last3.shift();
       for(const c of NET.conns.values()){
-        try{c.send({t:'input',slot:NET.mySlot,dir:clamp(dir,-1,1),jumpEdge:jumpEdge,jumpHeld:jumpHeld,downHeld:downHeld,seq:++NET.seq});}catch(e){}
+        try{c.send({t:'input',slot:NET.mySlot,inputs:NET.last3.slice()});}catch(e){}
       }
     }
   }
@@ -2292,12 +2349,19 @@ function netInitUI(){
   };
   startBtn.onclick=()=>{
     if(activeSlots().length<2){ netToast('Need at least 2 players'); return; }
-    // tell guests to bootstrap same match
-    for(const c of NET.conns.values()){
-      try{c.send({t:'start',settings:{map:settings.map,doubleJump:settings.doubleJump,collision:settings.collision,slotColor:menu.slotColor.slice()},mapData:MAPS[settings.map%MAPS.length],payload:{it:0,cooldownN:0}});}catch(e){}
-    }
+    // debounce double-start (200ms guard)
+    const now=Date.now();
+    if(now - NET._startLock < 800) return;
+    NET._startLock=now;
+    // Host authoritative start: build match first so RNG/picks are single-source,
+    // then broadcast the exact authoritative payload (it + counters) to guests.
     netShow(false);
     startMatch();
+    // startMatch incremented matchIndex, set currentThemeIdx/lastStartIT and built match
+    const payload={it:match.it, cooldownN:0, matchIndex:matchIndex, currentThemeIdx:currentThemeIdx, lastStartIT:lastStartIT};
+    for(const c of NET.conns.values()){
+      try{c.send({t:'start',settings:{map:settings.map,doubleJump:settings.doubleJump,collision:settings.collision,slotColor:menu.slotColor.slice()},mapData:MAPS[settings.map%MAPS.length],payload:payload});}catch(e){}
+    }
   };
   closeBtn.onclick=()=>{
     if(NET.role===null){ netShow(false); netToast('Playing offline'); }
@@ -2338,11 +2402,12 @@ function frame(now){
     netTick(dt);
   }
   try{
-    // guests: when interpolating, skip local physics tick for arena (keep cam/particles)
+    // guests: when interpolating, most arena logic comes from host — but we
+    // still decay visual effects locally so tagPop/particles don't freeze.
     if(NET.role!==null && !NET.isHost && match){
-      // minimal tick: cooldown/timer/camera/particles only — positions come from host
       updateCam(dt); updateParts(dt);
-      // still need countdown/timer progression from host — handled via state broadcast, so noop
+      if(match.tagPop){ match.tagPop.t-=dt; if(match.tagPop.t<=0) match.tagPop=null; }
+      // cooldown/timer/countdown are host-authoritative via state broadcast (noop here)
     } else {
       update(dt);
     }

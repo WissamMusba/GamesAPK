@@ -155,10 +155,94 @@ if(typeof window.PointerEvent!=='undefined'){
 }
 
 /* ================= audio ================= */
-let AC=null,master=null,muted=false;
+
+let AC=null,master=null,muted=false,sdkMuted=false;
+let _cg=null;
+const CG={
+  ready:false,env:'',
+  /* Banner bookkeeping: remember placed containers so we can clear one or all */
+  _bannerIds:new Set(),
+  boot(){
+    return new Promise(res=>{
+      const sdk=window.CrazyGames&&window.CrazyGames.SDK;
+      if(!sdk||!sdk.init){res();return;}
+      try{sdk.game.loadingStart();}catch(e){}
+      sdk.init().then(()=>{
+        this.ready=true;
+        try{this.env=sdk.environment||'';}catch(e){}
+        try{sdk.game.loadingStop();}catch(e){}
+        try{
+          const st=sdk.game.settings;
+          if(st!==undefined)applySdkMute(!!st.muteAudio);
+          if(sdk.game.addSettingsChangeListener) sdk.game.addSettingsChangeListener(x=>applySdkMute(!!(x&&x.muteAudio)));
+          else if(sdk.addEventListener) sdk.addEventListener('settingsChange',x=>applySdkMute(!!(x&&x.muteAudio)));
+        }catch(e){}
+        res();
+        setTimeout(res,1200);
+      }).catch(()=>res());
+    });
+  },
+  ok(){return this.ready&&(this.env==='local'||this.env==='crazygames');},
+  gameplayStart(){try{if(this.ok())window.CrazyGames.SDK.game.gameplayStart();}catch(e){}},
+  gameplayStop(){try{if(this.ok())window.CrazyGames.SDK.game.gameplayStop();}catch(e){}},
+  happytime(){try{if(this.ok())window.CrazyGames.SDK.game.happytime();}catch(e){}},
+  /* -------- Ad (midgame + reserved rewarded) -------- */
+  /* Midgame: UI break between matches. Wraps ad.requestAd so QA sees it at a sane time. */
+  requestMidgame(cb){
+    const sdk=window.CrazyGames&&window.CrazyGames.SDK;
+    if(!sdk||!sdk.ad||!sdk.ad.requestAd){if(cb)cb(false);return;}
+    try{
+      sdk.ad.requestAd('midgame',{}).then(r=>{if(cb)cb(!!(r&&r.adShown));}).catch(()=>{if(cb)cb(false);});
+    }catch(e){if(cb)cb(false);}
+  },
+  /* Rewarded: wired but no UI invites it — reserved in case QA wants a rewarded entry. */
+  requestRewarded(cb){
+    const sdk=window.CrazyGames&&window.CrazyGames.SDK;
+    if(!sdk||!sdk.ad||!sdk.ad.requestAd){if(cb)cb(false);return;}
+    try{
+      sdk.ad.requestAd('rewarded',{}).then(r=>{if(cb)cb(!!(r&&r.adShown));}).catch(()=>{if(cb)cb(false);});
+    }catch(e){if(cb)cb(false);}
+  },
+  /* -------- Banner — rectangular divs outside the canvas -------- */
+  /* Single banner at a given container id + size (e.g. "728x90", "300x250", "970x90") */
+  requestBanner(containerId,size){
+    const sdk=window.CrazyGames&&window.CrazyGames.SDK;
+    if(!sdk||!sdk.banner||!sdk.banner.requestBanner){return false;}
+    try{sdk.banner.requestBanner(containerId,size);this._bannerIds.add(containerId);return true;}catch(e){return false;}
+  },
+  /* Responsive banner — scales to container width; best for the thin top bar on menu. */
+  requestResponsiveBanner(containerId){
+    const sdk=window.CrazyGames&&window.CrazyGames.SDK;
+    if(!sdk||!sdk.banner)return false;
+    try{
+      if(sdk.banner.requestResponsiveBanner) sdk.banner.requestResponsiveBanner(containerId);
+      else sdk.banner.requestBanner(containerId,'responsive');
+      this._bannerIds.add(containerId);return true;
+    }catch(e){return false;}
+  },
+  clearBanner(containerId){
+    const sdk=window.CrazyGames&&window.CrazyGames.SDK;
+    if(!sdk||!sdk.banner||!sdk.banner.clearBanner)return false;
+    try{sdk.banner.clearBanner(containerId);this._bannerIds.delete(containerId);return true;}catch(e){return false;}
+  },
+  clearAllBanners(){
+    const sdk=window.CrazyGames&&window.CrazyGames.SDK;
+    if(!sdk||!sdk.banner||!sdk.banner.clearAllBanners){
+      // Fallback: clear each tracked id individually
+      for(const id of [...this._bannerIds])this.clearBanner(id);
+      return;
+    }
+    try{sdk.banner.clearAllBanners();this._bannerIds.clear();}catch(e){}
+  },
+};
+function applySdkMute(m){sdkMuted=!!m;applyEffectiveMute();}
+function applyEffectiveMute(){const eff=muted||sdkMuted;try{if(master)master.gain.value=eff?0:0.5;}catch(e){}}
+let _cgBoot=null;
+
 function initAudio(){
-  if(AC){if(AC.state==='suspended')AC.resume();return;}
-  try{AC=new (window.AudioContext||window.webkitAudioContext)();master=AC.createGain();master.gain.value=muted?0:0.5;master.connect(AC.destination);}catch(e){AC=null;}
+  if(AC){if(AC.state==='suspended')AC.resume().catch(()=>{});applyEffectiveMute();return;}
+  try{AC=new (window.AudioContext||window.webkitAudioContext)();master=AC.createGain();master.gain.value=(muted||sdkMuted)?0:0.5;master.connect(AC.destination);}catch(e){AC=null;}
+  if(!_cgBoot){_cgBoot=CG.boot();}
 }
 function beep(f0,f1,dur,type,vol,delay){
   if(!AC||!master)return;type=type||'square';vol=vol||0.16;delay=delay||0;
@@ -351,7 +435,7 @@ let currentThemeIdx=0;
 let screen='menu',tGlobal=0;
 const menu={mode:'slots',slotColor:[0,2,-1,-1],row:4,rule:0,toast:null,toastT:0};
 const ROWS=['CHANGE PLAYERS','MAP','TIMER','RULES','START'];
-const RULE_NAMES=['DOUBLE JUMP','BUMP','SPECIAL'];
+const RULE_NAMES=['DOUBLE JUMP','BUMP'];
 function toast(m){menu.toast=m;menu.toastT=2.2;}
 function activeSlots(){const r=[];for(let i=0;i<4;i++)if(menu.slotColor[i]>=0)r.push(i);return r;}
 function cycleSlot(i,d){
@@ -367,18 +451,17 @@ function cycleSlot(i,d){
   }
   sfx('ui');
 }
-function ruleValue(){return [settings.doubleJump,settings.collision,settings.special][menu.rule];}
+function ruleValue(){return [settings.doubleJump,settings.collision][menu.rule];}
 function toggleRule(){
   if(menu.rule===0)settings.doubleJump=!settings.doubleJump;
-  else if(menu.rule===1)settings.collision=!settings.collision;
-  else{settings.special=!settings.special;buildLevel();}
+  else settings.collision=!settings.collision;
   sfx('ui');
 }
 function rowEdit(d){
   switch(menu.row){
     case 1:settings.map=(settings.map+d+MAPS.length)%MAPS.length;buildLevel();sfx('ui');break;
     case 2:settings.timeIdx=(settings.timeIdx+d+TIMES.length)%TIMES.length;sfx('ui');break;
-    case 3:menu.rule=(menu.rule+d+3)%3;sfx('ui');break;
+    case 3:menu.rule=(menu.rule+d+2)%2;sfx('ui');break;
   }
 }
 function rowEnter(){
@@ -406,7 +489,7 @@ function menuConfirm(){
 function updateMenu(dt){
   if(anyPressed(['KeyP']))cycleFont(1);
   if(anyPressed(['KeyO']))cycleFont(-1);
-  if(anyPressed(['KeyM'])){muted=!muted;if(master)master.gain.value=muted?0:0.5;}
+  if(anyPressed(['KeyM'])){muted=!muted;applyEffectiveMute();}
   menu.toastT-=dt;
   if(menu.mode==='slots'){
     // AD only for WASD slot 0 (WS removed). IJKL/TFGH use per-slot keys, arrows for slot 1 — no WS broadcast.
@@ -618,8 +701,10 @@ function physUpdate(p,dt,allow){
      seam) does nothing, so holding S while walking across never clips you. */
   const fullyOn=(plat)=>{
     if(!plat||plat.t!=='drop')return false;
-    if(plat.dy)return false; /* sloped pink: require the grounded-platform path only */
-    return (p.x+6>=plat.x)&&(p.x+p.w-6<=plat.x+plat.w);
+    if(!plat.dy) return (p.x+6>=plat.x)&&(p.x+p.w-6<=plat.x+plat.w);
+    if(!(p.x+6>=plat.x && p.x+p.w-6<=plat.x+plat.w)) return false;
+    const sy=plat.y + (p.x - plat.x)*plat.dy/plat.w;
+    return Math.abs(sy - (p.y+p.h)) < 20;
   };
   const planted=p.grounded&&p.gp&&fullyOn(p.gp);
   const hoverPlat=!p.grounded&&p.vy>-60&&p.vy<160?zoneAtFeet(p,'drop'):null;
@@ -674,8 +759,6 @@ function physUpdate(p,dt,allow){
   else{p.vy+=G*dt;if(jumpHeld&&p.vy>=0)p.holdT=0;}
   if(p.vy>MAXFALL)p.vy=MAXFALL;
 
-  const headBefore=p.y,feetBefore=p.y+p.h;
-
   /* Horizontal collision, sub-stepped so sprinters can't tunnel thin walls */
   const hSteps=(Math.abs(p.vx)*dt>13)?2:1;
   for(let hs=0;hs<hSteps;hs++){
@@ -711,9 +794,13 @@ function physUpdate(p,dt,allow){
   }
   } /* end sub-step loop */
   
-  /* Vertical collision: Slopes & solids are 100% solid! Pink is one-way & fall-through */
+  /* Vertical collision: Slopes & solids are 100% solid! Pink is one-way & fall-through - vertical sub-stepped to prevent tunneling */
   p.grounded=false;
-  p.y+=p.vy*dt;
+  const vSteps=(Math.abs(p.vy)*dt>23)?2:1;
+  const subDt=dt/vSteps;
+  for(let vs=0;vs<vSteps;vs++){
+    const headBefore=p.y,feetBefore=p.y+p.h;
+    p.y+=p.vy*subDt;
   
   for(const s of SOLIDS){
     if(!s.dy){
@@ -787,14 +874,14 @@ function physUpdate(p,dt,allow){
           p.vy=0;
           landOn(p,s,imp,wasG);
           p.grounded=true;
-          p.vx+=Math.sign(s.dy)*600*dt;
+          p.vx+=Math.sign(s.dy)*600*subDt;
         }
         continue;
       }
       
       if(p.vy>=0){
         if(p.dropT>0||downHeld){
-          const hasDropAtY=SOLIDS.some(d=>d.t==='drop'&&Math.abs(d.y-syTop)<=12&&p.x+p.w>d.x&&p.x<d.x+d.w);
+          const hasDropAtY=SOLIDS.some(d=>d.t==='drop'&&Math.abs(d.y-syTop)<=12&&p.x+p.w>d.x+2&&p.x<d.x+d.w-2&&(p.x+6>=d.x)&&(p.x+p.w-6<=d.x+d.w));
           if(hasDropAtY)continue;
         }
         /* Landing on top of slope */
@@ -804,7 +891,7 @@ function physUpdate(p,dt,allow){
           p.vy=0;
           landOn(p,s,imp,wasG);
           p.grounded=true;
-          p.vx+=Math.sign(s.dy)*600*dt;
+          p.vx+=Math.sign(s.dy)*600*subDt;
         }
       }else if(p.vy<0){
         /* Jumping UP into slope: head hits bottom, unless rising through pink at the seam */
@@ -817,6 +904,7 @@ function physUpdate(p,dt,allow){
       }
     }
   }
+  }
   
   p.x=clamp(p.x,WALL,W-WALL-p.w);
   if(p.x<=WALL){p.wallSide=-1;if(!p.grounded&&p.vy>-20)p.sideT=0.28;}
@@ -825,7 +913,7 @@ function physUpdate(p,dt,allow){
   if(p.y>=H-WALL-p.h){
     /* Arena floor counts as a landing: squash, dust and sound included */
     if(!wasG&&!p.grounded)landOn(p,SOLIDS[1],p.vy,wasG);
-    else{p.grounded=true;p.wallJumps=0;}
+    else{p.grounded=true;p.gp=SOLIDS[1];p.lastGp=SOLIDS[1];p.wallJumps=0;}
     p.vy=0;
   }
   p.sx+=(1-p.sx)*Math.min(1,dt*11);
@@ -930,7 +1018,7 @@ function toggleFullscreen(){
 }
 function toggleSound(){
   muted=!muted;
-  if(master)master.gain.value=muted?0:0.5;
+  applyEffectiveMute();
   if(match){match.mapToast='SOUND: '+(muted?'OFF':'ON');match.mapToastT=1.8;}
   sfx('ui');
 }
@@ -1030,9 +1118,8 @@ function updateGame(dt){
 }
 function update(dt){
   pollGamepads();
-  if(screen==='menu')updateMenu(dt);
+  if(screen==='menu'){updateMenu(dt);updateCam(dt);}
   else updateGame(dt);
-  updateCam(dt);
 }
 
 /* ================= text/ui ================= */
