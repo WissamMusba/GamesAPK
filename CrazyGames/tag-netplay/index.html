@@ -613,6 +613,10 @@ function makePlayer(i,slot,colIdx){
     slot:slot,colIdx:colIdx,trail:[]};
 }
 function startMatch(){
+  if(typeof NET!=='undefined' && NET && NET.role!==null && !NET.isHost){
+    toast('HOST RESTARTS THE MATCH');
+    return;
+  }
   const act=activeSlots();
   if(act.length<2){
     menu.mode='slots';
@@ -2225,9 +2229,18 @@ function drawResult(){
   txt('TAGS - '+P.map((p,i)=>'P'+(i+1)+': '+match.tags[i]).join('  •  '),CW/2,py+ph*0.66,FN(13,900),'#cfe9d6');
   const b3=Math.min(180,(pw-60)/3);
   const sx0=CW/2-(b3*3+28)/2;
-  simpleButton(sx0,py+ph*0.77,b3,44,'NEXT MAP',()=>{sfx('ui');selectMapQuick(settings.map+1);});
-  simpleButton(sx0+b3+14,py+ph*0.77,b3,44,'PLAY AGAIN',()=>{sfx('go');startMatch();});
-  simpleButton(sx0+2*(b3+14),py+ph*0.77,b3,44,'MENU',()=>quitToMenu());
+  simpleButton(sx0,py+ph*0.77,b3,44,'NEXT MAP',()=>{
+    if(typeof NET!=='undefined' && NET && NET.role!==null && !NET.isHost){ toast('HOST CHOOSES MAP'); return; }
+    sfx('ui');selectMapQuick(settings.map+1);
+  });
+  simpleButton(sx0+b3+14,py+ph*0.77,b3,44,'PLAY AGAIN',()=>{
+    if(typeof NET!=='undefined' && NET && NET.role!==null && !NET.isHost){ toast('HOST RESTARTS THE MATCH'); return; }
+    sfx('go');startMatch();
+  });
+  simpleButton(sx0+2*(b3+14),py+ph*0.77,b3,44,'MENU',()=>{
+    if(typeof NET!=='undefined' && NET && NET.role!==null) netLeaveRoom();
+    quitToMenu();
+  });
   g.restore();
 }
 
@@ -2393,14 +2406,20 @@ function inputForNet(p){
       }
       const ext = NET.hostInputs.get(slot);
       if(ext){
-        const out = { dir: ext.dir, jumpEdge: !!ext.consumeEdge, jumpHeld: !!ext.jumpHeld, downHeld: !!ext.downHeld };
-        if(ext.consumeEdge) ext.consumeEdge = false;
-        return { dir: clamp(out.dir, -1, 1), jumpEdge: out.jumpEdge, jumpHeld: out.jumpHeld, downHeld: out.downHeld };
+        let edge = false;
+        if(ext.jumpQueue > 0){
+          ext.jumpQueue--;
+          edge = true;
+        } else if(ext.consumeEdge){
+          ext.consumeEdge = false;
+          edge = true;
+        }
+        return { dir: clamp(ext.dir, -1, 1), jumpEdge: edge, jumpHeld: !!ext.jumpHeld, downHeld: !!ext.downHeld };
       }
       return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
     } else {
       if(p.slot === NET.mySlot){
-        return sampleControls(NET.myCtrl || 'WASD');
+        return NET.myCurrentInput || sampleControls(NET.myCtrl || 'Arrows');
       }
       return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
     }
@@ -2601,20 +2620,84 @@ function netOnData(m, c){
       for(const inp of m.inputs){
         if(!inp || inp.seq <= ent.seq) continue;
         ent.seq = inp.seq; ent.dir = inp.dir | 0; ent.jumpHeld = !!inp.jumpHeld; ent.downHeld = !!inp.downHeld;
-        if(inp.jumpEdge) ent.consumeEdge = true;
+        if(inp.jumpEdge) ent.jumpQueue = Math.min(3, (ent.jumpQueue || 0) + 1);
       }
     } else {
       if(m.seq <= ent.seq) return;
       ent.seq = m.seq; ent.dir = m.dir | 0; ent.jumpHeld = !!m.jumpHeld; ent.downHeld = !!m.downHeld;
-      if(m.jumpEdge) ent.consumeEdge = true;
+      if(m.jumpEdge) ent.jumpQueue = Math.min(3, (ent.jumpQueue || 0) + 1);
     }
   } else if(m.t === 'state' && !NET.isHost){
     NET.lastRecvT = performance.now();
     if(m.settings){
       settings.map = m.settings.map; settings.doubleJump = m.settings.doubleJump; settings.collision = m.settings.collision;
     }
-    NET.guestPrev = NET.guestNext || m;
-    NET.guestNext = m;
+    if(match){
+      if(m.state){
+        if(match.state !== m.state){
+          if(m.state === 'playing') sfx('go');
+          if(m.state === 'result'){ confetti(); sfx('win'); }
+        }
+        match.state = m.state;
+      }
+      if(m.cd != null) match.cd = m.cd;
+      if(m.cdT != null) match.cdT = m.cdT;
+      if(m.goFlash != null) match.goFlash = m.goFlash;
+      if(m.result) match.result = m.result;
+      if(m.resultT != null) match.resultT = m.resultT;
+      if(m.tags) match.tags = m.tags.slice();
+      if(m.shake && m.shake > match.shake) match.shake = m.shake;
+      if(m.flash && m.flash > match.flash) match.flash = m.flash;
+      if(m.payloadTagPop){
+        if(!match.tagPop){
+          sfx('tag');
+          const itP = match.players[m.it];
+          const col1 = itP && PALETTE[itP.colIdx] ? PALETTE[itP.colIdx].c : '#ffffff';
+          tagBurst(m.payloadTagPop.x, m.payloadTagPop.y, col1, '#ffea88');
+        }
+        match.tagPop = m.payloadTagPop;
+      }
+      match.it = m.it;
+      match.cooldown = m.cooldown;
+      match.timer = m.timer;
+
+      // Soft reconciliation for local predicted player
+      if(m.players){
+        const myP = getMyPlayer();
+        const hp = m.players.find(p => p.slot === NET.mySlot) || (NET.mySlot < m.players.length ? m.players[NET.mySlot] : null);
+        if(myP && hp){
+          const dx = hp.x - myP.x;
+          const dy = hp.y - myP.y;
+          const distSq = dx * dx + dy * dy;
+          if(distSq > 3600){ // > 60px discrepancy
+            myP.x += dx * 0.45;
+            myP.y += dy * 0.45;
+            myP.vx = hp.vx;
+            myP.vy = hp.vy;
+          } else if(distSq > 9){ // minor drift
+            myP.x += dx * 0.12;
+            myP.y += dy * 0.12;
+          }
+          myP.landT = hp.landT;
+          myP.tagT = hp.tagT;
+          myP.padOn = hp.padOn;
+          myP.blink = hp.blink;
+          if(hp.grounded && !myP.grounded && myP.vy >= 0){
+            myP.grounded = true;
+            myP.airJumps = settings.doubleJump ? 1 : 0;
+          }
+        }
+
+        // Targets for other players
+        if(!NET.otherTargets) NET.otherTargets = new Map();
+        for(let i = 0; i < m.players.length; i++){
+          const pData = m.players[i];
+          const slot = (pData.slot != null) ? pData.slot : i;
+          if(slot === NET.mySlot) continue;
+          NET.otherTargets.set(slot, pData);
+        }
+      }
+    }
   } else if(m.t === 'start' && !NET.isHost){
     settings.map = m.settings.map | 0;
     settings.doubleJump = !!m.settings.doubleJump;
@@ -2798,18 +2881,25 @@ function startMatchNetGuest(p){
   netShow(false);
 }
 
-/* Host physics + net tick */
+function getMyPlayer(){
+  if(!match || NET.mySlot < 0) return null;
+  return match.players.find(p => p.slot === NET.mySlot) || (NET.mySlot < match.players.length ? match.players[NET.mySlot] : null);
+}
+
+/* 60Hz Host physics broadcast + Guest input transmission */
 let _netStateT = 0, _netInputT = 0;
 function netTick(dt){
   if(NET.role === null) return;
   if(NET.isHost){
-    // send state 20/s (host authoritative)
+    // Broadcast state at 60Hz (host authoritative)
     _netStateT += dt;
-    if(_netStateT >= 0.05 && match){
+    if(_netStateT >= 0.015 && match){
       _netStateT = 0;
       const players = match.players.map(p => ({
+        slot: p.slot,
         x: p.x, y: p.y, vx: p.vx, vy: p.vy, face: p.face, sx: p.sx, sy: p.sy,
-        landT: p.landT, tagT: p.tagT, padOn: p.padOn, blink: p.blink
+        landT: p.landT, tagT: p.tagT, padOn: p.padOn, blink: p.blink,
+        grounded: p.grounded, airJumps: p.airJumps
       }));
       netBroadcastState({
         players: players,
@@ -2832,15 +2922,22 @@ function netTick(dt){
       });
     }
   } else {
-    // guest: send input 30/s using chosen control scheme
+    // Guest: sample controls every frame and send input stream at 60Hz
     if(NET.mySlot === -1) return;
     _netInputT += dt;
-    if(_netInputT >= 0.033){
+    if(_netInputT >= 0.015){
       _netInputT = 0;
-      const inp = sampleControls(NET.myCtrl || 'WASD');
-      const cur = { dir: inp.dir, jumpEdge: inp.jumpEdge, jumpHeld: inp.jumpHeld, downHeld: inp.downHeld, seq: ++NET.seq };
+      const inp = sampleControls(NET.myCtrl || 'Arrows');
+      NET.myCurrentInput = inp;
+      const cur = {
+        dir: inp.dir,
+        jumpEdge: inp.jumpEdge,
+        jumpHeld: inp.jumpHeld,
+        downHeld: inp.downHeld,
+        seq: ++NET.seq
+      };
       NET.last3.push(cur);
-      if(NET.last3.length > 3) NET.last3.shift();
+      if(NET.last3.length > 5) NET.last3.shift();
       for(const c of NET.conns.values()){
         try{ c.send({ t: 'input', slot: NET.mySlot, inputs: NET.last3.slice() }); }catch(e){}
       }
@@ -2848,37 +2945,27 @@ function netTick(dt){
   }
 }
 
-/* Guest interpolation: blend host players locally for smooth render */
-function netGuestInterpolate(){
-  if(NET.role === null || NET.isHost) return;
-  if(!match || !NET.guestNext) return;
-  const nxt = NET.guestNext, prv = NET.guestPrev && NET.guestPrev.players ? NET.guestPrev : nxt;
-  const k = 0.35;
-  for(let i=0; i<match.players.length && i<nxt.players.length; i++){
-    const p = match.players[i], a = nxt.players[i];
-    p.x += (a.x - p.x) * k; p.y += (a.y - p.y) * k; p.vx = a.vx; p.vy = a.vy; p.face = a.face; p.sx = a.sx; p.sy = a.sy; p.landT = a.landT; p.tagT = a.tagT;
-  }
-  match.it = nxt.it; match.cooldown = nxt.cooldown; match.timer = nxt.timer;
-  
-  if(nxt.state){
-    if(match.state !== nxt.state){
-      if(nxt.state === 'playing') sfx('go');
-      if(nxt.state === 'result'){ confetti(); sfx('win'); }
-    }
-    match.state = nxt.state;
-  }
-  if(nxt.cd != null) match.cd = nxt.cd;
-  if(nxt.cdT != null) match.cdT = nxt.cdT;
-  if(nxt.goFlash != null) match.goFlash = nxt.goFlash;
-  if(nxt.result) match.result = nxt.result;
-  if(nxt.resultT != null) match.resultT = nxt.resultT;
-  if(nxt.tags) match.tags = nxt.tags.slice();
-  if(nxt.shake && nxt.shake > match.shake) match.shake = nxt.shake;
-  if(nxt.flash && nxt.flash > match.flash) match.flash = nxt.flash;
-  
-  if(nxt.payloadTagPop){
-    if(!match.tagPop) sfx('tag');
-    match.tagPop = nxt.payloadTagPop;
+/* Guest interpolation: smooth lerp of other remote players */
+function netGuestInterpolateOthers(dt){
+  if(NET.role === null || NET.isHost || !match || !NET.otherTargets) return;
+  const k = Math.min(1, dt * 25);
+  for(const p of match.players){
+    if(p.slot === NET.mySlot) continue;
+    const a = NET.otherTargets.get(p.slot);
+    if(!a) continue;
+    p.x += (a.x - p.x) * k;
+    p.y += (a.y - p.y) * k;
+    p.vx = a.vx;
+    p.vy = a.vy;
+    p.face = a.face;
+    p.sx += (a.sx - p.sx) * k;
+    p.sy += (a.sy - p.sy) * k;
+    p.landT = a.landT;
+    p.tagT = a.tagT;
+    p.padOn = a.padOn;
+    p.blink = a.blink;
+    if(a.grounded != null) p.grounded = a.grounded;
+    if(a.airJumps != null) p.airJumps = a.airJumps;
   }
 }
 
@@ -2939,25 +3026,30 @@ function frame(now){
   // Global gamepad polling for every client
   pollGamepads();
 
-  // netplay: host fixed sim + guest input/state
-  if(NET.role!==null){
-    if(NET.isHost){
-      // host simulation
-    } else {
-      // guests interpolate host state before render
-      netGuestInterpolate();
-    }
+  // Netplay 60Hz tick
+  if(NET.role !== null){
     netTick(dt);
+    if(!NET.isHost && match){
+      netGuestInterpolateOthers(dt);
+    }
   }
   try{
-    if(NET.role!==null && !NET.isHost && match){
-      updateCam(dt); updateParts(dt);
-      if(match.tagPop){ match.tagPop.t-=dt; if(match.tagPop.t<=0) match.tagPop=null; }
-      match.goFlash=Math.max(0,(match.goFlash||0)-dt);
-      match.flash=Math.max(0,(match.flash||0)-dt);
-      match.fade=Math.max(0,(match.fade||0)-dt);
-      match.shake=(match.shake||0)*Math.exp(-dt*7);
-      if(match.state==='result'){ match.resultT=(match.resultT||0)+dt; }
+    if(NET.role !== null && !NET.isHost && match){
+      const inPlay = match.state === 'playing';
+      const myP = getMyPlayer();
+      if(myP){
+        physUpdate(myP, dt, inPlay);
+      }
+      if(anyPressed(['KeyM'])) toggleSound();
+      if(anyPressed(['KeyO'])) toggleFullscreen();
+      updateCam(dt);
+      updateParts(dt);
+      if(match.tagPop){ match.tagPop.t -= dt; if(match.tagPop.t <= 0) match.tagPop = null; }
+      match.goFlash = Math.max(0, (match.goFlash || 0) - dt);
+      match.flash = Math.max(0, (match.flash || 0) - dt);
+      match.fade = Math.max(0, (match.fade || 0) - dt);
+      match.shake = (match.shake || 0) * Math.exp(-dt * 7);
+      if(match.state === 'result'){ match.resultT = (match.resultT || 0) + dt; }
     } else {
       update(dt);
     }
