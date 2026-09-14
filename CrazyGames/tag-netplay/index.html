@@ -610,6 +610,14 @@ function startMatch(){
     mapToast:MAPS[settings.map].name,mapToastT:2.5};
   screen='game';
   sfx('count');
+
+  // Broadcast to all connected netplay guests
+  if(typeof NET!=='undefined' && NET && NET.role!==null && NET.isHost && NET.conns.size>0){
+    const payload={it:match.it, cooldownN:0, matchIndex:matchIndex, currentThemeIdx:currentThemeIdx, lastStartIT:lastStartIT};
+    for(const c of NET.conns.values()){
+      try{c.send({t:'start',settings:{map:settings.map,doubleJump:settings.doubleJump,collision:settings.collision,slotColor:menu.slotColor.slice()},mapData:MAPS[settings.map%MAPS.length],payload:payload});}catch(e){}
+    }
+  }
 }
 function quitToMenu(){try{CG.gameplayStop();}catch(e){}match=null;screen='menu';sfx('back');}
 
@@ -703,7 +711,7 @@ function landOn(p,gp,impact,wasG){
   }
 }
 function inputFor(p){
-  /* Each slot merges its keyboard aliases with its pad. WASD and Arrows are
+  /* Offline: each slot merges its keyboard aliases with its pad. WASD and Arrows are
      aliases for slots 0/1 (so a player can pick either); no slot is pad-locked. */
   const s=SLOTS[p.slot],m=s.map,pd=PAD[s.pad];
   const hasL=Array.isArray(m.L),hasR=Array.isArray(m.R);
@@ -1657,6 +1665,14 @@ function drawMenu(){
   g.beginPath();g.moveTo(CW-si+2,12+si/2-5);g.lineTo(CW-si+2,12+si/2+5);g.lineTo(CW-si+8,12+si/2+5);g.lineTo(CW-si+16,12+si/2+12);g.lineTo(CW-si+16,12+si/2-12);g.lineTo(CW-si+8,12+si/2-5);g.closePath();g.fill();
   if(muted){g.strokeStyle='#c0392b';g.lineWidth=4;g.beginPath();g.moveTo(CW-si+20,12+si/2-8);g.lineTo(CW-si+34,12+si/2+8);g.stroke();}
   zone(CW-si-12,12,si,si,{fn:()=>{muted=!muted;applyEffectiveMute();}});
+
+  // Online lobby button
+  const obw=96, obh=si, obx=CW-si-12-obw-10;
+  rr(g,obx,12,obw,obh,10);
+  g.fillStyle=NET.role!==null?'rgba(44,110,63,0.92)':'rgba(255,255,255,0.88)';g.fill();
+  g.lineWidth=3;g.strokeStyle=INK;g.stroke();
+  ptxt(NET.role!==null?'ONLINE ✓':'🌐 ONLINE',obx+obw/2,12+obh/2+1,FN(12,900),NET.role!==null?'#ffffff':'#141b28');
+  zone(obx,12,obw,obh,{fn:()=>netShow(true)});
   const rects=slotCardRects();
   for(let i=0;i<4;i++){
     const r=rects[i],col=menu.slotColor[i];
@@ -2028,21 +2044,15 @@ function inputForNet(p){
   if(NET.role!==null){
     if(NET.isHost){
       const slot=p.slot;
+      if(slot===NET.mySlot || slot===0) return _inputFor(p); // host's own slot uses local input
       const ext=NET.hostInputs.get(slot);
       if(ext){
-        // ext: {dir,jumpEdge,jumpHeld,downHeld,seq}
-        // jumpEdge is edge from guest; we must not miss a tap — keep until consumed
-        // but guest resends triple, so it's safe to consume once per host tick.
         const out={dir:ext.dir,jumpEdge:!!ext.consumeEdge, jumpHeld:!!ext.jumpHeld, downHeld:!!ext.downHeld};
         if(ext.consumeEdge) ext.consumeEdge=false;
         return {dir:clamp(out.dir,-1,1),jumpEdge:out.jumpEdge,jumpHeld:out.jumpHeld,downHeld:out.downHeld};
       }
-      if(slot===NET.mySlot) return _inputFor(p); // host's own slot uses local input
-      // no input yet for this guest slot — idle
       return {dir:0,jumpEdge:false,jumpHeld:false,downHeld:false};
     } else {
-      // Guest never runs local physics for remote players — snub prefix. Local visual follows net state.
-      // But for guest's own preview before first snapshot, allow local input for owned slot fallback (unused when interpolating).
       if(p.slot===NET.mySlot) return _inputFor(p);
       return {dir:0,jumpEdge:false,jumpHeld:false,downHeld:false};
     }
@@ -2124,33 +2134,33 @@ function netWireConn(conn,isHostSide){
 function netOnData(m,c){
   if(!m||!m.t) return;
   if(m.t==='hello' && NET.isHost){
-    // assign slot
-    const active=activeSlots();
+    // assign slot: host is slot 0, guests fill slots 1, 2, 3
     let slot=-1;
-    for(let i=0;i<4;i++){if(!active.includes(i) && !NET.hostInputs.has(i)){slot=i;break;}}
+    for(let i=1;i<4;i++){
+      if(!NET.hostInputs.has(i) && menu.slotColor[i]===-1){
+        slot=i;
+        break;
+      }
+    }
     if(slot===-1){ // full
       c.send({t:'full'});
       return;
     }
     NET.hostInputs.set(slot,{dir:0,jumpEdge:false,jumpHeld:false,downHeld:false,consumeEdge:false,owner:c.peer,seq:0});
-    c.send({t:'assign',slot:slot,settings:{map:settings.map,doubleJump:settings.doubleJump,collision:settings.collision,slotColor:menu.slotColor.slice()},mapData:MAPS[settings.map]});
-    // add colour to global slots list (temporarily add kid slot colour)
-    if(menu.slotColor[slot]===-1){
-      // pick first free colour
-      const taken=menu.slotColor.filter(v=>v>=0);
-      let pick=-1;for(let pi=0;pi<PALETTE.length;pi++){if(!taken.includes(pi)){pick=pi;break;}}
-      if(pick===-1) pick=0;
-      menu.slotColor[slot]=pick;
-    }
+    // pick first free colour
+    const taken=menu.slotColor.filter(v=>v>=0);
+    let pick=-1;for(let pi=0;pi<PALETTE.length;pi++){if(!taken.includes(pi)){pick=pi;break;}}
+    if(pick===-1) pick=slot%PALETTE.length;
+    menu.slotColor[slot]=pick;
+
+    c.send({t:'assign',slot:slot,settings:{map:settings.map,doubleJump:settings.doubleJump,collision:settings.collision,slotColor:menu.slotColor.slice()},mapData:MAPS[settings.map%MAPS.length]});
     netBroadcastSettings();
     netRoster();
-    // if match already running, restart with new roster so guest spawns
-    if(match && screen==='game'){ 
-      // nuke match and re-launch from host
-      const idx=slot; // new kid will be included via activeSlots at next startMatch
-      // host will push a sync that forces guests to re-sync; simplest: broadcast state will include new player count
+    // if match already running, re-launch so guest spawns into arena
+    if(match && screen==='game'){
+      startMatch();
     }
-    netToast('Player joined slot '+(slot+1));
+    netToast('Player joined as P'+(slot+1));
   } else if(m.t==='assign' && !NET.isHost){
     NET.mySlot=m.slot;
     // apply host settings + map data
@@ -2251,12 +2261,30 @@ let _netStateT=0,_netInputT=0;
 function netTick(dt){
   if(NET.role===null) return;
   if(NET.isHost){
-    // send state 20/s (host authoritative: timer/tick/it/cooldown/tagPop)
+    // send state 20/s (host authoritative: timer/tick/it/cooldown/tagPop/state/results)
     _netStateT+=dt;
     if(_netStateT>=0.05 && match){ // 20 Hz
       _netStateT=0;
       const players=match.players.map(p=>({x:p.x,y:p.y,vx:p.vx,vy:p.vy,face:p.face,sx:p.sx,sy:p.sy,landT:p.landT,tagT:p.tagT,padOn:p.padOn,blink:p.blink}));
-      netBroadcastState({players:players,it:match.it,cooldown:match.cooldown,timer:match.timer,payloadTagPop:match.tagPop,tick:NET.tick++,settings:{map:settings.map,doubleJump:settings.doubleJump,collision:settings.collision}});
+      netBroadcastState({
+        players:players,
+        it:match.it,
+        cooldown:match.cooldown,
+        timer:match.timer,
+        payloadTagPop:match.tagPop,
+        state:match.state,
+        cd:match.cd,
+        cdT:match.cdT,
+        goFlash:match.goFlash,
+        freeze:match.freeze,
+        shake:match.shake,
+        flash:match.flash,
+        result:match.result,
+        resultT:match.resultT,
+        tags:match.tags.slice(),
+        tick:NET.tick++,
+        settings:{map:settings.map,doubleJump:settings.doubleJump,collision:settings.collision}
+      });
     }
   } else {
     // guest: send input 30/s — spectator (slot -1) does not send
@@ -2264,24 +2292,28 @@ function netTick(dt){
     _netInputT+=dt;
     if(_netInputT>=0.033){
       _netInputT=0;
-      // sample local input for owned slot — pad fallback to PAD[0] if slot pad not bound
-      const s=SLOTS[NET.mySlot];
-      let dir=0,jumpEdge=false,jumpHeld=false,downHeld=false;
-      if(s){
-        const m=s.map;
-        const pd=PAD[NET.mySlot]||PAD[0]||null;
-        // fallback scan: first connected pad if neither mySlot nor 0 is connected
-        let effPd=pd;
-        if(!effPd || !effPd.connected){
-          for(let pi=0;pi<4;pi++){ if(PAD[pi]&&PAD[pi].connected){ effPd=PAD[pi]; break; } }
-        }
-        dir=(keys.has(m.R)?1:0)-(keys.has(m.L)?1:0);
-        jumpEdge=pressed.has(m.U);
-        jumpHeld=keys.has(m.U);
-        downHeld=keys.has(m.D);
-        if(effPd){ dir+=(effPd.right?1:0)-(effPd.left?1:0); jumpEdge=jumpEdge||effPd.jumpE; jumpHeld=jumpHeld||effPd.jumpHeld; downHeld=downHeld||effPd.dropHeld; }
+      // sample local input on guest machine (WASD, Arrows, or any connected gamepad)
+      let effPd=null;
+      for(let pi=0;pi<4;pi++){
+        if(PAD[pi]&&PAD[pi].connected){ effPd=PAD[pi]; break; }
       }
-      const cur={dir:clamp(dir,-1,1),jumpEdge:jumpEdge,jumpHeld:jumpHeld,downHeld:downHeld,seq:++NET.seq};
+      
+      const leftKey = keys.has('KeyA') || keys.has('ArrowLeft');
+      const rightKey = keys.has('KeyD') || keys.has('ArrowRight');
+      let dir = (rightKey ? 1 : 0) - (leftKey ? 1 : 0);
+      
+      let jumpEdge = pressed.has('KeyW') || pressed.has('ArrowUp') || pressed.has('Space');
+      let jumpHeld = keys.has('KeyW') || keys.has('ArrowUp') || keys.has('Space');
+      let downHeld = keys.has('KeyS') || keys.has('ArrowDown');
+      
+      if(effPd){
+        dir += (effPd.right ? 1 : 0) - (effPd.left ? 1 : 0);
+        jumpEdge = jumpEdge || effPd.jumpE;
+        jumpHeld = jumpHeld || effPd.jumpHeld;
+        downHeld = downHeld || effPd.dropHeld;
+      }
+      
+      const cur={dir:clamp(dir,-1,1),jumpEdge:!!jumpEdge,jumpHeld:!!jumpHeld,downHeld:!!downHeld,seq:++NET.seq};
       NET.last3.push(cur); if(NET.last3.length>3) NET.last3.shift();
       for(const c of NET.conns.values()){
         try{c.send({t:'input',slot:NET.mySlot,inputs:NET.last3.slice()});}catch(e){}
@@ -2294,15 +2326,34 @@ function netGuestInterpolate(){
   if(NET.role===null || NET.isHost) return;
   if(!match || !NET.guestNext) return;
   const nxt=NET.guestNext, prv=NET.guestPrev && NET.guestPrev.players ? NET.guestPrev : nxt;
-  // simple lerp toward next state (host is 50-120ms ahead)
   const k=0.35;
   for(let i=0;i<match.players.length && i<nxt.players.length;i++){
     const p=match.players[i], a=nxt.players[i];
-    // if guest owns this slot, still lerp position but keep local vertical responsiveness lighter — we still trust host.
     p.x+=(a.x-p.x)*k; p.y+=(a.y-p.y)*k; p.vx=a.vx; p.vy=a.vy; p.face=a.face; p.sx=a.sx; p.sy=a.sy; p.landT=a.landT; p.tagT=a.tagT;
   }
   match.it=nxt.it; match.cooldown=nxt.cooldown; match.timer=nxt.timer;
-  if(nxt.payloadTagPop) match.tagPop=nxt.payloadTagPop;
+  
+  // Sync match state (countdown -> playing -> result)
+  if(nxt.state){
+    if(match.state!==nxt.state){
+      if(nxt.state==='playing') sfx('go');
+      if(nxt.state==='result'){ confetti(); sfx('win'); }
+    }
+    match.state=nxt.state;
+  }
+  if(nxt.cd!=null) match.cd=nxt.cd;
+  if(nxt.cdT!=null) match.cdT=nxt.cdT;
+  if(nxt.goFlash!=null) match.goFlash=nxt.goFlash;
+  if(nxt.result) match.result=nxt.result;
+  if(nxt.resultT!=null) match.resultT=nxt.resultT;
+  if(nxt.tags) match.tags=nxt.tags.slice();
+  if(nxt.shake&&nxt.shake>match.shake) match.shake=nxt.shake;
+  if(nxt.flash&&nxt.flash>match.flash) match.flash=nxt.flash;
+  
+  if(nxt.payloadTagPop){
+    if(!match.tagPop) sfx('tag');
+    match.tagPop=nxt.payloadTagPop;
+  }
 }
 
 /* Lobby UI wiring */
@@ -2325,6 +2376,10 @@ function netInitUI(){
   hostBtn.onclick=()=>{
     const code=netMakeCode();
     NET.role='host'; NET.isHost=true; NET.room=code;
+    NET.mySlot=0;
+    menu.mode='rows';
+    // Host is slot 0; clear other slots so guests fill them cleanly
+    menu.slotColor=[menu.slotColor[0]>=0?menu.slotColor[0]:0, -1, -1, -1];
     document.getElementById('netLink').textContent=netLink(code);
     document.getElementById('netLink').style.display='block';
     document.getElementById('netHostRow').style.display='flex';
@@ -2341,6 +2396,7 @@ function netInitUI(){
     const code=codeEl.value.replace(/[^A-Za-z0-9]/g,'').slice(0,6).toUpperCase();
     if(code.length<4){ netStatus('Enter a 6-letter room code.'); return; }
     NET.role='guest'; NET.isHost=false; NET.room=code;
+    NET.mySlot=-1;
     history.replaceState(null,'','?room='+code);
     netStatus('Joining '+code+'…');
     netConnectPeer(code,false);
@@ -2352,20 +2408,17 @@ function netInitUI(){
     else{prompt('Copy this link:',t);}
   };
   startBtn.onclick=()=>{
+    if(NET.isHost && NET.conns.size===0){
+      netToast('Waiting for at least 1 guest to join!');
+      return;
+    }
     if(activeSlots().length<2){ netToast('Need at least 2 players'); return; }
     // debounce double-start (200ms guard)
     const now=Date.now();
     if(now - NET._startLock < 800) return;
     NET._startLock=now;
-    // Host authoritative start: build match first so RNG/picks are single-source,
-    // then broadcast the exact authoritative payload (it + counters) to guests.
     netShow(false);
     startMatch();
-    // startMatch incremented matchIndex, set currentThemeIdx/lastStartIT and built match
-    const payload={it:match.it, cooldownN:0, matchIndex:matchIndex, currentThemeIdx:currentThemeIdx, lastStartIT:lastStartIT};
-    for(const c of NET.conns.values()){
-      try{c.send({t:'start',settings:{map:settings.map,doubleJump:settings.doubleJump,collision:settings.collision,slotColor:menu.slotColor.slice()},mapData:MAPS[settings.map%MAPS.length],payload:payload});}catch(e){}
-    }
   };
   closeBtn.onclick=()=>{
     if(NET.role===null){ netShow(false); netToast('Playing offline'); }
@@ -2395,23 +2448,29 @@ function frame(now){
   requestAnimationFrame(frame);
   const dt=Math.min(0.033,(now-last)/1000);
   last=now;tGlobal+=dt;
+  
+  // Global gamepad polling for every client
+  pollGamepads();
+
   // netplay: host fixed sim + guest input/state
   if(NET.role!==null){
     if(NET.isHost){
-      // fixed-tick host simulation is driven by normal update(dt) but state broadcast is throttled in netTick
+      // host simulation
     } else {
-      // guests interpolate host state before render; don't run local physics for remote players
+      // guests interpolate host state before render
       netGuestInterpolate();
     }
     netTick(dt);
   }
   try{
-    // guests: when interpolating, most arena logic comes from host — but we
-    // still decay visual effects locally so tagPop/particles don't freeze.
     if(NET.role!==null && !NET.isHost && match){
       updateCam(dt); updateParts(dt);
       if(match.tagPop){ match.tagPop.t-=dt; if(match.tagPop.t<=0) match.tagPop=null; }
-      // cooldown/timer/countdown are host-authoritative via state broadcast (noop here)
+      match.goFlash=Math.max(0,(match.goFlash||0)-dt);
+      match.flash=Math.max(0,(match.flash||0)-dt);
+      match.fade=Math.max(0,(match.fade||0)-dt);
+      match.shake=(match.shake||0)*Math.exp(-dt*7);
+      if(match.state==='result'){ match.resultT=(match.resultT||0)+dt; }
     } else {
       update(dt);
     }
