@@ -3020,6 +3020,9 @@ function render(){
 let last=performance.now();
 function frame(now){
   requestAnimationFrame(frame);
+  if(document.hidden && NET.role !== null && NET.isHost){
+    return;
+  }
   const dt=Math.min(0.033,(now-last)/1000);
   last=now;tGlobal+=dt;
   
@@ -3057,6 +3060,48 @@ function frame(now){
   }catch(err){}
   pressed.clear();
 }
+
+/* Background tick worker: keeps host simulation and 60Hz net broadcasting alive even if the tab is hidden or minimized */
+let bgWorker = null;
+function backgroundStep(){
+  if(!document.hidden || NET.role === null || !NET.isHost) return;
+  const now = performance.now();
+  const dt = Math.min(0.033, (now - last) / 1000);
+  last = now;
+  tGlobal += dt;
+  pollGamepads();
+  if(match && match.state !== 'paused'){
+    updateGame(dt);
+  }
+  netTick(dt);
+  pressed.clear();
+}
+
+try {
+  const blob = new Blob([`
+    let tid = null;
+    self.onmessage = function(e){
+      if(e.data === 'start'){
+        if(!tid) tid = setInterval(() => self.postMessage('tick'), 16);
+      } else if(e.data === 'stop'){
+        if(tid){ clearInterval(tid); tid = null; }
+      }
+    };
+  `], { type: 'application/javascript' });
+  bgWorker = new Worker(URL.createObjectURL(blob));
+  bgWorker.onmessage = function(){
+    backgroundStep();
+  };
+  bgWorker.postMessage('start');
+} catch(err) {
+  setInterval(() => {
+    backgroundStep();
+  }, 20);
+}
+
+document.addEventListener('visibilitychange', () => {
+  last = performance.now();
+});
 syncCustomMaps();
 /* Editor launch: tag_map_editor.html "Full Game" stores the map you're viewing
    plus default 2P settings; the game jumps straight into that match. */
