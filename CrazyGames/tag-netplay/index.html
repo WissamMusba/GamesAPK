@@ -1310,6 +1310,7 @@ function updateGame(dt){
   if(anyPressed(['KeyP']))togglePause();
   if(anyPressed(['KeyN']))selectMapQuick(settings.map+1);
   if(anyPressed(['KeyB']))cycleTheme();
+  if(anyPressed(['KeyV']))voiceToggleMic();
   
   /* Number keys 1-9, 0 to switch to any map instantly */
   for(let k=1;k<=9;k++)if(pressed.has('Digit'+k))selectMapQuick(k-1);
@@ -1374,6 +1375,7 @@ function updateGame(dt){
   match.shake*=Math.exp(-dt*7);
   updateParts(dt);
   updateCam(dt);
+  if(typeof updateVoiceProximity==='function')updateVoiceProximity(dt);
 }
 function update(dt){
   pollGamepads();
@@ -1760,6 +1762,22 @@ function drawPlayers(){
       moving:Math.abs(p.vx)>60,grounded:p.grounded,seed:p.seed
     });
     ptxt('P'+(i+1),p.x+p.w/2,p.y-12,FN(12,900),col);
+    // Proximity voice speaking indicator
+    if(typeof isPlayerSpeaking==='function' && isPlayerSpeaking(p.slot!=null?p.slot:i)){
+      const spkY=p.y-26, spkX=p.x+p.w/2;
+      const pulse=1+0.18*Math.sin(tGlobal*14);
+      g.save();
+      g.translate(spkX,spkY);
+      g.scale(pulse,pulse);
+      rr(g,-14,-8,28,16,8);
+      g.fillStyle='rgba(39, 174, 96, 0.92)';g.fill();
+      g.lineWidth=1.5;g.strokeStyle='#ffffff';g.stroke();
+      ptxt('🎙️',0,0.5,FN(8.5,900),'#ffffff');
+      g.strokeStyle='rgba(46, 204, 113, 0.65)';g.lineWidth=1.8;
+      g.beginPath();g.arc(0,0,15,-0.6,0.6);g.stroke();
+      g.beginPath();g.arc(0,0,15,Math.PI-0.6,Math.PI+0.6);g.stroke();
+      g.restore();
+    }
     if(match.state==='playing'&&match.cooldown>0){
       g.save();
       g.globalAlpha=0.3+0.2*Math.sin(tGlobal*8);
@@ -1874,8 +1892,18 @@ function drawMenu(){
     g.font=FN(12,900);g.textAlign='left';g.fillStyle='#2ecc71';
     g.fillText('ROOM: '+NET.room.toUpperCase()+(NET.isHost?' (HOST)':' (GUEST)'),rx+12,ry+rh/2+4);
     
+    // Voice mic button
+    const vbw=76, vbh=28, vbx=rx+rw-vbw-168, vby=ry+rh/2-vbh/2;
+    const vOn = (typeof VOICE!=='undefined' && VOICE.enabled);
+    const vMuted = (typeof VOICE!=='undefined' && VOICE.muted);
+    rr(g,vbx,vby,vbw,vbh,6);
+    g.fillStyle=vOn?(vMuted?'rgba(192,57,43,0.85)':'rgba(39,174,96,0.85)'):'rgba(255,255,255,0.18)';g.fill();
+    g.lineWidth=1.5;g.strokeStyle=vOn?(vMuted?'#e74c3c':'#2ecc71'):'rgba(255,255,255,0.35)';g.stroke();
+    ptxt(vOn?(vMuted?'🔇 MUTED':'🎙️ MIC ON'):'🎙️ MIC',vbx+vbw/2,vby+vbh/2+1,FN(9.5,900),'#ffffff');
+    zone(vbx,vby,vbw,vbh,{fn:voiceToggleMic});
+
     // Copy link button
-    const cbw=100, cbh=28, cbx=rx+rw-cbw-68, cby=ry+rh/2-cbh/2;
+    const cbw=94, cbh=28, cbx=rx+rw-cbw-68, cby=ry+rh/2-cbh/2;
     rr(g,cbx,cby,cbw,cbh,6);
     g.fillStyle='rgba(44,110,63,0.85)';g.fill();
     g.lineWidth=1.5;g.strokeStyle='#3b9c56';g.stroke();
@@ -2319,12 +2347,13 @@ function drawHUD(){
     g.restore();
   }
   
-  /* In-game control bar: Pause, Sound, Fullscreen, Next Map */
+  /* In-game control bar: Pause, Sound, Fullscreen, Next Map, Voice */
   const btnSize=38;
   const xPause=CW-btnSize-12;
   const xMute=xPause-btnSize-8;
   const xFull=xMute-btnSize-8;
   const xNext=xFull-btnSize-8;
+  const xVoice=xNext-btnSize-8;
   
   // Pause button
   rr(g,xPause,10,btnSize,btnSize,9);
@@ -2380,6 +2409,18 @@ function drawHUD(){
   g.fillStyle='rgba(255,255,255,0.92)';g.fill();g.lineWidth=2.5;g.strokeStyle=INK;g.stroke();
   ptxt('▶',xNext+btnSize/2+1,10+btnSize/2+1,FT(14),'#1c6b38');
   zone(xNext,10,btnSize,btnSize,{fn:()=>selectMapQuick(settings.map+1)});
+
+  // Proximity Voice Chat button (online)
+  if(typeof NET!=='undefined' && NET && NET.role!==null){
+    rr(g,xVoice,10,btnSize,btnSize,9);
+    const vOn = (typeof VOICE!=='undefined' && VOICE.enabled);
+    const vMuted = (typeof VOICE!=='undefined' && VOICE.muted);
+    g.fillStyle = vOn ? (vMuted ? 'rgba(231, 76, 60, 0.92)' : 'rgba(39, 174, 96, 0.92)') : 'rgba(255,255,255,0.92)';
+    g.fill();
+    g.lineWidth=2.5; g.strokeStyle=INK; g.stroke();
+    ptxt(vOn ? (vMuted ? '🔇' : '🎙️') : '🎙️', xVoice+btnSize/2, 10+btnSize/2+1, FN(15,900), vOn?'#ffffff':'#1e293b');
+    zone(xVoice,10,btnSize,btnSize,{fn:voiceToggleMic, upFn:voiceToggleMic});
+  }
   
   if(match.state==='countdown')drawBigCount(match.cd,'GET READY!');
   if(match.goFlash>0&&match.state==='playing'){
@@ -2583,6 +2624,248 @@ function netBroadcastReliable(msg){
   }
 }
 
+/* ================= proximity voice chat (WebRTC + Web Audio API) ================= */
+const VOICE = {
+  enabled: false,
+  muted: false,
+  localStream: null,
+  analyser: null,
+  analyserData: null,
+  speaking: false,
+  peers: new Map(), // peerId -> { call, stream, source, gain, panner, analyser, analyserData, speaking }
+  supported: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
+};
+
+async function voiceInit(){
+  if(!VOICE.supported){
+    netToast('Voice chat not supported on this browser');
+    return false;
+  }
+  initAudio();
+  if(AC && AC.state === 'suspended') AC.resume().catch(()=>{});
+
+  if(VOICE.localStream){
+    VOICE.enabled = true;
+    VOICE.muted = false;
+    for(const track of VOICE.localStream.getAudioTracks()){ track.enabled = true; }
+    netToast('Microphone unmuted 🎙️');
+    voiceCallAllPeers();
+    return true;
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      },
+      video: false
+    });
+    VOICE.localStream = stream;
+    VOICE.enabled = true;
+    VOICE.muted = false;
+
+    if(AC){
+      try {
+        const src = AC.createMediaStreamSource(stream);
+        const ana = AC.createAnalyser();
+        ana.fftSize = 128;
+        src.connect(ana);
+        VOICE.analyser = ana;
+        VOICE.analyserData = new Uint8Array(ana.frequencyBinCount);
+      } catch(e){}
+    }
+
+    netToast('Voice chat active! 🎙️ (Proximity on)');
+    voiceCallAllPeers();
+    return true;
+  } catch(err){
+    console.warn('Microphone permission error:', err);
+    netToast('Microphone access denied or unavailable');
+    return false;
+  }
+}
+
+function voiceToggleMic(){
+  if(!VOICE.localStream || !VOICE.enabled){
+    voiceInit();
+    return;
+  }
+  VOICE.muted = !VOICE.muted;
+  for(const track of VOICE.localStream.getAudioTracks()){
+    track.enabled = !VOICE.muted;
+  }
+  netToast(VOICE.muted ? 'Microphone muted 🔇' : 'Microphone unmuted 🎙️');
+  sfx('ui');
+}
+
+function voiceCallPeer(peerId){
+  if(!NET.peer || !peerId || peerId === NET.myId) return;
+  const existing = VOICE.peers.get(peerId);
+  if(existing && existing.call && existing.call.open) return;
+
+  const streamToSend = VOICE.localStream || undefined;
+  try {
+    const call = NET.peer.call(peerId, streamToSend);
+    if(call) voiceWireCall(call);
+  } catch(e){}
+}
+
+function voiceCallAllPeers(){
+  if(!NET.peer) return;
+  for(const peerId of NET.conns.keys()){
+    voiceCallPeer(peerId);
+  }
+}
+
+function voiceWireCall(call){
+  const peerId = call.peer;
+  const existing = VOICE.peers.get(peerId);
+  if(existing && existing.call && existing.call !== call){
+    try{ existing.call.close(); }catch(e){}
+  }
+
+  const entry = {
+    call: call,
+    stream: null,
+    source: null,
+    gain: null,
+    panner: null,
+    analyser: null,
+    analyserData: null,
+    speaking: false
+  };
+  VOICE.peers.set(peerId, entry);
+
+  call.on('stream', remoteStream => {
+    entry.stream = remoteStream;
+    initAudio();
+    if(AC){
+      try {
+        if(AC.state === 'suspended') AC.resume().catch(()=>{});
+        const source = AC.createMediaStreamSource(remoteStream);
+        const gain = AC.createGain();
+        gain.gain.value = 0.5;
+
+        let panner = null;
+        if(AC.createStereoPanner){
+          panner = AC.createStereoPanner();
+          panner.pan.value = 0;
+          source.connect(gain);
+          gain.connect(panner);
+          panner.connect(AC.destination);
+        } else {
+          source.connect(gain);
+          gain.connect(AC.destination);
+        }
+
+        const ana = AC.createAnalyser();
+        ana.fftSize = 128;
+        gain.connect(ana);
+
+        entry.source = source;
+        entry.gain = gain;
+        entry.panner = panner;
+        entry.analyser = ana;
+        entry.analyserData = new Uint8Array(ana.frequencyBinCount);
+      } catch(err){
+        console.warn('WebAudio setup error:', err);
+      }
+    }
+  });
+
+  call.on('close', () => {
+    if(entry.source){ try{ entry.source.disconnect(); }catch(e){} }
+    if(entry.gain){ try{ entry.gain.disconnect(); }catch(e){} }
+    if(entry.panner){ try{ entry.panner.disconnect(); }catch(e){} }
+    VOICE.peers.delete(peerId);
+  });
+
+  call.on('error', () => {});
+}
+
+function updateVoiceProximity(dt){
+  if(!match || !AC) return;
+  const myP = (typeof getMyPlayer === 'function') ? getMyPlayer() : null;
+  const myPos = myP ? { x: myP.x, y: myP.y } : (match.players[0] ? { x: match.players[0].x, y: match.players[0].y } : { x: W/2, y: H/2 });
+
+  for(const [peerId, entry] of VOICE.peers.entries()){
+    if(!entry.gain) continue;
+
+    let targetP = null;
+    if(NET.isHost){
+      for(let s = 1; s < 4; s++){
+        const ent = NET.hostInputs.get(s);
+        if(ent && ent.owner === peerId){
+          targetP = match.players.find(p => p.slot === s);
+          break;
+        }
+      }
+    } else {
+      targetP = match.players.find(p => p.slot === 0);
+    }
+
+    if(!targetP){
+      entry.gain.gain.value = 0.5;
+      if(entry.panner) entry.panner.pan.value = 0;
+      continue;
+    }
+
+    const dx = targetP.x - myPos.x;
+    const dy = targetP.y - myPos.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    // End-to-end of arena (~1400px): volume is very low (~0.12 faint whisper), ramping to 1.0 close up
+    const normDist = clamp(dist / 1400, 0, 1);
+    const targetVol = 0.12 + 0.88 * Math.pow(1 - normDist, 1.8);
+    const targetPan = clamp(dx / 600, -0.85, 0.85);
+
+    entry.gain.gain.value += (targetVol - entry.gain.gain.value) * Math.min(1, dt * 16);
+    if(entry.panner){
+      entry.panner.pan.value += (targetPan - entry.panner.pan.value) * Math.min(1, dt * 16);
+    }
+
+    if(entry.analyser && entry.analyserData){
+      entry.analyser.getByteFrequencyData(entry.analyserData);
+      let sum = 0;
+      for(let i = 0; i < entry.analyserData.length; i++) sum += entry.analyserData[i];
+      entry.speaking = (sum / entry.analyserData.length) > 13;
+    }
+  }
+
+  if(VOICE.analyser && VOICE.analyserData && !VOICE.muted){
+    VOICE.analyser.getByteFrequencyData(VOICE.analyserData);
+    let sum = 0;
+    for(let i = 0; i < VOICE.analyserData.length; i++) sum += VOICE.analyserData[i];
+    VOICE.speaking = (sum / VOICE.analyserData.length) > 13;
+  } else {
+    VOICE.speaking = false;
+  }
+}
+
+function isPlayerSpeaking(slot){
+  if(!match) return false;
+  if(slot === NET.mySlot){
+    return !!VOICE.speaking;
+  }
+  for(const [peerId, entry] of VOICE.peers.entries()){
+    if(entry.speaking){
+      let pSlot = -1;
+      if(NET.isHost){
+        for(let s = 1; s < 4; s++){
+          const ent = NET.hostInputs.get(s);
+          if(ent && ent.owner === peerId){ pSlot = s; break; }
+        }
+      } else {
+        pSlot = 0;
+      }
+      if(pSlot === slot) return true;
+    }
+  }
+  return false;
+}
+
 function netToast(m){
   toast(m);
   const t = document.getElementById('netToast');
@@ -2751,6 +3034,12 @@ function netConnectPeer(room, isHost){
     }
   });
 
+  NET.peer.on('call', call => {
+    const streamToSend = (VOICE.localStream && !VOICE.muted) ? VOICE.localStream : VOICE.localStream;
+    call.answer(streamToSend || undefined);
+    voiceWireCall(call);
+  });
+
   NET.peer.on('error', e => {
     const t = String(e.type || e.message || 'error').toLowerCase();
     if(t.includes('peer-unavailable')){
@@ -2784,8 +3073,10 @@ function netWireConn(conn, isHostSide){
     if(!isHostSide && !isFast){
       conn.send({ t: 'hello', ctrl: NET.myCtrl || 'Arrows' });
       netToast('Connected to host! Syncing menu…');
+      if(VOICE.enabled && VOICE.localStream) setTimeout(() => voiceCallPeer(peerId), 600);
     } else if(isHostSide && !isFast){
       netToast('Guest connected!');
+      if(VOICE.enabled && VOICE.localStream) setTimeout(() => voiceCallPeer(peerId), 600);
     }
   };
 
@@ -3181,6 +3472,12 @@ function netLeaveRoom(){
     if(pair.fast){ try{ pair.fast.close(); }catch(e){} }
   }
   NET.conns.clear();
+  if(typeof VOICE !== 'undefined' && VOICE.peers){
+    for(const entry of VOICE.peers.values()){
+      if(entry.call){ try{ entry.call.close(); }catch(e){} }
+    }
+    VOICE.peers.clear();
+  }
   NET.role = null;
   NET.room = '';
   NET.mySlot = -1;
