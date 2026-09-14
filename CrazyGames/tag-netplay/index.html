@@ -335,10 +335,8 @@ const settings={map:0,doubleJump:true,collision:false,timeIdx:1};
 Object.defineProperty(settings,'time',{get(){return TIMES[this.timeIdx];}});
 
 const SLOTS=[
-  // Each slot can be driven by WASD OR arrows interchangeably — no per-slot lock.
-  // Default labels show the "primary" hint; the actual left/right sources include both.
-  {label:'WASD',pad:0,map:{L:['KeyA','ArrowLeft'],R:['KeyD','ArrowRight'],U:'KeyW',D:'KeyS'}},
-  {label:'↑←↓→',pad:1,map:{L:['ArrowLeft','KeyA'],R:['ArrowRight','KeyD'],U:'ArrowUp',D:'ArrowDown'}},
+  {label:'WASD',pad:0,map:{L:['KeyA','KeyQ'],R:'KeyD',U:['KeyW','Space'],D:'KeyS'}},
+  {label:'↑←↓→',pad:1,map:{L:'ArrowLeft',R:'ArrowRight',U:'ArrowUp',D:'ArrowDown'}},
   {label:'IJKL',pad:2,map:{L:'KeyJ',R:'KeyL',U:'KeyI',D:'KeyK'}},
   {label:'TFGH',pad:3,map:{L:'KeyF',R:'KeyH',U:'KeyT',D:'KeyG'}}
 ];
@@ -747,13 +745,15 @@ function landOn(p,gp,impact,wasG){
   }
 }
 function inputFor(p){
-  /* Offline: each slot merges its keyboard aliases with its pad. WASD and Arrows are
-     aliases for slots 0/1 (so a player can pick either); no slot is pad-locked. */
+  /* Offline: each slot has its dedicated keyboard scheme and pad (P1: WASD, P2: Arrows, P3: IJKL, P4: TFGH) */
   const s=SLOTS[p.slot],m=s.map,pd=PAD[s.pad];
   const hasL=Array.isArray(m.L),hasR=Array.isArray(m.R);
   let dir=(hasR?(m.R.some(k=>keys.has(k))?1:0):(keys.has(m.R)?1:0))
          -(hasL?(m.L.some(k=>keys.has(k))?1:0):(keys.has(m.L)?1:0));
-  let jumpEdge=pressed.has(m.U),jumpHeld=keys.has(m.U),downHeld=keys.has(m.D);
+  const hasU=Array.isArray(m.U),hasD=Array.isArray(m.D);
+  let jumpEdge=hasU?(m.U.some(k=>pressed.has(k))):(pressed.has(m.U));
+  let jumpHeld=hasU?(m.U.some(k=>keys.has(k))):(keys.has(m.U));
+  let downHeld=hasD?(m.D.some(k=>keys.has(k))):(keys.has(m.D));
   if(pd){
     dir+=(pd.right?1:0)-(pd.left?1:0);
     jumpEdge=jumpEdge||pd.jumpE;jumpHeld=jumpHeld||pd.jumpHeld;downHeld=downHeld||pd.dropHeld;
