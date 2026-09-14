@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="theme-color" content="#0b0f16"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta http-equiv="Expires" content="0"/>
@@ -14,8 +18,8 @@
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <link id="font-link-20" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Anton&family=Bangers&family=Black+Han+Sans&family=Luckiest+Guy&family=Righteous&family=Fredoka+One&family=Baloo+2:wght@700;800&family=Nunito:wght@800;900&family=Poppins:wght@700;800;900&family=Montserrat:wght@700;800;900&family=Titan+One&family=Chewy&family=MuseoModerno:wght@700;900&family=Comfortaa:wght@700&family=Space+Grotesk:wght@600;700&family=Orbitron:wght@700;900&family=Russo+One&family=Staatliches&display=swap" rel="stylesheet"/>
 <style>
-html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#0b0f16;font-family:'Outfit','Rubik',system-ui,sans-serif}
-canvas{display:block;width:100vw;height:100vh;outline:none;touch-action:none;
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#0b0f16;font-family:'Outfit','Rubik',system-ui,sans-serif}
+canvas{position:fixed;top:0;left:0;width:100%;height:100%;display:block;outline:none;touch-action:none;
  -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:none;-webkit-touch-callout:none}
 /* ---- netplay join modal (optional, only when manual code entry is clicked) ---- */
 #netUI{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;background:rgba(5,8,13,0.85);backdrop-filter:blur(4px);font-family:'Outfit','Rubik',system-ui,sans-serif}
@@ -73,10 +77,32 @@ const INK='#141414';
 
 const cv=document.getElementById('g'),g=cv.getContext('2d');
 let CW=0,CH=0,DPR=1;
-function resize(){DPR=Math.min(2,window.devicePixelRatio||1);CW=window.innerWidth;CH=window.innerHeight;cv.width=Math.floor(CW*DPR);cv.height=Math.floor(CH*DPR);}
-window.addEventListener('resize',resize);resize();
-cv.style.touchAction='none';
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
+
+function resize(){
+  const rect = cv.getBoundingClientRect();
+  CW = Math.floor(rect.width || window.innerWidth);
+  CH = Math.floor(rect.height || window.innerHeight);
+  const maxDpr = isTouch ? 1.5 : 2;
+  DPR = Math.min(maxDpr, window.devicePixelRatio || 1);
+  cv.width = Math.floor(CW * DPR);
+  cv.height = Math.floor(CH * DPR);
+}
+window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', () => setTimeout(resize, 140));
+resize();
+cv.style.touchAction='none';
+
+function getCanvasCoords(clientX, clientY){
+  const rect = cv.getBoundingClientRect();
+  const scaleX = rect.width ? (CW / rect.width) : 1;
+  const scaleY = rect.height ? (CH / rect.height) : 1;
+  return {
+    x: (clientX - rect.left) * scaleX,
+    y: (clientY - rect.top) * scaleY
+  };
+}
+
 function grabFocus(){try{window.focus();}catch(e){}}
 window.addEventListener('load',grabFocus);grabFocus();
 
@@ -100,6 +126,31 @@ document.addEventListener('keyup',e=>keys.delete(e.code));
 window.addEventListener('blur',()=>{keys.clear();touchPts.clear();});
 window.addEventListener('contextmenu',e=>e.preventDefault());
 const anyPressed=list=>{for(const k of list)if(pressed.has(k))return true;return false;};
+
+/* ================= mobile touch action state ================= */
+const TOUCH = {
+  left: false,
+  right: false,
+  jumpEdge: false,
+  jumpHeld: false,
+  downHeld: false
+};
+function applyTouchAction(action, isDown){
+  if(action === 'left'){
+    TOUCH.left = !!isDown;
+  } else if(action === 'right'){
+    TOUCH.right = !!isDown;
+  } else if(action === 'jump'){
+    if(isDown){
+      TOUCH.jumpEdge = true;
+      TOUCH.jumpHeld = true;
+    } else {
+      TOUCH.jumpHeld = false;
+    }
+  } else if(action === 'down'){
+    TOUCH.downHeld = !!isDown;
+  }
+}
 
 /* ================= gamepads ================= */
 const GP={prev:[{},{},{},{}],prevAx:[0,0,0,0],prevAy:[0,0,0,0]};
@@ -137,10 +188,19 @@ function pollGamepads(){
 
 /* ================= touch zones ================= */
 const zones=[];const touchPts=new Map();const glow={};
-function zone(x,y,w,h,o){zones.push({x:x,y:y,w:w,h:h,press:(o&&o.press)||null,hold:(o&&o.hold)||null,fn:(o&&o.fn)||null});}
+function zone(x,y,w,h,o){
+  zones.push({
+    x:x,y:y,w:w,h:h,
+    press:(o&&o.press)||null,
+    hold:(o&&o.hold)||null,
+    fn:(o&&o.fn)||null,
+    upFn:(o&&o.upFn)||null,
+    touchAction:(o&&o.touchAction)||null
+  });
+}
 function zoneAt(x,y,holdOnly){
   for(let i=zones.length-1;i>=0;i--){const z=zones[i];
-    if(holdOnly&&!z.hold)continue;
+    if(holdOnly&&!z.hold&&!z.touchAction)continue;
     if(x>=z.x&&x<=z.x+z.w&&y>=z.y&&y<=z.y+z.h)return z;}
   return null;
 }
@@ -148,38 +208,86 @@ function inputDown(x,y,id){
   initAudio();grabFocus();
   const z=zoneAt(x,y,false);
   if(z){
-    if(z.hold){touchPts.set(id,z);keys.add(z.hold);}
+    touchPts.set(id,z);
+    if(z.hold){keys.add(z.hold);}
     if(z.press){for(const c of z.press){pressed.add(c);glow[c]=tGlobal;}}
+    if(z.touchAction){applyTouchAction(z.touchAction,true);}
     if(z.fn)z.fn();
   }
 }
 function inputMove(x,y,id){
   if(!touchPts.has(id))return;
   const cur=touchPts.get(id);
-  const z=zoneAt(x,y,true);
-  if(z!==cur){
-    if(cur&&cur.hold)keys.delete(cur.hold);
-    if(z)keys.add(z.hold);
-    touchPts.set(id,z);
+  if(cur&&(cur.hold||cur.touchAction)){
+    const z=zoneAt(x,y,true);
+    if(z!==cur){
+      if(cur&&cur.hold)keys.delete(cur.hold);
+      if(cur&&cur.touchAction)applyTouchAction(cur.touchAction,false);
+      if(z&&z.hold)keys.add(z.hold);
+      if(z&&z.touchAction)applyTouchAction(z.touchAction,true);
+      touchPts.set(id,z);
+    }
+  }else if(cur&&cur.upFn){
+    if(x<cur.x-10||x>cur.x+cur.w+10||y<cur.y-10||y>cur.y+cur.h+10){
+      touchPts.set(id,null);
+    }
   }
 }
 function inputUp(id){
   const z=touchPts.get(id);
-  if(z&&z.hold)keys.delete(z.hold);
+  if(z){
+    if(z.hold)keys.delete(z.hold);
+    if(z.touchAction)applyTouchAction(z.touchAction,false);
+    if(z.upFn)z.upFn();
+  }
   touchPts.delete(id);
 }
-if(typeof window.PointerEvent!=='undefined'){
-  cv.addEventListener('pointerdown',e=>{e.preventDefault();inputDown(e.clientX,e.clientY,e.pointerId);},{passive:false});
-  cv.addEventListener('pointermove',e=>{inputMove(e.clientX,e.clientY,e.pointerId);},{passive:false});
-  cv.addEventListener('pointerup',e=>inputUp(e.pointerId));
-  cv.addEventListener('pointercancel',e=>inputUp(e.pointerId));
+if(window.PointerEvent){
+  cv.addEventListener('pointerdown',e=>{
+    e.preventDefault();
+    const pt=getCanvasCoords(e.clientX,e.clientY);
+    inputDown(pt.x,pt.y,e.pointerId!=null?e.pointerId:'touch');
+  },{passive:false});
+  cv.addEventListener('pointermove',e=>{
+    e.preventDefault();
+    const pt=getCanvasCoords(e.clientX,e.clientY);
+    inputMove(pt.x,pt.y,e.pointerId!=null?e.pointerId:'touch');
+  },{passive:false});
+  cv.addEventListener('pointerup',e=>{
+    inputUp(e.pointerId!=null?e.pointerId:'touch');
+  },{passive:false});
+  cv.addEventListener('pointercancel',e=>{
+    inputUp(e.pointerId!=null?e.pointerId:'touch');
+  },{passive:false});
 }else{
-  cv.addEventListener('touchstart',e=>{e.preventDefault();for(const t of e.changedTouches)inputDown(t.clientX,t.clientY,'t'+t.identifier);},{passive:false});
-  cv.addEventListener('touchmove',e=>{e.preventDefault();for(const t of e.changedTouches)inputMove(t.clientX,t.clientY,'t'+t.identifier);},{passive:false});
-  cv.addEventListener('touchend',e=>{for(const t of e.changedTouches)inputUp('t'+t.identifier);});
-  cv.addEventListener('touchcancel',e=>{for(const t of e.changedTouches)inputUp('t'+t.identifier);});
-  cv.addEventListener('mousedown',e=>inputDown(e.clientX,e.clientY,'mouse'));
-  cv.addEventListener('mousemove',e=>inputMove(e.clientX,e.clientY,'mouse'));
+  cv.addEventListener('touchstart',e=>{
+    e.preventDefault();
+    for(const t of e.changedTouches){
+      const pt=getCanvasCoords(t.clientX,t.clientY);
+      inputDown(pt.x,pt.y,'t'+t.identifier);
+    }
+  },{passive:false});
+  cv.addEventListener('touchmove',e=>{
+    e.preventDefault();
+    for(const t of e.changedTouches){
+      const pt=getCanvasCoords(t.clientX,t.clientY);
+      inputMove(pt.x,pt.y,'t'+t.identifier);
+    }
+  },{passive:false});
+  cv.addEventListener('touchend',e=>{
+    for(const t of e.changedTouches)inputUp('t'+t.identifier);
+  },{passive:false});
+  cv.addEventListener('touchcancel',e=>{
+    for(const t of e.changedTouches)inputUp('t'+t.identifier);
+  },{passive:false});
+  cv.addEventListener('mousedown',e=>{
+    const pt=getCanvasCoords(e.clientX,e.clientY);
+    inputDown(pt.x,pt.y,'mouse');
+  });
+  cv.addEventListener('mousemove',e=>{
+    const pt=getCanvasCoords(e.clientX,e.clientY);
+    inputMove(pt.x,pt.y,'mouse');
+  });
   cv.addEventListener('mouseup',()=>inputUp('mouse'));
   cv.addEventListener('mouseleave',()=>inputUp('mouse'));
 }
@@ -686,34 +794,42 @@ function drawParts(){
   g.globalAlpha=1;
 }
 
-/* ============ PLAIN, MINIMALIST GRADIENT BACKGROUNDS (NO BUILDINGS) ============ */
+/* ============ PLAIN, MINIMALIST GRADIENT BACKGROUNDS (CACHED PER THEME) ============ */
+let _cachedThemeIdx = -1, _cachedNightGr = null, _cachedIntGr = null, _cachedVignette = null;
+function updateThemeGradients(){
+  if(_cachedThemeIdx === currentThemeIdx && _cachedNightGr) return;
+  _cachedThemeIdx = currentThemeIdx;
+  const th = THEMES[currentThemeIdx];
+  _cachedNightGr = g.createLinearGradient(0, -900, 0, H + 900);
+  _cachedNightGr.addColorStop(0, th.top);
+  _cachedNightGr.addColorStop(0.5, th.mid);
+  _cachedNightGr.addColorStop(1, th.bot);
+
+  _cachedIntGr = g.createLinearGradient(0, WALL, 0, H - WALL);
+  _cachedIntGr.addColorStop(0, th.top);
+  _cachedIntGr.addColorStop(0.5, th.mid);
+  _cachedIntGr.addColorStop(1, th.bot);
+
+  _cachedVignette = g.createRadialGradient(W / 2, H / 2, H * 0.4, W / 2, H / 2, H * 1.05);
+  _cachedVignette.addColorStop(0, 'rgba(0,0,0,0)');
+  _cachedVignette.addColorStop(1, 'rgba(0,0,0,0.30)');
+}
+
 function drawNightWorld(){
-  const th=THEMES[currentThemeIdx];
-  const gr=g.createLinearGradient(0,-900,0,H+900);
-  gr.addColorStop(0,th.top);gr.addColorStop(0.5,th.mid);gr.addColorStop(1,th.bot);
-  g.fillStyle=gr;
-  g.fillRect(-1000,-1000,W+2000,H+2000);
+  updateThemeGradients();
+  g.fillStyle = _cachedNightGr;
+  g.fillRect(-1000, -1000, W + 2000, H + 2000);
 }
 
 function drawInterior(){
-  const th=THEMES[currentThemeIdx];
+  updateThemeGradients();
   g.save();
-  rr(g,WALL,WALL,W-2*WALL,H-2*WALL,10);g.clip();
-  
-  /* Smooth plain gradient - completely clean and distraction-free */
-  const ig=g.createLinearGradient(0,WALL,0,H-WALL);
-  ig.addColorStop(0,th.top);
-  ig.addColorStop(0.5,th.mid);
-  ig.addColorStop(1,th.bot);
-  g.fillStyle=ig;
-  g.fillRect(WALL,WALL,W-2*WALL,H-2*WALL);
-  
-  /* Soft lighting vignette for depth */
-  const vg=g.createRadialGradient(W/2,H/2,H*0.4,W/2,H/2,H*1.05);
-  vg.addColorStop(0,'rgba(0,0,0,0)');
-  vg.addColorStop(1,'rgba(0,0,0,0.30)');
-  g.fillStyle=vg;g.fillRect(WALL,WALL,W-2*WALL,H-2*WALL);
-  
+  rr(g, WALL, WALL, W - 2 * WALL, H - 2 * WALL, 10);
+  g.clip();
+  g.fillStyle = _cachedIntGr;
+  g.fillRect(WALL, WALL, W - 2 * WALL, H - 2 * WALL);
+  g.fillStyle = _cachedVignette;
+  g.fillRect(WALL, WALL, W - 2 * WALL, H - 2 * WALL);
   g.restore();
 }
 
@@ -757,6 +873,13 @@ function inputFor(p){
   if(pd){
     dir+=(pd.right?1:0)-(pd.left?1:0);
     jumpEdge=jumpEdge||pd.jumpE;jumpHeld=jumpHeld||pd.jumpHeld;downHeld=downHeld||pd.dropHeld;
+  }
+  if(p.slot === (typeof NET !== 'undefined' && NET && NET.mySlot >= 0 ? NET.mySlot : 0)){
+    if(TOUCH.left) dir = -1;
+    if(TOUCH.right) dir = 1;
+    if(TOUCH.jumpEdge) jumpEdge = true;
+    if(TOUCH.jumpHeld) jumpHeld = true;
+    if(TOUCH.downHeld) downHeld = true;
   }
   return {dir:clamp(dir,-1,1),jumpEdge:!!jumpEdge,jumpHeld:!!jumpHeld,downHeld:!!downHeld};
 }
@@ -1109,12 +1232,24 @@ function updateCam(dt){
 /* ================= game update & fullscreen ================= */
 function toggleFullscreen(){
   try{
-    if(!document.fullscreenElement&&!document.webkitFullscreenElement){
-      if(document.documentElement.requestFullscreen)document.documentElement.requestFullscreen().catch(()=>{});
-      else if(document.documentElement.webkitRequestFullscreen)document.documentElement.webkitRequestFullscreen();
+    const de = document.documentElement;
+    const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement || document.webkitIsFullScreen);
+    const req = de.requestFullscreen || de.webkitRequestFullscreen || de.webkitRequestFullScreen || cv.requestFullscreen || cv.webkitRequestFullscreen || cv.webkitRequestFullScreen || de.mozRequestFullScreen || de.msRequestFullscreen;
+    if(!req){
+      window.scrollTo(0, 0);
+      if(match){ match.mapToast = 'ADD TO HOME SCREEN FOR FULLSCREEN'; match.mapToastT = 2.5; }
+      return;
+    }
+    if(!isFs){
+      const target = (de.requestFullscreen || de.webkitRequestFullscreen || de.webkitRequestFullScreen) ? de : cv;
+      const p = req.call(target);
+      if(p && p.catch) p.catch(()=>{});
     }else{
-      if(document.exitFullscreen)document.exitFullscreen().catch(()=>{});
-      else if(document.webkitExitFullscreen)document.webkitExitFullscreen();
+      const exit = document.exitFullscreen || document.webkitExitFullscreen || document.webkitCancelFullScreen || document.mozCancelFullScreen || document.msExitFullscreen;
+      if(exit){
+        const p = exit.call(document);
+        if(p && p.catch) p.catch(()=>{});
+      }
     }
   }catch(e){}
 }
@@ -2027,30 +2162,118 @@ function tri(x,y,r,dir){
 function drawPadBtn(cx,cy,r,dir,o){
   const active=o.hold?keys.has(o.hold):(tGlobal-(glow[o.pk]||-9))<0.15;
   g.beginPath();g.arc(cx,cy,r,0,TAU);
-  g.fillStyle=active?'rgba(255,255,255,0.65)':'rgba(0,0,0,0.22)';
+  g.fillStyle=active?'rgba(255,255,255,0.75)':'rgba(15,23,42,0.65)';
   g.fill();
-  g.lineWidth=2.5;g.strokeStyle='rgba(255,255,255,0.6)';g.stroke();
+  g.lineWidth=2.5;g.strokeStyle=active?'#ffffff':'rgba(255,255,255,0.45)';g.stroke();
   tri(cx,cy,r*0.55,dir);
   g.fillStyle=active?'#143c26':'#ffffff';
   g.fill();
-  zone(cx-r-14,cy-r-14,r*2+28,r*2+28,o);
+  zone(cx-r-12,cy-r-12,r*2+24,r*2+24,o);
 }
+
+function drawPadBtnAction(cx,cy,r,actionKey,symbol,glowCol,label){
+  let active = false;
+  if(actionKey === 'left') active = TOUCH.left;
+  else if(actionKey === 'right') active = TOUCH.right;
+  else if(actionKey === 'jump') active = TOUCH.jumpHeld;
+  else if(actionKey === 'down') active = TOUCH.downHeld;
+  
+  g.save();
+  if(active){
+    g.beginPath(); g.arc(cx,cy,r+6,0,TAU);
+    g.fillStyle=glowCol||'rgba(255,255,255,0.3)';
+    g.fill();
+  }
+  
+  // Frosted circular button
+  g.beginPath(); g.arc(cx,cy,r,0,TAU);
+  g.fillStyle=active?'rgba(255,255,255,0.90)':'rgba(15,23,42,0.68)';
+  g.fill();
+  g.lineWidth=active?3.5:2.5;
+  g.strokeStyle=active?'#ffffff':'rgba(255,255,255,0.45)';
+  g.stroke();
+  
+  // Symbol icon
+  g.font=FN(Math.round(r*(label?0.62:0.72)),900);
+  g.textAlign='center';
+  g.textBaseline='middle';
+  g.fillStyle=active?'#0f172a':'#ffffff';
+  g.fillText(symbol,cx,cy+(label?-r*0.12:1));
+  
+  // Optional small label below icon (e.g. JUMP, DROP on tablet)
+  if(label && r>=34){
+    g.font=FN(Math.max(9,Math.round(r*0.22)),900);
+    g.fillStyle=active?'#0f172a':'rgba(255,255,255,0.75)';
+    g.fillText(label,cx,cy+r*0.52);
+  }
+  g.restore();
+  
+  // Generous touch hitbox
+  const padH=16;
+  zone(cx-r-padH,cy-r-padH,2*(r+padH),2*(r+padH),{
+    touchAction: actionKey
+  });
+}
+
 function drawTouchButtons(){
-  const r=clamp(Math.min((CW-80)/12,CH*0.07),20,42);
-  const bw=r*2,gap=10,m=14;
-  const y1=CH-m-r,y0=y1-bw-gap;
-  ptxt('P1',m+1.5*bw+gap,y0-r-14,FN(13,900),'rgba(255,255,255,0.9)');
-  ptxt('P2',CW-m-1.5*bw-gap,y0-r-14,FN(13,900),'rgba(255,255,255,0.9)');
-  const xL=m+r,xD=m+bw+gap+r,xR=m+2*(bw+gap)+r;
-  drawPadBtn(xL,y1,r,0,{hold:'KeyA',pk:'KeyA'});
-  drawPadBtn(xD,y1,r,3,{hold:'KeyS',pk:'KeyS'});
-  drawPadBtn(xR,y1,r,1,{hold:'KeyD',pk:'KeyD'});
-  drawPadBtn(xD,y0,r,2,{press:['KeyW'],pk:'KeyW'});
-  const xL2=CW-m-2*(bw+gap)-r,xD2=CW-m-bw-gap-r,xR2=CW-m-r;
-  drawPadBtn(xL2,y1,r,0,{hold:'ArrowLeft',pk:'ArrowLeft'});
-  drawPadBtn(xD2,y1,r,3,{hold:'ArrowDown',pk:'ArrowDown'});
-  drawPadBtn(xR2,y1,r,1,{hold:'ArrowRight',pk:'ArrowRight'});
-  drawPadBtn(xD2,y0,r,2,{press:['ArrowUp'],pk:'ArrowUp'});
+  if(!match) return;
+  
+  const isOnline=(typeof NET!=='undefined' && NET && NET.role!==null);
+  const isSplitLocal=(!isOnline && match.players.length===2);
+  const isTablet=Math.min(CW,CH)>=550 || (CW/CH<1.7 && Math.min(CW,CH)>=480);
+  
+  if(!isSplitLocal){
+    /* ================= DUAL-THUMB ERGONOMIC CONTROLS (ONLINE & SOLO) ================= */
+    const r=isTablet?clamp(CH*0.075,38,50):clamp(CH*0.11,28,38);
+    const bm=isTablet?clamp(CH*0.08,36,56):clamp(CH*0.07,20,32);
+    const sm=isTablet?clamp(CW*0.05,34,60):clamp(CW*0.04,18,34);
+    
+    // Left thumb: Left & Right directional buttons
+    const cyL=CH-bm-r;
+    const cxL=sm+r;
+    const cxR=cxL+2*r+(isTablet?18:12);
+    
+    // Right thumb: Big Jump & Quick Drop buttons
+    const rJump=r*1.16;
+    const rDrop=r*0.88;
+    const cyJ=CH-bm-rJump;
+    const cxJ=CW-sm-rJump;
+    const cxD=cxJ-rJump-rDrop-(isTablet?20:14);
+    const cyD=cyJ+(rJump-rDrop)*0.3;
+    
+    // Draw Left button
+    drawPadBtnAction(cxL,cyL,r,'left','◀','rgba(0,210,211,0.45)',isTablet?'LEFT':null);
+    // Draw Right button
+    drawPadBtnAction(cxR,cyL,r,'right','▶','rgba(0,210,211,0.45)',isTablet?'RIGHT':null);
+    // Draw Drop button (pink accent)
+    drawPadBtnAction(cxD,cyD,rDrop,'down','▼','rgba(235,75,155,0.65)',isTablet?'DROP':null);
+    // Draw Jump button (cyan/green accent, big circle)
+    drawPadBtnAction(cxJ,cyJ,rJump,'jump','▲','rgba(46,204,113,0.75)',isTablet?'JUMP':null);
+    
+  } else {
+    /* ================= 2-PLAYER SPLIT LOCAL (ON 1 TABLET/PHONE) ================= */
+    const r=clamp(Math.min((CW-100)/14,CH*0.065),20,40);
+    const bw=r*2,gap=8;
+    const bm=clamp(CH*0.07,28,50); // safe margin above bottom bezel
+    const y1=CH-bm-r,y0=y1-bw-gap;
+    
+    ptxt('P1',14+1.5*bw+gap,y0-r-12,FN(12,900),'rgba(255,255,255,0.9)');
+    ptxt('P2',CW-14-1.5*bw-gap,y0-r-12,FN(12,900),'rgba(255,255,255,0.9)');
+    
+    // P1 cluster (WASD)
+    const xL=14+r,xD=14+bw+gap+r,xR=14+2*(bw+gap)+r;
+    drawPadBtn(xL,y1,r,0,{hold:'KeyA',pk:'KeyA'});
+    drawPadBtn(xD,y1,r,3,{hold:'KeyS',pk:'KeyS'});
+    drawPadBtn(xR,y1,r,1,{hold:'KeyD',pk:'KeyD'});
+    drawPadBtn(xD,y0,r,2,{press:['KeyW'],pk:'KeyW'});
+    
+    // P2 cluster (Arrows)
+    const xL2=CW-14-2*(bw+gap)-r,xD2=CW-14-bw-gap-r,xR2=CW-14-r;
+    drawPadBtn(xL2,y1,r,0,{hold:'ArrowLeft',pk:'ArrowLeft'});
+    drawPadBtn(xD2,y1,r,3,{hold:'ArrowDown',pk:'ArrowDown'});
+    drawPadBtn(xR2,y1,r,1,{hold:'ArrowRight',pk:'ArrowRight'});
+    drawPadBtn(xD2,y0,r,2,{press:['ArrowUp'],pk:'ArrowUp'});
+  }
 }
 
 function drawHUD(){
@@ -2117,7 +2340,7 @@ function drawHUD(){
   rr(g,xFull,10,btnSize,btnSize,9);
   g.fillStyle='rgba(255,255,255,0.92)';g.fill();g.lineWidth=2.5;g.strokeStyle=INK;g.stroke();
   g.strokeStyle='#1e293b'; g.lineWidth=2.5;
-  const isFull=!!(document.fullscreenElement||document.webkitFullscreenElement);
+  const isFull=!!(document.fullscreenElement||document.webkitFullscreenElement||document.mozFullScreenElement||document.msFullscreenElement||document.webkitIsFullScreen);
   if(!isFull){
     const m=10;
     g.beginPath(); g.moveTo(xFull+m, 10+m+5); g.lineTo(xFull+m, 10+m); g.lineTo(xFull+m+5, 10+m); g.stroke();
@@ -2128,7 +2351,7 @@ function drawHUD(){
     const m=11;
     g.strokeRect(xFull+m, 10+m, btnSize-2*m, btnSize-2*m);
   }
-  zone(xFull,10,btnSize,btnSize,{fn:toggleFullscreen});
+  zone(xFull,10,btnSize,btnSize,{upFn:toggleFullscreen});
   
   // Next map quick button
   rr(g,xNext,10,btnSize,btnSize,9);
@@ -2270,7 +2493,7 @@ function drawGame(){
   drawHUD();
   if(match.state==='paused')drawPause();
   else if(match.state==='result')drawResult();
-  else if(isTouch&&match.players.length===2)drawTouchButtons();
+  else if(isTouch)drawTouchButtons();
 }
 
 /* ================= netplay (host-authoritative P2P) ================= */
@@ -2392,6 +2615,13 @@ function sampleControls(scheme){
       break;
     }
   }
+  // Mobile / Tablet on-screen touch controls
+  if(TOUCH.left) dir = -1;
+  if(TOUCH.right) dir = 1;
+  if(TOUCH.jumpEdge) jumpEdge = true;
+  if(TOUCH.jumpHeld) jumpHeld = true;
+  if(TOUCH.downHeld) downHeld = true;
+
   return { dir: clamp(dir, -1, 1), jumpEdge: !!jumpEdge, jumpHeld: !!jumpHeld, downHeld: !!downHeld };
 }
 
@@ -3058,6 +3288,7 @@ function frame(now){
     }
     render();
   }catch(err){}
+  TOUCH.jumpEdge = false;
   pressed.clear();
 }
 
@@ -3074,6 +3305,7 @@ function backgroundStep(){
     updateGame(dt);
   }
   netTick(dt);
+  TOUCH.jumpEdge = false;
   pressed.clear();
 }
 
