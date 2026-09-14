@@ -17,48 +17,34 @@
 html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#0b0f16;font-family:'Outfit','Rubik',system-ui,sans-serif}
 canvas{display:block;width:100vw;height:100vh;outline:none;touch-action:none;
  -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:none;-webkit-touch-callout:none}
-/* ---- netplay lobby overlay ---- */
-#netUI{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;background:rgba(5,8,13,0.82);font-family:'Outfit','Rubik',system-ui,sans-serif}
+/* ---- netplay join modal (optional, only when manual code entry is clicked) ---- */
+#netUI{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;background:rgba(5,8,13,0.85);backdrop-filter:blur(4px);font-family:'Outfit','Rubik',system-ui,sans-serif}
 #netUI.on{display:flex}
-#netCard{background:#141b28;border:1px solid #2a3550;border-radius:14px;padding:22px 26px;max-width:min(440px,92vw);text-align:center;color:#eef3fa;box-shadow:0 12px 60px rgba(0,0,0,0.6)}
-#netCard h2{margin:0 0 4px;font-size:22px;letter-spacing:1px}
-#netCard h2 span{color:#ffb020}
-#netCard p{margin:6px 0;font-size:13.5px;color:#9fb0c9;line-height:1.5}
-#netCard .row{display:flex;gap:8px;margin-top:12px}
-#netCard button{flex:1;background:#1a2334;color:#eef3fa;border:1px solid #2a3550;border-radius:8px;padding:10px 8px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit}
+#netCard{background:#141b28;border:2px solid #2a3550;border-radius:16px;padding:24px 28px;max-width:min(400px,92vw);width:100%;text-align:center;color:#eef3fa;box-shadow:0 16px 60px rgba(0,0,0,0.7)}
+#netCard h2{margin:0 0 6px;font-size:22px;letter-spacing:1px}
+#netCard h2 span{color:#2ecc71}
+#netCard p{margin:6px 0 14px;font-size:14px;color:#9fb0c9;line-height:1.5}
+#netCard .row{display:flex;gap:10px;margin-top:14px}
+#netCard button{flex:1;background:#1a2334;color:#eef3fa;border:1px solid #2a3550;border-radius:8px;padding:11px 10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:background 0.15s}
 #netCard button:hover{background:#232f47}
-#netCard button.go{background:#2c6e3f;border-color:#3b9c56}
-#netCard button.go:hover{background:#35824b}
-#netCard input{width:100%;margin-top:10px;background:#0e1420;color:#eef3fa;border:1px solid #2a3550;border-radius:8px;padding:10px;font-size:16px;text-align:center;letter-spacing:3px;text-transform:uppercase;font-family:Consolas,monospace}
-#netLink{word-break:break-all;background:#0e1420;border:1px dashed #3b9c56;border-radius:8px;padding:10px;margin-top:10px;font-size:12.5px;color:#8ef0b0;display:none;font-family:Consolas,monospace}
-#netStatus{margin-top:10px;font-size:13px;color:#ffea88;min-height:20px}
-#netRoster{margin-top:8px;font-size:13px;color:#9fb0c9;text-align:left}
-#netToast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:60;background:rgba(10,14,22,0.92);border:1px solid #2a3550;color:#eef3fa;border-radius:8px;padding:8px 16px;font-size:13px;display:none;pointer-events:none;font-family:'Outfit',system-ui,sans-serif}
+#netCard button.go{background:#27ae60;border-color:#2ecc71}
+#netCard button.go:hover{background:#2ecc71}
+#netCard input{width:100%;box-sizing:border-box;background:#0e1420;color:#eef3fa;border:1px solid #2a3550;border-radius:8px;padding:12px;font-size:17px;text-align:center;letter-spacing:3px;text-transform:uppercase;font-family:Consolas,monospace}
+#netCard input:focus{outline:none;border-color:#2ecc71}
+#netToast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:60;background:rgba(10,14,22,0.95);border:2px solid #2ecc71;color:#ffffff;border-radius:10px;padding:10px 22px;font-size:14px;font-weight:700;display:none;pointer-events:none;font-family:'Outfit',system-ui,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,0.6)}
 </style>
 </head>
 <body>
 <canvas id="g"></canvas>
-<!-- Netplay lobby (test build only — not in the CrazyGames submission) -->
+<!-- Netplay join modal (only shown when clicking 'JOIN ROOM' manually) -->
 <div id="netUI"><div id="netCard">
-  <h2>TAG! <span>ONLINE TEST</span></h2>
-  <p id="netDesc">Host a room and share the link, or join with a room code. Host picks the map and settings.</p>
+  <h2>JOIN <span>ONLINE ROOM</span></h2>
+  <p id="netDesc">Enter 6-letter room code or paste invite link:</p>
+  <input id="netCode" maxlength="64" placeholder="ROOM CODE / LINK"/>
   <div class="row">
-    <button id="netHost" class="go">Host Online</button>
-    <button id="netJoin">Join Room</button>
-  </div>
-  <input id="netCode" maxlength="6" placeholder="ROOM CODE" style="display:none"/>
-  <div class="row" id="netJoinRow" style="display:none">
     <button id="netJoinGo" class="go">Join</button>
-    <button id="netBack">Back</button>
+    <button id="netClose">Cancel</button>
   </div>
-  <div id="netLink"></div>
-  <div id="netRoster"></div>
-  <div class="row" id="netHostRow" style="display:none">
-    <button id="netCopy">Copy Invite Link</button>
-    <button id="netStart" class="go">Start Match</button>
-  </div>
-  <div class="row"><button id="netClose">Play Offline Instead</button></div>
-  <div id="netStatus"></div>
 </div></div>
 <div id="netToast"></div>
 <!-- SDK Banners: rendered DOM containers so CrazyGames can inject without painting over the canvas -->
@@ -505,16 +491,55 @@ function toggleRule(){
   if(NET.isHost) netBroadcastSettings();
 }
 function rowEdit(d){
+  if(typeof NET!=='undefined' && NET && NET.role!==null && !NET.isHost){
+    toast('HOST CONTROLS MAP & RULES');
+    sfx('back');
+    return;
+  }
   switch(menu.row){
     case 1:settings.map=(settings.map+d+MAPS.length)%MAPS.length;buildLevel();sfx('ui');break;
     case 2:settings.timeIdx=(settings.timeIdx+d+TIMES.length)%TIMES.length;sfx('ui');break;
     case 3:menu.rule=(menu.rule+d+2)%2;sfx('ui');break;
   }
-  if(NET.isHost) netBroadcastSettings();
+  if(typeof NET!=='undefined' && NET && NET.isHost && typeof netBroadcastSettings==='function') netBroadcastSettings();
 }
 function rowEnter(){
-  if(menu.row===0){menu.mode='slots';sfx('ok');}
+  if(menu.row===0){
+    if(typeof NET!=='undefined' && NET && NET.role!==null){
+      // in online mode, row 0 is online roster status
+      if(NET.isHost && activeSlots().length<2){
+        if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(netLink(NET.room)).catch(()=>{});
+        netToast('Invite link copied! Share with your friend.');
+      }
+      return;
+    }
+    menu.mode='slots';sfx('ok');
+  }
   else if(menu.row===4){
+    if(typeof NET!=='undefined' && NET && NET.role!==null){
+      if(!NET.isHost){
+        toast('WAITING FOR HOST TO START');
+        sfx('back');
+        return;
+      }
+      const act=activeSlots();
+      if(act.length<2){
+        if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(netLink(NET.room)).catch(()=>{});
+        netToast('Invite link copied! Send it to your friend.');
+        toast('WAITING FOR A FRIEND TO JOIN!');
+        sfx('back');
+        return;
+      }
+      const allReady=act.every(s=>NET.slotsReady[s]);
+      if(!allReady){
+        toast('WAITING FOR ALL PLAYERS TO HIT READY!');
+        sfx('back');
+        return;
+      }
+      sfx('go');
+      startMatch();
+      return;
+    }
     if(activeSlots().length<2){
       menu.mode='slots';
       menu.row=0;
@@ -525,7 +550,14 @@ function rowEnter(){
       startMatch();
     }
   }
-  else if(menu.row===3)toggleRule();
+  else if(menu.row===3){
+    if(typeof NET!=='undefined' && NET && NET.role!==null && !NET.isHost){
+      toast('HOST CONTROLS MAP & RULES');
+      sfx('back');
+      return;
+    }
+    toggleRule();
+  }
   else rowEdit(1);
 }
 function menuConfirm(){
@@ -1605,9 +1637,11 @@ function drawTagPop(){
 
 /* ================= MENU ================= */
 function slotCardRects(){
-  const cw=clamp(CW*0.145,96,160),gap=clamp(CW*0.03,18,46),chh=cw*0.68;
+  const cw=clamp(CW*0.145,100,160),gap=clamp(CW*0.025,12,34);
+  const isOnline=(typeof NET!=='undefined'&&NET&&NET.role!==null);
+  const chh=isOnline?clamp(cw*1.06,125,165):cw*0.68;
   const total=4*cw+3*gap,x0=CW/2-total/2;
-  const y=CH*0.30;
+  const y=isOnline?CH*0.27:CH*0.30;
   const r=[];
   for(let i=0;i<4;i++)r.push({x:x0+i*(cw+gap),y:y,w:cw,h:chh});
   return r;
@@ -1666,47 +1700,212 @@ function drawMenu(){
   if(muted){g.strokeStyle='#c0392b';g.lineWidth=4;g.beginPath();g.moveTo(CW-si+20,12+si/2-8);g.lineTo(CW-si+34,12+si/2+8);g.stroke();}
   zone(CW-si-12,12,si,si,{fn:()=>{muted=!muted;applyEffectiveMute();}});
 
-  // Online lobby button
-  const obw=96, obh=si, obx=CW-si-12-obw-10;
-  rr(g,obx,12,obw,obh,10);
-  g.fillStyle=NET.role!==null?'rgba(44,110,63,0.92)':'rgba(255,255,255,0.88)';g.fill();
-  g.lineWidth=3;g.strokeStyle=INK;g.stroke();
-  ptxt(NET.role!==null?'ONLINE ✓':'🌐 ONLINE',obx+obw/2,12+obh/2+1,FN(12,900),NET.role!==null?'#ffffff':'#141b28');
-  zone(obx,12,obw,obh,{fn:()=>netShow(true)});
+  // Header navigation buttons
+  if(typeof NET!=='undefined' && NET && NET.role!==null){
+    // Online room header bar
+    const rh=40, ry=14;
+    const rw=Math.min(460, CW-si-40), rx=16;
+    rr(g,rx,ry,rw,rh,10);
+    g.fillStyle='rgba(14,20,32,0.92)';g.fill();
+    g.lineWidth=2;g.strokeStyle='#2ecc71';g.stroke();
+    
+    // Room title
+    g.font=FN(12,900);g.textAlign='left';g.fillStyle='#2ecc71';
+    g.fillText('ROOM: '+NET.room.toUpperCase()+(NET.isHost?' (HOST)':' (GUEST)'),rx+12,ry+rh/2+4);
+    
+    // Copy link button
+    const cbw=100, cbh=28, cbx=rx+rw-cbw-68, cby=ry+rh/2-cbh/2;
+    rr(g,cbx,cby,cbw,cbh,6);
+    g.fillStyle='rgba(44,110,63,0.85)';g.fill();
+    g.lineWidth=1.5;g.strokeStyle='#3b9c56';g.stroke();
+    ptxt('📋 COPY LINK',cbx+cbw/2,cby+cbh/2+1,FN(10.5,900),'#ffffff');
+    zone(cbx,cby,cbw,cbh,{fn:()=>netCopyLink()});
+    
+    // Leave room button
+    const lbw=54, lbh=28, lbx=rx+rw-lbw-8, lby=ry+rh/2-lbh/2;
+    rr(g,lbx,lby,lbw,lbh,6);
+    g.fillStyle='rgba(192,57,43,0.85)';g.fill();
+    g.lineWidth=1.5;g.strokeStyle='#e74c3c';g.stroke();
+    ptxt('LEAVE',lbx+lbw/2,lby+lbh/2+1,FN(10.5,900),'#ffffff');
+    zone(lbx,lby,lbw,lbh,{fn:()=>netLeaveRoom()});
+  } else {
+    // Offline header: HOST ONLINE & JOIN ROOM
+    const obw=122, obh=si, obx=CW-si-12-obw-10;
+    rr(g,obx,12,obw,obh,10);
+    g.fillStyle='rgba(44,110,63,0.92)';g.fill();
+    g.lineWidth=3;g.strokeStyle=INK;g.stroke();
+    ptxt('🌐 HOST ONLINE',obx+obw/2,12+obh/2+1,FN(11.5,900),'#ffffff');
+    zone(obx,12,obw,obh,{fn:()=>netHostAction()});
+
+    const jbw=104, jbh=si, jbx=obx-jbw-10;
+    rr(g,jbx,12,jbw,jbh,10);
+    g.fillStyle='rgba(255,255,255,0.88)';g.fill();
+    g.lineWidth=3;g.strokeStyle=INK;g.stroke();
+    ptxt('🔗 JOIN ROOM',jbx+jbw/2,12+jbh/2+1,FN(11.5,900),'#141b28');
+    zone(jbx,12,jbw,jbh,{fn:()=>netJoinAction()});
+  }
+
+  // Shared Roster Banner at the top (under TAG)
+  if(typeof NET!=='undefined' && NET && NET.role!==null){
+    const rosterY=CH*0.215;
+    const pills=[];
+    // P1 (Host)
+    pills.push({
+      slot:0, title:'P1 Host'+(NET.mySlot===0?' (YOU)':''),
+      ctrl:NET.slotsCtrl[0]||'WASD', ready:!!NET.slotsReady[0],
+      col:menu.slotColor[0]>=0?menu.slotColor[0]:0, connected:true
+    });
+    // P2 (Guest)
+    const p2Conn=NET.isHost?NET.hostInputs.has(1):menu.slotColor[1]>=0;
+    if(p2Conn){
+      pills.push({
+        slot:1, title:'P2 Guest'+(NET.mySlot===1?' (YOU)':''),
+        ctrl:NET.slotsCtrl[1]||'Arrows', ready:!!NET.slotsReady[1],
+        col:menu.slotColor[1]>=0?menu.slotColor[1]:1, connected:true
+      });
+    } else {
+      pills.push({
+        slot:1, title:'P2 Guest', ctrl:'WAITING… (SHARE LINK)', ready:false, col:-1, connected:false
+      });
+    }
+    // P3 & P4 if connected
+    for(let si=2;si<4;si++){
+      const cConn=NET.isHost?NET.hostInputs.has(si):menu.slotColor[si]>=0;
+      if(cConn){
+        pills.push({
+          slot:si, title:'P'+(si+1)+' Guest'+(NET.mySlot===si?' (YOU)':''),
+          ctrl:NET.slotsCtrl[si]||'WASD', ready:!!NET.slotsReady[si],
+          col:menu.slotColor[si]>=0?menu.slotColor[si]:si, connected:true
+        });
+      }
+    }
+    const pw=clamp((CW-50)/pills.length-10, 160, 240);
+    const ph=30;
+    const totW=pills.length*pw+(pills.length-1)*10;
+    const startX=CW/2-totW/2;
+    for(let pi=0;pi<pills.length;pi++){
+      const p=pills[pi], px=startX+pi*(pw+10);
+      rr(g,px,rosterY-ph/2,pw,ph,7);
+      g.fillStyle=p.connected?'rgba(16,24,38,0.92)':'rgba(16,24,38,0.6)'; g.fill();
+      g.lineWidth=2; g.strokeStyle=p.connected?(p.ready?'#2ecc71':'#e67e22'):'rgba(255,255,255,0.2)'; g.stroke();
+      if(p.connected&&p.col>=0){
+        rr(g,px+6,rosterY-7,14,14,3); g.fillStyle=PALETTE[p.col].c; g.fill();
+      }
+      g.font=FN(11,800); g.textAlign='left'; g.fillStyle='#ffffff';
+      const lbl=p.connected?(p.title+' • '+p.ctrl):(p.title+' • Waiting to join...');
+      g.fillText(lbl, p.connected?px+26:px+8, rosterY+4);
+      if(p.connected){
+        const bw=54, bh=18, bx=px+pw-bw-5, by=rosterY-bh/2;
+        rr(g,bx,by,bw,bh,4);
+        g.fillStyle=p.ready?'#27ae60':'#d35400'; g.fill();
+        ptxt(p.ready?'READY':'NOT RDY', bx+bw/2, by+bh/2+1, FN(9,900), '#ffffff');
+      } else {
+        zone(px, rosterY-ph/2, pw, ph, {fn:()=>netCopyLink()});
+      }
+    }
+  }
+
+  // Player cards
   const rects=slotCardRects();
   for(let i=0;i<4;i++){
     const r=rects[i],col=menu.slotColor[i];
-    const padHere=!!PAD[i];
-    const locked=false; // all 4 slots playable via controller now; still allow touch but not locked off
-    rr(g,r.x-4,r.y-4,r.w+8,r.h+8,12);
-    g.fillStyle='#ffffff';g.fill();g.lineWidth=4;g.strokeStyle=INK;g.stroke();
-    rr(g,r.x,r.y,r.w,r.h,8);
-    g.fillStyle=col>=0?PALETTE[col].c:(padHere?'#2a3548':'#25303f');
-    g.fill();
-    g.lineWidth=3;g.strokeStyle=col>=0?INK:'rgba(255,255,255,0.25)';g.stroke();
-    const cx=r.x+r.w/2,cy=r.y+r.h/2;
-    if(col>=0){
-      // Active: vivid fill + controller glyph overlaid + chevrons + binding label that shows real input
-      const isPad=!!PAD[i];
-      const label=isPad?'⦾ PAD':SLOTS[i].label;
-      g.save();g.globalAlpha=0.62;
-      padGlyph(cx,cy-12,r.w*0.18,true);
-      g.restore();
-      ptxt(label,cx,cy+12,FN(Math.min(14,r.w*0.10),900),'#ffffff');
-      txt('◀   ▶',cx,r.y+r.h-16,FN(Math.min(16,r.w*0.12),900),'rgba(255,255,255,0.85)');
-    }else if(padHere){
-      padGlyph(cx,cy-6,r.w*0.20,true);
-      txt('◀   ▶',cx,r.y+r.h-16,FN(Math.min(16,r.w*0.12),900),'rgba(255,255,255,0.85)');
-    }else{
-      ptxt(SLOTS[i].label,cx,cy-4,FN(Math.min(20,r.w*0.14),900),'#cfe9c9');
-      txt('◀   ▶',cx,r.y+r.h-16,FN(Math.min(16,r.w*0.12),900),'rgba(255,255,255,0.7)');
-    }
-    if(!locked){
+    const isOnline=(typeof NET!=='undefined'&&NET&&NET.role!==null);
+    if(isOnline){
+      const isMySlot=(i===NET.mySlot);
+      const isConn=(i===0?true:(NET.isHost?NET.hostInputs.has(i):col>=0));
+      rr(g,r.x-4,r.y-4,r.w+8,r.h+8,12);
+      g.fillStyle='#ffffff';g.fill();g.lineWidth=4;g.strokeStyle=INK;g.stroke();
+      rr(g,r.x,r.y,r.w,r.h,8);
+      g.fillStyle=isConn?(col>=0?PALETTE[col].c:'#25303f'):'#182030';
+      g.fill();
+      g.lineWidth=3;g.strokeStyle=isConn?(col>=0?INK:'rgba(255,255,255,0.25)'):'rgba(255,255,255,0.15)';g.stroke();
+      const cx=r.x+r.w/2;
+      if(isConn){
+        // Header
+        const who=(i===0?'P1 HOST':('P'+(i+1)+' GUEST'))+(isMySlot?' (YOU)':'');
+        ptxt(who,cx,r.y+14,FN(Math.min(12,r.w*0.095),900),'#ffffff');
+        
+        // Middle: Avatar + Color cycle
+        const avY=r.y+r.h*0.42;
+        drawChar(g,cx,avY,Math.min(32,r.w*0.25),PALETTE[col>=0?col:i].c,{face:'happy',grounded:true,seed:i});
+        if(isMySlot){
+          txt('◀',r.x+12,avY+2,FN(14,900),'rgba(255,255,255,0.9)');
+          txt('▶',r.x+r.w-12,avY+2,FN(14,900),'rgba(255,255,255,0.9)');
+          zone(r.x,r.y+24,r.w*0.4,r.h*0.35,{fn:()=>{
+            if(NET.isHost){ cycleSlot(i,-1); netBroadcastSettings(); netBroadcastRoster(); }
+            else netCycleMyColor(-1);
+          }});
+          zone(r.x+r.w*0.6,r.y+24,r.w*0.4,r.h*0.35,{fn:()=>{
+            if(NET.isHost){ cycleSlot(i,1); netBroadcastSettings(); netBroadcastRoster(); }
+            else netCycleMyColor(1);
+          }});
+        }
+
+        // Control Scheme Toggle
+        const btnW=r.w-16, btnH=22, btnY=r.y+r.h-50;
+        rr(g,cx-btnW/2,btnY,btnW,btnH,5);
+        g.fillStyle='rgba(0,0,0,0.5)';g.fill();
+        g.lineWidth=1.5;g.strokeStyle=isMySlot?'#ffffff':'rgba(255,255,255,0.3)';g.stroke();
+        const ctrlLbl=(NET.slotsCtrl[i]||'WASD')+(isMySlot?' ▾':'');
+        ptxt('🎮 '+ctrlLbl,cx,btnY+btnH/2+1,FN(Math.min(10.5,r.w*0.088),900),'#ffffff');
+        if(isMySlot){
+          zone(cx-btnW/2,btnY,btnW,btnH,{fn:()=>netCycleMyControl()});
+        }
+
+        // Ready Toggle Button
+        const rdyW=r.w-16, rdyH=22, rdyY=r.y+r.h-25;
+        const isRdy=NET.slotsReady[i];
+        const rdyCol=isRdy?'#27ae60':(isMySlot?'#e67e22':'rgba(0,0,0,0.45)');
+        rr(g,cx-rdyW/2,rdyY,rdyW,rdyH,5);
+        g.fillStyle=rdyCol;g.fill();
+        g.lineWidth=1.5;g.strokeStyle=isRdy?'#2ecc71':'rgba(255,255,255,0.3)';g.stroke();
+        const rdyTxt=isRdy?'READY ✓':(isMySlot?'CLICK READY':'NOT READY');
+        ptxt(rdyTxt,cx,rdyY+rdyH/2+1,FN(Math.min(10,r.w*0.085),900),'#ffffff');
+        if(isMySlot){
+          zone(cx-rdyW/2,rdyY,rdyW,rdyH,{fn:()=>netToggleMyReady()});
+        }
+      } else {
+        ptxt('P'+(i+1)+' EMPTY',cx,r.y+18,FN(11,800),'#718096');
+        ptxt('WAITING…',cx,r.y+r.h*0.42,FN(12,800),'#50607a');
+        const shW=r.w-16, shH=26, shY=r.y+r.h-34;
+        rr(g,cx-shW/2,shY,shW,shH,6);
+        g.fillStyle='rgba(44,110,63,0.35)';g.fill();
+        g.lineWidth=1.5;g.strokeStyle='#2ecc71';g.stroke();
+        ptxt('📋 INVITE',cx,shY+shH/2+1,FN(10.5,900),'#8ef0b0');
+        zone(r.x,r.y,r.w,r.h,{fn:()=>netCopyLink()});
+      }
+    } else {
+      // Offline original card rendering
+      const padHere=!!PAD[i];
+      rr(g,r.x-4,r.y-4,r.w+8,r.h+8,12);
+      g.fillStyle='#ffffff';g.fill();g.lineWidth=4;g.strokeStyle=INK;g.stroke();
+      rr(g,r.x,r.y,r.w,r.h,8);
+      g.fillStyle=col>=0?PALETTE[col].c:(padHere?'#2a3548':'#25303f');
+      g.fill();
+      g.lineWidth=3;g.strokeStyle=col>=0?INK:'rgba(255,255,255,0.25)';g.stroke();
+      const cx=r.x+r.w/2,cy=r.y+r.h/2;
+      if(col>=0){
+        const isPad=!!PAD[i];
+        const label=isPad?'⦾ PAD':SLOTS[i].label;
+        g.save();g.globalAlpha=0.62;
+        padGlyph(cx,cy-12,r.w*0.18,true);
+        g.restore();
+        ptxt(label,cx,cy+12,FN(Math.min(14,r.w*0.10),900),'#ffffff');
+        txt('◀   ▶',cx,r.y+r.h-16,FN(Math.min(16,r.w*0.12),900),'rgba(255,255,255,0.85)');
+      }else if(padHere){
+        padGlyph(cx,cy-6,r.w*0.20,true);
+        txt('◀   ▶',cx,r.y+r.h-16,FN(Math.min(16,r.w*0.12),900),'rgba(255,255,255,0.85)');
+      }else{
+        ptxt(SLOTS[i].label,cx,cy-4,FN(Math.min(20,r.w*0.14),900),'#cfe9c9');
+        txt('◀   ▶',cx,r.y+r.h-16,FN(Math.min(16,r.w*0.12),900),'rgba(255,255,255,0.7)');
+      }
       zone(r.x-4,r.y-4,r.w*0.4+4,r.h+8,{fn:()=>cycleSlot(i,-1)});
       zone(r.x+r.w*0.6,r.y-4,r.w*0.4+4,r.h+8,{fn:()=>cycleSlot(i,1)});
     }
   }
-  const ry0=CH*0.52,step=CH*0.075;
+
+  // Menu Options Rows
+  const ry0=CH*0.55,step=CH*0.072;
   for(let i=0;i<ROWS.length;i++){
     const y=ry0+i*step;
     const hl=(menu.mode==='rows'&&menu.row===i);
@@ -1715,19 +1914,70 @@ function drawMenu(){
     g.save();
     g.translate(CW/2,y);g.scale(sc,sc);
     let s='';
-    if(i===0)s='CHANGE PLAYERS  '+activeSlots().length+'P';
-    else if(i===1)s='MAP:  ‹  '+(settings.map+1)+'. '+MAPS[settings.map].name+'  ›';
-    else if(i===2)s='TIMER:  ‹  '+settings.time+'s  ›';
-    else if(i===3)s='‹  '+RULE_NAMES[menu.rule]+': '+(ruleValue()?'ON':'OFF')+'  ›';
-    else s=activeSlots().length<2?'START MATCH (MIN 2 PLAYERS)':'START MATCH';
-    const rowCol=hl?(i===4&&activeSlots().length<2?'#ff7777':'#ffffff'):(i===4&&activeSlots().length<2?'#884444':'#c8d8e8');
+    let rowCol=hl?'#ffffff':'#c8d8e8';
+    
+    if(typeof NET!=='undefined' && NET && NET.role!==null){
+      const act=activeSlots();
+      const readyCount=act.filter(s=>NET.slotsReady[s]).length;
+      const allReady=(act.length>=2)&&(readyCount===act.length);
+
+      if(i===0)s='PLAYERS (ONLINE ROSTER):  '+act.length+'/4 CONNECTED';
+      else if(i===1)s='MAP:  ‹  '+(settings.map+1)+'. '+MAPS[settings.map].name+'  ›';
+      else if(i===2)s='TIMER:  ‹  '+settings.time+'s  ›';
+      else if(i===3)s='‹  '+RULE_NAMES[menu.rule]+': '+(ruleValue()?'ON':'OFF')+'  ›';
+      else {
+        if(NET.isHost){
+          if(act.length<2){
+            s='WAITING FOR FRIEND TO JOIN (CLICK TO COPY LINK)';
+            rowCol='#8899aa';
+          } else if(allReady){
+            s='▶ START MATCH (ALL READY!)';
+            rowCol='#00ff88';
+          } else {
+            s='WAITING FOR READY ('+readyCount+'/'+act.length+')';
+            rowCol='#f39c12';
+          }
+        } else {
+          if(allReady){
+            s='ALL READY! WAITING FOR HOST TO START…';
+            rowCol='#2ecc71';
+          } else {
+            s='CLICK READY ON YOUR CARD ('+readyCount+'/'+act.length+' READY)';
+            rowCol='#f39c12';
+          }
+        }
+      }
+    } else {
+      // Offline mode
+      if(i===0)s='CHANGE PLAYERS  '+activeSlots().length+'P';
+      else if(i===1)s='MAP:  ‹  '+(settings.map+1)+'. '+MAPS[settings.map].name+'  ›';
+      else if(i===2)s='TIMER:  ‹  '+settings.time+'s  ›';
+      else if(i===3)s='‹  '+RULE_NAMES[menu.rule]+': '+(ruleValue()?'ON':'OFF')+'  ›';
+      else s=activeSlots().length<2?'START MATCH (MIN 2 PLAYERS)':'START MATCH';
+      rowCol=hl?(i===4&&activeSlots().length<2?'#ff7777':'#ffffff'):(i===4&&activeSlots().length<2?'#884444':'#c8d8e8');
+    }
     ptxt(s,0,0,i===4?FT(fs+2):FN(fs,900),rowCol);
     g.restore();
-    const tw2=CW*0.56;
+    const tw2=CW*0.62;
     zone(CW/2-tw2/2,y-step*0.45,tw2,step*0.9,{fn:()=>{
       if(menu.mode==='slots')return;
-      if(i===0){menu.mode='slots';sfx('ok');}
+      if(i===0){
+        if(typeof NET!=='undefined' && NET && NET.role!==null){
+          if(NET.isHost && activeSlots().length<2) netCopyLink();
+          return;
+        }
+        menu.mode='slots';sfx('ok');
+      }
       else if(i===4){
+        if(typeof NET!=='undefined' && NET && NET.role!==null){
+          if(!NET.isHost){ toast('HOST STARTS THE MATCH ONCE ALL ARE READY'); return; }
+          const act=activeSlots();
+          if(act.length<2){ netCopyLink(); netToast('Invite link copied! Send it to your friend.'); return; }
+          const allReady=act.every(s=>NET.slotsReady[s]);
+          if(!allReady){ toast('WAITING FOR ALL PLAYERS TO HIT READY!'); sfx('back'); return; }
+          sfx('go'); startMatch();
+          return;
+        }
         if(activeSlots().length<2){
           menu.mode='slots';
           menu.row=0;
@@ -2010,423 +2260,660 @@ function drawGame(){
   else if(isTouch&&match.players.length===2)drawTouchButtons();
 }
 
-/* ================= netplay (host-authoritative P2P, free for <=10) ================= */
-/* Protocol: host runs physics at fixed 60Hz and broadcasts STATE 20/s.
-   Guests send INPUT 30/s (dir+edge+hold) with seq, interpolate host STATE. */
-const NET={peer:null,conns:new Map(),role:null,room:'',myId:'',mySlot:-1,isHost:false,
-  tick:0,seq:0,hostInputs:new Map(),guestPrev:null,guestNext:null,lastRecvT:0,
-  last3:[], _startLock:0, _guestTimeout:null};
-function netToast(m){const t=document.getElementById('netToast');if(!t)return;t.textContent=m;t.style.display='block';clearTimeout(t._h);t._h=setTimeout(()=>t.style.display='none',2200);}
-function netStatus(m){const el=document.getElementById('netStatus');if(el)el.textContent=m||'';}
-function netRoster(){
-  const el=document.getElementById('netRoster');if(!el)return;
-  if(NET.role===null){el.textContent='';return;}
-  const n=match?match.players.length:activeSlots().length;
-  el.textContent=(NET.isHost?'Host • ':'Guest • ')+NET.room.toUpperCase()+' • '+n+' player'+(n!==1?'s':'')+' • up to 4 + spectators';
+/* ================= netplay (host-authoritative P2P) ================= */
+const CTRL_SCHEMES = ['WASD', 'Arrows', 'IJKL', 'TFGH', 'Controller'];
+
+const NET = {
+  peer: null,
+  conns: new Map(), // peerId -> conn
+  role: null, // 'host' | 'guest' | null
+  room: '',
+  myId: '',
+  mySlot: -1,
+  isHost: false,
+  myCtrl: 'WASD',
+  slotsCtrl: ['WASD', 'Arrows', 'IJKL', 'TFGH'],
+  slotsReady: [false, false, false, false],
+  tick: 0,
+  seq: 0,
+  hostInputs: new Map(),
+  guestPrev: null,
+  guestNext: null,
+  lastRecvT: 0,
+  last3: [],
+  _startLock: 0,
+  _guestTimeout: null
+};
+
+function netToast(m){
+  toast(m);
+  const t = document.getElementById('netToast');
+  if(!t) return;
+  t.textContent = m;
+  t.style.display = 'block';
+  clearTimeout(t._h);
+  t._h = setTimeout(() => { t.style.display = 'none'; }, 2800);
 }
-function netShow(on){const el=document.getElementById('netUI');if(el)el.classList.toggle('on',!!on);}
+
+function netShow(on){
+  const el = document.getElementById('netUI');
+  if(el) el.classList.toggle('on', !!on);
+}
+
 function netLink(room){
-  // Edge: when served as /tag-netplay (no trailing slash, no file) the old
-  // replace(/\/[^\/]*$/,'/') would return "/" and drop the prefix. Handle
-  // file vs directory vs bare prefix explicitly.
-  let p=location.pathname;
-  if(p.endsWith('/')){ /* keep as-is */ }
-  else if(/\/[^\/]+\.[a-z]+$/i.test(p)) p=p.replace(/\/[^\/]*$/,'/');
-  else p=p+'/';
-  const base=location.origin+p;
-  return base+'?room='+room.toUpperCase();
+  let p = location.pathname;
+  if(p.endsWith('/')){ /* keep */ }
+  else if(/\/[^\/]+\.[a-z]+$/i.test(p)) p = p.replace(/\/[^\/]*$/, '/');
+  else p = p + '/';
+  return location.origin + p + '?room=' + room.toUpperCase();
 }
-function netMakeCode(){const a='ABCDEFGHJKMNPQRSTUVWXYZ23456789';let s='';for(let i=0;i<6;i++)s+=a[Math.floor(Math.random()*a.length)];return s;}
-function netDisableGameInput(){return NET.role!==null && !NET.isHost;}
-/* Input shim: guests replace per-slot input via NET.hostInputs; offline path untouched. */
-const _inputFor=inputFor;
-function inputForNet(p){
-  if(NET.role!==null){
-    if(NET.isHost){
-      const slot=p.slot;
-      if(slot===NET.mySlot || slot===0) return _inputFor(p); // host's own slot uses local input
-      const ext=NET.hostInputs.get(slot);
-      if(ext){
-        const out={dir:ext.dir,jumpEdge:!!ext.consumeEdge, jumpHeld:!!ext.jumpHeld, downHeld:!!ext.downHeld};
-        if(ext.consumeEdge) ext.consumeEdge=false;
-        return {dir:clamp(out.dir,-1,1),jumpEdge:out.jumpEdge,jumpHeld:out.jumpHeld,downHeld:out.downHeld};
+
+function netCopyLink(){
+  const l = netLink(NET.room);
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(l).then(() => netToast('Invite link copied! Send it to your friend.')).catch(() => prompt('Copy invite link:', l));
+  } else {
+    prompt('Copy invite link:', l);
+  }
+}
+
+function netMakeCode(){
+  const a = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  let s = '';
+  for(let i=0; i<6; i++) s += a[Math.floor(Math.random() * a.length)];
+  return s;
+}
+
+/* Sample controls based on player's chosen scheme */
+function sampleControls(scheme){
+  let dir = 0, jumpEdge = false, jumpHeld = false, downHeld = false;
+  if(scheme === 'WASD'){
+    const L = keys.has('KeyA') || keys.has('KeyQ');
+    const R = keys.has('KeyD');
+    dir = (R ? 1 : 0) - (L ? 1 : 0);
+    jumpEdge = pressed.has('KeyW') || pressed.has('Space');
+    jumpHeld = keys.has('KeyW') || keys.has('Space');
+    downHeld = keys.has('KeyS');
+  } else if(scheme === 'Arrows'){
+    const L = keys.has('ArrowLeft');
+    const R = keys.has('ArrowRight');
+    dir = (R ? 1 : 0) - (L ? 1 : 0);
+    jumpEdge = pressed.has('ArrowUp') || pressed.has('Space');
+    jumpHeld = keys.has('ArrowUp') || keys.has('Space');
+    downHeld = keys.has('ArrowDown');
+  } else if(scheme === 'IJKL'){
+    const L = keys.has('KeyJ');
+    const R = keys.has('KeyL');
+    dir = (R ? 1 : 0) - (L ? 1 : 0);
+    jumpEdge = pressed.has('KeyI');
+    jumpHeld = keys.has('KeyI');
+    downHeld = keys.has('KeyK');
+  } else if(scheme === 'TFGH'){
+    const L = keys.has('KeyF');
+    const R = keys.has('KeyH');
+    dir = (R ? 1 : 0) - (L ? 1 : 0);
+    jumpEdge = pressed.has('KeyT');
+    jumpHeld = keys.has('KeyT');
+    downHeld = keys.has('KeyG');
+  } else if(scheme === 'Controller'){
+    for(let pi=0; pi<4; pi++){
+      const pd = PAD[pi];
+      if(pd && pd.connected){
+        dir = (pd.right ? 1 : 0) - (pd.left ? 1 : 0);
+        jumpEdge = pd.jumpE;
+        jumpHeld = pd.jumpHeld;
+        downHeld = pd.dropHeld;
+        break;
       }
-      return {dir:0,jumpEdge:false,jumpHeld:false,downHeld:false};
+    }
+  }
+  // Allow connected controller to drive any scheme seamlessly
+  for(let pi=0; pi<4; pi++){
+    const pd = PAD[pi];
+    if(pd && pd.connected){
+      if(pd.left) dir = -1;
+      if(pd.right) dir = 1;
+      if(pd.jumpE) jumpEdge = true;
+      if(pd.jumpHeld) jumpHeld = true;
+      if(pd.dropHeld) downHeld = true;
+      break;
+    }
+  }
+  return { dir: clamp(dir, -1, 1), jumpEdge: !!jumpEdge, jumpHeld: !!jumpHeld, downHeld: !!downHeld };
+}
+
+/* Input shim: host runs local input for slot 0 (or its own slot); guest inputs are buffered */
+const _inputFor = inputFor;
+function inputForNet(p){
+  if(NET.role !== null){
+    if(NET.isHost){
+      const slot = p.slot;
+      if(slot === NET.mySlot || slot === 0){
+        return sampleControls(NET.myCtrl || 'WASD');
+      }
+      const ext = NET.hostInputs.get(slot);
+      if(ext){
+        const out = { dir: ext.dir, jumpEdge: !!ext.consumeEdge, jumpHeld: !!ext.jumpHeld, downHeld: !!ext.downHeld };
+        if(ext.consumeEdge) ext.consumeEdge = false;
+        return { dir: clamp(out.dir, -1, 1), jumpEdge: out.jumpEdge, jumpHeld: out.jumpHeld, downHeld: out.downHeld };
+      }
+      return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
     } else {
-      if(p.slot===NET.mySlot) return _inputFor(p);
-      return {dir:0,jumpEdge:false,jumpHeld:false,downHeld:false};
+      if(p.slot === NET.mySlot){
+        return sampleControls(NET.myCtrl || 'WASD');
+      }
+      return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
     }
   }
   return _inputFor(p);
 }
-// Patch inputFor globally
-inputFor=inputForNet;
+inputFor = inputForNet;
 
-/* PeerJS setup — explicit STUN; TURN fallback requires paid relay (known limit) */
+/* PeerJS connect */
 function netConnectPeer(room, isHost){
-  const id='tag-'+room.toLowerCase()+(isHost?'-host':'-g'+Math.floor(Math.random()*1e6));
-  // Explicit STUN config: PeerJS default already includes Google STUN, but we
-  // make it explicit for QA visibility. No TURN relay (needs paid server/cache).
-  NET.peer=new Peer(id,{debug:0,config:{iceServers:[{urls:'stun:stun.l.google.com:19302'}]}});
-  NET.peer.on('open',id2=>{
-    NET.myId=id2;
+  if(NET.peer){
+    try{ NET.peer.destroy(); }catch(e){}
+    NET.peer = null;
+  }
+  const cleanRoom = room.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 6);
+  const id = 'tag-' + cleanRoom + (isHost ? '-host' : '-g' + Math.floor(Math.random() * 1e6));
+  NET.peer = new Peer(id, { debug: 0, config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] } });
+  
+  NET.peer.on('open', id2 => {
+    NET.myId = id2;
     if(isHost){
-      NET.peer.on('connection',c=>netWireConn(c,true));
-      netStatus('Room '+room.toUpperCase()+' — share the link.');
-      netRoster();
-      // broadcast settings + map data so guests see same arena
-      setTimeout(()=>netBroadcastSettings(),400);
-    }else{
-      const conn=NET.peer.connect('tag-'+room.toLowerCase()+'-host',{reliable:true});
-      conn.on('open',()=>{
-        if(NET._guestTimeout){ clearTimeout(NET._guestTimeout); NET._guestTimeout=null; }
-        netWireConn(conn,false);
-      });
-      conn.on('error',()=>netStatus('Could not reach host. Try again or check code.'));
-      // timeout if not open — cleared on conn open
-      NET._guestTimeout=setTimeout(()=>{if(!NET.conns.has(conn.peer)) netStatus('Host not found. Check the 6-letter code.');},4000);
+      NET.peer.on('connection', c => netWireConn(c, true));
+      netToast('Hosting room ' + room.toUpperCase() + '! Link copied.');
+      setTimeout(() => { netBroadcastSettings(); netBroadcastRoster(); }, 400);
+    } else {
+      const conn = NET.peer.connect('tag-' + cleanRoom + '-host', { reliable: true });
+      netWireConn(conn, false);
+      NET._guestTimeout = setTimeout(() => {
+        if(!NET.conns.has(conn.peer)){
+          netToast('Could not find host. Check the room code.');
+        }
+      }, 7000);
     }
   });
-  NET.peer.on('error',e=>{
-    const t=String(e.type||e.message||'error');
-    const low=t.toLowerCase();
-    if(low.includes('peer-unavailable')){
-      netStatus('Room not found. Ask host to regenerate the link.');
-      netToast('If this fails on school/work WiFi, try mobile data - direct connection blocked.');
-    } else if(low.includes('unavailable-id')) netStatus('That room is taken. Pick a different code.');
-    else netStatus('Connection hiccup: '+t.slice(0,60));
+
+  NET.peer.on('error', e => {
+    const t = String(e.type || e.message || 'error').toLowerCase();
+    if(t.includes('peer-unavailable')){
+      netToast('Host not found. Room may be closed.');
+    } else if(t.includes('unavailable-id')){
+      netToast('Room code already in use. Please try again.');
+    } else {
+      netToast('Network: ' + t.slice(0, 50));
+    }
   });
-  NET.peer.on('disconnected',()=>{ netStatus('Reconnecting...'); try{NET.peer.reconnect();}catch(e){ netToast('Connection lost. Refresh to rejoin.'); }});
-  NET.peer.on('close',()=>{ netToast('Session ended'); NET.role=null; netShow(true); });
+
+  NET.peer.on('disconnected', () => {
+    try{ NET.peer.reconnect(); }catch(e){}
+  });
+
+  NET.peer.on('close', () => {
+    netToast('Online session ended');
+    netLeaveRoom();
+  });
 }
-function netWireConn(conn,isHostSide){
-  conn.on('open',()=>{
-    if(NET._guestTimeout){ clearTimeout(NET._guestTimeout); NET._guestTimeout=null; }
-    NET.conns.set(conn.peer,conn);
+
+function netWireConn(conn, isHostSide){
+  const onReady = () => {
+    if(NET._guestTimeout){ clearTimeout(NET._guestTimeout); NET._guestTimeout = null; }
+    NET.conns.set(conn.peer, conn);
     if(!isHostSide){
-      // guest: tell host which slot we want (first free)
-      const want=activeSlots().length<4?4: -1;
-      conn.send({t:'hello',wantSlot:want});
+      conn.send({ t: 'hello', ctrl: NET.myCtrl || 'Arrows' });
+      netToast('Connected to host! Syncing menu…');
+    } else {
+      netToast('Guest connected!');
     }
-    netStatus(NET.isHost?NET.conns.size+' guest(s) connected':'Connected to host');
-    netRoster();
-  });
-  conn.on('data',d=>netOnData(d,conn));
-  conn.on('close',()=>{
+  };
+
+  if(conn.open){
+    onReady();
+  } else {
+    conn.on('open', onReady);
+  }
+
+  conn.on('data', d => netOnData(d, conn));
+
+  conn.on('close', () => {
     NET.conns.delete(conn.peer);
-    // host: free slot for that peer + reset colour to avoid leak
     if(NET.isHost){
-      for(let i=0;i<4;i++){
-        const ent=NET.hostInputs.get(i);
-        if(ent && ent.owner===conn.peer){ NET.hostInputs.delete(i); menu.slotColor[i]=-1; break; }
+      for(let i=1; i<4; i++){
+        const ent = NET.hostInputs.get(i);
+        if(ent && ent.owner === conn.peer){
+          NET.hostInputs.delete(i);
+          menu.slotColor[i] = -1;
+          NET.slotsReady[i] = false;
+          break;
+        }
       }
       netBroadcastSettings();
-      netRoster();
+      netBroadcastRoster();
+      netToast('A player left the room');
     } else {
-      // guest cleanup
-      netRoster();
+      netToast('Host left. Room closed.');
+      netLeaveRoom();
     }
-    netStatus(NET.isHost?NET.conns.size+' guest(s)':'' );
-    netRoster();
-    if(!NET.isHost && NET.conns.size===0){netToast('Host left. Room closed.'); setTimeout(()=>{NET.role=null;netShow(true);},800);}
   });
+
+  conn.on('error', () => {});
 }
-function netOnData(m,c){
-  if(!m||!m.t) return;
-  if(m.t==='hello' && NET.isHost){
-    // assign slot: host is slot 0, guests fill slots 1, 2, 3
-    let slot=-1;
-    for(let i=1;i<4;i++){
-      if(!NET.hostInputs.has(i) && menu.slotColor[i]===-1){
-        slot=i;
+
+function netOnData(m, c){
+  if(!m || !m.t) return;
+  if(m.t === 'hello' && NET.isHost){
+    let slot = -1;
+    for(let i=1; i<4; i++){
+      if(!NET.hostInputs.has(i) && menu.slotColor[i] === -1){
+        slot = i;
         break;
       }
     }
-    if(slot===-1){ // full
-      c.send({t:'full'});
+    if(slot === -1){
+      c.send({ t: 'full' });
       return;
     }
-    NET.hostInputs.set(slot,{dir:0,jumpEdge:false,jumpHeld:false,downHeld:false,consumeEdge:false,owner:c.peer,seq:0});
-    // pick first free colour
-    const taken=menu.slotColor.filter(v=>v>=0);
-    let pick=-1;for(let pi=0;pi<PALETTE.length;pi++){if(!taken.includes(pi)){pick=pi;break;}}
-    if(pick===-1) pick=slot%PALETTE.length;
-    menu.slotColor[slot]=pick;
+    NET.hostInputs.set(slot, { dir:0, jumpEdge:false, jumpHeld:false, downHeld:false, consumeEdge:false, owner: c.peer, seq: 0 });
+    NET.slotsCtrl[slot] = m.ctrl || 'Arrows';
+    NET.slotsReady[slot] = false;
 
-    c.send({t:'assign',slot:slot,settings:{map:settings.map,doubleJump:settings.doubleJump,collision:settings.collision,slotColor:menu.slotColor.slice()},mapData:MAPS[settings.map%MAPS.length]});
+    // Pick first available color
+    const taken = menu.slotColor.filter(v => v >= 0);
+    let pick = -1;
+    for(let pi=0; pi<PALETTE.length; pi++){
+      if(!taken.includes(pi)){ pick = pi; break; }
+    }
+    if(pick === -1) pick = slot % PALETTE.length;
+    menu.slotColor[slot] = pick;
+
+    c.send({
+      t: 'assign',
+      slot: slot,
+      settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, slotColor: menu.slotColor.slice() },
+      mapData: MAPS[settings.map % MAPS.length],
+      slotsCtrl: NET.slotsCtrl.slice(),
+      slotsReady: NET.slotsReady.slice()
+    });
+
     netBroadcastSettings();
-    netRoster();
-    // if match already running, re-launch so guest spawns into arena
-    if(match && screen==='game'){
+    netBroadcastRoster();
+    netToast('Player joined as P' + (slot + 1));
+    if(match && screen === 'game'){
       startMatch();
     }
-    netToast('Player joined as P'+(slot+1));
-  } else if(m.t==='assign' && !NET.isHost){
-    NET.mySlot=m.slot;
-    // apply host settings + map data
+  } else if(m.t === 'assign' && !NET.isHost){
+    NET.mySlot = m.slot;
     if(m.settings){
-      settings.map=m.settings.map|0; settings.doubleJump=!!m.settings.doubleJump; settings.collision=!!m.settings.collision;
-      menu.slotColor=m.settings.slotColor.slice(0,4);
-      buildLevel();
+      settings.map = m.settings.map | 0;
+      settings.doubleJump = !!m.settings.doubleJump;
+      settings.collision = !!m.settings.collision;
+      menu.slotColor = m.settings.slotColor.slice(0, 4);
     }
-    if(m.mapData){
-      // overwrite that map index so host and guest see same platforms
-      MAPS[settings.map%MAPS.length]=m.mapData;
-      buildLevel();
-    }
-    netStatus('Joined as P'+(m.slot+1)+' — waiting for host to start');
-    netRoster();
-  } else if(m.t==='settings' && !NET.isHost){
-    // host rebroadcast when settings change
-    if(m.mapData) MAPS[settings.map%MAPS.length]=m.mapData;
-    settings.map=m.settings.map|0; settings.doubleJump=!!m.settings.doubleJump; settings.collision=!!m.settings.collision;
-    menu.slotColor=m.settings.slotColor.slice(0,4);
+    if(m.mapData) MAPS[settings.map % MAPS.length] = m.mapData;
+    if(m.slotsCtrl) NET.slotsCtrl = m.slotsCtrl.slice();
+    if(m.slotsReady) NET.slotsReady = m.slotsReady.slice();
     buildLevel();
-    netRoster();
-  } else if(m.t==='input' && NET.isHost){
-    // guest input for its slot — supports triple-resend (m.inputs = last 3)
-    const ent=NET.hostInputs.get(m.slot);
-    if(!ent || ent.owner!==c.peer) return;
+    netShow(false);
+    netToast('Connected as P' + (m.slot + 1) + '! Pick controls & click Ready.');
+  } else if(m.t === 'roster_sync'){
+    if(m.slotsCtrl) NET.slotsCtrl = m.slotsCtrl.slice();
+    if(m.slotsReady) NET.slotsReady = m.slotsReady.slice();
+    if(m.slotColor){
+      menu.slotColor = m.slotColor.slice(0, 4);
+      buildLevel();
+    }
+  } else if(m.t === 'ready'){
+    if(NET.isHost){
+      if(m.slot >= 0 && m.slot < 4){
+        NET.slotsReady[m.slot] = !!m.ready;
+        netBroadcastRoster();
+      }
+    }
+  } else if(m.t === 'ctrl'){
+    if(NET.isHost){
+      if(m.slot >= 0 && m.slot < 4 && m.ctrl){
+        NET.slotsCtrl[m.slot] = m.ctrl;
+        netBroadcastRoster();
+      }
+    }
+  } else if(m.t === 'color'){
+    if(NET.isHost){
+      if(m.slot >= 0 && m.slot < 4 && m.color >= 0){
+        menu.slotColor[m.slot] = m.color;
+        buildLevel();
+        netBroadcastSettings();
+        netBroadcastRoster();
+      }
+    }
+  } else if(m.t === 'settings' && !NET.isHost){
+    if(m.mapData) MAPS[settings.map % MAPS.length] = m.mapData;
+    settings.map = m.settings.map | 0;
+    settings.doubleJump = !!m.settings.doubleJump;
+    settings.collision = !!m.settings.collision;
+    menu.slotColor = m.settings.slotColor.slice(0, 4);
+    buildLevel();
+  } else if(m.t === 'input' && NET.isHost){
+    const ent = NET.hostInputs.get(m.slot);
+    if(!ent || ent.owner !== c.peer) return;
     if(m.inputs && Array.isArray(m.inputs)){
       for(const inp of m.inputs){
-        if(!inp || inp.seq<=ent.seq) continue;
-        ent.seq=inp.seq; ent.dir=inp.dir|0; ent.jumpHeld=!!inp.jumpHeld; ent.downHeld=!!inp.downHeld;
-        if(inp.jumpEdge) ent.consumeEdge=true;
+        if(!inp || inp.seq <= ent.seq) continue;
+        ent.seq = inp.seq; ent.dir = inp.dir | 0; ent.jumpHeld = !!inp.jumpHeld; ent.downHeld = !!inp.downHeld;
+        if(inp.jumpEdge) ent.consumeEdge = true;
       }
     } else {
-      if(m.seq<=ent.seq) return;
-      ent.seq=m.seq; ent.dir=m.dir|0; ent.jumpHeld=!!m.jumpHeld; ent.downHeld=!!m.downHeld;
-      if(m.jumpEdge) ent.consumeEdge=true; // one-shot
+      if(m.seq <= ent.seq) return;
+      ent.seq = m.seq; ent.dir = m.dir | 0; ent.jumpHeld = !!m.jumpHeld; ent.downHeld = !!m.downHeld;
+      if(m.jumpEdge) ent.consumeEdge = true;
     }
-  } else if(m.t==='state' && !NET.isHost){
-    // host authoritative state
-    NET.lastRecvT=performance.now();
-    // settings sync piggyback
+  } else if(m.t === 'state' && !NET.isHost){
+    NET.lastRecvT = performance.now();
     if(m.settings){
-      settings.map=m.settings.map; settings.doubleJump=m.settings.doubleJump; settings.collision=m.settings.collision;
+      settings.map = m.settings.map; settings.doubleJump = m.settings.doubleJump; settings.collision = m.settings.collision;
     }
-    // stash for interpolation — guestPrev is a full STATE object (not a single player)
-    // 100ms delay target: lerp between prev and next so jitter is smoothed.
-    NET.guestPrev=NET.guestNext||m;
-    NET.guestNext=m;
-  } else if(m.t==='full'){
-    netStatus('Room full (4 players). You are now spectating.');
-  } else if(m.t==='start' && !NET.isHost){
-    // host says go — mirror the match bootstrap
-    // force guest to same map
-    settings.map=m.settings.map|0; settings.doubleJump=!!m.settings.doubleJump; settings.collision=!!m.settings.collision;
-    menu.slotColor=m.settings.slotColor.slice(0,4);
-    if(m.mapData) MAPS[settings.map%MAPS.length]=m.mapData;
+    NET.guestPrev = NET.guestNext || m;
+    NET.guestNext = m;
+  } else if(m.t === 'start' && !NET.isHost){
+    settings.map = m.settings.map | 0;
+    settings.doubleJump = !!m.settings.doubleJump;
+    settings.collision = !!m.settings.collision;
+    menu.slotColor = m.settings.slotColor.slice(0, 4);
+    if(m.mapData) MAPS[settings.map % MAPS.length] = m.mapData;
     buildLevel();
-    // activeSlots now includes guest slot
     startMatchNetGuest(m.payload);
-  } else if(m.t==='toast' && !NET.isHost){
-    netToast(m.msg||'');
+    netShow(false);
+  } else if(m.t === 'to_menu' && !NET.isHost){
+    match = null;
+    screen = 'menu';
+  } else if(m.t === 'full'){
+    netToast('Room is full (4 players)');
+    netLeaveRoom();
+  } else if(m.t === 'toast'){
+    netToast(m.msg || '');
   }
 }
+
 function netBroadcastSettings(){
   if(!NET.isHost) return;
-  const payload={settings:{map:settings.map,doubleJump:settings.doubleJump,collision:settings.collision,slotColor:menu.slotColor.slice()},mapData:MAPS[settings.map%MAPS.length]};
-  for(const c of NET.conns.values()){ try{c.send({t:'settings',settings:payload.settings,mapData:payload.mapData});}catch(e){} }
+  const payload = { settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, slotColor: menu.slotColor.slice() }, mapData: MAPS[settings.map % MAPS.length] };
+  for(const c of NET.conns.values()){ try{ c.send({ t: 'settings', settings: payload.settings, mapData: payload.mapData }); }catch(e){} }
 }
+
+function netBroadcastRoster(){
+  if(!NET.isHost) return;
+  const msg = {
+    t: 'roster_sync',
+    slotsCtrl: NET.slotsCtrl.slice(),
+    slotsReady: NET.slotsReady.slice(),
+    slotColor: menu.slotColor.slice()
+  };
+  for(const c of NET.conns.values()){ try{ c.send(msg); }catch(e){} }
+}
+
 function netBroadcastState(state){
-  for(const c of NET.conns.values()){ try{c.send({t:'state',...state});}catch(e){} }
+  for(const c of NET.conns.values()){ try{ c.send({ t: 'state', ...state }); }catch(e){} }
+}
+
+function netToggleMyReady(){
+  if(NET.role === null) return;
+  const mySlot = NET.mySlot;
+  if(mySlot < 0 || mySlot >= 4) return;
+  const newReady = !NET.slotsReady[mySlot];
+  NET.slotsReady[mySlot] = newReady;
+  sfx('ui');
+  if(NET.isHost){
+    netBroadcastRoster();
+  } else {
+    for(const c of NET.conns.values()){
+      try{ c.send({ t: 'ready', slot: mySlot, ready: newReady }); }catch(e){}
+    }
+  }
+}
+
+function netCycleMyControl(){
+  const curIdx = CTRL_SCHEMES.indexOf(NET.myCtrl);
+  const nextScheme = CTRL_SCHEMES[(curIdx + 1) % CTRL_SCHEMES.length];
+  NET.myCtrl = nextScheme;
+  sfx('ui');
+  const mySlot = NET.mySlot;
+  if(mySlot >= 0 && mySlot < 4){
+    NET.slotsCtrl[mySlot] = nextScheme;
+    if(NET.isHost){
+      netBroadcastRoster();
+    } else {
+      for(const c of NET.conns.values()){
+        try{ c.send({ t: 'ctrl', slot: mySlot, ctrl: nextScheme }); }catch(e){}
+      }
+    }
+  }
+}
+
+function netCycleMyColor(d){
+  if(NET.role === null || NET.isHost) return;
+  const slot = NET.mySlot;
+  if(slot < 0) return;
+  const taken = menu.slotColor.filter((c, k) => c >= 0 && k !== slot);
+  const list = PALETTE.map((p, idx) => idx).filter(idx => taken.indexOf(idx) < 0);
+  if(list.length === 0) return;
+  let cur = list.indexOf(menu.slotColor[slot]);
+  cur = (cur + d + list.length) % list.length;
+  menu.slotColor[slot] = list[cur];
+  buildLevel();
+  sfx('ui');
+  for(const c of NET.conns.values()){
+    try{ c.send({ t: 'color', slot: slot, color: list[cur] }); }catch(e){}
+  }
+}
+
+function netHostAction(){
+  const code = netMakeCode();
+  NET.role = 'host';
+  NET.isHost = true;
+  NET.room = code;
+  NET.mySlot = 0;
+  NET.myCtrl = 'WASD';
+  NET.slotsCtrl[0] = 'WASD';
+  NET.slotsReady = [false, false, false, false];
+  menu.mode = 'rows';
+  menu.slotColor = [menu.slotColor[0] >= 0 ? menu.slotColor[0] : 0, -1, -1, -1];
+  history.replaceState(null, '', '?room=' + code);
+  
+  netCopyLink();
+  netConnectPeer(code, true);
+  netShow(false);
+}
+
+function netJoinAction(codeParam){
+  let code = codeParam;
+  if(!code){
+    const el = document.getElementById('netCode');
+    if(el) el.value = '';
+    netShow(true);
+    if(el) el.focus();
+    return;
+  }
+  if(code.includes('room=')){
+    try{
+      const u = new URL(code);
+      code = u.searchParams.get('room') || '';
+    }catch(e){
+      const m = code.match(/room=([A-Za-z0-9]+)/);
+      if(m) code = m[1];
+    }
+  }
+  code = code.replace(/[^A-Za-z0-9]/g, '').slice(0, 6).toUpperCase();
+  if(code.length < 4){
+    netToast('Enter a 6-letter room code');
+    return;
+  }
+  NET.role = 'guest';
+  NET.isHost = false;
+  NET.room = code;
+  NET.mySlot = -1;
+  NET.myCtrl = 'Arrows';
+  NET.slotsReady = [false, false, false, false];
+  menu.mode = 'rows';
+  history.replaceState(null, '', '?room=' + code);
+  netShow(false);
+  netToast('Joining room ' + code + '…');
+  netConnectPeer(code, false);
+}
+
+function netLeaveRoom(){
+  if(NET.peer){
+    try{ NET.peer.destroy(); }catch(e){}
+    NET.peer = null;
+  }
+  NET.conns.clear();
+  NET.role = null;
+  NET.room = '';
+  NET.mySlot = -1;
+  NET.isHost = false;
+  NET.hostInputs.clear();
+  NET.slotsReady = [false, false, false, false];
+  menu.slotColor = [0, 2, -1, -1];
+  history.replaceState(null, '', location.pathname);
+  netShow(false);
+  netToast('Playing offline');
 }
 
 /* Match bootstrap wrappers */
 function startMatchNetGuest(p){
-  // p: host-computed payload {it,cooldownN,matchIndex,currentThemeIdx,lastStartIT}
-  // Apply authoritative host counters so rematches stay in lockstep
-  if(p.matchIndex!=null) matchIndex=p.matchIndex;
-  if(p.currentThemeIdx!=null) currentThemeIdx=p.currentThemeIdx;
-  if(p.lastStartIT!=null) lastStartIT=p.lastStartIT;
-  const act=activeSlots();
+  if(p.matchIndex != null) matchIndex = p.matchIndex;
+  if(p.currentThemeIdx != null) currentThemeIdx = p.currentThemeIdx;
+  if(p.lastStartIT != null) lastStartIT = p.lastStartIT;
+  const act = activeSlots();
   buildLevel();
-  const players=act.map((slot,i)=>makePlayer(i,slot,menu.slotColor[slot]));
-  match={state:'countdown',cd:3,cdT:0,timer:settings.time,lastTick:settings.time,it:p.it,cooldown:p.cooldownN,
-    goFlash:0,freeze:0,shake:0,flash:0,fade:0.6,tagPop:null,resultT:0,
-    tags:players.map(()=>0),hintT:7,players:players,result:null,pausedFrom:null,pauseSel:0,
-    mapToast:MAPS[settings.map%MAPS.length].name,mapToastT:2.5};
-  screen='game';
+  const players = act.map((slot, i) => makePlayer(i, slot, menu.slotColor[slot]));
+  match = {
+    state: 'countdown', cd: 3, cdT: 0, timer: settings.time, lastTick: settings.time, it: p.it, cooldown: p.cooldownN,
+    goFlash: 0, freeze: 0, shake: 0, flash: 0, fade: 0.6, tagPop: null, resultT: 0,
+    tags: players.map(() => 0), hintT: 7, players: players, result: null, pausedFrom: null, pauseSel: 0,
+    mapToast: MAPS[settings.map % MAPS.length].name, mapToastT: 2.5
+  };
+  screen = 'game';
   sfx('count');
+  netShow(false);
 }
 
-/* Host physics + net tick
-   Physics is variable dt clamped to 1/30 (0.033) — not fixed-step 60Hz — but
-   deterministic enough for 20Hz host broadcast authority. Guest never sims;
-   it interpolates host STATE and just sends input. If true fixed-step is
-   needed later use: acc+=dt; while(acc>=1/60){ physForAll(1/60); acc-=1/60; }
-   For now host broadcast includes timer/tick/cooldown so guest stays in sync. */
-let _netStateT=0,_netInputT=0;
+/* Host physics + net tick */
+let _netStateT = 0, _netInputT = 0;
 function netTick(dt){
-  if(NET.role===null) return;
+  if(NET.role === null) return;
   if(NET.isHost){
-    // send state 20/s (host authoritative: timer/tick/it/cooldown/tagPop/state/results)
-    _netStateT+=dt;
-    if(_netStateT>=0.05 && match){ // 20 Hz
-      _netStateT=0;
-      const players=match.players.map(p=>({x:p.x,y:p.y,vx:p.vx,vy:p.vy,face:p.face,sx:p.sx,sy:p.sy,landT:p.landT,tagT:p.tagT,padOn:p.padOn,blink:p.blink}));
+    // send state 20/s (host authoritative)
+    _netStateT += dt;
+    if(_netStateT >= 0.05 && match){
+      _netStateT = 0;
+      const players = match.players.map(p => ({
+        x: p.x, y: p.y, vx: p.vx, vy: p.vy, face: p.face, sx: p.sx, sy: p.sy,
+        landT: p.landT, tagT: p.tagT, padOn: p.padOn, blink: p.blink
+      }));
       netBroadcastState({
-        players:players,
-        it:match.it,
-        cooldown:match.cooldown,
-        timer:match.timer,
-        payloadTagPop:match.tagPop,
-        state:match.state,
-        cd:match.cd,
-        cdT:match.cdT,
-        goFlash:match.goFlash,
-        freeze:match.freeze,
-        shake:match.shake,
-        flash:match.flash,
-        result:match.result,
-        resultT:match.resultT,
-        tags:match.tags.slice(),
-        tick:NET.tick++,
-        settings:{map:settings.map,doubleJump:settings.doubleJump,collision:settings.collision}
+        players: players,
+        it: match.it,
+        cooldown: match.cooldown,
+        timer: match.timer,
+        payloadTagPop: match.tagPop,
+        state: match.state,
+        cd: match.cd,
+        cdT: match.cdT,
+        goFlash: match.goFlash,
+        freeze: match.freeze,
+        shake: match.shake,
+        flash: match.flash,
+        result: match.result,
+        resultT: match.resultT,
+        tags: match.tags.slice(),
+        tick: NET.tick++,
+        settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision }
       });
     }
   } else {
-    // guest: send input 30/s — spectator (slot -1) does not send
-    if(NET.mySlot===-1) return;
-    _netInputT+=dt;
-    if(_netInputT>=0.033){
-      _netInputT=0;
-      // sample local input on guest machine (WASD, Arrows, or any connected gamepad)
-      let effPd=null;
-      for(let pi=0;pi<4;pi++){
-        if(PAD[pi]&&PAD[pi].connected){ effPd=PAD[pi]; break; }
-      }
-      
-      const leftKey = keys.has('KeyA') || keys.has('ArrowLeft');
-      const rightKey = keys.has('KeyD') || keys.has('ArrowRight');
-      let dir = (rightKey ? 1 : 0) - (leftKey ? 1 : 0);
-      
-      let jumpEdge = pressed.has('KeyW') || pressed.has('ArrowUp') || pressed.has('Space');
-      let jumpHeld = keys.has('KeyW') || keys.has('ArrowUp') || keys.has('Space');
-      let downHeld = keys.has('KeyS') || keys.has('ArrowDown');
-      
-      if(effPd){
-        dir += (effPd.right ? 1 : 0) - (effPd.left ? 1 : 0);
-        jumpEdge = jumpEdge || effPd.jumpE;
-        jumpHeld = jumpHeld || effPd.jumpHeld;
-        downHeld = downHeld || effPd.dropHeld;
-      }
-      
-      const cur={dir:clamp(dir,-1,1),jumpEdge:!!jumpEdge,jumpHeld:!!jumpHeld,downHeld:!!downHeld,seq:++NET.seq};
-      NET.last3.push(cur); if(NET.last3.length>3) NET.last3.shift();
+    // guest: send input 30/s using chosen control scheme
+    if(NET.mySlot === -1) return;
+    _netInputT += dt;
+    if(_netInputT >= 0.033){
+      _netInputT = 0;
+      const inp = sampleControls(NET.myCtrl || 'WASD');
+      const cur = { dir: inp.dir, jumpEdge: inp.jumpEdge, jumpHeld: inp.jumpHeld, downHeld: inp.downHeld, seq: ++NET.seq };
+      NET.last3.push(cur);
+      if(NET.last3.length > 3) NET.last3.shift();
       for(const c of NET.conns.values()){
-        try{c.send({t:'input',slot:NET.mySlot,inputs:NET.last3.slice()});}catch(e){}
+        try{ c.send({ t: 'input', slot: NET.mySlot, inputs: NET.last3.slice() }); }catch(e){}
       }
     }
-  }
-}
-/* Guest interpolation: blend host players locally for smooth render */
-function netGuestInterpolate(){
-  if(NET.role===null || NET.isHost) return;
-  if(!match || !NET.guestNext) return;
-  const nxt=NET.guestNext, prv=NET.guestPrev && NET.guestPrev.players ? NET.guestPrev : nxt;
-  const k=0.35;
-  for(let i=0;i<match.players.length && i<nxt.players.length;i++){
-    const p=match.players[i], a=nxt.players[i];
-    p.x+=(a.x-p.x)*k; p.y+=(a.y-p.y)*k; p.vx=a.vx; p.vy=a.vy; p.face=a.face; p.sx=a.sx; p.sy=a.sy; p.landT=a.landT; p.tagT=a.tagT;
-  }
-  match.it=nxt.it; match.cooldown=nxt.cooldown; match.timer=nxt.timer;
-  
-  // Sync match state (countdown -> playing -> result)
-  if(nxt.state){
-    if(match.state!==nxt.state){
-      if(nxt.state==='playing') sfx('go');
-      if(nxt.state==='result'){ confetti(); sfx('win'); }
-    }
-    match.state=nxt.state;
-  }
-  if(nxt.cd!=null) match.cd=nxt.cd;
-  if(nxt.cdT!=null) match.cdT=nxt.cdT;
-  if(nxt.goFlash!=null) match.goFlash=nxt.goFlash;
-  if(nxt.result) match.result=nxt.result;
-  if(nxt.resultT!=null) match.resultT=nxt.resultT;
-  if(nxt.tags) match.tags=nxt.tags.slice();
-  if(nxt.shake&&nxt.shake>match.shake) match.shake=nxt.shake;
-  if(nxt.flash&&nxt.flash>match.flash) match.flash=nxt.flash;
-  
-  if(nxt.payloadTagPop){
-    if(!match.tagPop) sfx('tag');
-    match.tagPop=nxt.payloadTagPop;
   }
 }
 
-/* Lobby UI wiring */
-function netInitUI(){
-  const ui=document.getElementById('netUI'), codeEl=document.getElementById('netCode'),
-    hostBtn=document.getElementById('netHost'),joinBtn=document.getElementById('netJoin'),
-    joinGo=document.getElementById('netJoinGo'),backBtn=document.getElementById('netBack'),
-    copyBtn=document.getElementById('netCopy'),startBtn=document.getElementById('netStart'),
-    closeBtn=document.getElementById('netClose');
-  // show lobby if ?room= is present, otherwise offer it but don't block offline play
-  const qp=new URLSearchParams(location.search);
-  const roomQ=(qp.get('room')||'').replace(/[^A-Za-z0-9]/g,'').slice(0,6).toUpperCase();
-  if(roomQ){
-    codeEl.value=roomQ; codeEl.style.display='block'; document.getElementById('netJoinRow').style.display='flex';
-    netShow(true); netStatus('Ready to join '+roomQ+' — hit Join.');
-  } else {
-    // auto-show once on first load for discoverability, then allow offline close
-    netShow(true);
+/* Guest interpolation: blend host players locally for smooth render */
+function netGuestInterpolate(){
+  if(NET.role === null || NET.isHost) return;
+  if(!match || !NET.guestNext) return;
+  const nxt = NET.guestNext, prv = NET.guestPrev && NET.guestPrev.players ? NET.guestPrev : nxt;
+  const k = 0.35;
+  for(let i=0; i<match.players.length && i<nxt.players.length; i++){
+    const p = match.players[i], a = nxt.players[i];
+    p.x += (a.x - p.x) * k; p.y += (a.y - p.y) * k; p.vx = a.vx; p.vy = a.vy; p.face = a.face; p.sx = a.sx; p.sy = a.sy; p.landT = a.landT; p.tagT = a.tagT;
   }
-  hostBtn.onclick=()=>{
-    const code=netMakeCode();
-    NET.role='host'; NET.isHost=true; NET.room=code;
-    NET.mySlot=0;
-    menu.mode='rows';
-    // Host is slot 0; clear other slots so guests fill them cleanly
-    menu.slotColor=[menu.slotColor[0]>=0?menu.slotColor[0]:0, -1, -1, -1];
-    document.getElementById('netLink').textContent=netLink(code);
-    document.getElementById('netLink').style.display='block';
-    document.getElementById('netHostRow').style.display='flex';
-    document.getElementById('netRoster').style.display='block';
-    netStatus('Creating room '+code+'…');
-    netConnectPeer(code,true);
-    netRoster();
-  };
-  joinBtn.onclick=()=>{
-    codeEl.style.display='block'; document.getElementById('netJoinRow').style.display='flex';
-    codeEl.focus();
-  };
-  joinGo.onclick=()=>{
-    const code=codeEl.value.replace(/[^A-Za-z0-9]/g,'').slice(0,6).toUpperCase();
-    if(code.length<4){ netStatus('Enter a 6-letter room code.'); return; }
-    NET.role='guest'; NET.isHost=false; NET.room=code;
-    NET.mySlot=-1;
-    history.replaceState(null,'','?room='+code);
-    netStatus('Joining '+code+'…');
-    netConnectPeer(code,false);
-  };
-  backBtn.onclick=()=>{ codeEl.style.display='none'; document.getElementById('netJoinRow').style.display='none'; netStatus(''); };
-  copyBtn.onclick=()=>{
-    const t=document.getElementById('netLink').textContent;
-    if(navigator.clipboard) navigator.clipboard.writeText(t).then(()=>netToast('Invite link copied')).catch(()=>{});
-    else{prompt('Copy this link:',t);}
-  };
-  startBtn.onclick=()=>{
-    if(NET.isHost && NET.conns.size===0){
-      netToast('Waiting for at least 1 guest to join!');
-      return;
+  match.it = nxt.it; match.cooldown = nxt.cooldown; match.timer = nxt.timer;
+  
+  if(nxt.state){
+    if(match.state !== nxt.state){
+      if(nxt.state === 'playing') sfx('go');
+      if(nxt.state === 'result'){ confetti(); sfx('win'); }
     }
-    if(activeSlots().length<2){ netToast('Need at least 2 players'); return; }
-    // debounce double-start (200ms guard)
-    const now=Date.now();
-    if(now - NET._startLock < 800) return;
-    NET._startLock=now;
-    netShow(false);
-    startMatch();
-  };
-  closeBtn.onclick=()=>{
-    if(NET.role===null){ netShow(false); netToast('Playing offline'); }
-    else if(NET.isHost && NET.conns.size>0){ netToast('Hosting — guests use: '+netLink(NET.room)); netShow(false); }
-    else netShow(false);
-  };
-  // if invited via ?room=, Join should be the primary action
-  if(roomQ) joinGo.focus();
+    match.state = nxt.state;
+  }
+  if(nxt.cd != null) match.cd = nxt.cd;
+  if(nxt.cdT != null) match.cdT = nxt.cdT;
+  if(nxt.goFlash != null) match.goFlash = nxt.goFlash;
+  if(nxt.result) match.result = nxt.result;
+  if(nxt.resultT != null) match.resultT = nxt.resultT;
+  if(nxt.tags) match.tags = nxt.tags.slice();
+  if(nxt.shake && nxt.shake > match.shake) match.shake = nxt.shake;
+  if(nxt.flash && nxt.flash > match.flash) match.flash = nxt.flash;
+  
+  if(nxt.payloadTagPop){
+    if(!match.tagPop) sfx('tag');
+    match.tagPop = nxt.payloadTagPop;
+  }
+}
+
+/* Modal UI wiring */
+function netInitUI(){
+  const joinGo = document.getElementById('netJoinGo'),
+    closeBtn = document.getElementById('netClose'),
+    codeEl = document.getElementById('netCode');
+
+  if(joinGo){
+    joinGo.onclick = () => {
+      const v = codeEl ? codeEl.value.trim() : '';
+      if(v) netJoinAction(v);
+    };
+  }
+  if(closeBtn){
+    closeBtn.onclick = () => netShow(false);
+  }
+  if(codeEl){
+    codeEl.onkeydown = e => {
+      if(e.key === 'Enter'){
+        const v = codeEl.value.trim();
+        if(v) netJoinAction(v);
+      } else if(e.key === 'Escape'){
+        netShow(false);
+      }
+    };
+  }
+
+  // Check URL ?room= parameter on boot -> auto-joins immediately!
+  const qp = new URLSearchParams(location.search);
+  const roomQ = (qp.get('room') || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 6).toUpperCase();
+  if(roomQ){
+    netJoinAction(roomQ);
+  }
 }
 
 /* ================= main loop ================= */
