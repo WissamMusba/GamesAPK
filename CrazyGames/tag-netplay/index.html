@@ -375,11 +375,31 @@ const CG={
 };
 function applySdkMute(m){sdkMuted=!!m;applyEffectiveMute();}
 function applyEffectiveMute(){const eff=muted||sdkMuted;try{if(master)master.gain.value=eff?0:0.5;}catch(e){}}
-let _cgBoot=null;
+function unlockAllAudio(){
+  if(AC && AC.state === 'suspended') AC.resume().catch(()=>{});
+  if(typeof VOICE !== 'undefined' && VOICE.peers){
+    for(const entry of VOICE.peers.values()){
+      if(entry.audioEl && entry.audioEl.paused){
+        entry.audioEl.play().catch(()=>{});
+      }
+    }
+  }
+}
 
 function initAudio(){
-  if(AC){if(AC.state==='suspended')AC.resume().catch(()=>{});applyEffectiveMute();return;}
-  try{AC=new (window.AudioContext||window.webkitAudioContext)();master=AC.createGain();master.gain.value=(muted||sdkMuted)?0:0.5;master.connect(AC.destination);}catch(e){AC=null;}
+  if(AC){
+    if(AC.state==='suspended')AC.resume().catch(()=>{});
+    applyEffectiveMute();
+    unlockAllAudio();
+    return;
+  }
+  try{
+    AC=new (window.AudioContext||window.webkitAudioContext)();
+    master=AC.createGain();
+    master.gain.value=(muted||sdkMuted)?0:0.5;
+    master.connect(AC.destination);
+  }catch(e){AC=null;}
+  unlockAllAudio();
   if(!_cgBoot){_cgBoot=CG.boot();}
 }
 function beep(f0,f1,dur,type,vol,delay){
@@ -1411,12 +1431,12 @@ function updateGame(dt){
   match.shake*=Math.exp(-dt*7);
   updateParts(dt);
   updateCam(dt);
-  if(typeof updateVoiceProximity==='function')updateVoiceProximity(dt);
 }
 function update(dt){
   pollGamepads();
   if(screen==='menu'){updateMenu(dt);updateCam(dt);}
   else updateGame(dt);
+  if(typeof updateVoiceProximity==='function')updateVoiceProximity(dt);
 }
 
 /* ================= text/ui ================= */
@@ -2683,7 +2703,7 @@ function netBroadcastReliable(msg){
   }
 }
 
-/* ================= proximity voice chat (WebRTC + Web Audio API) ================= */
+/* ================= proximity voice chat (WebRTC + HTML5 Audio + Web Audio API) ================= */
 const VOICE = {
   enabled: false,
   muted: false,
@@ -2691,11 +2711,15 @@ const VOICE = {
   analyser: null,
   analyserData: null,
   speaking: false,
-  peers: new Map(), // peerId -> { call, stream, source, gain, panner, analyser, analyserData, speaking }
+  peers: new Map(), // peerId -> { call, stream, audioEl, source, gain, panner, analyser, analyserData, speaking }
   supported: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
 };
 
 async function voiceInit(){
+  if(!window.isSecureContext && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1'){
+    netToast('Mic requires HTTPS! Local HTTP blocks microphone.');
+    return false;
+  }
   if(!VOICE.supported){
     netToast('Voice chat not supported on this browser');
     return false;
@@ -2708,7 +2732,8 @@ async function voiceInit(){
     VOICE.muted = false;
     for(const track of VOICE.localStream.getAudioTracks()){ track.enabled = true; }
     netToast('Microphone unmuted 🎙️');
-    voiceCallAllPeers();
+    voiceCallAllPeers(true);
+    netBroadcastReliable({ t: 'voice_req', peerId: NET.myId });
     return true;
   }
 
@@ -2737,7 +2762,8 @@ async function voiceInit(){
     }
 
     netToast('Voice chat active! 🎙️ (Proximity on)');
-    voiceCallAllPeers();
+    voiceCallAllPeers(true);
+    netBroadcastReliable({ t: 'voice_req', peerId: NET.myId });
     return true;
   } catch(err){
     console.warn('Microphone permission error:', err);
@@ -2759,75 +2785,102 @@ function voiceToggleMic(){
   sfx('ui');
 }
 
-function voiceCallPeer(peerId){
-  if(!NET.peer || !peerId || peerId === NET.myId) return;
+function voiceCallPeer(peerId, forceNew){
+  if(!NET.peer || !peerId || peerId === NET.myId || !VOICE.localStream) return;
   const existing = VOICE.peers.get(peerId);
-  if(existing && existing.call && existing.call.open) return;
+  if(existing && existing.call && existing.call.open && !forceNew){
+    if(existing.call.localStream && existing.call.localStream.getAudioTracks().length > 0) return;
+  }
 
-  const streamToSend = VOICE.localStream || undefined;
+  if(existing && existing.call){
+    try{ existing.call.close(); }catch(e){}
+  }
+
   try {
-    const call = NET.peer.call(peerId, streamToSend);
+    const call = NET.peer.call(peerId, VOICE.localStream);
     if(call) voiceWireCall(call);
   } catch(e){}
 }
 
-function voiceCallAllPeers(){
-  if(!NET.peer) return;
+function voiceCallAllPeers(forceNew){
+  if(!NET.peer || !VOICE.localStream) return;
   for(const peerId of NET.conns.keys()){
-    voiceCallPeer(peerId);
+    voiceCallPeer(peerId, forceNew);
   }
 }
 
 function voiceWireCall(call){
   const peerId = call.peer;
-  const existing = VOICE.peers.get(peerId);
-  if(existing && existing.call && existing.call !== call){
-    try{ existing.call.close(); }catch(e){}
+  let entry = VOICE.peers.get(peerId);
+  if(entry && entry.call && entry.call !== call){
+    try{ entry.call.close(); }catch(e){}
   }
 
-  const entry = {
-    call: call,
-    stream: null,
-    source: null,
-    gain: null,
-    panner: null,
-    analyser: null,
-    analyserData: null,
-    speaking: false
-  };
-  VOICE.peers.set(peerId, entry);
+  if(!entry){
+    entry = {
+      call: call,
+      stream: null,
+      audioEl: null,
+      source: null,
+      gain: null,
+      panner: null,
+      analyser: null,
+      analyserData: null,
+      speaking: false
+    };
+    VOICE.peers.set(peerId, entry);
+  } else {
+    entry.call = call;
+  }
 
   call.on('stream', remoteStream => {
     entry.stream = remoteStream;
+
+    // 1. HTML5 Audio Element: guarantees audio packet decoding and playback in Chromium/Safari
+    if(!entry.audioEl){
+      const el = document.createElement('audio');
+      el.autoplay = true;
+      el.playsInline = true;
+      el.style.display = 'none';
+      document.body.appendChild(el);
+      entry.audioEl = el;
+    }
+    entry.audioEl.srcObject = remoteStream;
+    const playP = entry.audioEl.play();
+    if(playP && playP.catch) playP.catch(e => console.log('Autoplay deferred to click', e));
+
+    // 2. Web Audio API for spatial audio, directional panning, and speaking analyser
     initAudio();
     if(AC){
       try {
         if(AC.state === 'suspended') AC.resume().catch(()=>{});
-        const source = AC.createMediaStreamSource(remoteStream);
-        const gain = AC.createGain();
-        gain.gain.value = 0.5;
+        if(!entry.source){
+          const source = AC.createMediaStreamSource(remoteStream);
+          const gain = AC.createGain();
+          gain.gain.value = 0.5;
 
-        let panner = null;
-        if(AC.createStereoPanner){
-          panner = AC.createStereoPanner();
-          panner.pan.value = 0;
-          source.connect(gain);
-          gain.connect(panner);
-          panner.connect(AC.destination);
-        } else {
-          source.connect(gain);
-          gain.connect(AC.destination);
+          let panner = null;
+          if(AC.createStereoPanner){
+            panner = AC.createStereoPanner();
+            panner.pan.value = 0;
+            source.connect(gain);
+            gain.connect(panner);
+            panner.connect(AC.destination);
+          } else {
+            source.connect(gain);
+            gain.connect(AC.destination);
+          }
+
+          const ana = AC.createAnalyser();
+          ana.fftSize = 128;
+          gain.connect(ana);
+
+          entry.source = source;
+          entry.gain = gain;
+          entry.panner = panner;
+          entry.analyser = ana;
+          entry.analyserData = new Uint8Array(ana.frequencyBinCount);
         }
-
-        const ana = AC.createAnalyser();
-        ana.fftSize = 128;
-        gain.connect(ana);
-
-        entry.source = source;
-        entry.gain = gain;
-        entry.panner = panner;
-        entry.analyser = ana;
-        entry.analyserData = new Uint8Array(ana.frequencyBinCount);
       } catch(err){
         console.warn('WebAudio setup error:', err);
       }
@@ -2835,6 +2888,10 @@ function voiceWireCall(call){
   });
 
   call.on('close', () => {
+    if(entry.audioEl){
+      try{ entry.audioEl.pause(); entry.audioEl.srcObject = null; entry.audioEl.remove(); }catch(e){}
+      entry.audioEl = null;
+    }
     if(entry.source){ try{ entry.source.disconnect(); }catch(e){} }
     if(entry.gain){ try{ entry.gain.disconnect(); }catch(e){} }
     if(entry.panner){ try{ entry.panner.disconnect(); }catch(e){} }
@@ -2845,42 +2902,50 @@ function voiceWireCall(call){
 }
 
 function updateVoiceProximity(dt){
-  if(!match || !AC) return;
-  const myP = (typeof getMyPlayer === 'function') ? getMyPlayer() : null;
-  const myPos = myP ? { x: myP.x, y: myP.y } : (match.players[0] ? { x: match.players[0].x, y: match.players[0].y } : { x: W/2, y: H/2 });
+  const inGame = (match && screen === 'game');
+  const myP = (inGame && typeof getMyPlayer === 'function') ? getMyPlayer() : null;
+  const myPos = myP ? { x: myP.x, y: myP.y } : (inGame && match.players[0] ? { x: match.players[0].x, y: match.players[0].y } : null);
 
   for(const [peerId, entry] of VOICE.peers.entries()){
-    if(!entry.gain) continue;
+    let targetVol = 0.85;
+    let targetPan = 0;
 
-    let targetP = null;
-    if(NET.isHost){
-      for(let s = 1; s < 4; s++){
-        const ent = NET.hostInputs.get(s);
-        if(ent && ent.owner === peerId){
-          targetP = match.players.find(p => p.slot === s);
-          break;
+    if(inGame && myPos){
+      let targetP = null;
+      if(NET.isHost){
+        for(let s = 1; s < 4; s++){
+          const ent = NET.hostInputs.get(s);
+          if(ent && ent.owner === peerId){
+            targetP = match.players.find(p => p.slot === s);
+            break;
+          }
         }
+      } else {
+        targetP = match.players.find(p => p.slot === 0);
       }
-    } else {
-      targetP = match.players.find(p => p.slot === 0);
+
+      if(targetP){
+        const dx = targetP.x - myPos.x;
+        const dy = targetP.y - myPos.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        // End-to-end of arena (~1400px): volume is very low (~0.12 faint whisper), ramping to 1.0 close up
+        const normDist = clamp(dist / 1400, 0, 1);
+        targetVol = 0.12 + 0.88 * Math.pow(1 - normDist, 1.8);
+        targetPan = clamp(dx / 600, -0.85, 0.85);
+      }
     }
 
-    if(!targetP){
-      entry.gain.gain.value = 0.5;
-      if(entry.panner) entry.panner.pan.value = 0;
-      continue;
+    // Direct HTML5 Audio volume control (bulletproof across all browsers & mobile)
+    if(entry.audioEl){
+      try {
+        entry.audioEl.volume = clamp(targetVol, 0.05, 1);
+      } catch(e){}
     }
 
-    const dx = targetP.x - myPos.x;
-    const dy = targetP.y - myPos.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-
-    // End-to-end of arena (~1400px): volume is very low (~0.12 faint whisper), ramping to 1.0 close up
-    const normDist = clamp(dist / 1400, 0, 1);
-    const targetVol = 0.12 + 0.88 * Math.pow(1 - normDist, 1.8);
-    const targetPan = clamp(dx / 600, -0.85, 0.85);
-
-    entry.gain.gain.value += (targetVol - entry.gain.gain.value) * Math.min(1, dt * 16);
+    // Web Audio gain & panning (when active)
+    if(entry.gain){
+      entry.gain.gain.value += (targetVol - entry.gain.gain.value) * Math.min(1, dt * 16);
+    }
     if(entry.panner){
       entry.panner.pan.value += (targetPan - entry.panner.pan.value) * Math.min(1, dt * 16);
     }
@@ -3094,7 +3159,7 @@ function netConnectPeer(room, isHost){
   });
 
   NET.peer.on('call', call => {
-    const streamToSend = (VOICE.localStream && !VOICE.muted) ? VOICE.localStream : VOICE.localStream;
+    const streamToSend = (VOICE.localStream && !VOICE.muted) ? VOICE.localStream : (VOICE.localStream || undefined);
     call.answer(streamToSend || undefined);
     voiceWireCall(call);
   });
@@ -3132,10 +3197,16 @@ function netWireConn(conn, isHostSide){
     if(!isHostSide && !isFast){
       conn.send({ t: 'hello', ctrl: NET.myCtrl || 'WASD' });
       netToast('Connected to host! Syncing menu…');
-      if(VOICE.enabled && VOICE.localStream) setTimeout(() => voiceCallPeer(peerId), 600);
+      if(VOICE.enabled && VOICE.localStream){
+        conn.send({ t: 'voice_req', peerId: NET.myId });
+        setTimeout(() => voiceCallPeer(peerId, true), 600);
+      }
     } else if(isHostSide && !isFast){
       netToast('Guest connected!');
-      if(VOICE.enabled && VOICE.localStream) setTimeout(() => voiceCallPeer(peerId), 600);
+      if(VOICE.enabled && VOICE.localStream){
+        conn.send({ t: 'voice_req', peerId: NET.myId });
+        setTimeout(() => voiceCallPeer(peerId, true), 600);
+      }
     }
   };
 
@@ -3391,6 +3462,10 @@ function netOnData(m, c){
     netLeaveRoom();
   } else if(m.t === 'toast'){
     netToast(m.msg || '');
+  } else if(m.t === 'voice_req'){
+    if(VOICE.enabled && VOICE.localStream){
+      voiceCallPeer(m.peerId || c.peer, true);
+    }
   }
 }
 
@@ -3536,6 +3611,9 @@ function netLeaveRoom(){
   NET.conns.clear();
   if(typeof VOICE !== 'undefined' && VOICE.peers){
     for(const entry of VOICE.peers.values()){
+      if(entry.audioEl){
+        try{ entry.audioEl.pause(); entry.audioEl.srcObject = null; entry.audioEl.remove(); }catch(e){}
+      }
       if(entry.call){ try{ entry.call.close(); }catch(e){} }
     }
     VOICE.peers.clear();
