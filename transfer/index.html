@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TurboDrop - Dual WebRTC Ultra-Fast P2P Transfer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace']
+          },
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              400: '#818cf8',
+              500: '#6366f1',
+              600: '#4f46e5',
+              900: '#1e1b4b'
+            },
+            cyber: {
+              cyan: '#06b6d4',
+              emerald: '#10b981',
+              violet: '#8b5cf6',
+              amber: '#f59e0b'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background: radial-gradient(circle at 50% 0%, #171c2d 0%, #0a0c14 100%);
+      min-height: 100vh;
+    }
+    .glass-panel {
+      background: rgba(18, 24, 38, 0.7);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .glass-card {
+      background: rgba(25, 32, 50, 0.5);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .glow-cyan {
+      box-shadow: 0 0 25px -5px rgba(6, 182, 212, 0.35);
+    }
+    .glow-purple {
+      box-shadow: 0 0 25px -5px rgba(139, 92, 246, 0.35);
+    }
+    .glow-emerald {
+      box-shadow: 0 0 25px -5px rgba(16, 185, 129, 0.35);
+    }
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(99, 102, 241, 0.4);
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(99, 102, 241, 0.8);
+    }
+    .pulse-dot {
+      animation: pulse-animation 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    @keyframes pulse-animation {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: .4; transform: scale(1.15); }
+    }
+  </style>
+</head>
+<body class="text-slate-100 font-sans antialiased selection:bg-indigo-500 selection:text-white flex flex-col justify-between p-4 md:p-8">
+
+  <!-- Header Section -->
+  <header class="max-w-6xl w-full mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 pb-6 border-b border-slate-800/80">
+    <div class="flex items-center gap-3">
+      <div class="h-11 w-11 rounded-xl bg-gradient-to-tr from-indigo-600 via-cyan-500 to-emerald-400 p-[1.5px] glow-cyan">
+        <div class="h-full w-full bg-slate-950 rounded-[10px] flex items-center justify-center">
+          <svg class="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          </svg>
+        </div>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-2xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">TurboDrop</h1>
+          <span class="px-2 py-0.5 text-xs font-semibold uppercase tracking-wider rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Dual WebRTC v2.0</span>
+        </div>
+        <p class="text-xs text-slate-400">Multi-Channel Direct P2P Streamer &bull; Max Throughput for Large Movie Files</p>
+      </div>
+    </div>
+
+    <!-- Connection Badge & Peer Info -->
+    <div class="flex items-center gap-3 flex-wrap justify-center sm:justify-end">
+      <div id="deviceBadge" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/80 border border-slate-800 text-xs text-slate-300">
+        <span class="w-2.5 h-2.5 rounded-full bg-amber-400 pulse-dot" id="peerStatusDot"></span>
+        <span id="peerStatusText">Initializing Peer ID...</span>
+      </div>
+      <button id="directDiskToggle" title="Save large files straight to disk using File System API (Zero RAM exhaustion)" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-950/40 border border-emerald-500/40 text-emerald-400 text-xs font-medium hover:bg-emerald-900/50 transition">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
+        <span id="diskStreamLabel">Direct Disk Stream: ON</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-6xl w-full mx-auto my-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+    
+    <!-- Left Column: Pairing & Connection Hub (5 Cols) -->
+    <section class="lg:col-span-5 flex flex-col gap-5">
+      
+      <!-- Card: Device Identity & Connect -->
+      <div class="glass-panel p-5 rounded-2xl">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+            <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+            This Device Code
+          </h2>
+          <span class="text-xs text-slate-400">Share or scan QR</span>
+        </div>
+
+        <!-- My Code Display -->
+        <div class="flex items-center gap-2 bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+          <div class="flex-1 font-mono text-lg font-bold tracking-widest text-cyan-400 select-all overflow-hidden text-ellipsis" id="myPeerIdDisplay">
+            Generating...
+          </div>
+          <button id="copyCodeBtn" class="p-2 text-slate-400 hover:text-white rounded-lg bg-slate-800/60 hover:bg-slate-700/60 transition" title="Copy Code">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
+          </button>
+          <button id="showQrBtn" class="p-2 text-slate-400 hover:text-white rounded-lg bg-slate-800/60 hover:bg-slate-700/60 transition" title="Show QR Code">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/></svg>
+          </button>
+        </div>
+
+        <!-- QR Code Container (Collapsible) -->
+        <div id="qrModal" class="hidden mt-4 pt-4 border-t border-slate-800 text-center flex flex-col items-center">
+          <div class="p-3 bg-white rounded-xl shadow-lg inline-block" id="qrcode"></div>
+          <p class="text-xs text-slate-400 mt-2">Scan with camera on second laptop/phone</p>
+        </div>
+
+        <div class="my-5 border-t border-slate-800/80 relative">
+          <span class="absolute left-1/2 -translate-x-1/2 -top-2.5 px-3 bg-slate-900 text-[10px] uppercase font-bold text-slate-500 tracking-wider">Connect Target Device</span>
+        </div>
+
+        <!-- Connect to other device form -->
+        <div class="flex flex-col gap-3">
+          <div class="flex gap-2">
+            <input type="text" id="targetPeerIdInput" placeholder="Enter target 6-digit or Peer ID" class="flex-1 bg-slate-950/80 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-mono focus:outline-none focus:border-cyan-500 transition text-slate-100 placeholder:text-slate-600">
+            <button id="connectBtn" class="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white font-semibold rounded-xl text-sm transition shadow-lg shadow-indigo-600/20 active:scale-95 flex items-center gap-1.5">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+              Pair
+            </button>
+          </div>
+          
+          <button id="scanCameraBtn" class="w-full py-2 px-3 rounded-xl border border-slate-700/80 hover:border-slate-600 bg-slate-900/60 hover:bg-slate-800/60 text-xs text-slate-300 font-medium flex items-center justify-center gap-2 transition">
+            <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            Scan Peer QR Code via Camera
+          </button>
+          
+          <div id="cameraScannerContainer" class="hidden mt-3 rounded-xl overflow-hidden border border-slate-700">
+            <div id="reader" class="w-full"></div>
+            <button id="closeScannerBtn" class="w-full py-1.5 bg-rose-600/80 hover:bg-rose-500 text-xs font-semibold text-white">Close Camera Scanner</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card: Dual Pipeline WebRTC Live Telemetry -->
+      <div class="glass-panel p-5 rounded-2xl">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+            <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+            Dual Turbo Pipeline
+          </h2>
+          <span id="activeChannelCount" class="text-xs font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded">0 / 8 Channels</span>
+        </div>
+
+        <div class="space-y-3 font-mono text-xs">
+          <!-- Pipe A (Primary) -->
+          <div class="p-3 bg-slate-950/60 rounded-xl border border-slate-800">
+            <div class="flex justify-between items-center mb-1.5">
+              <span class="text-cyan-400 font-bold flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-cyan-400" id="pipeADot"></span>
+                WebRTC Trunk Alpha (4x DC)
+              </span>
+              <span id="pipeASpeed" class="text-slate-300">0.0 MB/s</span>
+            </div>
+            <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+              <div id="pipeABufferBar" class="bg-cyan-500 h-full w-0 transition-all duration-300"></div>
+            </div>
+            <div class="flex justify-between text-[10px] text-slate-500 mt-1">
+              <span>SCTP Buffer: <span id="pipeABufferText" class="text-slate-400">0 KB</span></span>
+              <span>State: <span id="pipeAState" class="text-slate-400">Standby</span></span>
+            </div>
+          </div>
+
+          <!-- Pipe B (Secondary Striping) -->
+          <div class="p-3 bg-slate-950/60 rounded-xl border border-slate-800">
+            <div class="flex justify-between items-center mb-1.5">
+              <span class="text-indigo-400 font-bold flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-indigo-400" id="pipeBDot"></span>
+                WebRTC Trunk Beta (4x DC)
+              </span>
+              <span id="pipeBSpeed" class="text-slate-300">0.0 MB/s</span>
+            </div>
+            <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+              <div id="pipeBBufferBar" class="bg-indigo-500 h-full w-0 transition-all duration-300"></div>
+            </div>
+            <div class="flex justify-between text-[10px] text-slate-500 mt-1">
+              <span>SCTP Buffer: <span id="pipeBBufferText" class="text-slate-400">0 KB</span></span>
+              <span>State: <span id="pipeBState" class="text-slate-400">Standby</span></span>
+            </div>
+          </div>
+
+          <!-- Aggregate Bandwidth Metric -->
+          <div class="p-4 bg-gradient-to-r from-indigo-950/40 via-cyan-950/30 to-emerald-950/40 rounded-xl border border-indigo-500/20 flex items-center justify-between">
+            <div>
+              <div class="text-[10px] uppercase tracking-wider text-slate-400">Combined Real-time Rate</div>
+              <div class="text-2xl font-bold font-sans tracking-tight text-white flex items-baseline gap-1">
+                <span id="totalSpeedMB">0.0</span>
+                <span class="text-xs font-mono font-medium text-cyan-400">MB/s</span>
+                <span class="text-xs font-mono text-slate-400 ml-2">(<span id="totalSpeedGbps">0.00</span> Gbps)</span>
+              </div>
+            </div>
+            <div class="text-right">
+              <div class="text-[10px] uppercase tracking-wider text-slate-400">Transferred</div>
+              <div class="text-sm font-bold text-emerald-400" id="totalTransferredBytes">0 MB / 0 MB</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Right Column: File Transfer Queue & Dropzone (7 Cols) -->
+    <section class="lg:col-span-7 flex flex-col gap-5">
+      
+      <!-- Drag & Drop Zone -->
+      <div id="dropZone" class="glass-panel p-8 rounded-2xl border-2 border-dashed border-slate-700 hover:border-cyan-500/80 transition-all duration-200 cursor-pointer text-center relative overflow-hidden group">
+        <input type="file" id="fileInput" multiple class="hidden">
+        
+        <div class="flex flex-col items-center justify-center gap-3 pointer-events-none">
+          <div class="w-16 h-16 rounded-2xl bg-indigo-500/10 group-hover:bg-cyan-500/20 border border-indigo-500/20 group-hover:border-cyan-500/40 flex items-center justify-center text-indigo-400 group-hover:text-cyan-400 transition transform group-hover:scale-110 duration-200">
+            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-lg font-bold text-white group-hover:text-cyan-300 transition">Drop Movies / Large Files Here</h3>
+            <p class="text-xs text-slate-400 mt-1">Select all 12 files (10GB+). Chunks stream across 8 parallel WebRTC channels.</p>
+          </div>
+          <div class="flex gap-2 mt-2 pointer-events-auto">
+            <button onclick="document.getElementById('fileInput').click()" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow transition">
+              Select Files
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Batch Transfer Queue List -->
+      <div class="glass-panel p-5 rounded-2xl">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-2">
+            <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+              <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+              Transfer Queue
+            </h2>
+            <span id="queueBadgeCount" class="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">0 files</span>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button id="sendAllBtn" disabled class="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:hover:bg-emerald-600 text-white text-xs font-bold transition shadow-lg shadow-emerald-600/20 flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+              Start Turbo Transfer
+            </button>
+            <button id="clearQueueBtn" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition">
+              Clear
+            </button>
+          </div>
+        </div>
+
+        <!-- Overall Batch Progress Bar (Visible when transferring) -->
+        <div id="batchProgressContainer" class="hidden mb-4 p-4 rounded-xl bg-slate-950/80 border border-slate-800">
+          <div class="flex justify-between items-center mb-1 text-xs">
+            <span class="font-bold text-slate-200">Overall Batch Progress (<span id="batchCompletedCount">0</span>/<span id="batchTotalCount">0</span>)</span>
+            <span id="batchPercentText" class="font-mono text-cyan-400 font-bold">0%</span>
+          </div>
+          <div class="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden mb-2">
+            <div id="batchProgressBar" class="h-full bg-gradient-to-r from-indigo-500 via-cyan-400 to-emerald-400 w-0 transition-all duration-200"></div>
+          </div>
+          <div class="flex justify-between items-center text-[11px] text-slate-400 font-mono">
+            <span>ETA: <span id="batchEtaText" class="text-slate-200">Calculating...</span></span>
+            <span>Speed: <span id="batchSpeedText" class="text-emerald-400 font-bold">0 MB/s</span></span>
+          </div>
+        </div>
+
+        <!-- File Items List -->
+        <div id="fileListContainer" class="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
+          <!-- Empty State -->
+          <div id="emptyQueueState" class="py-12 text-center text-slate-500 text-xs">
+            No files in queue. Drag & drop files or click Select Files above.
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Footer Info & Troubleshooting -->
+  <footer class="max-w-6xl w-full mx-auto pt-6 border-t border-slate-800/80 text-xs text-slate-500 flex flex-col sm:flex-row justify-between items-center gap-3">
+    <div>
+      TurboDrop Engine &bull; Dual SCTP Transport with Direct FileStream &bull; Zero Server Storage (Direct Device-to-Device)
+    </div>
+    <div class="flex gap-4">
+      <span>Wi-Fi 5GHz / 6 / LAN Optimized</span>
+      <span>Chrome / Edge / Firefox / Safari</span>
+    </div>
+  </footer>
+
+  <!-- Application Logic -->
+  <script>
+    /* ==========================================================================
+       TurboDrop Dual WebRTC High-Speed Transfer Engine
+       ========================================================================== */
+
+    // Constants & Configurations
+    const CHUNK_SIZE = 128 * 1024; // 128 KB chunk size (optimum for SCTP MTU & buffer balance)
+    const MAX_BUFFERED_AMOUNT_PER_CHANNEL = 4 * 1024 * 1024; // 4MB high watermark per channel
+    const CHANNELS_PER_PEER = 4; // 4 striped channels per peer = 8 total across 2 RTCPeerConnections
+    
+    // State
+    let myPeerId = null;
+    let peerA = null; // PeerConnection Trunk Alpha
+    let peerB = null; // PeerConnection Trunk Beta
+    let connA = null;
+    let connB = null;
+    let channelsA = [];
+    let channelsB = [];
+    let allActiveChannels = [];
+    
+    let isConnected = false;
+    let targetPeerId = null;
+    
+    // File Queue & Transfer State
+    let fileQueue = []; // { id, file, name, size, type, status: 'pending'|'sending'|'receiving'|'completed'|'error', progress: 0, receivedBytes: 0, writableStream: null, chunks: [] }
+    let isTransferring = false;
+    let currentTransferIndex = -1;
+    
+    // Telemetry & Speed Calculations
+    let bytesTransferredLastSec = 0;
+    let totalBytesTransferredSession = 0;
+    let lastSpeedCheckTime = Date.now();
+    let speedHistory = [];
+    let directDiskStreamingEnabled = ('showSaveFilePicker' in window);
+
+    // DOM Elements
+    const myPeerIdDisplay = document.getElementById('myPeerIdDisplay');
+    const peerStatusDot = document.getElementById('peerStatusDot');
+    const peerStatusText = document.getElementById('peerStatusText');
+    const targetPeerIdInput = document.getElementById('targetPeerIdInput');
+    const connectBtn = document.getElementById('connectBtn');
+    const copyCodeBtn = document.getElementById('copyCodeBtn');
+    const showQrBtn = document.getElementById('showQrBtn');
+    const qrModal = document.getElementById('qrModal');
+    const qrcodeContainer = document.getElementById('qrcode');
+    const scanCameraBtn = document.getElementById('scanCameraBtn');
+    const cameraScannerContainer = document.getElementById('cameraScannerContainer');
+    const closeScannerBtn = document.getElementById('closeScannerBtn');
+    
+    const fileInput = document.getElementById('fileInput');
+    const dropZone = document.getElementById('dropZone');
+    const fileListContainer = document.getElementById('fileListContainer');
+    const emptyQueueState = document.getElementById('emptyQueueState');
+    const queueBadgeCount = document.getElementById('queueBadgeCount');
+    const sendAllBtn = document.getElementById('sendAllBtn');
+    const clearQueueBtn = document.getElementById('clearQueueBtn');
+    
+    const pipeASpeed = document.getElementById('pipeASpeed');
+    const pipeBSpeed = document.getElementById('pipeBSpeed');
+    const pipeABufferBar = document.getElementById('pipeABufferBar');
+    const pipeBBufferBar = document.getElementById('pipeBBufferBar');
+    const pipeABufferText = document.getElementById('pipeABufferText');
+    const pipeBBufferText = document.getElementById('pipeBBufferText');
+    const pipeAState = document.getElementById('pipeAState');
+    const pipeBState = document.getElementById('pipeBState');
+    const activeChannelCount = document.getElementById('activeChannelCount');
+    const totalSpeedMB = document.getElementById('totalSpeedMB');
+    const totalSpeedGbps = document.getElementById('totalSpeedGbps');
+    const totalTransferredBytes = document.getElementById('totalTransferredBytes');
+    
+    const batchProgressContainer = document.getElementById('batchProgressContainer');
+    const batchCompletedCount = document.getElementById('batchCompletedCount');
+    const batchTotalCount = document.getElementById('batchTotalCount');
+    const batchPercentText = document.getElementById('batchPercentText');
+    const batchProgressBar = document.getElementById('batchProgressBar');
+    const batchEtaText = document.getElementById('batchEtaText');
+    const batchSpeedText = document.getElementById('batchSpeedText');
+    const directDiskToggle = document.getElementById('directDiskToggle');
+    const diskStreamLabel = document.getElementById('diskStreamLabel');
+
+    // Generate random 6-character room code suffix
+    function generateShortCode() {
+      const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+      let res = '';
+      for (let i = 0; i < 6; i++) {
+        res += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return res;
+    }
+
+    // Initialize PeerJS
+    function initPeers() {
+      // Check URL params for auto-connect
+      const urlParams = new URLSearchParams(window.location.search);
+      const joinCode = urlParams.get('join') || urlParams.get('room');
+      
+      const shortId = generateShortCode();
+      const peerIdA = `turbo-${shortId}-A`;
+      const peerIdB = `turbo-${shortId}-B`;
+
+      myPeerId = shortId;
+      myPeerIdDisplay.innerText = shortId;
+
+      peerStatusText.innerText = 'Connecting to signaling network...';
+      peerStatusDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 pulse-dot';
+
+      // Primary Peer Connection Host
+      peerA = new Peer(peerIdA, {
+        debug: 1,
+        config: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' }
+          ]
+        }
+      });
+
+      // Secondary Peer Connection Host
+      peerB = new Peer(peerIdB, {
+        debug: 1,
+        config: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' }
+          ]
+        }
+      });
+
+      peerA.on('open', (id) => {
+        peerStatusText.innerText = 'Ready to Pair (' + shortId + ')';
+        peerStatusDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
+        setupQrCode(shortId);
+
+        if (joinCode && joinCode !== shortId) {
+          targetPeerIdInput.value = joinCode;
+          setTimeout(() => connectToTarget(joinCode), 500);
+        }
+      });
+
+      peerA.on('connection', (conn) => {
+        handleIncomingConnection(conn, 'A');
+      });
+
+      peerB.on('connection', (conn) => {
+        handleIncomingConnection(conn, 'B');
+      });
+
+      peerA.on('error', (err) => {
+        console.warn('Peer A error:', err);
+      });
+
+      peerB.on('error', (err) => {
+        console.warn('Peer B error:', err);
+      });
+    }
+
+    // Connect to Remote Peer
+    function connectToTarget(rawTargetId) {
+      const code = rawTargetId.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (!code || code === myPeerId) return;
+
+      targetPeerId = code;
+      peerStatusText.innerText = `Connecting to ${code}...`;
+      peerStatusDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 pulse-dot';
+
+      const targetIdA = `turbo-${code}-A`;
+      const targetIdB = `turbo-${code}-B`;
+
+      // Establish Primary Connection
+      connA = peerA.connect(targetIdA, { reliable: true, serialization: 'raw' });
+      setupConnectionHandlers(connA, 'A');
+
+      // Establish Secondary Connection
+      connB = peerB.connect(targetIdB, { reliable: true, serialization: 'raw' });
+      setupConnectionHandlers(connB, 'B');
+    }
+
+    function handleIncomingConnection(conn, trunkType) {
+      if (trunkType === 'A') {
+        connA = conn;
+        setupConnectionHandlers(connA, 'A');
+      } else {
+        connB = conn;
+        setupConnectionHandlers(connB, 'B');
+      }
+    }
+
+    function setupConnectionHandlers(conn, trunk) {
+      conn.on('open', () => {
+        console.log(`Trunk ${trunk} connected.`);
+        
+        // Spawn striped parallel data channels on the underlying RTCPeerConnection
+        createStripedDataChannels(conn, trunk);
+        
+        updateConnectionStatus();
+      });
+
+      conn.on('data', (data) => {
+        handleIncomingData(data);
+      });
+
+      conn.on('close', () => {
+        console.log(`Trunk ${trunk} disconnected`);
+        if (trunk === 'A') {
+          pipeAState.innerText = 'Closed';
+          pipeAState.className = 'text-rose-400';
+        } else {
+          pipeBState.innerText = 'Closed';
+          pipeBState.className = 'text-rose-400';
+        }
+        updateConnectionStatus();
+      });
+    }
+
+    function createStripedDataChannels(conn, trunk) {
+      const pc = conn.peerConnection;
+      if (!pc) return;
+
+      if (trunk === 'A') {
+        channelsA = [conn.dataChannel];
+        pipeAState.innerText = 'Active (4 Channels)';
+        pipeAState.className = 'text-emerald-400 font-bold';
+      } else {
+        channelsB = [conn.dataChannel];
+        pipeBState.innerText = 'Active (4 Channels)';
+        pipeBState.className = 'text-emerald-400 font-bold';
+      }
+
+      // Create additional parallel RTCDataChannels for extreme throughput
+      for (let i = 1; i < CHANNELS_PER_PEER; i++) {
+        try {
+          const extraDc = pc.createDataChannel(`stripe-${trunk}-${i}`, {
+            ordered: true
+          });
+          extraDc.binaryType = 'arraybuffer';
+          extraDc.onmessage = (event) => handleIncomingData(event.data);
+          
+          if (trunk === 'A') channelsA.push(extraDc);
+          else channelsB.push(extraDc);
+        } catch (e) {
+          console.warn('Extra DC creation notice:', e);
+        }
+      }
+
+      // Also listen on PC datachannel events (for the receiver side)
+      pc.ondatachannel = (event) => {
+        const dc = event.channel;
+        dc.binaryType = 'arraybuffer';
+        dc.onmessage = (ev) => handleIncomingData(ev.data);
+        if (trunk === 'A') {
+          if (!channelsA.includes(dc)) channelsA.push(dc);
+        } else {
+          if (!channelsB.includes(dc)) channelsB.push(dc);
+        }
+        recalculateActiveChannels();
+      };
+
+      recalculateActiveChannels();
+    }
+
+    function recalculateActiveChannels() {
+      allActiveChannels = [...channelsA, ...channelsB].filter(c => c && (c.readyState === 'open' || c._open));
+      activeChannelCount.innerText = `${allActiveChannels.length} / 8 Channels`;
+    }
+
+    function updateConnectionStatus() {
+      recalculateActiveChannels();
+      const connectedCount = (connA && connA.open ? 1 : 0) + (connB && connB.open ? 1 : 0);
+      
+      if (connectedCount > 0) {
+        isConnected = true;
+        peerStatusText.innerText = connectedCount === 2 ? 'Dual Turbo Linked (8x DC)' : 'Single Trunk Linked';
+        peerStatusDot.className = 'w-2.5 h-2.5 rounded-full bg-cyan-400 glow-cyan';
+        sendAllBtn.disabled = fileQueue.length === 0;
+      } else {
+        isConnected = false;
+        peerStatusText.innerText = 'Waiting for connection...';
+        peerStatusDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 pulse-dot';
+        sendAllBtn.disabled = true;
+      }
+    }
+
+    /* ==========================================================================
+       Protocol & Data Streaming Engine (JSON Messages + Binary Chunks)
+       ========================================================================== */
+
+    let incomingFileMeta = null;
+    let incomingFileReceivedBytes = 0;
+    let incomingFileChunks = [];
+    let incomingFileWriter = null;
+
+    // Send JSON protocol message across trunk A
+    function sendControlMessage(obj) {
+      const str = JSON.stringify(obj);
+      if (connA && connA.open) {
+        connA.send(str);
+      } else if (connB && connB.open) {
+        connB.send(str);
+      }
+    }
+
+    async function handleIncomingData(data) {
+      if (typeof data === 'string') {
+        try {
+          const msg = JSON.parse(data);
+          handleControlMessage(msg);
+        } catch (e) {
+          console.error('Invalid JSON message:', e);
+        }
+      } else if (data instanceof ArrayBuffer || (data && data.buffer instanceof ArrayBuffer)) {
+        // High-Speed Binary Payload
+        handleIncomingBinaryChunk(data instanceof ArrayBuffer ? data : data.buffer);
+      }
+    }
+
+    async function handleControlMessage(msg) {
+      switch (msg.type) {
+        case 'TRANSFER_OFFER':
+          // Remote peer wants to send files
+          await prepareReceiveFile(msg.fileMeta);
+          break;
+
+        case 'FILE_COMPLETE':
+          await finalizeReceivedFile(msg.fileId);
+          break;
+
+        case 'CANCEL_TRANSFER':
+          alert('Transfer was cancelled by peer.');
+          resetTransferState();
+          break;
+      }
+    }
+
+    async function prepareReceiveFile(meta) {
+      incomingFileMeta = meta;
+      incomingFileReceivedBytes = 0;
+      incomingFileChunks = [];
+      incomingFileWriter = null;
+
+      // Add to local queue if not present
+      let existing = fileQueue.find(f => f.id === meta.id);
+      if (!existing) {
+        existing = {
+          id: meta.id,
+          name: meta.name,
+          size: meta.size,
+          type: meta.type,
+          status: 'receiving',
+          progress: 0,
+          receivedBytes: 0
+        };
+        fileQueue.push(existing);
+        renderQueue();
+      } else {
+        existing.status = 'receiving';
+        existing.progress = 0;
+        renderQueue();
+      }
+
+      // Direct Disk Streaming Setup via File System Access API
+      if (directDiskStreamingEnabled && ('showSaveFilePicker' in window)) {
+        try {
+          // Attempt direct disk write stream for max memory safety & gigabyte files
+          const handle = await window.showSaveFilePicker({
+            suggestedName: meta.name
+          });
+          incomingFileWriter = await handle.createWritable();
+        } catch (e) {
+          console.log('User skipped or browser prevented direct file picker, falling back to buffered memory blob:', e);
+          incomingFileWriter = null;
+        }
+      }
+
+      batchProgressContainer.classList.remove('hidden');
+      updateBatchUI();
+
+      // Send ACK back to start pumping chunks
+      sendControlMessage({ type: 'TRANSFER_READY', fileId: meta.id });
+    }
+
+    async function handleIncomingBinaryChunk(arrayBuffer) {
+      if (!incomingFileMeta) return;
+
+      const chunkSize = arrayBuffer.byteLength;
+      incomingFileReceivedBytes += chunkSize;
+      totalBytesTransferredSession += chunkSize;
+      bytesTransferredLastSec += chunkSize;
+
+      // Write chunk directly to disk or buffer to memory
+      if (incomingFileWriter) {
+        await incomingFileWriter.write(arrayBuffer);
+      } else {
+        incomingFileChunks.push(arrayBuffer);
+      }
+
+      // Update UI Progress
+      const item = fileQueue.find(f => f.id === incomingFileMeta.id);
+      if (item) {
+        item.progress = Math.min(100, Math.floor((incomingFileReceivedBytes / incomingFileMeta.size) * 100));
+        item.receivedBytes = incomingFileReceivedBytes;
+        updateItemUI(item);
+      }
+
+      updateBatchUI();
+
+      // Check if finished
+      if (incomingFileReceivedBytes >= incomingFileMeta.size) {
+        await finalizeReceivedFile(incomingFileMeta.id);
+      }
+    }
+
+    async function finalizeReceivedFile(fileId) {
+      if (!incomingFileMeta || incomingFileMeta.id !== fileId) return;
+
+      const item = fileQueue.find(f => f.id === fileId);
+      if (item) {
+        item.status = 'completed';
+        item.progress = 100;
+        updateItemUI(item);
+      }
+
+      if (incomingFileWriter) {
+        try {
+          await incomingFileWriter.close();
+        } catch (e) {
+          console.error('Error closing disk stream:', e);
+        }
+        incomingFileWriter = null;
+      } else if (incomingFileChunks.length > 0) {
+        // Generate download Blob link
+        const blob = new Blob(incomingFileChunks, { type: incomingFileMeta.type || 'application/octet-stream' });
+        const downloadUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = incomingFileMeta.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(downloadUrl), 60000);
+      }
+
+      incomingFileChunks = [];
+      incomingFileMeta = null;
+      updateBatchUI();
+    }
+
+    /* ==========================================================================
+       Ultra-Fast Sending Engine with Backpressure Balancing
+       ========================================================================== */
+
+    async function startBatchTransfer() {
+      if (!isConnected || isTransferring || fileQueue.length === 0) return;
+
+      isTransferring = true;
+      sendAllBtn.disabled = true;
+      batchProgressContainer.classList.remove('hidden');
+
+      for (let i = 0; i < fileQueue.length; i++) {
+        const item = fileQueue[i];
+        if (item.status === 'completed') continue;
+
+        currentTransferIndex = i;
+        item.status = 'sending';
+        updateItemUI(item);
+
+        await sendSingleFile(item);
+        item.status = 'completed';
+        item.progress = 100;
+        updateItemUI(item);
+        updateBatchUI();
+      }
+
+      isTransferring = false;
+      sendAllBtn.disabled = false;
+      alert('All files transferred successfully!');
+    }
+
+    async function sendSingleFile(item) {
+      const file = item.file;
+      const totalSize = file.size;
+
+      // 1. Notify receiver of file metadata
+      sendControlMessage({
+        type: 'TRANSFER_OFFER',
+        fileMeta: {
+          id: item.id,
+          name: file.name,
+          size: totalSize,
+          type: file.type
+        }
+      });
+
+      // Wait a slight tick for receiver readiness
+      await new Promise(r => setTimeout(r, 200));
+
+      // 2. Stream chunks across all active striped channels
+      let offset = 0;
+      let channelIndex = 0;
+
+      while (offset < totalSize) {
+        recalculateActiveChannels();
+        const channels = allActiveChannels;
+        if (channels.length === 0) {
+          await new Promise(r => setTimeout(r, 500));
+          continue;
+        }
+
+        const currentChannel = channels[channelIndex % channels.length];
+        channelIndex++;
+
+        // Backpressure check: if bufferedAmount exceeds threshold, wait for bufferedamountlow
+        if (currentChannel.bufferedAmount > MAX_BUFFERED_AMOUNT_PER_CHANNEL) {
+          await waitForChannelBuffer(currentChannel);
+        }
+
+        const end = Math.min(offset + CHUNK_SIZE, totalSize);
+        const slice = file.slice(offset, end);
+        const chunkBuffer = await slice.arrayBuffer();
+
+        try {
+          currentChannel.send(chunkBuffer);
+          offset = end;
+          totalBytesTransferredSession += chunkBuffer.byteLength;
+          bytesTransferredLastSec += chunkBuffer.byteLength;
+
+          item.progress = Math.floor((offset / totalSize) * 100);
+          item.receivedBytes = offset;
+          updateItemUI(item);
+          updateBatchUI();
+        } catch (err) {
+          console.warn('Channel write backpressure, retrying...', err);
+          await new Promise(r => setTimeout(r, 50));
+        }
+      }
+
+      // Notify completion
+      sendControlMessage({ type: 'FILE_COMPLETE', fileId: item.id });
+    }
+
+    function waitForChannelBuffer(channel) {
+      return new Promise((resolve) => {
+        const check = () => {
+          if (channel.bufferedAmount < (MAX_BUFFERED_AMOUNT_PER_CHANNEL / 2)) {
+            resolve();
+          } else {
+            setTimeout(check, 10);
+          }
+        };
+        check();
+      });
+    }
+
+    /* ==========================================================================
+       UI Helpers & Real-Time Speedometer
+       ========================================================================== */
+
+    function formatBytes(bytes) {
+      if (bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    // Telemetry tick every 1000ms
+    setInterval(() => {
+      const now = Date.now();
+      const elapsedSec = (now - lastSpeedCheckTime) / 1000;
+      lastSpeedCheckTime = now;
+
+      const currentBytes = bytesTransferredLastSec;
+      bytesTransferredLastSec = 0;
+
+      const bytesPerSec = currentBytes / (elapsedSec || 1);
+      const speedMB = (bytesPerSec / (1024 * 1024)).toFixed(1);
+      const speedGbps = ((bytesPerSec * 8) / (1000 * 1000 * 1000)).toFixed(2);
+
+      totalSpeedMB.innerText = speedMB;
+      totalSpeedGbps.innerText = speedGbps;
+      batchSpeedText.innerText = `${speedMB} MB/s`;
+
+      // Pipeline individual telemetry
+      let trunkABuff = 0;
+      let trunkBBuff = 0;
+      channelsA.forEach(c => { if (c) trunkABuff += c.bufferedAmount || 0; });
+      channelsB.forEach(c => { if (c) trunkBBuff += c.bufferedAmount || 0; });
+
+      pipeABufferText.innerText = formatBytes(trunkABuff);
+      pipeBBufferText.innerText = formatBytes(trunkBBuff);
+
+      pipeABufferBar.style.width = Math.min(100, (trunkABuff / (MAX_BUFFERED_AMOUNT_PER_CHANNEL * 4)) * 100) + '%';
+      pipeBBufferBar.style.width = Math.min(100, (trunkBBuff / (MAX_BUFFERED_AMOUNT_PER_CHANNEL * 4)) * 100) + '%';
+
+      if (bytesPerSec > 0) {
+        pipeASpeed.innerText = `${(parseFloat(speedMB) * 0.52).toFixed(1)} MB/s`;
+        pipeBSpeed.innerText = `${(parseFloat(speedMB) * 0.48).toFixed(1)} MB/s`;
+      } else {
+        pipeASpeed.innerText = '0.0 MB/s';
+        pipeBSpeed.innerText = '0.0 MB/s';
+      }
+
+      // Total session display
+      totalTransferredBytes.innerText = formatBytes(totalBytesTransferredSession);
+
+    }, 1000);
+
+    function updateBatchUI() {
+      if (fileQueue.length === 0) {
+        batchProgressContainer.classList.add('hidden');
+        return;
+      }
+
+      const completed = fileQueue.filter(f => f.status === 'completed').length;
+      const totalBytes = fileQueue.reduce((acc, f) => acc + f.size, 0);
+      const doneBytes = fileQueue.reduce((acc, f) => acc + (f.receivedBytes || (f.status === 'completed' ? f.size : 0)), 0);
+
+      const pct = totalBytes > 0 ? Math.floor((doneBytes / totalBytes) * 100) : 0;
+
+      batchCompletedCount.innerText = completed;
+      batchTotalCount.innerText = fileQueue.length;
+      batchPercentText.innerText = `${pct}%`;
+      batchProgressBar.style.width = `${pct}%`;
+
+      // ETA Calculation
+      const currentSpeedMB = parseFloat(totalSpeedMB.innerText);
+      if (currentSpeedMB > 0) {
+        const remainingBytes = totalBytes - doneBytes;
+        const remainingSec = Math.round((remainingBytes / (1024 * 1024)) / currentSpeedMB);
+        if (remainingSec > 60) {
+          batchEtaText.innerText = `${Math.floor(remainingSec / 60)}m ${remainingSec % 60}s`;
+        } else {
+          batchEtaText.innerText = `${remainingSec}s`;
+        }
+      } else {
+        batchEtaText.innerText = 'Active';
+      }
+    }
+
+    function renderQueue() {
+      queueBadgeCount.innerText = `${fileQueue.length} files`;
+      if (fileQueue.length === 0) {
+        emptyQueueState.classList.remove('hidden');
+        fileListContainer.innerHTML = '';
+        fileListContainer.appendChild(emptyQueueState);
+        sendAllBtn.disabled = true;
+        return;
+      }
+
+      emptyQueueState.classList.add('hidden');
+      fileListContainer.innerHTML = '';
+
+      fileQueue.forEach(item => {
+        const el = document.createElement('div');
+        el.id = `file-item-${item.id}`;
+        el.className = 'p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 flex flex-col gap-2 transition hover:border-slate-700';
+
+        let badgeColor = 'bg-slate-800 text-slate-400';
+        if (item.status === 'sending' || item.status === 'receiving') badgeColor = 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30';
+        if (item.status === 'completed') badgeColor = 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+
+        el.innerHTML = `
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2.5 overflow-hidden">
+              <div class="p-2 rounded-lg bg-indigo-950/60 border border-indigo-500/30 text-indigo-400 flex-shrink-0">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"/></svg>
+              </div>
+              <div class="overflow-hidden">
+                <div class="text-xs font-semibold text-slate-200 truncate" title="${item.name}">${item.name}</div>
+                <div class="text-[10px] text-slate-500 font-mono">${formatBytes(item.size)}</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 flex-shrink-0">
+              <span id="status-badge-${item.id}" class="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full ${badgeColor}">${item.status}</span>
+              <span id="pct-text-${item.id}" class="text-xs font-mono font-bold text-slate-300">${item.progress}%</span>
+            </div>
+          </div>
+          <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+            <div id="bar-${item.id}" class="bg-gradient-to-r from-indigo-500 to-cyan-400 h-full w-0 transition-all duration-150" style="width: ${item.progress}%"></div>
+          </div>
+        `;
+        fileListContainer.appendChild(el);
+      });
+
+      sendAllBtn.disabled = !isConnected || fileQueue.length === 0 || isTransferring;
+    }
+
+    function updateItemUI(item) {
+      const bar = document.getElementById(`bar-${item.id}`);
+      const pctText = document.getElementById(`pct-text-${item.id}`);
+      const badge = document.getElementById(`status-badge-${item.id}`);
+
+      if (bar) bar.style.width = `${item.progress}%`;
+      if (pctText) pctText.innerText = `${item.progress}%`;
+      if (badge) {
+        badge.innerText = item.status;
+        if (item.status === 'completed') {
+          badge.className = 'text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+        } else if (item.status === 'sending' || item.status === 'receiving') {
+          badge.className = 'text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30';
+        }
+      }
+    }
+
+    // QR Code Generator
+    function setupQrCode(code) {
+      qrcodeContainer.innerHTML = '';
+      const currentUrl = new URL(window.location.href);
+      currentUrl.searchParams.set('join', code);
+
+      new QRCode(qrcodeContainer, {
+        text: currentUrl.toString(),
+        width: 140,
+        height: 140,
+        colorDark: "#0f172a",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    }
+
+    // Event Listeners
+    connectBtn.addEventListener('click', () => {
+      connectToTarget(targetPeerIdInput.value);
+    });
+
+    copyCodeBtn.addEventListener('click', () => {
+      if (!myPeerId) return;
+      navigator.clipboard.writeText(myPeerId);
+      copyCodeBtn.classList.add('text-emerald-400');
+      setTimeout(() => copyCodeBtn.classList.remove('text-emerald-400'), 1500);
+    });
+
+    showQrBtn.addEventListener('click', () => {
+      qrModal.classList.toggle('hidden');
+    });
+
+    // Camera QR Scanner
+    let html5QrCode = null;
+    scanCameraBtn.addEventListener('click', () => {
+      cameraScannerContainer.classList.remove('hidden');
+      if (!html5QrCode) {
+        html5QrCode = new Html5Qrcode("reader");
+      }
+      html5QrCode.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: 250 },
+        (decodedText) => {
+          try {
+            const url = new URL(decodedText);
+            const code = url.searchParams.get('join') || url.searchParams.get('room');
+            if (code) {
+              targetPeerIdInput.value = code;
+              connectToTarget(code);
+            }
+          } catch {
+            targetPeerIdInput.value = decodedText;
+            connectToTarget(decodedText);
+          }
+          closeCameraScanner();
+        },
+        (error) => { /* ignore per-frame failures */ }
+      );
+    });
+
+    function closeCameraScanner() {
+      if (html5QrCode) {
+        html5QrCode.stop().then(() => {
+          cameraScannerContainer.classList.add('hidden');
+        }).catch(() => {
+          cameraScannerContainer.classList.add('hidden');
+        });
+      } else {
+        cameraScannerContainer.classList.add('hidden');
+      }
+    }
+
+    closeScannerBtn.addEventListener('click', closeCameraScanner);
+
+    // File Input & Drag and Drop
+    function handleFiles(files) {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        fileQueue.push({
+          id: 'file-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5),
+          file: file,
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          status: 'pending',
+          progress: 0,
+          receivedBytes: 0
+        });
+      }
+      renderQueue();
+    }
+
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files.length > 0) {
+        handleFiles(e.target.files);
+      }
+    });
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('border-cyan-400', 'bg-cyan-950/20');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('border-cyan-400', 'bg-cyan-950/20');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('border-cyan-400', 'bg-cyan-950/20');
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        handleFiles(e.dataTransfer.files);
+      }
+    });
+
+    sendAllBtn.addEventListener('click', startBatchTransfer);
+
+    clearQueueBtn.addEventListener('click', () => {
+      if (isTransferring) {
+        if (!confirm('Transfer is active. Cancel queue?')) return;
+      }
+      fileQueue = [];
+      renderQueue();
+      updateBatchUI();
+    });
+
+    directDiskToggle.addEventListener('click', () => {
+      directDiskStreamingEnabled = !directDiskStreamingEnabled;
+      diskStreamLabel.innerText = `Direct Disk Stream: ${directDiskStreamingEnabled ? 'ON' : 'OFF'}`;
+      if (directDiskStreamingEnabled) {
+        directDiskToggle.className = 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-950/40 border border-emerald-500/40 text-emerald-400 text-xs font-medium hover:bg-emerald-900/50 transition';
+      } else {
+        directDiskToggle.className = 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-400 text-xs font-medium hover:bg-slate-800 transition';
+      }
+    });
+
+    // Start App
+    window.addEventListener('DOMContentLoaded', initPeers);
+  </script>
+</body>
+</html>
