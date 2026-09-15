@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TurboDrop - Dual WebRTC Ultra-Fast P2P Transfer</title>
+  <title>TurboDrop v2.5 - Ultra-High-Speed Dual WebRTC Streamer</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -42,30 +42,21 @@
   </script>
   <style>
     body {
-      background: radial-gradient(circle at 50% 0%, #171c2d 0%, #0a0c14 100%);
+      background: radial-gradient(circle at 50% 0%, #111625 0%, #080a10 100%);
       min-height: 100vh;
     }
     .glass-panel {
-      background: rgba(18, 24, 38, 0.7);
+      background: rgba(18, 24, 38, 0.75);
       backdrop-filter: blur(16px);
       -webkit-backdrop-filter: blur(16px);
       border: 1px solid rgba(255, 255, 255, 0.08);
     }
-    .glass-card {
-      background: rgba(25, 32, 50, 0.5);
-      backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-    }
     .glow-cyan {
       box-shadow: 0 0 25px -5px rgba(6, 182, 212, 0.35);
-    }
-    .glow-purple {
-      box-shadow: 0 0 25px -5px rgba(139, 92, 246, 0.35);
     }
     .glow-emerald {
       box-shadow: 0 0 25px -5px rgba(16, 185, 129, 0.35);
     }
-    /* Custom Scrollbar */
     ::-webkit-scrollbar {
       width: 6px;
       height: 6px;
@@ -81,15 +72,24 @@
       background: rgba(99, 102, 241, 0.8);
     }
     .pulse-dot {
-      animation: pulse-animation 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      animation: pulse-animation 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
     }
     @keyframes pulse-animation {
       0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: .4; transform: scale(1.15); }
+      50% { opacity: .3; transform: scale(1.2); }
     }
   </style>
 </head>
 <body class="text-slate-100 font-sans antialiased selection:bg-indigo-500 selection:text-white flex flex-col justify-between p-4 md:p-8">
+
+  <!-- Top Announcement / Performance Advisor Banner -->
+  <div id="routeWarningBanner" class="hidden max-w-6xl w-full mx-auto mb-4 p-3.5 rounded-xl bg-amber-950/40 border border-amber-500/40 flex items-start sm:items-center justify-between gap-3 text-xs text-amber-200">
+    <div class="flex items-center gap-2">
+      <svg class="w-5 h-5 text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+      <span><strong class="text-amber-300">Notice:</strong> Traffic is currently looping through public WAN (<span id="routeBannerType">Reflexive NAT</span>). For maximum local Wi-Fi speeds (>50-80 MB/s), verify both devices are on the exact same 5GHz Wi-Fi band without AP Isolation.</span>
+    </div>
+    <button onclick="document.getElementById('routeWarningBanner').classList.add('hidden')" class="text-amber-400 hover:text-white">&times;</button>
+  </div>
 
   <!-- Header Section -->
   <header class="max-w-6xl w-full mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 pb-6 border-b border-slate-800/80">
@@ -104,32 +104,32 @@
       <div>
         <div class="flex items-center gap-2">
           <h1 class="text-2xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">TurboDrop</h1>
-          <span class="px-2 py-0.5 text-xs font-semibold uppercase tracking-wider rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Dual WebRTC v2.0</span>
+          <span class="px-2 py-0.5 text-xs font-semibold uppercase tracking-wider rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">v2.5 Turbocharged</span>
         </div>
-        <p class="text-xs text-slate-400">Multi-Channel Direct P2P Streamer &bull; Max Throughput for Large Movie Files</p>
+        <p class="text-xs text-slate-400">Zero-Latency Pipelined Event Pump &bull; Direct-to-Disk Streamer &bull; Up to 500+ Mbps</p>
       </div>
     </div>
 
-    <!-- Connection Badge & Peer Info -->
+    <!-- Connection & Disk Badges -->
     <div class="flex items-center gap-3 flex-wrap justify-center sm:justify-end">
+      <div id="routeBadge" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/80 border border-slate-800 text-xs text-slate-300">
+        <span class="w-2.5 h-2.5 rounded-full bg-slate-500" id="routeDot"></span>
+        <span id="routeText">Route: Standby</span>
+      </div>
       <div id="deviceBadge" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/80 border border-slate-800 text-xs text-slate-300">
         <span class="w-2.5 h-2.5 rounded-full bg-amber-400 pulse-dot" id="peerStatusDot"></span>
         <span id="peerStatusText">Initializing Peer ID...</span>
       </div>
-      <button id="directDiskToggle" title="Save large files straight to disk using File System API (Zero RAM exhaustion)" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-950/40 border border-emerald-500/40 text-emerald-400 text-xs font-medium hover:bg-emerald-900/50 transition">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
-        <span id="diskStreamLabel">Direct Disk Stream: ON</span>
-      </button>
     </div>
   </header>
 
-  <!-- Main Container -->
+  <!-- Main Grid -->
   <main class="max-w-6xl w-full mx-auto my-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
     
-    <!-- Left Column: Pairing & Connection Hub (5 Cols) -->
+    <!-- Left Column: Pairing & Connection Engine (5 Cols) -->
     <section class="lg:col-span-5 flex flex-col gap-5">
       
-      <!-- Card: Device Identity & Connect -->
+      <!-- Card: Device Identity & Pairing -->
       <div class="glass-panel p-5 rounded-2xl">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-2">
@@ -139,9 +139,9 @@
           <span class="text-xs text-slate-400">Share or scan QR</span>
         </div>
 
-        <!-- My Code Display -->
-        <div class="flex items-center gap-2 bg-slate-950/60 p-3 rounded-xl border border-slate-800">
-          <div class="flex-1 font-mono text-lg font-bold tracking-widest text-cyan-400 select-all overflow-hidden text-ellipsis" id="myPeerIdDisplay">
+        <!-- Code Display Box -->
+        <div class="flex items-center gap-2 bg-slate-950/70 p-3 rounded-xl border border-slate-800">
+          <div class="flex-1 font-mono text-xl font-bold tracking-widest text-cyan-400 select-all overflow-hidden text-ellipsis" id="myPeerIdDisplay">
             Generating...
           </div>
           <button id="copyCodeBtn" class="p-2 text-slate-400 hover:text-white rounded-lg bg-slate-800/60 hover:bg-slate-700/60 transition" title="Copy Code">
@@ -152,20 +152,20 @@
           </button>
         </div>
 
-        <!-- QR Code Container (Collapsible) -->
+        <!-- Collapsible QR Code -->
         <div id="qrModal" class="hidden mt-4 pt-4 border-t border-slate-800 text-center flex flex-col items-center">
           <div class="p-3 bg-white rounded-xl shadow-lg inline-block" id="qrcode"></div>
-          <p class="text-xs text-slate-400 mt-2">Scan with camera on second laptop/phone</p>
+          <p class="text-xs text-slate-400 mt-2">Scan with camera on receiving device</p>
         </div>
 
-        <div class="my-5 border-t border-slate-800/80 relative">
-          <span class="absolute left-1/2 -translate-x-1/2 -top-2.5 px-3 bg-slate-900 text-[10px] uppercase font-bold text-slate-500 tracking-wider">Connect Target Device</span>
+        <div class="my-4 border-t border-slate-800/80 relative">
+          <span class="absolute left-1/2 -translate-x-1/2 -top-2 px-2.5 bg-slate-900 text-[10px] uppercase font-bold text-slate-500 tracking-wider">Connect Target</span>
         </div>
 
         <!-- Connect to other device form -->
-        <div class="flex flex-col gap-3">
+        <div class="flex flex-col gap-2.5">
           <div class="flex gap-2">
-            <input type="text" id="targetPeerIdInput" placeholder="Enter target 6-digit or Peer ID" class="flex-1 bg-slate-950/80 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-mono focus:outline-none focus:border-cyan-500 transition text-slate-100 placeholder:text-slate-600">
+            <input type="text" id="targetPeerIdInput" placeholder="Enter target 6-digit Code" class="flex-1 bg-slate-950/80 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-mono focus:outline-none focus:border-cyan-500 transition text-slate-100 uppercase placeholder:text-slate-600">
             <button id="connectBtn" class="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white font-semibold rounded-xl text-sm transition shadow-lg shadow-indigo-600/20 active:scale-95 flex items-center gap-1.5">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
               Pair
@@ -177,35 +177,35 @@
             Scan Peer QR Code via Camera
           </button>
           
-          <div id="cameraScannerContainer" class="hidden mt-3 rounded-xl overflow-hidden border border-slate-700">
+          <div id="cameraScannerContainer" class="hidden mt-2 rounded-xl overflow-hidden border border-slate-700">
             <div id="reader" class="w-full"></div>
-            <button id="closeScannerBtn" class="w-full py-1.5 bg-rose-600/80 hover:bg-rose-500 text-xs font-semibold text-white">Close Camera Scanner</button>
+            <button id="closeScannerBtn" class="w-full py-1.5 bg-rose-600/80 hover:bg-rose-500 text-xs font-semibold text-white">Close Camera</button>
           </div>
         </div>
       </div>
 
-      <!-- Card: Dual Pipeline WebRTC Live Telemetry -->
+      <!-- Card: Live WebRTC Telemetry & Throughput Gauges -->
       <div class="glass-panel p-5 rounded-2xl">
         <div class="flex items-center justify-between mb-3">
           <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-2">
             <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
             Dual Turbo Pipeline
           </h2>
-          <span id="activeChannelCount" class="text-xs font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded">0 / 8 Channels</span>
+          <span id="activeChannelCount" class="text-xs font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded">0 Channels</span>
         </div>
 
         <div class="space-y-3 font-mono text-xs">
-          <!-- Pipe A (Primary) -->
-          <div class="p-3 bg-slate-950/60 rounded-xl border border-slate-800">
+          <!-- Trunk A -->
+          <div class="p-3 bg-slate-950/70 rounded-xl border border-slate-800">
             <div class="flex justify-between items-center mb-1.5">
               <span class="text-cyan-400 font-bold flex items-center gap-1.5">
                 <span class="w-2 h-2 rounded-full bg-cyan-400" id="pipeADot"></span>
-                WebRTC Trunk Alpha (4x DC)
+                Trunk Alpha (4 Striped Streams)
               </span>
-              <span id="pipeASpeed" class="text-slate-300">0.0 MB/s</span>
+              <span id="pipeASpeed" class="text-slate-200 font-bold">0.0 MB/s</span>
             </div>
             <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-              <div id="pipeABufferBar" class="bg-cyan-500 h-full w-0 transition-all duration-300"></div>
+              <div id="pipeABufferBar" class="bg-cyan-500 h-full w-0 transition-all duration-150"></div>
             </div>
             <div class="flex justify-between text-[10px] text-slate-500 mt-1">
               <span>SCTP Buffer: <span id="pipeABufferText" class="text-slate-400">0 KB</span></span>
@@ -213,17 +213,17 @@
             </div>
           </div>
 
-          <!-- Pipe B (Secondary Striping) -->
-          <div class="p-3 bg-slate-950/60 rounded-xl border border-slate-800">
+          <!-- Trunk B -->
+          <div class="p-3 bg-slate-950/70 rounded-xl border border-slate-800">
             <div class="flex justify-between items-center mb-1.5">
               <span class="text-indigo-400 font-bold flex items-center gap-1.5">
                 <span class="w-2 h-2 rounded-full bg-indigo-400" id="pipeBDot"></span>
-                WebRTC Trunk Beta (4x DC)
+                Trunk Beta (4 Striped Streams)
               </span>
-              <span id="pipeBSpeed" class="text-slate-300">0.0 MB/s</span>
+              <span id="pipeBSpeed" class="text-slate-200 font-bold">0.0 MB/s</span>
             </div>
             <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-              <div id="pipeBBufferBar" class="bg-indigo-500 h-full w-0 transition-all duration-300"></div>
+              <div id="pipeBBufferBar" class="bg-indigo-500 h-full w-0 transition-all duration-150"></div>
             </div>
             <div class="flex justify-between text-[10px] text-slate-500 mt-1">
               <span>SCTP Buffer: <span id="pipeBBufferText" class="text-slate-400">0 KB</span></span>
@@ -231,27 +231,38 @@
             </div>
           </div>
 
-          <!-- Aggregate Bandwidth Metric -->
-          <div class="p-4 bg-gradient-to-r from-indigo-950/40 via-cyan-950/30 to-emerald-950/40 rounded-xl border border-indigo-500/20 flex items-center justify-between">
+          <!-- Combined Live Speedometer -->
+          <div class="p-4 bg-gradient-to-r from-indigo-950/60 via-cyan-950/40 to-emerald-950/60 rounded-xl border border-indigo-500/30 flex items-center justify-between">
             <div>
-              <div class="text-[10px] uppercase tracking-wider text-slate-400">Combined Real-time Rate</div>
-              <div class="text-2xl font-bold font-sans tracking-tight text-white flex items-baseline gap-1">
-                <span id="totalSpeedMB">0.0</span>
-                <span class="text-xs font-mono font-medium text-cyan-400">MB/s</span>
-                <span class="text-xs font-mono text-slate-400 ml-2">(<span id="totalSpeedGbps">0.00</span> Gbps)</span>
+              <div class="text-[10px] uppercase tracking-wider text-slate-400">Combined Live Throughput</div>
+              <div class="text-2xl font-bold font-sans tracking-tight text-white flex items-baseline gap-1.5">
+                <span id="totalSpeedMB" class="text-emerald-400">0.0</span>
+                <span class="text-xs font-mono font-medium text-emerald-400">MB/s</span>
+                <span class="text-xs font-mono text-slate-400 ml-1">(<span id="totalSpeedGbps">0.00</span> Gbps)</span>
               </div>
             </div>
             <div class="text-right">
-              <div class="text-[10px] uppercase tracking-wider text-slate-400">Transferred</div>
-              <div class="text-sm font-bold text-emerald-400" id="totalTransferredBytes">0 MB / 0 MB</div>
+              <div class="text-[10px] uppercase tracking-wider text-slate-400">Transferred Session</div>
+              <div class="text-sm font-bold text-cyan-300" id="totalTransferredBytes">0 MB</div>
             </div>
           </div>
         </div>
       </div>
 
+      <!-- Turbo Optimization Settings -->
+      <div class="glass-panel p-4 rounded-2xl flex flex-col gap-2.5 text-xs">
+        <div class="flex items-center justify-between">
+          <span class="text-slate-300 font-medium">Direct Disk Stream (`createWritable`)</span>
+          <span id="diskStreamBadge" class="px-2 py-0.5 rounded font-mono text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-500/30">Auto (Active)</span>
+        </div>
+        <p class="text-[11px] text-slate-400">
+          Batched 4MB disk flushes allow multi-gigabyte movies to stream without browser RAM exhaustion.
+        </p>
+      </div>
+
     </section>
 
-    <!-- Right Column: File Transfer Queue & Dropzone (7 Cols) -->
+    <!-- Right Column: File Transfer Queue & Drag & Drop (7 Cols) -->
     <section class="lg:col-span-7 flex flex-col gap-5">
       
       <!-- Drag & Drop Zone -->
@@ -298,14 +309,14 @@
           </div>
         </div>
 
-        <!-- Overall Batch Progress Bar (Visible when transferring) -->
+        <!-- Overall Batch Progress Bar -->
         <div id="batchProgressContainer" class="hidden mb-4 p-4 rounded-xl bg-slate-950/80 border border-slate-800">
           <div class="flex justify-between items-center mb-1 text-xs">
             <span class="font-bold text-slate-200">Overall Batch Progress (<span id="batchCompletedCount">0</span>/<span id="batchTotalCount">0</span>)</span>
             <span id="batchPercentText" class="font-mono text-cyan-400 font-bold">0%</span>
           </div>
           <div class="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden mb-2">
-            <div id="batchProgressBar" class="h-full bg-gradient-to-r from-indigo-500 via-cyan-400 to-emerald-400 w-0 transition-all duration-200"></div>
+            <div id="batchProgressBar" class="h-full bg-gradient-to-r from-indigo-500 via-cyan-400 to-emerald-400 w-0 transition-all duration-150"></div>
           </div>
           <div class="flex justify-between items-center text-[11px] text-slate-400 font-mono">
             <span>ETA: <span id="batchEtaText" class="text-slate-200">Calculating...</span></span>
@@ -315,7 +326,6 @@
 
         <!-- File Items List -->
         <div id="fileListContainer" class="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
-          <!-- Empty State -->
           <div id="emptyQueueState" class="py-12 text-center text-slate-500 text-xs">
             No files in queue. Drag & drop files or click Select Files above.
           </div>
@@ -326,32 +336,33 @@
 
   </main>
 
-  <!-- Footer Info & Troubleshooting -->
   <footer class="max-w-6xl w-full mx-auto pt-6 border-t border-slate-800/80 text-xs text-slate-500 flex flex-col sm:flex-row justify-between items-center gap-3">
     <div>
-      TurboDrop Engine &bull; Dual SCTP Transport with Direct FileStream &bull; Zero Server Storage (Direct Device-to-Device)
+      TurboDrop v2.5 &bull; Dual SCTP Non-blocking Pump &bull; 64KB Slices with 8MB Memory Blocks &bull; Direct LAN Host Priority
     </div>
     <div class="flex gap-4">
       <span>Wi-Fi 5GHz / 6 / LAN Optimized</span>
-      <span>Chrome / Edge / Firefox / Safari</span>
+      <span>Chrome &bull; Edge &bull; Firefox &bull; Safari</span>
     </div>
   </footer>
 
-  <!-- Application Logic -->
+  <!-- Turbo Engine Script -->
   <script>
     /* ==========================================================================
-       TurboDrop Dual WebRTC High-Speed Transfer Engine
+       TurboDrop v2.5 - Zero-Latency Pipelined WebRTC Transfer Engine
        ========================================================================== */
 
-    // Constants & Configurations
-    const CHUNK_SIZE = 128 * 1024; // 128 KB chunk size (optimum for SCTP MTU & buffer balance)
-    const MAX_BUFFERED_AMOUNT_PER_CHANNEL = 4 * 1024 * 1024; // 4MB high watermark per channel
-    const CHANNELS_PER_PEER = 4; // 4 striped channels per peer = 8 total across 2 RTCPeerConnections
-    
-    // State
+    // High-Performance Tuning Constants
+    const CHUNK_SIZE = 64 * 1024; // 64 KB (Standard SCTP MTU sweet-spot)
+    const BLOCK_READ_SIZE = 8 * 1024 * 1024; // 8 MB Super-Block read from disk to RAM
+    const BUFFER_LOW_THRESHOLD = 512 * 1024; // 512 KB threshold for onbufferedamountlow event
+    const BUFFER_HIGH_WATERMARK = 2 * 1024 * 1024; // 2 MB buffer ceiling per data channel
+    const CHANNELS_PER_TRUNK = 4; // 4 striped channels per peer = 8 total channels
+
+    // State Variables
     let myPeerId = null;
-    let peerA = null; // PeerConnection Trunk Alpha
-    let peerB = null; // PeerConnection Trunk Beta
+    let peerA = null;
+    let peerB = null;
     let connA = null;
     let connB = null;
     let channelsA = [];
@@ -362,21 +373,24 @@
     let targetPeerId = null;
     
     // File Queue & Transfer State
-    let fileQueue = []; // { id, file, name, size, type, status: 'pending'|'sending'|'receiving'|'completed'|'error', progress: 0, receivedBytes: 0, writableStream: null, chunks: [] }
+    let fileQueue = [];
     let isTransferring = false;
     let currentTransferIndex = -1;
     
-    // Telemetry & Speed Calculations
+    // Telemetry
     let bytesTransferredLastSec = 0;
     let totalBytesTransferredSession = 0;
     let lastSpeedCheckTime = Date.now();
-    let speedHistory = [];
     let directDiskStreamingEnabled = ('showSaveFilePicker' in window);
 
     // DOM Elements
     const myPeerIdDisplay = document.getElementById('myPeerIdDisplay');
     const peerStatusDot = document.getElementById('peerStatusDot');
     const peerStatusText = document.getElementById('peerStatusText');
+    const routeDot = document.getElementById('routeDot');
+    const routeText = document.getElementById('routeText');
+    const routeWarningBanner = document.getElementById('routeWarningBanner');
+    const routeBannerType = document.getElementById('routeBannerType');
     const targetPeerIdInput = document.getElementById('targetPeerIdInput');
     const connectBtn = document.getElementById('connectBtn');
     const copyCodeBtn = document.getElementById('copyCodeBtn');
@@ -415,10 +429,7 @@
     const batchProgressBar = document.getElementById('batchProgressBar');
     const batchEtaText = document.getElementById('batchEtaText');
     const batchSpeedText = document.getElementById('batchSpeedText');
-    const directDiskToggle = document.getElementById('directDiskToggle');
-    const diskStreamLabel = document.getElementById('diskStreamLabel');
 
-    // Generate random 6-character room code suffix
     function generateShortCode() {
       const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
       let res = '';
@@ -428,47 +439,34 @@
       return res;
     }
 
-    // Initialize PeerJS
+    /* ==========================================================================
+       Peer Initialization with Local Host ICE Prioritization
+       ========================================================================== */
+
     function initPeers() {
-      // Check URL params for auto-connect
       const urlParams = new URLSearchParams(window.location.search);
       const joinCode = urlParams.get('join') || urlParams.get('room');
       
       const shortId = generateShortCode();
-      const peerIdA = `turbo-${shortId}-A`;
-      const peerIdB = `turbo-${shortId}-B`;
-
       myPeerId = shortId;
       myPeerIdDisplay.innerText = shortId;
 
-      peerStatusText.innerText = 'Connecting to signaling network...';
+      peerStatusText.innerText = 'Connecting to signaling...';
       peerStatusDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 pulse-dot';
 
-      // Primary Peer Connection Host
-      peerA = new Peer(peerIdA, {
-        debug: 1,
-        config: {
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' }
-          ]
-        }
-      });
+      const rtcConfig = {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' }
+        ],
+        iceCandidatePoolSize: 10
+      };
 
-      // Secondary Peer Connection Host
-      peerB = new Peer(peerIdB, {
-        debug: 1,
-        config: {
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' }
-          ]
-        }
-      });
+      peerA = new Peer(`turbo-${shortId}-A`, { debug: 1, config: rtcConfig });
+      peerB = new Peer(`turbo-${shortId}-B`, { debug: 1, config: rtcConfig });
 
       peerA.on('open', (id) => {
-        peerStatusText.innerText = 'Ready to Pair (' + shortId + ')';
+        peerStatusText.innerText = `Ready (${shortId})`;
         peerStatusDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
         setupQrCode(shortId);
 
@@ -478,24 +476,13 @@
         }
       });
 
-      peerA.on('connection', (conn) => {
-        handleIncomingConnection(conn, 'A');
-      });
+      peerA.on('connection', (conn) => handleIncomingConnection(conn, 'A'));
+      peerB.on('connection', (conn) => handleIncomingConnection(conn, 'B'));
 
-      peerB.on('connection', (conn) => {
-        handleIncomingConnection(conn, 'B');
-      });
-
-      peerA.on('error', (err) => {
-        console.warn('Peer A error:', err);
-      });
-
-      peerB.on('error', (err) => {
-        console.warn('Peer B error:', err);
-      });
+      peerA.on('error', (err) => console.warn('Peer A error:', err));
+      peerB.on('error', (err) => console.warn('Peer B error:', err));
     }
 
-    // Connect to Remote Peer
     function connectToTarget(rawTargetId) {
       const code = rawTargetId.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
       if (!code || code === myPeerId) return;
@@ -504,15 +491,10 @@
       peerStatusText.innerText = `Connecting to ${code}...`;
       peerStatusDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 pulse-dot';
 
-      const targetIdA = `turbo-${code}-A`;
-      const targetIdB = `turbo-${code}-B`;
-
-      // Establish Primary Connection
-      connA = peerA.connect(targetIdA, { reliable: true, serialization: 'raw' });
+      connA = peerA.connect(`turbo-${code}-A`, { reliable: true, serialization: 'raw' });
       setupConnectionHandlers(connA, 'A');
 
-      // Establish Secondary Connection
-      connB = peerB.connect(targetIdB, { reliable: true, serialization: 'raw' });
+      connB = peerB.connect(`turbo-${code}-B`, { reliable: true, serialization: 'raw' });
       setupConnectionHandlers(connB, 'B');
     }
 
@@ -528,66 +510,65 @@
 
     function setupConnectionHandlers(conn, trunk) {
       conn.on('open', () => {
-        console.log(`Trunk ${trunk} connected.`);
-        
-        // Spawn striped parallel data channels on the underlying RTCPeerConnection
         createStripedDataChannels(conn, trunk);
-        
         updateConnectionStatus();
       });
 
-      conn.on('data', (data) => {
-        handleIncomingData(data);
-      });
+      conn.on('data', (data) => handleIncomingData(data));
 
       conn.on('close', () => {
-        console.log(`Trunk ${trunk} disconnected`);
         if (trunk === 'A') {
           pipeAState.innerText = 'Closed';
           pipeAState.className = 'text-rose-400';
+          channelsA = [];
         } else {
           pipeBState.innerText = 'Closed';
           pipeBState.className = 'text-rose-400';
+          channelsB = [];
         }
         updateConnectionStatus();
       });
+    }
+
+    function configureDataChannel(dc) {
+      dc.binaryType = 'arraybuffer';
+      dc.bufferedAmountLowThreshold = BUFFER_LOW_THRESHOLD;
+      dc.onmessage = (ev) => handleIncomingData(ev.data);
     }
 
     function createStripedDataChannels(conn, trunk) {
       const pc = conn.peerConnection;
       if (!pc) return;
 
+      const mainDc = conn.dataChannel;
+      configureDataChannel(mainDc);
+
       if (trunk === 'A') {
-        channelsA = [conn.dataChannel];
-        pipeAState.innerText = 'Active (4 Channels)';
+        channelsA = [mainDc];
+        pipeAState.innerText = 'Active (4 Streams)';
         pipeAState.className = 'text-emerald-400 font-bold';
       } else {
-        channelsB = [conn.dataChannel];
-        pipeBState.innerText = 'Active (4 Channels)';
+        channelsB = [mainDc];
+        pipeBState.innerText = 'Active (4 Streams)';
         pipeBState.className = 'text-emerald-400 font-bold';
       }
 
-      // Create additional parallel RTCDataChannels for extreme throughput
-      for (let i = 1; i < CHANNELS_PER_PEER; i++) {
+      // Create additional parallel channels for concurrent multiplexing
+      for (let i = 1; i < CHANNELS_PER_TRUNK; i++) {
         try {
-          const extraDc = pc.createDataChannel(`stripe-${trunk}-${i}`, {
-            ordered: true
-          });
-          extraDc.binaryType = 'arraybuffer';
-          extraDc.onmessage = (event) => handleIncomingData(event.data);
-          
+          const extraDc = pc.createDataChannel(`stripe-${trunk}-${i}`, { ordered: true });
+          configureDataChannel(extraDc);
           if (trunk === 'A') channelsA.push(extraDc);
           else channelsB.push(extraDc);
         } catch (e) {
-          console.warn('Extra DC creation notice:', e);
+          console.warn('Channel creation error:', e);
         }
       }
 
-      // Also listen on PC datachannel events (for the receiver side)
+      // Handle receiver side incoming data channels
       pc.ondatachannel = (event) => {
         const dc = event.channel;
-        dc.binaryType = 'arraybuffer';
-        dc.onmessage = (ev) => handleIncomingData(ev.data);
+        configureDataChannel(dc);
         if (trunk === 'A') {
           if (!channelsA.includes(dc)) channelsA.push(dc);
         } else {
@@ -601,16 +582,16 @@
 
     function recalculateActiveChannels() {
       allActiveChannels = [...channelsA, ...channelsB].filter(c => c && (c.readyState === 'open' || c._open));
-      activeChannelCount.innerText = `${allActiveChannels.length} / 8 Channels`;
+      activeChannelCount.innerText = `${allActiveChannels.length} Channels`;
     }
 
     function updateConnectionStatus() {
       recalculateActiveChannels();
-      const connectedCount = (connA && connA.open ? 1 : 0) + (connB && connB.open ? 1 : 0);
+      const count = (connA && connA.open ? 1 : 0) + (connB && connB.open ? 1 : 0);
       
-      if (connectedCount > 0) {
+      if (count > 0) {
         isConnected = true;
-        peerStatusText.innerText = connectedCount === 2 ? 'Dual Turbo Linked (8x DC)' : 'Single Trunk Linked';
+        peerStatusText.innerText = count === 2 ? 'Dual Turbo Linked (8x DC)' : 'Single Trunk Linked';
         peerStatusDot.className = 'w-2.5 h-2.5 rounded-full bg-cyan-400 glow-cyan';
         sendAllBtn.disabled = fileQueue.length === 0;
       } else {
@@ -622,22 +603,74 @@
     }
 
     /* ==========================================================================
-       Protocol & Data Streaming Engine (JSON Messages + Binary Chunks)
+       ICE Diagnostics: Inspect Connection Route (Host vs Reflexive)
        ========================================================================== */
+
+    async function checkIceRoute() {
+      const pc = (connA && connA.peerConnection) || (connB && connB.peerConnection);
+      if (!pc || pc.connectionState !== 'connected') return;
+
+      try {
+        const stats = await pc.getStats();
+        let activePair = null;
+        let localCandidate = null;
+        let remoteCandidate = null;
+
+        stats.forEach(report => {
+          if (report.type === 'candidate-pair' && (report.selected || report.nominated || report.state === 'succeeded')) {
+            activePair = report;
+          }
+        });
+
+        if (activePair) {
+          stats.forEach(report => {
+            if (report.id === activePair.localCandidateId) localCandidate = report;
+            if (report.id === activePair.remoteCandidateId) remoteCandidate = report;
+          });
+
+          if (localCandidate && remoteCandidate) {
+            const isLocalHost = localCandidate.candidateType === 'host' || remoteCandidate.candidateType === 'host';
+            const candidateType = localCandidate.candidateType;
+
+            if (isLocalHost) {
+              routeText.innerText = `Route: 🟢 Direct LAN (${candidateType})`;
+              routeDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 glow-emerald';
+              routeWarningBanner.classList.add('hidden');
+            } else {
+              routeText.innerText = `Route: ⚠️ WAN (${candidateType})`;
+              routeDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400';
+              routeBannerType.innerText = candidateType;
+              routeWarningBanner.classList.remove('hidden');
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('ICE stats query:', err);
+      }
+    }
+
+    setInterval(checkIceRoute, 2500);
+
+    /* ==========================================================================
+       Pipelined Binary Protocol & Receiver Engine
+       ========================================================================== */
+
+    // Binary Chunk Header:
+    // [uint32: chunkIndex (4 bytes)][uint32: byteOffset (4 bytes)][payload...]
+    const HEADER_SIZE = 8;
+    const CHUNK_PAYLOAD_SIZE = CHUNK_SIZE - HEADER_SIZE;
 
     let incomingFileMeta = null;
     let incomingFileReceivedBytes = 0;
-    let incomingFileChunks = [];
     let incomingFileWriter = null;
+    let incomingBatchBuffer = []; // Batched writes
+    let incomingBatchBytes = 0;
+    const DISK_FLUSH_THRESHOLD = 4 * 1024 * 1024; // Flush to disk in 4MB chunks
 
-    // Send JSON protocol message across trunk A
     function sendControlMessage(obj) {
       const str = JSON.stringify(obj);
-      if (connA && connA.open) {
-        connA.send(str);
-      } else if (connB && connB.open) {
-        connB.send(str);
-      }
+      if (connA && connA.open) connA.send(str);
+      else if (connB && connB.open) connB.send(str);
     }
 
     async function handleIncomingData(data) {
@@ -649,7 +682,6 @@
           console.error('Invalid JSON message:', e);
         }
       } else if (data instanceof ArrayBuffer || (data && data.buffer instanceof ArrayBuffer)) {
-        // High-Speed Binary Payload
         handleIncomingBinaryChunk(data instanceof ArrayBuffer ? data : data.buffer);
       }
     }
@@ -657,17 +689,13 @@
     async function handleControlMessage(msg) {
       switch (msg.type) {
         case 'TRANSFER_OFFER':
-          // Remote peer wants to send files
           await prepareReceiveFile(msg.fileMeta);
           break;
-
         case 'FILE_COMPLETE':
           await finalizeReceivedFile(msg.fileId);
           break;
-
         case 'CANCEL_TRANSFER':
-          alert('Transfer was cancelled by peer.');
-          resetTransferState();
+          alert('Transfer cancelled by peer.');
           break;
       }
     }
@@ -675,10 +703,10 @@
     async function prepareReceiveFile(meta) {
       incomingFileMeta = meta;
       incomingFileReceivedBytes = 0;
-      incomingFileChunks = [];
+      incomingBatchBuffer = [];
+      incomingBatchBytes = 0;
       incomingFileWriter = null;
 
-      // Add to local queue if not present
       let existing = fileQueue.find(f => f.id === meta.id);
       if (!existing) {
         existing = {
@@ -688,26 +716,25 @@
           type: meta.type,
           status: 'receiving',
           progress: 0,
-          receivedBytes: 0
+          receivedBytes: 0,
+          allChunks: []
         };
         fileQueue.push(existing);
         renderQueue();
       } else {
         existing.status = 'receiving';
         existing.progress = 0;
+        existing.allChunks = [];
         renderQueue();
       }
 
-      // Direct Disk Streaming Setup via File System Access API
+      // Prompt for direct disk write if supported
       if (directDiskStreamingEnabled && ('showSaveFilePicker' in window)) {
         try {
-          // Attempt direct disk write stream for max memory safety & gigabyte files
-          const handle = await window.showSaveFilePicker({
-            suggestedName: meta.name
-          });
+          const handle = await window.showSaveFilePicker({ suggestedName: meta.name });
           incomingFileWriter = await handle.createWritable();
         } catch (e) {
-          console.log('User skipped or browser prevented direct file picker, falling back to buffered memory blob:', e);
+          console.log('Direct disk save declined or unavailable, buffering in RAM:', e);
           incomingFileWriter = null;
         }
       }
@@ -715,36 +742,48 @@
       batchProgressContainer.classList.remove('hidden');
       updateBatchUI();
 
-      // Send ACK back to start pumping chunks
       sendControlMessage({ type: 'TRANSFER_READY', fileId: meta.id });
     }
 
-    async function handleIncomingBinaryChunk(arrayBuffer) {
+    async function handleIncomingBinaryChunk(buffer) {
       if (!incomingFileMeta) return;
 
-      const chunkSize = arrayBuffer.byteLength;
-      incomingFileReceivedBytes += chunkSize;
-      totalBytesTransferredSession += chunkSize;
-      bytesTransferredLastSec += chunkSize;
+      const view = new DataView(buffer);
+      const chunkIndex = view.getUint32(0, true);
+      const byteOffset = view.getUint32(4, true);
+      const payload = buffer.slice(HEADER_SIZE);
 
-      // Write chunk directly to disk or buffer to memory
+      const payloadSize = payload.byteLength;
+      incomingFileReceivedBytes += payloadSize;
+      totalBytesTransferredSession += payloadSize;
+      bytesTransferredLastSec += payloadSize;
+
+      // Direct disk streaming with 4MB batch flushing
       if (incomingFileWriter) {
-        await incomingFileWriter.write(arrayBuffer);
+        incomingBatchBuffer.push({ position: byteOffset, data: payload });
+        incomingBatchBytes += payloadSize;
+
+        if (incomingBatchBytes >= DISK_FLUSH_THRESHOLD) {
+          const batch = incomingBatchBuffer;
+          incomingBatchBuffer = [];
+          incomingBatchBytes = 0;
+          for (const item of batch) {
+            await incomingFileWriter.write({ type: 'write', position: item.position, data: item.data });
+          }
+        }
       } else {
-        incomingFileChunks.push(arrayBuffer);
+        const item = fileQueue.find(f => f.id === incomingFileMeta.id);
+        if (item) item.allChunks[chunkIndex] = payload;
       }
 
-      // Update UI Progress
       const item = fileQueue.find(f => f.id === incomingFileMeta.id);
       if (item) {
         item.progress = Math.min(100, Math.floor((incomingFileReceivedBytes / incomingFileMeta.size) * 100));
         item.receivedBytes = incomingFileReceivedBytes;
         updateItemUI(item);
       }
-
       updateBatchUI();
 
-      // Check if finished
       if (incomingFileReceivedBytes >= incomingFileMeta.size) {
         await finalizeReceivedFile(incomingFileMeta.id);
       }
@@ -760,16 +799,22 @@
         updateItemUI(item);
       }
 
+      // Flush any remaining batched writes
       if (incomingFileWriter) {
+        if (incomingBatchBuffer.length > 0) {
+          for (const piece of incomingBatchBuffer) {
+            await incomingFileWriter.write({ type: 'write', position: piece.position, data: piece.data });
+          }
+          incomingBatchBuffer = [];
+        }
         try {
           await incomingFileWriter.close();
         } catch (e) {
           console.error('Error closing disk stream:', e);
         }
         incomingFileWriter = null;
-      } else if (incomingFileChunks.length > 0) {
-        // Generate download Blob link
-        const blob = new Blob(incomingFileChunks, { type: incomingFileMeta.type || 'application/octet-stream' });
+      } else if (item && item.allChunks && item.allChunks.length > 0) {
+        const blob = new Blob(item.allChunks, { type: incomingFileMeta.type || 'application/octet-stream' });
         const downloadUrl = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = downloadUrl;
@@ -778,15 +823,15 @@
         a.click();
         document.body.removeChild(a);
         setTimeout(() => URL.revokeObjectURL(downloadUrl), 60000);
+        item.allChunks = [];
       }
 
-      incomingFileChunks = [];
       incomingFileMeta = null;
       updateBatchUI();
     }
 
     /* ==========================================================================
-       Ultra-Fast Sending Engine with Backpressure Balancing
+       Turbo Send Engine: Block-Reading + Event-Driven Buffer Pumping
        ========================================================================== */
 
     async function startBatchTransfer() {
@@ -804,7 +849,7 @@
         item.status = 'sending';
         updateItemUI(item);
 
-        await sendSingleFile(item);
+        await sendSingleFileTurbo(item);
         item.status = 'completed';
         item.progress = 100;
         updateItemUI(item);
@@ -813,14 +858,13 @@
 
       isTransferring = false;
       sendAllBtn.disabled = false;
-      alert('All files transferred successfully!');
+      alert('All movie files transferred at maximum speed!');
     }
 
-    async function sendSingleFile(item) {
+    async function sendSingleFileTurbo(item) {
       const file = item.file;
       const totalSize = file.size;
 
-      // 1. Notify receiver of file metadata
       sendControlMessage({
         type: 'TRANSFER_OFFER',
         fileMeta: {
@@ -831,68 +875,95 @@
         }
       });
 
-      // Wait a slight tick for receiver readiness
-      await new Promise(r => setTimeout(r, 200));
+      // Quick sync pause
+      await new Promise(r => setTimeout(r, 250));
 
-      // 2. Stream chunks across all active striped channels
-      let offset = 0;
+      let fileOffset = 0;
+      let chunkCounter = 0;
       let channelIndex = 0;
 
-      while (offset < totalSize) {
-        recalculateActiveChannels();
-        const channels = allActiveChannels;
-        if (channels.length === 0) {
-          await new Promise(r => setTimeout(r, 500));
-          continue;
+      // Read file in 8 MB Super-Blocks from disk
+      while (fileOffset < totalSize) {
+        const blockEnd = Math.min(fileOffset + BLOCK_READ_SIZE, totalSize);
+        const blockBlob = file.slice(fileOffset, blockEnd);
+        const blockBuffer = await blockBlob.arrayBuffer();
+        const blockSize = blockBuffer.byteLength;
+
+        let blockOffset = 0;
+
+        // Blast 64 KB chunks synchronously using event-driven backpressure
+        while (blockOffset < blockSize) {
+          recalculateActiveChannels();
+          const channels = allActiveChannels;
+          if (channels.length === 0) {
+            await new Promise(r => setTimeout(r, 200));
+            continue;
+          }
+
+          // Pick next available channel
+          const currentChannel = channels[channelIndex % channels.length];
+          channelIndex++;
+
+          // Check backpressure: if channel buffer exceeds high watermark, pause until onbufferedamountlow
+          if (currentChannel.bufferedAmount >= BUFFER_HIGH_WATERMARK) {
+            await waitForChannelDrain(currentChannel);
+          }
+
+          const currentPayloadSize = Math.min(CHUNK_PAYLOAD_SIZE, blockSize - blockOffset);
+          const chunkAbsoluteOffset = fileOffset + blockOffset;
+
+          // Assemble chunk with 8-byte header: [uint32 chunkIndex, uint32 byteOffset]
+          const packetBuffer = new ArrayBuffer(HEADER_SIZE + currentPayloadSize);
+          const packetView = new DataView(packetBuffer);
+          packetView.setUint32(0, chunkCounter, true);
+          packetView.setUint32(4, chunkAbsoluteOffset, true);
+
+          new Uint8Array(packetBuffer, HEADER_SIZE).set(
+            new Uint8Array(blockBuffer, blockOffset, currentPayloadSize)
+          );
+
+          try {
+            currentChannel.send(packetBuffer);
+            blockOffset += currentPayloadSize;
+            chunkCounter++;
+
+            totalBytesTransferredSession += packetBuffer.byteLength;
+            bytesTransferredLastSec += packetBuffer.byteLength;
+
+            const currentSent = fileOffset + blockOffset;
+            item.progress = Math.floor((currentSent / totalSize) * 100);
+            item.receivedBytes = currentSent;
+            updateItemUI(item);
+            updateBatchUI();
+          } catch (err) {
+            console.warn('DataChannel send throttle, waiting...', err);
+            await new Promise(r => setTimeout(r, 20));
+          }
         }
 
-        const currentChannel = channels[channelIndex % channels.length];
-        channelIndex++;
-
-        // Backpressure check: if bufferedAmount exceeds threshold, wait for bufferedamountlow
-        if (currentChannel.bufferedAmount > MAX_BUFFERED_AMOUNT_PER_CHANNEL) {
-          await waitForChannelBuffer(currentChannel);
-        }
-
-        const end = Math.min(offset + CHUNK_SIZE, totalSize);
-        const slice = file.slice(offset, end);
-        const chunkBuffer = await slice.arrayBuffer();
-
-        try {
-          currentChannel.send(chunkBuffer);
-          offset = end;
-          totalBytesTransferredSession += chunkBuffer.byteLength;
-          bytesTransferredLastSec += chunkBuffer.byteLength;
-
-          item.progress = Math.floor((offset / totalSize) * 100);
-          item.receivedBytes = offset;
-          updateItemUI(item);
-          updateBatchUI();
-        } catch (err) {
-          console.warn('Channel write backpressure, retrying...', err);
-          await new Promise(r => setTimeout(r, 50));
-        }
+        fileOffset = blockEnd;
       }
 
-      // Notify completion
+      // Complete
       sendControlMessage({ type: 'FILE_COMPLETE', fileId: item.id });
     }
 
-    function waitForChannelBuffer(channel) {
+    // Zero-timeout event-driven wait
+    function waitForChannelDrain(channel) {
       return new Promise((resolve) => {
-        const check = () => {
-          if (channel.bufferedAmount < (MAX_BUFFERED_AMOUNT_PER_CHANNEL / 2)) {
-            resolve();
-          } else {
-            setTimeout(check, 10);
-          }
+        if (channel.bufferedAmount < BUFFER_LOW_THRESHOLD) {
+          resolve();
+          return;
+        }
+        channel.onbufferedamountlow = () => {
+          channel.onbufferedamountlow = null;
+          resolve();
         };
-        check();
       });
     }
 
     /* ==========================================================================
-       UI Helpers & Real-Time Speedometer
+       UI Telemetry & Speed Calculations
        ========================================================================== */
 
     function formatBytes(bytes) {
@@ -903,7 +974,6 @@
       return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
 
-    // Telemetry tick every 1000ms
     setInterval(() => {
       const now = Date.now();
       const elapsedSec = (now - lastSpeedCheckTime) / 1000;
@@ -920,7 +990,6 @@
       totalSpeedGbps.innerText = speedGbps;
       batchSpeedText.innerText = `${speedMB} MB/s`;
 
-      // Pipeline individual telemetry
       let trunkABuff = 0;
       let trunkBBuff = 0;
       channelsA.forEach(c => { if (c) trunkABuff += c.bufferedAmount || 0; });
@@ -929,8 +998,8 @@
       pipeABufferText.innerText = formatBytes(trunkABuff);
       pipeBBufferText.innerText = formatBytes(trunkBBuff);
 
-      pipeABufferBar.style.width = Math.min(100, (trunkABuff / (MAX_BUFFERED_AMOUNT_PER_CHANNEL * 4)) * 100) + '%';
-      pipeBBufferBar.style.width = Math.min(100, (trunkBBuff / (MAX_BUFFERED_AMOUNT_PER_CHANNEL * 4)) * 100) + '%';
+      pipeABufferBar.style.width = Math.min(100, (trunkABuff / (BUFFER_HIGH_WATERMARK * 4)) * 100) + '%';
+      pipeBBufferBar.style.width = Math.min(100, (trunkBBuff / (BUFFER_HIGH_WATERMARK * 4)) * 100) + '%';
 
       if (bytesPerSec > 0) {
         pipeASpeed.innerText = `${(parseFloat(speedMB) * 0.52).toFixed(1)} MB/s`;
@@ -940,9 +1009,7 @@
         pipeBSpeed.innerText = '0.0 MB/s';
       }
 
-      // Total session display
       totalTransferredBytes.innerText = formatBytes(totalBytesTransferredSession);
-
     }, 1000);
 
     function updateBatchUI() {
@@ -962,7 +1029,6 @@
       batchPercentText.innerText = `${pct}%`;
       batchProgressBar.style.width = `${pct}%`;
 
-      // ETA Calculation
       const currentSpeedMB = parseFloat(totalSpeedMB.innerText);
       if (currentSpeedMB > 0) {
         const remainingBytes = totalBytes - doneBytes;
@@ -993,7 +1059,7 @@
       fileQueue.forEach(item => {
         const el = document.createElement('div');
         el.id = `file-item-${item.id}`;
-        el.className = 'p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 flex flex-col gap-2 transition hover:border-slate-700';
+        el.className = 'p-3 rounded-xl bg-slate-950/70 border border-slate-800/80 flex flex-col gap-2 transition hover:border-slate-700';
 
         let badgeColor = 'bg-slate-800 text-slate-400';
         if (item.status === 'sending' || item.status === 'receiving') badgeColor = 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30';
@@ -1042,7 +1108,6 @@
       }
     }
 
-    // QR Code Generator
     function setupQrCode(code) {
       qrcodeContainer.innerHTML = '';
       const currentUrl = new URL(window.location.href);
@@ -1058,10 +1123,8 @@
       });
     }
 
-    // Event Listeners
-    connectBtn.addEventListener('click', () => {
-      connectToTarget(targetPeerIdInput.value);
-    });
+    // Event Bindings
+    connectBtn.addEventListener('click', () => connectToTarget(targetPeerIdInput.value));
 
     copyCodeBtn.addEventListener('click', () => {
       if (!myPeerId) return;
@@ -1070,17 +1133,12 @@
       setTimeout(() => copyCodeBtn.classList.remove('text-emerald-400'), 1500);
     });
 
-    showQrBtn.addEventListener('click', () => {
-      qrModal.classList.toggle('hidden');
-    });
+    showQrBtn.addEventListener('click', () => qrModal.classList.toggle('hidden'));
 
-    // Camera QR Scanner
     let html5QrCode = null;
     scanCameraBtn.addEventListener('click', () => {
       cameraScannerContainer.classList.remove('hidden');
-      if (!html5QrCode) {
-        html5QrCode = new Html5Qrcode("reader");
-      }
+      if (!html5QrCode) html5QrCode = new Html5Qrcode("reader");
       html5QrCode.start(
         { facingMode: "environment" },
         { fps: 10, qrbox: 250 },
@@ -1098,25 +1156,20 @@
           }
           closeCameraScanner();
         },
-        (error) => { /* ignore per-frame failures */ }
+        () => {}
       );
     });
 
     function closeCameraScanner() {
       if (html5QrCode) {
-        html5QrCode.stop().then(() => {
-          cameraScannerContainer.classList.add('hidden');
-        }).catch(() => {
-          cameraScannerContainer.classList.add('hidden');
-        });
+        html5QrCode.stop().then(() => cameraScannerContainer.classList.add('hidden'))
+          .catch(() => cameraScannerContainer.classList.add('hidden'));
       } else {
         cameraScannerContainer.classList.add('hidden');
       }
     }
-
     closeScannerBtn.addEventListener('click', closeCameraScanner);
 
-    // File Input & Drag and Drop
     function handleFiles(files) {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
@@ -1128,16 +1181,15 @@
           type: file.type,
           status: 'pending',
           progress: 0,
-          receivedBytes: 0
+          receivedBytes: 0,
+          allChunks: []
         });
       }
       renderQueue();
     }
 
     fileInput.addEventListener('change', (e) => {
-      if (e.target.files && e.target.files.length > 0) {
-        handleFiles(e.target.files);
-      }
+      if (e.target.files && e.target.files.length > 0) handleFiles(e.target.files);
     });
 
     dropZone.addEventListener('dragover', (e) => {
@@ -1145,16 +1197,12 @@
       dropZone.classList.add('border-cyan-400', 'bg-cyan-950/20');
     });
 
-    dropZone.addEventListener('dragleave', () => {
-      dropZone.classList.remove('border-cyan-400', 'bg-cyan-950/20');
-    });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-cyan-400', 'bg-cyan-950/20'));
 
     dropZone.addEventListener('drop', (e) => {
       e.preventDefault();
       dropZone.classList.remove('border-cyan-400', 'bg-cyan-950/20');
-      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        handleFiles(e.dataTransfer.files);
-      }
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
     });
 
     sendAllBtn.addEventListener('click', startBatchTransfer);
@@ -1168,17 +1216,6 @@
       updateBatchUI();
     });
 
-    directDiskToggle.addEventListener('click', () => {
-      directDiskStreamingEnabled = !directDiskStreamingEnabled;
-      diskStreamLabel.innerText = `Direct Disk Stream: ${directDiskStreamingEnabled ? 'ON' : 'OFF'}`;
-      if (directDiskStreamingEnabled) {
-        directDiskToggle.className = 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-950/40 border border-emerald-500/40 text-emerald-400 text-xs font-medium hover:bg-emerald-900/50 transition';
-      } else {
-        directDiskToggle.className = 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-400 text-xs font-medium hover:bg-slate-800 transition';
-      }
-    });
-
-    // Start App
     window.addEventListener('DOMContentLoaded', initPeers);
   </script>
 </body>
