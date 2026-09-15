@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TurboDrop v2.5 - Ultra-High-Speed Dual WebRTC Streamer</title>
+  <title>TurboDrop v3.0 - Direct LAN WebRTC Ultra Streamer</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -28,12 +28,6 @@
               500: '#6366f1',
               600: '#4f46e5',
               900: '#1e1b4b'
-            },
-            cyber: {
-              cyan: '#06b6d4',
-              emerald: '#10b981',
-              violet: '#8b5cf6',
-              amber: '#f59e0b'
             }
           }
         }
@@ -82,13 +76,26 @@
 </head>
 <body class="text-slate-100 font-sans antialiased selection:bg-indigo-500 selection:text-white flex flex-col justify-between p-4 md:p-8">
 
-  <!-- Top Announcement / Performance Advisor Banner -->
-  <div id="routeWarningBanner" class="hidden max-w-6xl w-full mx-auto mb-4 p-3.5 rounded-xl bg-amber-950/40 border border-amber-500/40 flex items-start sm:items-center justify-between gap-3 text-xs text-amber-200">
-    <div class="flex items-center gap-2">
-      <svg class="w-5 h-5 text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-      <span><strong class="text-amber-300">Notice:</strong> Traffic is currently looping through public WAN (<span id="routeBannerType">Reflexive NAT</span>). For maximum local Wi-Fi speeds (>50-80 MB/s), verify both devices are on the exact same 5GHz Wi-Fi band without AP Isolation.</span>
+  <!-- Direct LAN Speed Booster Alert Banner -->
+  <div id="lanBoosterBanner" class="max-w-6xl w-full mx-auto mb-4 p-4 rounded-2xl bg-gradient-to-r from-amber-950/60 via-indigo-950/50 to-cyan-950/60 border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs">
+    <div class="flex items-center gap-3">
+      <div class="p-2 rounded-xl bg-amber-500/20 text-amber-300">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+      </div>
+      <div>
+        <div class="font-bold text-amber-200 text-sm flex items-center gap-2">
+          <span>Speed Capped at 4-6 MB/s? Enable Direct LAN Boost</span>
+          <span class="px-2 py-0.5 rounded bg-amber-500/20 text-[10px] text-amber-300 font-mono">Recommended</span>
+        </div>
+        <p class="text-slate-300 mt-0.5">
+          Browsers mask local private IPs behind mDNS by default, forcing traffic through your home internet's upload pipe (4-6 MB/s). Granting temporary permission unmasks your real local <code class="text-cyan-300">192.168.x.x</code> IP for full 500 Mbps local Wi-Fi speeds.
+        </p>
+      </div>
     </div>
-    <button onclick="document.getElementById('routeWarningBanner').classList.add('hidden')" class="text-amber-400 hover:text-white">&times;</button>
+    <button id="unmaskIpBtn" class="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-cyan-500 hover:from-amber-400 hover:to-cyan-400 text-slate-950 font-bold text-xs shadow-lg transition flex-shrink-0 flex items-center gap-1.5">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+      Unmask Local Wi-Fi IP
+    </button>
   </div>
 
   <!-- Header Section -->
@@ -104,17 +111,17 @@
       <div>
         <div class="flex items-center gap-2">
           <h1 class="text-2xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">TurboDrop</h1>
-          <span class="px-2 py-0.5 text-xs font-semibold uppercase tracking-wider rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">v2.5 Turbocharged</span>
+          <span class="px-2 py-0.5 text-xs font-semibold uppercase tracking-wider rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">v3.0 Direct LAN</span>
         </div>
-        <p class="text-xs text-slate-400">Zero-Latency Pipelined Event Pump &bull; Direct-to-Disk Streamer &bull; Up to 500+ Mbps</p>
+        <p class="text-xs text-slate-400">High-Speed Local Wi-Fi Streamer &bull; Up to 500+ Mbps LAN P2P</p>
       </div>
     </div>
 
-    <!-- Connection & Disk Badges -->
+    <!-- Connection & Route Badges -->
     <div class="flex items-center gap-3 flex-wrap justify-center sm:justify-end">
-      <div id="routeBadge" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/80 border border-slate-800 text-xs text-slate-300">
-        <span class="w-2.5 h-2.5 rounded-full bg-slate-500" id="routeDot"></span>
-        <span id="routeText">Route: Standby</span>
+      <div id="routeBadge" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/80 border border-slate-800 text-xs text-slate-300 font-mono">
+        <span class="w-2.5 h-2.5 rounded-full bg-amber-400 pulse-dot" id="routeDot"></span>
+        <span id="routeText">Checking Route...</span>
       </div>
       <div id="deviceBadge" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/80 border border-slate-800 text-xs text-slate-300">
         <span class="w-2.5 h-2.5 rounded-full bg-amber-400 pulse-dot" id="peerStatusDot"></span>
@@ -126,7 +133,7 @@
   <!-- Main Grid -->
   <main class="max-w-6xl w-full mx-auto my-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
     
-    <!-- Left Column: Pairing & Connection Engine (5 Cols) -->
+    <!-- Left Column: Device Identity & Connection (5 Cols) -->
     <section class="lg:col-span-5 flex flex-col gap-5">
       
       <!-- Card: Device Identity & Pairing -->
@@ -152,10 +159,10 @@
           </button>
         </div>
 
-        <!-- Collapsible QR Code -->
+        <!-- QR Code -->
         <div id="qrModal" class="hidden mt-4 pt-4 border-t border-slate-800 text-center flex flex-col items-center">
           <div class="p-3 bg-white rounded-xl shadow-lg inline-block" id="qrcode"></div>
-          <p class="text-xs text-slate-400 mt-2">Scan with camera on receiving device</p>
+          <p class="text-xs text-slate-400 mt-2">Scan with camera on second device</p>
         </div>
 
         <div class="my-4 border-t border-slate-800/80 relative">
@@ -184,80 +191,44 @@
         </div>
       </div>
 
-      <!-- Card: Live WebRTC Telemetry & Throughput Gauges -->
+      <!-- Live Speedometer & Telemetry -->
       <div class="glass-panel p-5 rounded-2xl">
         <div class="flex items-center justify-between mb-3">
           <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-2">
             <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-            Dual Turbo Pipeline
+            Throughput Monitor
           </h2>
-          <span id="activeChannelCount" class="text-xs font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded">0 Channels</span>
+          <span id="routeDetails" class="text-xs font-mono text-cyan-400">Route: Inactive</span>
         </div>
 
         <div class="space-y-3 font-mono text-xs">
-          <!-- Trunk A -->
-          <div class="p-3 bg-slate-950/70 rounded-xl border border-slate-800">
-            <div class="flex justify-between items-center mb-1.5">
-              <span class="text-cyan-400 font-bold flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-cyan-400" id="pipeADot"></span>
-                Trunk Alpha (4 Striped Streams)
-              </span>
-              <span id="pipeASpeed" class="text-slate-200 font-bold">0.0 MB/s</span>
-            </div>
-            <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-              <div id="pipeABufferBar" class="bg-cyan-500 h-full w-0 transition-all duration-150"></div>
-            </div>
-            <div class="flex justify-between text-[10px] text-slate-500 mt-1">
-              <span>SCTP Buffer: <span id="pipeABufferText" class="text-slate-400">0 KB</span></span>
-              <span>State: <span id="pipeAState" class="text-slate-400">Standby</span></span>
-            </div>
-          </div>
-
-          <!-- Trunk B -->
-          <div class="p-3 bg-slate-950/70 rounded-xl border border-slate-800">
-            <div class="flex justify-between items-center mb-1.5">
-              <span class="text-indigo-400 font-bold flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-indigo-400" id="pipeBDot"></span>
-                Trunk Beta (4 Striped Streams)
-              </span>
-              <span id="pipeBSpeed" class="text-slate-200 font-bold">0.0 MB/s</span>
-            </div>
-            <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-              <div id="pipeBBufferBar" class="bg-indigo-500 h-full w-0 transition-all duration-150"></div>
-            </div>
-            <div class="flex justify-between text-[10px] text-slate-500 mt-1">
-              <span>SCTP Buffer: <span id="pipeBBufferText" class="text-slate-400">0 KB</span></span>
-              <span>State: <span id="pipeBState" class="text-slate-400">Standby</span></span>
-            </div>
-          </div>
-
           <!-- Combined Live Speedometer -->
           <div class="p-4 bg-gradient-to-r from-indigo-950/60 via-cyan-950/40 to-emerald-950/60 rounded-xl border border-indigo-500/30 flex items-center justify-between">
             <div>
-              <div class="text-[10px] uppercase tracking-wider text-slate-400">Combined Live Throughput</div>
-              <div class="text-2xl font-bold font-sans tracking-tight text-white flex items-baseline gap-1.5">
+              <div class="text-[10px] uppercase tracking-wider text-slate-400">Live Speed</div>
+              <div class="text-3xl font-bold font-sans tracking-tight text-white flex items-baseline gap-1.5">
                 <span id="totalSpeedMB" class="text-emerald-400">0.0</span>
                 <span class="text-xs font-mono font-medium text-emerald-400">MB/s</span>
                 <span class="text-xs font-mono text-slate-400 ml-1">(<span id="totalSpeedGbps">0.00</span> Gbps)</span>
               </div>
             </div>
             <div class="text-right">
-              <div class="text-[10px] uppercase tracking-wider text-slate-400">Transferred Session</div>
+              <div class="text-[10px] uppercase tracking-wider text-slate-400">Session Total</div>
               <div class="text-sm font-bold text-cyan-300" id="totalTransferredBytes">0 MB</div>
             </div>
           </div>
-        </div>
-      </div>
 
-      <!-- Turbo Optimization Settings -->
-      <div class="glass-panel p-4 rounded-2xl flex flex-col gap-2.5 text-xs">
-        <div class="flex items-center justify-between">
-          <span class="text-slate-300 font-medium">Direct Disk Stream (`createWritable`)</span>
-          <span id="diskStreamBadge" class="px-2 py-0.5 rounded font-mono text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-500/30">Auto (Active)</span>
+          <!-- Channel Buffer Status -->
+          <div class="p-3 bg-slate-950/70 rounded-xl border border-slate-800">
+            <div class="flex justify-between items-center mb-1 text-slate-300">
+              <span>SCTP Pipe Buffer</span>
+              <span id="sctpBufferText">0 KB</span>
+            </div>
+            <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+              <div id="sctpBufferBar" class="bg-cyan-500 h-full w-0 transition-all duration-150"></div>
+            </div>
+          </div>
         </div>
-        <p class="text-[11px] text-slate-400">
-          Batched 4MB disk flushes allow multi-gigabyte movies to stream without browser RAM exhaustion.
-        </p>
       </div>
 
     </section>
@@ -277,7 +248,7 @@
           </div>
           <div>
             <h3 class="text-lg font-bold text-white group-hover:text-cyan-300 transition">Drop Movies / Large Files Here</h3>
-            <p class="text-xs text-slate-400 mt-1">Select all 12 files (10GB+). Chunks stream across 8 parallel WebRTC channels.</p>
+            <p class="text-xs text-slate-400 mt-1">Select all 12 files (10GB+). Direct streaming with zero memory freeze.</p>
           </div>
           <div class="flex gap-2 mt-2 pointer-events-auto">
             <button onclick="document.getElementById('fileInput').click()" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow transition">
@@ -338,50 +309,40 @@
 
   <footer class="max-w-6xl w-full mx-auto pt-6 border-t border-slate-800/80 text-xs text-slate-500 flex flex-col sm:flex-row justify-between items-center gap-3">
     <div>
-      TurboDrop v2.5 &bull; Dual SCTP Non-blocking Pump &bull; 64KB Slices with 8MB Memory Blocks &bull; Direct LAN Host Priority
+      TurboDrop v3.0 &bull; Local IPv4 Prioritization &bull; Continuous Flow Pacing &bull; Direct Disk & Memory Streaming
     </div>
     <div class="flex gap-4">
-      <span>Wi-Fi 5GHz / 6 / LAN Optimized</span>
-      <span>Chrome &bull; Edge &bull; Firefox &bull; Safari</span>
+      <span>Wi-Fi 5GHz / 6 / LAN</span>
+      <span>PC &bull; Mac &bull; iPhone &bull; Android</span>
     </div>
   </footer>
 
-  <!-- Turbo Engine Script -->
+  <!-- Application Logic -->
   <script>
     /* ==========================================================================
-       TurboDrop v2.5 - Zero-Latency Pipelined WebRTC Transfer Engine
+       TurboDrop v3.0 - Direct LAN WebRTC Ultra Streamer
        ========================================================================== */
 
-    // High-Performance Tuning Constants
-    const CHUNK_SIZE = 64 * 1024; // 64 KB (Standard SCTP MTU sweet-spot)
-    const BLOCK_READ_SIZE = 8 * 1024 * 1024; // 8 MB Super-Block read from disk to RAM
-    const BUFFER_LOW_THRESHOLD = 512 * 1024; // 512 KB threshold for onbufferedamountlow event
-    const BUFFER_HIGH_WATERMARK = 2 * 1024 * 1024; // 2 MB buffer ceiling per data channel
-    const CHANNELS_PER_TRUNK = 4; // 4 striped channels per peer = 8 total channels
+    const CHUNK_SIZE = 64 * 1024; // 64 KB (Optimized SCTP MTU)
+    const BLOCK_READ_SIZE = 4 * 1024 * 1024; // 4 MB Super-Blocks
+    const BUFFER_HIGH_WATERMARK = 1024 * 1024; // 1 MB backpressure threshold
+    const BUFFER_LOW_THRESHOLD = 256 * 1024; // 256 KB resume threshold
 
-    // State Variables
     let myPeerId = null;
-    let peerA = null;
-    let peerB = null;
-    let connA = null;
-    let connB = null;
-    let channelsA = [];
-    let channelsB = [];
-    let allActiveChannels = [];
-    
+    let peer = null;
+    let conn = null;
+    let mainDataChannel = null;
     let isConnected = false;
-    let targetPeerId = null;
-    
-    // File Queue & Transfer State
+    let activeRouteType = 'unknown';
+
     let fileQueue = [];
     let isTransferring = false;
     let currentTransferIndex = -1;
-    
-    // Telemetry
+
     let bytesTransferredLastSec = 0;
     let totalBytesTransferredSession = 0;
     let lastSpeedCheckTime = Date.now();
-    let directDiskStreamingEnabled = ('showSaveFilePicker' in window);
+    let smoothedSpeedMB = 0;
 
     // DOM Elements
     const myPeerIdDisplay = document.getElementById('myPeerIdDisplay');
@@ -389,8 +350,9 @@
     const peerStatusText = document.getElementById('peerStatusText');
     const routeDot = document.getElementById('routeDot');
     const routeText = document.getElementById('routeText');
-    const routeWarningBanner = document.getElementById('routeWarningBanner');
-    const routeBannerType = document.getElementById('routeBannerType');
+    const routeDetails = document.getElementById('routeDetails');
+    const lanBoosterBanner = document.getElementById('lanBoosterBanner');
+    const unmaskIpBtn = document.getElementById('unmaskIpBtn');
     const targetPeerIdInput = document.getElementById('targetPeerIdInput');
     const connectBtn = document.getElementById('connectBtn');
     const copyCodeBtn = document.getElementById('copyCodeBtn');
@@ -409,18 +371,11 @@
     const sendAllBtn = document.getElementById('sendAllBtn');
     const clearQueueBtn = document.getElementById('clearQueueBtn');
     
-    const pipeASpeed = document.getElementById('pipeASpeed');
-    const pipeBSpeed = document.getElementById('pipeBSpeed');
-    const pipeABufferBar = document.getElementById('pipeABufferBar');
-    const pipeBBufferBar = document.getElementById('pipeBBufferBar');
-    const pipeABufferText = document.getElementById('pipeABufferText');
-    const pipeBBufferText = document.getElementById('pipeBBufferText');
-    const pipeAState = document.getElementById('pipeAState');
-    const pipeBState = document.getElementById('pipeBState');
-    const activeChannelCount = document.getElementById('activeChannelCount');
     const totalSpeedMB = document.getElementById('totalSpeedMB');
     const totalSpeedGbps = document.getElementById('totalSpeedGbps');
     const totalTransferredBytes = document.getElementById('totalTransferredBytes');
+    const sctpBufferBar = document.getElementById('sctpBufferBar');
+    const sctpBufferText = document.getElementById('sctpBufferText');
     
     const batchProgressContainer = document.getElementById('batchProgressContainer');
     const batchCompletedCount = document.getElementById('batchCompletedCount');
@@ -439,14 +394,34 @@
       return res;
     }
 
-    /* ==========================================================================
-       Peer Initialization with Local Host ICE Prioritization
-       ========================================================================== */
+    // Direct LAN Boost: Request temporary permission to unmask real 192.168.x.x IPv4 address
+    async function unmaskLocalIp() {
+      try {
+        unmaskIpBtn.innerText = 'Unmasking IP...';
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Immediately stop the microphone track once granted
+        stream.getTracks().forEach(t => t.stop());
+        unmaskIpBtn.innerText = '✅ LAN IP Unmasked!';
+        unmaskIpBtn.className = 'px-4 py-2 rounded-xl bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5';
+        setTimeout(() => lanBoosterBanner.classList.add('hidden'), 2000);
 
-    function initPeers() {
+        // Re-initialize peer with unmasked LAN candidates
+        initPeer();
+      } catch (err) {
+        alert('Could not access microphone/camera. To achieve maximum local Wi-Fi speed, allow permission so the browser exposes your local 192.168.x.x IP address.');
+        unmaskIpBtn.innerText = 'Unmask Local Wi-Fi IP';
+      }
+    }
+
+    unmaskIpBtn.addEventListener('click', unmaskLocalIp);
+
+    function initPeer() {
+      if (peer) {
+        try { peer.destroy(); } catch (e) {}
+      }
+
       const urlParams = new URLSearchParams(window.location.search);
       const joinCode = urlParams.get('join') || urlParams.get('room');
-      
       const shortId = generateShortCode();
       myPeerId = shortId;
       myPeerIdDisplay.innerText = shortId;
@@ -454,18 +429,18 @@
       peerStatusText.innerText = 'Connecting to signaling...';
       peerStatusDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 pulse-dot';
 
-      const rtcConfig = {
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' }
-        ],
-        iceCandidatePoolSize: 10
-      };
+      peer = new Peer(`turbo-${shortId}`, {
+        debug: 1,
+        config: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' }
+          ],
+          iceCandidatePoolSize: 10
+        }
+      });
 
-      peerA = new Peer(`turbo-${shortId}-A`, { debug: 1, config: rtcConfig });
-      peerB = new Peer(`turbo-${shortId}-B`, { debug: 1, config: rtcConfig });
-
-      peerA.on('open', (id) => {
+      peer.on('open', (id) => {
         peerStatusText.innerText = `Ready (${shortId})`;
         peerStatusDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
         setupQrCode(shortId);
@@ -476,201 +451,111 @@
         }
       });
 
-      peerA.on('connection', (conn) => handleIncomingConnection(conn, 'A'));
-      peerB.on('connection', (conn) => handleIncomingConnection(conn, 'B'));
+      peer.on('connection', (incomingConn) => {
+        conn = incomingConn;
+        setupConnectionHandlers(conn);
+      });
 
-      peerA.on('error', (err) => console.warn('Peer A error:', err));
-      peerB.on('error', (err) => console.warn('Peer B error:', err));
+      peer.on('error', (err) => console.warn('Peer error:', err));
     }
 
     function connectToTarget(rawTargetId) {
       const code = rawTargetId.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
       if (!code || code === myPeerId) return;
 
-      targetPeerId = code;
       peerStatusText.innerText = `Connecting to ${code}...`;
       peerStatusDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 pulse-dot';
 
-      connA = peerA.connect(`turbo-${code}-A`, { reliable: true, serialization: 'raw' });
-      setupConnectionHandlers(connA, 'A');
-
-      connB = peerB.connect(`turbo-${code}-B`, { reliable: true, serialization: 'raw' });
-      setupConnectionHandlers(connB, 'B');
+      conn = peer.connect(`turbo-${code}`, { reliable: true, serialization: 'raw' });
+      setupConnectionHandlers(conn);
     }
 
-    function handleIncomingConnection(conn, trunkType) {
-      if (trunkType === 'A') {
-        connA = conn;
-        setupConnectionHandlers(connA, 'A');
-      } else {
-        connB = conn;
-        setupConnectionHandlers(connB, 'B');
-      }
-    }
+    function setupConnectionHandlers(connection) {
+      connection.on('open', () => {
+        mainDataChannel = connection.dataChannel;
+        mainDataChannel.binaryType = 'arraybuffer';
+        mainDataChannel.bufferedAmountLowThreshold = BUFFER_LOW_THRESHOLD;
 
-    function setupConnectionHandlers(conn, trunk) {
-      conn.on('open', () => {
-        createStripedDataChannels(conn, trunk);
-        updateConnectionStatus();
-      });
-
-      conn.on('data', (data) => handleIncomingData(data));
-
-      conn.on('close', () => {
-        if (trunk === 'A') {
-          pipeAState.innerText = 'Closed';
-          pipeAState.className = 'text-rose-400';
-          channelsA = [];
-        } else {
-          pipeBState.innerText = 'Closed';
-          pipeBState.className = 'text-rose-400';
-          channelsB = [];
-        }
-        updateConnectionStatus();
-      });
-    }
-
-    function configureDataChannel(dc) {
-      dc.binaryType = 'arraybuffer';
-      dc.bufferedAmountLowThreshold = BUFFER_LOW_THRESHOLD;
-      dc.onmessage = (ev) => handleIncomingData(ev.data);
-    }
-
-    function createStripedDataChannels(conn, trunk) {
-      const pc = conn.peerConnection;
-      if (!pc) return;
-
-      const mainDc = conn.dataChannel;
-      configureDataChannel(mainDc);
-
-      if (trunk === 'A') {
-        channelsA = [mainDc];
-        pipeAState.innerText = 'Active (4 Streams)';
-        pipeAState.className = 'text-emerald-400 font-bold';
-      } else {
-        channelsB = [mainDc];
-        pipeBState.innerText = 'Active (4 Streams)';
-        pipeBState.className = 'text-emerald-400 font-bold';
-      }
-
-      // Create additional parallel channels for concurrent multiplexing
-      for (let i = 1; i < CHANNELS_PER_TRUNK; i++) {
-        try {
-          const extraDc = pc.createDataChannel(`stripe-${trunk}-${i}`, { ordered: true });
-          configureDataChannel(extraDc);
-          if (trunk === 'A') channelsA.push(extraDc);
-          else channelsB.push(extraDc);
-        } catch (e) {
-          console.warn('Channel creation error:', e);
-        }
-      }
-
-      // Handle receiver side incoming data channels
-      pc.ondatachannel = (event) => {
-        const dc = event.channel;
-        configureDataChannel(dc);
-        if (trunk === 'A') {
-          if (!channelsA.includes(dc)) channelsA.push(dc);
-        } else {
-          if (!channelsB.includes(dc)) channelsB.push(dc);
-        }
-        recalculateActiveChannels();
-      };
-
-      recalculateActiveChannels();
-    }
-
-    function recalculateActiveChannels() {
-      allActiveChannels = [...channelsA, ...channelsB].filter(c => c && (c.readyState === 'open' || c._open));
-      activeChannelCount.innerText = `${allActiveChannels.length} Channels`;
-    }
-
-    function updateConnectionStatus() {
-      recalculateActiveChannels();
-      const count = (connA && connA.open ? 1 : 0) + (connB && connB.open ? 1 : 0);
-      
-      if (count > 0) {
         isConnected = true;
-        peerStatusText.innerText = count === 2 ? 'Dual Turbo Linked (8x DC)' : 'Single Trunk Linked';
+        peerStatusText.innerText = 'Connected & Linked';
         peerStatusDot.className = 'w-2.5 h-2.5 rounded-full bg-cyan-400 glow-cyan';
         sendAllBtn.disabled = fileQueue.length === 0;
-      } else {
+
+        inspectConnectionRoute(connection.peerConnection);
+      });
+
+      connection.on('data', (data) => handleIncomingData(data));
+
+      connection.on('close', () => {
         isConnected = false;
-        peerStatusText.innerText = 'Waiting for connection...';
-        peerStatusDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 pulse-dot';
+        peerStatusText.innerText = 'Disconnected';
+        peerStatusDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-400';
+        routeText.innerText = 'Route: Disconnected';
+        routeDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-400';
         sendAllBtn.disabled = true;
-      }
+      });
     }
 
-    /* ==========================================================================
-       ICE Diagnostics: Inspect Connection Route (Host vs Reflexive)
-       ========================================================================== */
-
-    async function checkIceRoute() {
-      const pc = (connA && connA.peerConnection) || (connB && connB.peerConnection);
-      if (!pc || pc.connectionState !== 'connected') return;
-
+    // Inspect active ICE candidate pair (Host LAN vs Reflexive WAN)
+    async function inspectConnectionRoute(pc) {
+      if (!pc) return;
       try {
         const stats = await pc.getStats();
-        let activePair = null;
+        let selectedPair = null;
         let localCandidate = null;
         let remoteCandidate = null;
 
         stats.forEach(report => {
           if (report.type === 'candidate-pair' && (report.selected || report.nominated || report.state === 'succeeded')) {
-            activePair = report;
+            selectedPair = report;
           }
         });
 
-        if (activePair) {
+        if (selectedPair) {
           stats.forEach(report => {
-            if (report.id === activePair.localCandidateId) localCandidate = report;
-            if (report.id === activePair.remoteCandidateId) remoteCandidate = report;
+            if (report.id === selectedPair.localCandidateId) localCandidate = report;
+            if (report.id === selectedPair.remoteCandidateId) remoteCandidate = report;
           });
 
           if (localCandidate && remoteCandidate) {
-            const isLocalHost = localCandidate.candidateType === 'host' || remoteCandidate.candidateType === 'host';
-            const candidateType = localCandidate.candidateType;
+            const isLocal = localCandidate.candidateType === 'host' && remoteCandidate.candidateType === 'host';
+            activeRouteType = localCandidate.candidateType;
 
-            if (isLocalHost) {
-              routeText.innerText = `Route: 🟢 Direct LAN (${candidateType})`;
+            if (isLocal) {
+              routeText.innerText = 'Route: 🟢 Direct LAN (500+ Mbps)';
               routeDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 glow-emerald';
-              routeWarningBanner.classList.add('hidden');
+              routeDetails.innerText = `Direct P2P (${localCandidate.ip || 'LAN'})`;
+              lanBoosterBanner.classList.add('hidden');
             } else {
-              routeText.innerText = `Route: ⚠️ WAN (${candidateType})`;
+              routeText.innerText = `Route: ⚠️ WAN (${localCandidate.candidateType})`;
               routeDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400';
-              routeBannerType.innerText = candidateType;
-              routeWarningBanner.classList.remove('hidden');
+              routeDetails.innerText = 'WAN Loopback (Capped by ISP Upload ~4-6 MB/s)';
+              lanBoosterBanner.classList.remove('hidden');
             }
           }
         }
-      } catch (err) {
-        console.warn('ICE stats query:', err);
+      } catch (e) {
+        console.warn('ICE stats query:', e);
       }
     }
 
-    setInterval(checkIceRoute, 2500);
+    setInterval(() => {
+      if (conn && conn.peerConnection && conn.peerConnection.connectionState === 'connected') {
+        inspectConnectionRoute(conn.peerConnection);
+      }
+    }, 2000);
 
     /* ==========================================================================
-       Pipelined Binary Protocol & Receiver Engine
+       Pipelined Streaming Protocol (Sender & Receiver)
        ========================================================================== */
 
-    // Binary Chunk Header:
-    // [uint32: chunkIndex (4 bytes)][uint32: byteOffset (4 bytes)][payload...]
-    const HEADER_SIZE = 8;
-    const CHUNK_PAYLOAD_SIZE = CHUNK_SIZE - HEADER_SIZE;
-
     let incomingFileMeta = null;
-    let incomingFileReceivedBytes = 0;
+    let incomingReceivedBytes = 0;
+    let incomingBlobParts = [];
     let incomingFileWriter = null;
-    let incomingBatchBuffer = []; // Batched writes
-    let incomingBatchBytes = 0;
-    const DISK_FLUSH_THRESHOLD = 4 * 1024 * 1024; // Flush to disk in 4MB chunks
 
     function sendControlMessage(obj) {
-      const str = JSON.stringify(obj);
-      if (connA && connA.open) connA.send(str);
-      else if (connB && connB.open) connB.send(str);
+      if (conn && conn.open) conn.send(JSON.stringify(obj));
     }
 
     async function handleIncomingData(data) {
@@ -678,11 +563,9 @@
         try {
           const msg = JSON.parse(data);
           handleControlMessage(msg);
-        } catch (e) {
-          console.error('Invalid JSON message:', e);
-        }
+        } catch (e) {}
       } else if (data instanceof ArrayBuffer || (data && data.buffer instanceof ArrayBuffer)) {
-        handleIncomingBinaryChunk(data instanceof ArrayBuffer ? data : data.buffer);
+        handleIncomingChunk(data instanceof ArrayBuffer ? data : data.buffer);
       }
     }
 
@@ -694,47 +577,40 @@
         case 'FILE_COMPLETE':
           await finalizeReceivedFile(msg.fileId);
           break;
-        case 'CANCEL_TRANSFER':
-          alert('Transfer cancelled by peer.');
-          break;
       }
     }
 
     async function prepareReceiveFile(meta) {
       incomingFileMeta = meta;
-      incomingFileReceivedBytes = 0;
-      incomingBatchBuffer = [];
-      incomingBatchBytes = 0;
+      incomingReceivedBytes = 0;
+      incomingBlobParts = [];
       incomingFileWriter = null;
 
-      let existing = fileQueue.find(f => f.id === meta.id);
-      if (!existing) {
-        existing = {
+      let item = fileQueue.find(f => f.id === meta.id);
+      if (!item) {
+        item = {
           id: meta.id,
           name: meta.name,
           size: meta.size,
           type: meta.type,
           status: 'receiving',
           progress: 0,
-          receivedBytes: 0,
-          allChunks: []
+          receivedBytes: 0
         };
-        fileQueue.push(existing);
+        fileQueue.push(item);
         renderQueue();
       } else {
-        existing.status = 'receiving';
-        existing.progress = 0;
-        existing.allChunks = [];
+        item.status = 'receiving';
+        item.progress = 0;
         renderQueue();
       }
 
-      // Prompt for direct disk write if supported
-      if (directDiskStreamingEnabled && ('showSaveFilePicker' in window)) {
+      // If File System Access API is supported (Desktop Chrome/Edge), prompt for direct disk write
+      if ('showSaveFilePicker' in window) {
         try {
           const handle = await window.showSaveFilePicker({ suggestedName: meta.name });
           incomingFileWriter = await handle.createWritable();
         } catch (e) {
-          console.log('Direct disk save declined or unavailable, buffering in RAM:', e);
           incomingFileWriter = null;
         }
       }
@@ -745,46 +621,42 @@
       sendControlMessage({ type: 'TRANSFER_READY', fileId: meta.id });
     }
 
-    async function handleIncomingBinaryChunk(buffer) {
+    let memoryBuffer = [];
+    let memoryBufferSize = 0;
+    const FLUSH_SIZE = 4 * 1024 * 1024; // 4MB
+
+    async function handleIncomingChunk(buffer) {
       if (!incomingFileMeta) return;
 
-      const view = new DataView(buffer);
-      const chunkIndex = view.getUint32(0, true);
-      const byteOffset = view.getUint32(4, true);
-      const payload = buffer.slice(HEADER_SIZE);
+      const chunkSize = buffer.byteLength;
+      incomingReceivedBytes += chunkSize;
+      totalBytesTransferredSession += chunkSize;
+      bytesTransferredLastSec += chunkSize;
 
-      const payloadSize = payload.byteLength;
-      incomingFileReceivedBytes += payloadSize;
-      totalBytesTransferredSession += payloadSize;
-      bytesTransferredLastSec += payloadSize;
-
-      // Direct disk streaming with 4MB batch flushing
       if (incomingFileWriter) {
-        incomingBatchBuffer.push({ position: byteOffset, data: payload });
-        incomingBatchBytes += payloadSize;
+        memoryBuffer.push(buffer);
+        memoryBufferSize += chunkSize;
 
-        if (incomingBatchBytes >= DISK_FLUSH_THRESHOLD) {
-          const batch = incomingBatchBuffer;
-          incomingBatchBuffer = [];
-          incomingBatchBytes = 0;
-          for (const item of batch) {
-            await incomingFileWriter.write({ type: 'write', position: item.position, data: item.data });
-          }
+        if (memoryBufferSize >= FLUSH_SIZE) {
+          const blob = new Blob(memoryBuffer);
+          memoryBuffer = [];
+          memoryBufferSize = 0;
+          await incomingFileWriter.write(blob); // 1 single sequential write!
         }
       } else {
-        const item = fileQueue.find(f => f.id === incomingFileMeta.id);
-        if (item) item.allChunks[chunkIndex] = payload;
+        // Mobile / Safari RAM Buffer
+        incomingBlobParts.push(buffer);
       }
 
       const item = fileQueue.find(f => f.id === incomingFileMeta.id);
       if (item) {
-        item.progress = Math.min(100, Math.floor((incomingFileReceivedBytes / incomingFileMeta.size) * 100));
-        item.receivedBytes = incomingFileReceivedBytes;
+        item.progress = Math.min(100, Math.floor((incomingReceivedBytes / incomingFileMeta.size) * 100));
+        item.receivedBytes = incomingReceivedBytes;
         updateItemUI(item);
       }
       updateBatchUI();
 
-      if (incomingFileReceivedBytes >= incomingFileMeta.size) {
+      if (incomingReceivedBytes >= incomingFileMeta.size) {
         await finalizeReceivedFile(incomingFileMeta.id);
       }
     }
@@ -799,22 +671,19 @@
         updateItemUI(item);
       }
 
-      // Flush any remaining batched writes
       if (incomingFileWriter) {
-        if (incomingBatchBuffer.length > 0) {
-          for (const piece of incomingBatchBuffer) {
-            await incomingFileWriter.write({ type: 'write', position: piece.position, data: piece.data });
-          }
-          incomingBatchBuffer = [];
+        if (memoryBuffer.length > 0) {
+          const blob = new Blob(memoryBuffer);
+          memoryBuffer = [];
+          memoryBufferSize = 0;
+          await incomingFileWriter.write(blob);
         }
         try {
           await incomingFileWriter.close();
-        } catch (e) {
-          console.error('Error closing disk stream:', e);
-        }
+        } catch (e) {}
         incomingFileWriter = null;
-      } else if (item && item.allChunks && item.allChunks.length > 0) {
-        const blob = new Blob(item.allChunks, { type: incomingFileMeta.type || 'application/octet-stream' });
+      } else if (incomingBlobParts.length > 0) {
+        const blob = new Blob(incomingBlobParts, { type: incomingFileMeta.type || 'application/octet-stream' });
         const downloadUrl = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = downloadUrl;
@@ -823,7 +692,7 @@
         a.click();
         document.body.removeChild(a);
         setTimeout(() => URL.revokeObjectURL(downloadUrl), 60000);
-        item.allChunks = [];
+        incomingBlobParts = [];
       }
 
       incomingFileMeta = null;
@@ -831,7 +700,7 @@
     }
 
     /* ==========================================================================
-       Turbo Send Engine: Block-Reading + Event-Driven Buffer Pumping
+       Continuous Paced Sender Engine (Zero 3-second stalls)
        ========================================================================== */
 
     async function startBatchTransfer() {
@@ -849,7 +718,7 @@
         item.status = 'sending';
         updateItemUI(item);
 
-        await sendSingleFileTurbo(item);
+        await sendSingleFileStream(item);
         item.status = 'completed';
         item.progress = 100;
         updateItemUI(item);
@@ -858,10 +727,10 @@
 
       isTransferring = false;
       sendAllBtn.disabled = false;
-      alert('All movie files transferred at maximum speed!');
+      alert('All movie files transferred successfully!');
     }
 
-    async function sendSingleFileTurbo(item) {
+    async function sendSingleFileStream(item) {
       const file = item.file;
       const totalSize = file.size;
 
@@ -875,14 +744,11 @@
         }
       });
 
-      // Quick sync pause
-      await new Promise(r => setTimeout(r, 250));
+      await new Promise(r => setTimeout(r, 200));
 
       let fileOffset = 0;
-      let chunkCounter = 0;
-      let channelIndex = 0;
 
-      // Read file in 8 MB Super-Blocks from disk
+      // Read in 4 MB Super-Blocks
       while (fileOffset < totalSize) {
         const blockEnd = Math.min(fileOffset + BLOCK_READ_SIZE, totalSize);
         const blockBlob = file.slice(fileOffset, blockEnd);
@@ -891,44 +757,27 @@
 
         let blockOffset = 0;
 
-        // Blast 64 KB chunks synchronously using event-driven backpressure
+        // Slice into 64 KB chunks and stream continuously
         while (blockOffset < blockSize) {
-          recalculateActiveChannels();
-          const channels = allActiveChannels;
-          if (channels.length === 0) {
-            await new Promise(r => setTimeout(r, 200));
+          if (!mainDataChannel || mainDataChannel.readyState !== 'open') {
+            await new Promise(r => setTimeout(r, 100));
             continue;
           }
 
-          // Pick next available channel
-          const currentChannel = channels[channelIndex % channels.length];
-          channelIndex++;
-
-          // Check backpressure: if channel buffer exceeds high watermark, pause until onbufferedamountlow
-          if (currentChannel.bufferedAmount >= BUFFER_HIGH_WATERMARK) {
-            await waitForChannelDrain(currentChannel);
+          // Backpressure check with 25ms safety watchdog
+          if (mainDataChannel.bufferedAmount >= BUFFER_HIGH_WATERMARK) {
+            await waitForDrain(mainDataChannel);
           }
 
-          const currentPayloadSize = Math.min(CHUNK_PAYLOAD_SIZE, blockSize - blockOffset);
-          const chunkAbsoluteOffset = fileOffset + blockOffset;
-
-          // Assemble chunk with 8-byte header: [uint32 chunkIndex, uint32 byteOffset]
-          const packetBuffer = new ArrayBuffer(HEADER_SIZE + currentPayloadSize);
-          const packetView = new DataView(packetBuffer);
-          packetView.setUint32(0, chunkCounter, true);
-          packetView.setUint32(4, chunkAbsoluteOffset, true);
-
-          new Uint8Array(packetBuffer, HEADER_SIZE).set(
-            new Uint8Array(blockBuffer, blockOffset, currentPayloadSize)
-          );
+          const currentPayloadSize = Math.min(CHUNK_SIZE, blockSize - blockOffset);
+          const chunk = blockBuffer.slice(blockOffset, blockOffset + currentPayloadSize);
 
           try {
-            currentChannel.send(packetBuffer);
+            mainDataChannel.send(chunk);
             blockOffset += currentPayloadSize;
-            chunkCounter++;
 
-            totalBytesTransferredSession += packetBuffer.byteLength;
-            bytesTransferredLastSec += packetBuffer.byteLength;
+            totalBytesTransferredSession += chunk.byteLength;
+            bytesTransferredLastSec += chunk.byteLength;
 
             const currentSent = fileOffset + blockOffset;
             item.progress = Math.floor((currentSent / totalSize) * 100);
@@ -936,7 +785,6 @@
             updateItemUI(item);
             updateBatchUI();
           } catch (err) {
-            console.warn('DataChannel send throttle, waiting...', err);
             await new Promise(r => setTimeout(r, 20));
           }
         }
@@ -944,26 +792,30 @@
         fileOffset = blockEnd;
       }
 
-      // Complete
       sendControlMessage({ type: 'FILE_COMPLETE', fileId: item.id });
     }
 
-    // Zero-timeout event-driven wait
-    function waitForChannelDrain(channel) {
+    function waitForDrain(channel) {
       return new Promise((resolve) => {
-        if (channel.bufferedAmount < BUFFER_LOW_THRESHOLD) {
+        if (!channel || channel.readyState !== 'open' || channel.bufferedAmount < BUFFER_LOW_THRESHOLD) {
           resolve();
           return;
         }
-        channel.onbufferedamountlow = () => {
-          channel.onbufferedamountlow = null;
-          resolve();
+        let done = false;
+        const cleanup = () => {
+          if (!done) {
+            done = true;
+            channel.onbufferedamountlow = null;
+            resolve();
+          }
         };
+        channel.onbufferedamountlow = cleanup;
+        setTimeout(cleanup, 25); // 25ms watchdog prevents any long freeze
       });
     }
 
     /* ==========================================================================
-       UI Telemetry & Speed Calculations
+       Smoothed Speedometer & UI Telemetry
        ========================================================================== */
 
     function formatBytes(bytes) {
@@ -982,31 +834,22 @@
       const currentBytes = bytesTransferredLastSec;
       bytesTransferredLastSec = 0;
 
-      const bytesPerSec = currentBytes / (elapsedSec || 1);
-      const speedMB = (bytesPerSec / (1024 * 1024)).toFixed(1);
-      const speedGbps = ((bytesPerSec * 8) / (1000 * 1000 * 1000)).toFixed(2);
+      const rawSpeedMB = (currentBytes / (elapsedSec || 1)) / (1024 * 1024);
+      // Smooth moving average
+      smoothedSpeedMB = (smoothedSpeedMB * 0.4) + (rawSpeedMB * 0.6);
+      if (smoothedSpeedMB < 0.1 && rawSpeedMB === 0) smoothedSpeedMB = 0;
 
-      totalSpeedMB.innerText = speedMB;
-      totalSpeedGbps.innerText = speedGbps;
-      batchSpeedText.innerText = `${speedMB} MB/s`;
+      const speedMBText = smoothedSpeedMB.toFixed(1);
+      const speedGbpsText = ((smoothedSpeedMB * 8) / 1000).toFixed(2);
 
-      let trunkABuff = 0;
-      let trunkBBuff = 0;
-      channelsA.forEach(c => { if (c) trunkABuff += c.bufferedAmount || 0; });
-      channelsB.forEach(c => { if (c) trunkBBuff += c.bufferedAmount || 0; });
+      totalSpeedMB.innerText = speedMBText;
+      totalSpeedGbps.innerText = speedGbpsText;
+      batchSpeedText.innerText = `${speedMBText} MB/s`;
 
-      pipeABufferText.innerText = formatBytes(trunkABuff);
-      pipeBBufferText.innerText = formatBytes(trunkBBuff);
-
-      pipeABufferBar.style.width = Math.min(100, (trunkABuff / (BUFFER_HIGH_WATERMARK * 4)) * 100) + '%';
-      pipeBBufferBar.style.width = Math.min(100, (trunkBBuff / (BUFFER_HIGH_WATERMARK * 4)) * 100) + '%';
-
-      if (bytesPerSec > 0) {
-        pipeASpeed.innerText = `${(parseFloat(speedMB) * 0.52).toFixed(1)} MB/s`;
-        pipeBSpeed.innerText = `${(parseFloat(speedMB) * 0.48).toFixed(1)} MB/s`;
-      } else {
-        pipeASpeed.innerText = '0.0 MB/s';
-        pipeBSpeed.innerText = '0.0 MB/s';
+      if (mainDataChannel) {
+        const buff = mainDataChannel.bufferedAmount || 0;
+        sctpBufferText.innerText = formatBytes(buff);
+        sctpBufferBar.style.width = Math.min(100, (buff / BUFFER_HIGH_WATERMARK) * 100) + '%';
       }
 
       totalTransferredBytes.innerText = formatBytes(totalBytesTransferredSession);
@@ -1029,10 +872,10 @@
       batchPercentText.innerText = `${pct}%`;
       batchProgressBar.style.width = `${pct}%`;
 
-      const currentSpeedMB = parseFloat(totalSpeedMB.innerText);
-      if (currentSpeedMB > 0) {
+      const curSpeed = smoothedSpeedMB;
+      if (curSpeed > 0) {
         const remainingBytes = totalBytes - doneBytes;
-        const remainingSec = Math.round((remainingBytes / (1024 * 1024)) / currentSpeedMB);
+        const remainingSec = Math.round((remainingBytes / (1024 * 1024)) / curSpeed);
         if (remainingSec > 60) {
           batchEtaText.innerText = `${Math.floor(remainingSec / 60)}m ${remainingSec % 60}s`;
         } else {
@@ -1123,7 +966,6 @@
       });
     }
 
-    // Event Bindings
     connectBtn.addEventListener('click', () => connectToTarget(targetPeerIdInput.value));
 
     copyCodeBtn.addEventListener('click', () => {
@@ -1181,8 +1023,7 @@
           type: file.type,
           status: 'pending',
           progress: 0,
-          receivedBytes: 0,
-          allChunks: []
+          receivedBytes: 0
         });
       }
       renderQueue();
@@ -1216,7 +1057,7 @@
       updateBatchUI();
     });
 
-    window.addEventListener('DOMContentLoaded', initPeers);
+    window.addEventListener('DOMContentLoaded', initPeer);
   </script>
 </body>
 </html>
