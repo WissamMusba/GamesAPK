@@ -325,8 +325,8 @@
 
     const CHUNK_SIZE = 64 * 1024; // 64 KB (Optimized SCTP MTU)
     const BLOCK_READ_SIZE = 4 * 1024 * 1024; // 4 MB Super-Blocks
-    const BUFFER_HIGH_WATERMARK = 1024 * 1024; // 1 MB backpressure threshold
-    const BUFFER_LOW_THRESHOLD = 256 * 1024; // 256 KB resume threshold
+    const BUFFER_HIGH_WATERMARK = 8 * 1024 * 1024; // 8 MB network pipe capacity
+    const BUFFER_LOW_THRESHOLD = 2 * 1024 * 1024; // 2 MB resume threshold
 
     let myPeerId = null;
     let peer = null;
@@ -810,7 +810,18 @@
           }
         };
         channel.onbufferedamountlow = cleanup;
-        setTimeout(cleanup, 25); // 25ms watchdog prevents any long freeze
+
+        const interval = setInterval(() => {
+          if (!channel || channel.bufferedAmount < BUFFER_LOW_THRESHOLD) {
+            clearInterval(interval);
+            cleanup();
+          }
+        }, 5);
+
+        setTimeout(() => {
+          clearInterval(interval);
+          cleanup();
+        }, 35);
       });
     }
 
