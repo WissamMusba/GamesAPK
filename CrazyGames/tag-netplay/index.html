@@ -2740,9 +2740,17 @@ async function voiceInit(){
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true
+        channelCount: { ideal: 1 },
+        sampleRate: { ideal: 48000 },
+        sampleSize: { ideal: 16 },
+        echoCancellation: { ideal: true },
+        noiseSuppression: { ideal: true },
+        autoGainControl: { ideal: true },
+        googEchoCancellation: { ideal: true },
+        googAutoGainControl: { ideal: true },
+        googNoiseSuppression: { ideal: true },
+        googHighpassFilter: { ideal: true },
+        googTypingNoiseDetection: { ideal: true }
       },
       video: false
     });
@@ -2761,7 +2769,7 @@ async function voiceInit(){
       } catch(e){}
     }
 
-    netToast('Voice chat active! 🎙️ (Proximity on)');
+    netToast('Voice chat active! 🎙️ (HD Proximity on)');
     voiceCallAllPeers(true);
     netBroadcastReliable({ t: 'voice_req', peerId: NET.myId });
     return true;
@@ -2770,6 +2778,27 @@ async function voiceInit(){
     netToast('Microphone access denied or unavailable');
     return false;
   }
+}
+
+function boostAudioSender(pc){
+  if(!pc || !pc.getSenders) return;
+  try {
+    const senders = pc.getSenders();
+    for(const sender of senders){
+      if(sender.track && sender.track.kind === 'audio'){
+        const params = sender.getParameters();
+        if(params){
+          if(!params.encodings || params.encodings.length === 0){
+            params.encodings = [{}];
+          }
+          params.encodings[0].maxBitrate = 96000; // 96 kbps high-definition Opus
+          params.encodings[0].priority = 'high';
+          params.encodings[0].networkPriority = 'high';
+          sender.setParameters(params).catch(()=>{});
+        }
+      }
+    }
+  } catch(e){}
 }
 
 function voiceToggleMic(){
@@ -2822,6 +2851,9 @@ function voiceWireCall(call){
       stream: null,
       audioEl: null,
       source: null,
+      hp: null,
+      presence: null,
+      comp: null,
       gain: null,
       panner: null,
       analyser: null,
@@ -2832,6 +2864,12 @@ function voiceWireCall(call){
   } else {
     entry.call = call;
   }
+
+  const applyBoost = () => {
+    if(call.peerConnection) boostAudioSender(call.peerConnection);
+  };
+  call.on('open', applyBoost);
+  setTimeout(applyBoost, 400);
 
   call.on('stream', remoteStream => {
     entry.stream = remoteStream;
@@ -2849,33 +2887,60 @@ function voiceWireCall(call){
     const playP = entry.audioEl.play();
     if(playP && playP.catch) playP.catch(e => console.log('Autoplay deferred to click', e));
 
-    // 2. Web Audio API for spatial audio, directional panning, and speaking analyser
+    // 2. Web Audio DSP Chain: 85Hz High-Pass + 3.2kHz Presence EQ + Studio Compressor + Spatial Panner
     initAudio();
     if(AC){
       try {
         if(AC.state === 'suspended') AC.resume().catch(()=>{});
         if(!entry.source){
           const source = AC.createMediaStreamSource(remoteStream);
+
+          // 85Hz Highpass: eliminates desk thumps, breath pops, and 60Hz hum
+          const hp = AC.createBiquadFilter();
+          hp.type = 'highpass';
+          hp.frequency.value = 85;
+
+          // 3.2kHz Peaking Presence EQ: boosts consonant clarity and intelligibility
+          const presence = AC.createBiquadFilter();
+          presence.type = 'peaking';
+          presence.frequency.value = 3200;
+          presence.Q.value = 1.2;
+          presence.gain.value = 2.6;
+
+          // Studio Dynamics Compressor: smooths vocal volume, prevents clipping
+          const comp = AC.createDynamicsCompressor();
+          comp.threshold.value = -24;
+          comp.knee.value = 12;
+          comp.ratio.value = 3.5;
+          comp.attack.value = 0.003;
+          comp.release.value = 0.22;
+
           const gain = AC.createGain();
-          gain.gain.value = 0.5;
+          gain.gain.value = 0.85;
+
+          source.connect(hp);
+          hp.connect(presence);
+          presence.connect(comp);
+          comp.connect(gain);
 
           let panner = null;
           if(AC.createStereoPanner){
             panner = AC.createStereoPanner();
             panner.pan.value = 0;
-            source.connect(gain);
             gain.connect(panner);
             panner.connect(AC.destination);
           } else {
-            source.connect(gain);
             gain.connect(AC.destination);
           }
 
           const ana = AC.createAnalyser();
           ana.fftSize = 128;
-          gain.connect(ana);
+          comp.connect(ana);
 
           entry.source = source;
+          entry.hp = hp;
+          entry.presence = presence;
+          entry.comp = comp;
           entry.gain = gain;
           entry.panner = panner;
           entry.analyser = ana;
@@ -2893,6 +2958,9 @@ function voiceWireCall(call){
       entry.audioEl = null;
     }
     if(entry.source){ try{ entry.source.disconnect(); }catch(e){} }
+    if(entry.hp){ try{ entry.hp.disconnect(); }catch(e){} }
+    if(entry.presence){ try{ entry.presence.disconnect(); }catch(e){} }
+    if(entry.comp){ try{ entry.comp.disconnect(); }catch(e){} }
     if(entry.gain){ try{ entry.gain.disconnect(); }catch(e){} }
     if(entry.panner){ try{ entry.panner.disconnect(); }catch(e){} }
     VOICE.peers.delete(peerId);
@@ -2935,10 +3003,11 @@ function updateVoiceProximity(dt){
       }
     }
 
-    // Direct HTML5 Audio volume control (bulletproof across all browsers & mobile)
+    // Direct HTML5 Audio volume control (acts as decoder keepalive when WebAudio DSP is active, or primary fallback)
+    const webAudioActive = (AC && AC.state === 'running' && entry.gain);
     if(entry.audioEl){
       try {
-        entry.audioEl.volume = clamp(targetVol, 0.05, 1);
+        entry.audioEl.volume = webAudioActive ? 0.001 : clamp(targetVol, 0.05, 1);
       } catch(e){}
     }
 
