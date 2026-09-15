@@ -759,7 +759,13 @@ function startMatch(){
     netBroadcastReliable({t:'start',settings:{map:settings.map,doubleJump:settings.doubleJump,collision:settings.collision,slotColor:menu.slotColor.slice()},mapData:MAPS[settings.map%MAPS.length],payload:payload});
   }
 }
-function quitToMenu(){try{CG.gameplayStop();}catch(e){}match=null;screen='menu';sfx('back');}
+function quitToMenu(){
+  try{CG.gameplayStop();}catch(e){}
+  if(typeof NET!=='undefined' && NET && NET.role!==null && NET.isHost){
+    netBroadcastReliable({t:'to_menu'});
+  }
+  match=null;screen='menu';sfx('back');
+}
 
 /* ================= particles & ghost trails ================= */
 const parts=[];
@@ -1226,6 +1232,9 @@ function endMatch(){
   match.resultT=0;
   confetti();
   sfx('win');
+  if(typeof NET!=='undefined' && NET && NET.isHost && NET.midgameJoiner){
+    netToast('New player joined — returning to lobby!');
+  }
 }
 
 /* ================= camera ================= */
@@ -1334,8 +1343,35 @@ function updateGame(dt){
   }
   if(match.state==='result'){
     match.resultT+=dt;
-    if(anyPressed(['Enter','NumpadEnter','Space'])){sfx('go');startMatch();}
-    for(let i=0;i<4;i++){if(PAD[i]&&PAD[i].confirmE){sfx('go');startMatch();}}
+    if(typeof NET!=='undefined' && NET && NET.isHost && NET.midgameJoiner && match.resultT >= 4.0){
+      NET.midgameJoiner = false;
+      quitToMenu();
+      return;
+    }
+    if(anyPressed(['Enter','NumpadEnter','Space'])){
+      if(typeof NET!=='undefined' && NET && NET.role!==null){
+        if(!NET.isHost) return;
+        if(NET.midgameJoiner){
+          NET.midgameJoiner = false;
+          quitToMenu();
+          return;
+        }
+      }
+      sfx('go');startMatch();
+    }
+    for(let i=0;i<4;i++){
+      if(PAD[i]&&PAD[i].confirmE){
+        if(typeof NET!=='undefined' && NET && NET.role!==null){
+          if(!NET.isHost) return;
+          if(NET.midgameJoiner){
+            NET.midgameJoiner = false;
+            quitToMenu();
+            return;
+          }
+        }
+        sfx('go');startMatch();
+      }
+    }
     updateParts(dt);updateCam(dt);match.shake*=Math.exp(-dt*7);match.flash=Math.max(0,match.flash-dt);
     return;
   }
@@ -1816,11 +1852,12 @@ function drawTagPop(){
 
 /* ================= MENU ================= */
 function slotCardRects(){
-  const cw=clamp(CW*0.145,100,160),gap=clamp(CW*0.025,12,34);
   const isOnline=(typeof NET!=='undefined'&&NET&&NET.role!==null);
-  const chh=isOnline?clamp(cw*1.06,125,165):cw*0.68;
+  const cw=isOnline?clamp(CW*0.155,110,175):clamp(CW*0.145,100,160);
+  const gap=clamp(CW*0.025,12,34);
+  const chh=isOnline?clamp(cw*1.30,160,220):cw*0.68;
   const total=4*cw+3*gap,x0=CW/2-total/2;
-  const y=isOnline?CH*0.27:CH*0.30;
+  const y=isOnline?CH*0.23:CH*0.30;
   const r=[];
   for(let i=0;i<4;i++)r.push({x:x0+i*(cw+gap),y:y,w:cw,h:chh});
   return r;
@@ -1936,7 +1973,7 @@ function drawMenu(){
 
   // Shared Roster Banner at the top (under TAG)
   if(typeof NET!=='undefined' && NET && NET.role!==null){
-    const rosterY=CH*0.215;
+    const rosterY=CH*0.18;
     const pills=[];
     // P1 (Host)
     pills.push({
@@ -1949,7 +1986,7 @@ function drawMenu(){
     if(p2Conn){
       pills.push({
         slot:1, title:'P2 Guest'+(NET.mySlot===1?' (YOU)':''),
-        ctrl:NET.slotsCtrl[1]||'Arrows', ready:!!NET.slotsReady[1],
+        ctrl:NET.slotsCtrl[1]||'WASD', ready:!!NET.slotsReady[1],
         col:menu.slotColor[1]>=0?menu.slotColor[1]:1, connected:true
       });
     } else {
@@ -1968,8 +2005,8 @@ function drawMenu(){
         });
       }
     }
-    const pw=clamp((CW-50)/pills.length-10, 160, 240);
-    const ph=30;
+    const pw=clamp((CW-50)/pills.length-10, 160, 250);
+    const ph=34;
     const totW=pills.length*pw+(pills.length-1)*10;
     const startX=CW/2-totW/2;
     for(let pi=0;pi<pills.length;pi++){
@@ -1984,10 +2021,10 @@ function drawMenu(){
       const lbl=p.connected?(p.title+' • '+p.ctrl):(p.title+' • Waiting to join...');
       g.fillText(lbl, p.connected?px+26:px+8, rosterY+4);
       if(p.connected){
-        const bw=54, bh=18, bx=px+pw-bw-5, by=rosterY-bh/2;
+        const bw=66, bh=22, bx=px+pw-bw-6, by=rosterY-bh/2;
         rr(g,bx,by,bw,bh,4);
         g.fillStyle=p.ready?'#27ae60':'#d35400'; g.fill();
-        ptxt(p.ready?'READY':'NOT RDY', bx+bw/2, by+bh/2+1, FN(9,900), '#ffffff');
+        ptxt(p.ready?'READY':'NOT RDY', bx+bw/2, by+bh/2+1, FN(10,900), '#ffffff');
       } else {
         zone(px, rosterY-ph/2, pw, ph, {fn:()=>netCopyLink()});
       }
@@ -2012,55 +2049,57 @@ function drawMenu(){
       if(isConn){
         // Header
         const who=(i===0?'P1 HOST':('P'+(i+1)+' GUEST'))+(isMySlot?' (YOU)':'');
-        ptxt(who,cx,r.y+14,FN(Math.min(12,r.w*0.095),900),'#ffffff');
+        ptxt(who,cx,r.y+16,FN(Math.min(13,r.w*0.10),900),'#ffffff');
         
+        // Button bounds
+        const rdyW=r.w-12, rdyH=38, rdyY=r.y+r.h-44;
+        const btnW=r.w-12, btnH=34, btnY=rdyY-btnH-6;
+
         // Middle: Avatar + Color cycle
-        const avY=r.y+r.h*0.42;
-        drawChar(g,cx,avY,Math.min(32,r.w*0.25),PALETTE[col>=0?col:i].c,{face:'happy',grounded:true,seed:i});
+        const avY=r.y+20+(btnY-r.y-20)*0.5;
+        drawChar(g,cx,avY,Math.min(32,r.w*0.24),PALETTE[col>=0?col:i].c,{face:'happy',grounded:true,seed:i});
         if(isMySlot){
-          txt('◀',r.x+12,avY+2,FN(14,900),'rgba(255,255,255,0.9)');
-          txt('▶',r.x+r.w-12,avY+2,FN(14,900),'rgba(255,255,255,0.9)');
-          zone(r.x,r.y+24,r.w*0.4,r.h*0.35,{fn:()=>{
+          txt('◀',r.x+12,avY+2,FN(15,900),'rgba(255,255,255,0.9)');
+          txt('▶',r.x+r.w-12,avY+2,FN(15,900),'rgba(255,255,255,0.9)');
+          zone(r.x,r.y+20,r.w*0.4,btnY-r.y-20,{fn:()=>{
             if(NET.isHost){ cycleSlot(i,-1); netBroadcastSettings(); netBroadcastRoster(); }
             else netCycleMyColor(-1);
           }});
-          zone(r.x+r.w*0.6,r.y+24,r.w*0.4,r.h*0.35,{fn:()=>{
+          zone(r.x+r.w*0.6,r.y+20,r.w*0.4,btnY-r.y-20,{fn:()=>{
             if(NET.isHost){ cycleSlot(i,1); netBroadcastSettings(); netBroadcastRoster(); }
             else netCycleMyColor(1);
           }});
         }
 
-        // Control Scheme Toggle
-        const btnW=r.w-16, btnH=22, btnY=r.y+r.h-50;
-        rr(g,cx-btnW/2,btnY,btnW,btnH,5);
-        g.fillStyle='rgba(0,0,0,0.5)';g.fill();
-        g.lineWidth=1.5;g.strokeStyle=isMySlot?'#ffffff':'rgba(255,255,255,0.3)';g.stroke();
+        // Control Scheme Toggle (Larger touch target & font)
+        rr(g,cx-btnW/2,btnY,btnW,btnH,6);
+        g.fillStyle='rgba(0,0,0,0.55)';g.fill();
+        g.lineWidth=2;g.strokeStyle=isMySlot?'#ffffff':'rgba(255,255,255,0.3)';g.stroke();
         const ctrlLbl=(NET.slotsCtrl[i]||'WASD')+(isMySlot?' ▾':'');
-        ptxt('🎮 '+ctrlLbl,cx,btnY+btnH/2+1,FN(Math.min(10.5,r.w*0.088),900),'#ffffff');
+        ptxt('🎮 '+ctrlLbl,cx,btnY+btnH/2+1,FN(Math.min(13,r.w*0.095),900),'#ffffff');
         if(isMySlot){
           zone(cx-btnW/2,btnY,btnW,btnH,{fn:()=>netCycleMyControl()});
         }
 
-        // Ready Toggle Button
-        const rdyW=r.w-16, rdyH=22, rdyY=r.y+r.h-25;
+        // Ready Toggle Button (Larger touch target & font)
         const isRdy=NET.slotsReady[i];
         const rdyCol=isRdy?'#27ae60':(isMySlot?'#e67e22':'rgba(0,0,0,0.45)');
-        rr(g,cx-rdyW/2,rdyY,rdyW,rdyH,5);
+        rr(g,cx-rdyW/2,rdyY,rdyW,rdyH,7);
         g.fillStyle=rdyCol;g.fill();
-        g.lineWidth=1.5;g.strokeStyle=isRdy?'#2ecc71':'rgba(255,255,255,0.3)';g.stroke();
+        g.lineWidth=2;g.strokeStyle=isRdy?'#2ecc71':'rgba(255,255,255,0.35)';g.stroke();
         const rdyTxt=isRdy?'READY ✓':(isMySlot?'CLICK READY':'NOT READY');
-        ptxt(rdyTxt,cx,rdyY+rdyH/2+1,FN(Math.min(10,r.w*0.085),900),'#ffffff');
+        ptxt(rdyTxt,cx,rdyY+rdyH/2+1,FN(Math.min(13.5,r.w*0.10),900),'#ffffff');
         if(isMySlot){
           zone(cx-rdyW/2,rdyY,rdyW,rdyH,{fn:()=>netToggleMyReady()});
         }
       } else {
-        ptxt('P'+(i+1)+' EMPTY',cx,r.y+18,FN(11,800),'#718096');
-        ptxt('WAITING…',cx,r.y+r.h*0.42,FN(12,800),'#50607a');
-        const shW=r.w-16, shH=26, shY=r.y+r.h-34;
-        rr(g,cx-shW/2,shY,shW,shH,6);
+        ptxt('P'+(i+1)+' EMPTY',cx,r.y+18,FN(12,800),'#718096');
+        ptxt('WAITING…',cx,r.y+r.h*0.42,FN(13,800),'#50607a');
+        const shW=r.w-12, shH=38, shY=r.y+r.h-44;
+        rr(g,cx-shW/2,shY,shW,shH,7);
         g.fillStyle='rgba(44,110,63,0.35)';g.fill();
-        g.lineWidth=1.5;g.strokeStyle='#2ecc71';g.stroke();
-        ptxt('📋 INVITE',cx,shY+shH/2+1,FN(10.5,900),'#8ef0b0');
+        g.lineWidth=2;g.strokeStyle='#2ecc71';g.stroke();
+        ptxt('📋 INVITE',cx,shY+shH/2+1,FN(12,900),'#8ef0b0');
         zone(r.x,r.y,r.w,r.h,{fn:()=>netCopyLink()});
       }
     } else {
@@ -2488,7 +2527,17 @@ function drawPause(){
 
 function drawResult(){
   g.fillStyle='rgba(10,16,24,0.72)';g.fillRect(0,0,CW,CH);
-  zone(0,0,CW,CH,{fn:()=>{sfx('go');startMatch();}});
+  zone(0,0,CW,CH,{fn:()=>{
+    if(typeof NET!=='undefined' && NET && NET.role!==null){
+      if(!NET.isHost) return;
+      if(NET.midgameJoiner){
+        NET.midgameJoiner = false;
+        quitToMenu();
+        return;
+      }
+    }
+    sfx('go');startMatch();
+  }});
   const t=match.resultT;
   if(t<0.9){
     const sc=1.4-0.4*easeOut(Math.min(1,t*4));
@@ -2517,14 +2566,23 @@ function drawResult(){
   const sx0=CW/2-(b3*3+28)/2;
   simpleButton(sx0,py+ph*0.77,b3,44,'NEXT MAP',()=>{
     if(typeof NET!=='undefined' && NET && NET.role!==null && !NET.isHost){ toast('HOST CHOOSES MAP'); return; }
+    if(typeof NET!=='undefined' && NET && NET.isHost && NET.midgameJoiner){
+      NET.midgameJoiner = false;
+      quitToMenu();
+      return;
+    }
     sfx('ui');selectMapQuick(settings.map+1);
   });
   simpleButton(sx0+b3+14,py+ph*0.77,b3,44,'PLAY AGAIN',()=>{
     if(typeof NET!=='undefined' && NET && NET.role!==null && !NET.isHost){ toast('HOST RESTARTS THE MATCH'); return; }
+    if(typeof NET!=='undefined' && NET && NET.isHost && NET.midgameJoiner){
+      NET.midgameJoiner = false;
+      quitToMenu();
+      return;
+    }
     sfx('go');startMatch();
   });
   simpleButton(sx0+2*(b3+14),py+ph*0.77,b3,44,'MENU',()=>{
-    if(typeof NET!=='undefined' && NET && NET.role!==null) netLeaveRoom();
     quitToMenu();
   });
   g.restore();
@@ -2560,7 +2618,7 @@ function drawGame(){
 }
 
 /* ================= netplay (host-authoritative P2P) ================= */
-const CTRL_SCHEMES = ['WASD', 'Arrows', 'IJKL', 'TFGH', 'Controller'];
+const CTRL_SCHEMES = ['WASD', 'Arrows', 'Controller'];
 
 const NET = {
   peer: null,
@@ -2571,8 +2629,9 @@ const NET = {
   mySlot: -1,
   isHost: false,
   myCtrl: 'WASD',
-  slotsCtrl: ['WASD', 'Arrows', 'IJKL', 'TFGH'],
+  slotsCtrl: ['WASD', 'WASD', 'WASD', 'WASD'],
   slotsReady: [false, false, false, false],
+  midgameJoiner: false,
   tick: 0,
   seq: 0,
   hostInputs: new Map(),
@@ -2994,7 +3053,7 @@ function inputForNet(p){
       return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
     } else {
       if(p.slot === NET.mySlot){
-        return NET.myCurrentInput || sampleControls(NET.myCtrl || 'Arrows');
+        return NET.myCurrentInput || sampleControls(NET.myCtrl || 'WASD');
       }
       return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
     }
@@ -3071,7 +3130,7 @@ function netWireConn(conn, isHostSide){
   const onReady = () => {
     if(NET._guestTimeout){ clearTimeout(NET._guestTimeout); NET._guestTimeout = null; }
     if(!isHostSide && !isFast){
-      conn.send({ t: 'hello', ctrl: NET.myCtrl || 'Arrows' });
+      conn.send({ t: 'hello', ctrl: NET.myCtrl || 'WASD' });
       netToast('Connected to host! Syncing menu…');
       if(VOICE.enabled && VOICE.localStream) setTimeout(() => voiceCallPeer(peerId), 600);
     } else if(isHostSide && !isFast){
@@ -3131,7 +3190,7 @@ function netOnData(m, c){
       return;
     }
     NET.hostInputs.set(slot, { dir:0, jumpEdge:false, jumpHeld:false, downHeld:false, consumeEdge:false, owner: c.peer, seq: 0 });
-    NET.slotsCtrl[slot] = m.ctrl || 'Arrows';
+    NET.slotsCtrl[slot] = m.ctrl || 'WASD';
     NET.slotsReady[slot] = false;
 
     // Pick first available color
@@ -3156,7 +3215,8 @@ function netOnData(m, c){
     netBroadcastRoster();
     netToast('Player joined as P' + (slot + 1));
     if(match && screen === 'game'){
-      startMatch();
+      NET.midgameJoiner = true;
+      c.send({ t: 'toast', msg: 'Match in progress — joining next match!' });
     }
   } else if(m.t === 'assign' && !NET.isHost){
     NET.mySlot = m.slot;
@@ -3417,6 +3477,7 @@ function netHostAction(){
   NET.myCtrl = 'WASD';
   NET.slotsCtrl[0] = 'WASD';
   NET.slotsReady = [false, false, false, false];
+  NET.midgameJoiner = false;
   menu.mode = 'rows';
   menu.slotColor = [menu.slotColor[0] >= 0 ? menu.slotColor[0] : 0, -1, -1, -1];
   history.replaceState(null, '', '?room=' + code);
@@ -3453,8 +3514,9 @@ function netJoinAction(codeParam){
   NET.isHost = false;
   NET.room = code;
   NET.mySlot = -1;
-  NET.myCtrl = 'Arrows';
+  NET.myCtrl = 'WASD';
   NET.slotsReady = [false, false, false, false];
+  NET.midgameJoiner = false;
   menu.mode = 'rows';
   history.replaceState(null, '', '?room=' + code);
   netShow(false);
@@ -3482,6 +3544,7 @@ function netLeaveRoom(){
   NET.room = '';
   NET.mySlot = -1;
   NET.isHost = false;
+  NET.midgameJoiner = false;
   NET.hostInputs.clear();
   NET.slotsReady = [false, false, false, false];
   NET.lastRecvTick = -1;
