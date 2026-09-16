@@ -2478,7 +2478,7 @@ function drawHUD(){
     g.fill();
     g.lineWidth=2.5; g.strokeStyle=INK; g.stroke();
     ptxt(vOn ? (vMuted ? '🔇' : '🎙️') : '🎙️', xVoice+btnSize/2, 10+btnSize/2+1, FN(15,900), vOn?'#ffffff':'#1e293b');
-    zone(xVoice,10,btnSize,btnSize,{fn:voiceToggleMic, upFn:voiceToggleMic});
+    zone(xVoice,10,btnSize,btnSize,{fn:voiceToggleMic});
   }
   
   if(match.state==='countdown')drawBigCount(match.cd,'GET READY!');
@@ -2652,6 +2652,7 @@ const NET = {
   slotsCtrl: ['WASD', 'WASD', 'WASD', 'WASD'],
   slotsReady: [false, false, false, false],
   midgameJoiner: false,
+  peerSlots: new Map(), // peerId -> slot (0..3)
   tick: 0,
   seq: 0,
   hostInputs: new Map(),
@@ -2670,7 +2671,17 @@ const ICE_SERVERS = [
   { urls: 'stun:stun2.l.google.com:19302' },
   { urls: 'stun:stun3.l.google.com:19302' },
   { urls: 'stun:stun4.l.google.com:19302' },
-  { urls: 'stun:global.stun.twilio.com:3478' }
+  { urls: 'stun:global.stun.twilio.com:3478' },
+  // OpenRelay Public TURN Relay (enables cross-device audio across different Wi-Fi networks and symmetric NAT)
+  {
+    urls: [
+      'turn:openrelay.metered.ca:80',
+      'turn:openrelay.metered.ca:443',
+      'turn:openrelay.metered.ca:443?transport=tcp'
+    ],
+    username: 'openrelay',
+    credential: 'openrelay'
+  }
 ];
 
 function getOrCreateConnPair(peerId){
@@ -2711,7 +2722,7 @@ const VOICE = {
   analyser: null,
   analyserData: null,
   speaking: false,
-  peers: new Map(), // peerId -> { call, stream, audioEl, source, gain, panner, analyser, analyserData, speaking }
+  peers: new Map(), // peerId -> { call, stream, audioEl, source, analyser, analyserData, speaking, remoteMuted }
   supported: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
 };
 
@@ -2731,6 +2742,7 @@ async function voiceInit(){
     VOICE.enabled = true;
     VOICE.muted = false;
     for(const track of VOICE.localStream.getAudioTracks()){ track.enabled = true; }
+    netBroadcastReliable({ t: 'voice_mute', slot: NET.mySlot, peerId: NET.myId, muted: false });
     netToast('Microphone unmuted 🎙️');
     voiceCallAllPeers(true);
     netBroadcastReliable({ t: 'voice_req', peerId: NET.myId });
@@ -2810,6 +2822,10 @@ function voiceToggleMic(){
   for(const track of VOICE.localStream.getAudioTracks()){
     track.enabled = !VOICE.muted;
   }
+  if(VOICE.muted){
+    VOICE.speaking = false;
+  }
+  netBroadcastReliable({ t: 'voice_mute', slot: NET.mySlot, peerId: NET.myId, muted: VOICE.muted });
   netToast(VOICE.muted ? 'Microphone muted 🔇' : 'Microphone unmuted 🎙️');
   sfx('ui');
 }
@@ -2818,7 +2834,7 @@ function voiceCallPeer(peerId, forceNew){
   if(!NET.peer || !peerId || peerId === NET.myId || !VOICE.localStream) return;
   const existing = VOICE.peers.get(peerId);
   if(existing && existing.call && existing.call.open && !forceNew){
-    if(existing.call.localStream && existing.call.localStream.getAudioTracks().length > 0) return;
+    return;
   }
 
   if(existing && existing.call){
@@ -2836,6 +2852,13 @@ function voiceCallAllPeers(forceNew){
   for(const peerId of NET.conns.keys()){
     voiceCallPeer(peerId, forceNew);
   }
+  if(NET.peerSlots){
+    for(const [pid, slot] of NET.peerSlots.entries()){
+      if(pid && pid !== NET.myId && !VOICE.peers.has(pid)){
+        voiceCallPeer(pid, forceNew);
+      }
+    }
+  }
 }
 
 function voiceWireCall(call){
@@ -2851,14 +2874,10 @@ function voiceWireCall(call){
       stream: null,
       audioEl: null,
       source: null,
-      hp: null,
-      presence: null,
-      comp: null,
-      gain: null,
-      panner: null,
       analyser: null,
       analyserData: null,
-      speaking: false
+      speaking: false,
+      remoteMuted: false
     };
     VOICE.peers.set(peerId, entry);
   } else {
@@ -2874,7 +2893,7 @@ function voiceWireCall(call){
   call.on('stream', remoteStream => {
     entry.stream = remoteStream;
 
-    // 1. HTML5 Audio Element: guarantees audio packet decoding and playback in Chromium/Safari
+    // 1. Native HTML5 Audio Element: handles direct Opus RTP decoding & cross-device playback
     if(!entry.audioEl){
       const el = document.createElement('audio');
       el.autoplay = true;
@@ -2884,70 +2903,26 @@ function voiceWireCall(call){
       entry.audioEl = el;
     }
     entry.audioEl.srcObject = remoteStream;
+    entry.audioEl.volume = 0.85;
     const playP = entry.audioEl.play();
-    if(playP && playP.catch) playP.catch(e => console.log('Autoplay deferred to click', e));
+    if(playP && playP.catch) playP.catch(e => console.log('Autoplay deferred to interaction', e));
 
-    // 2. Web Audio DSP Chain: 85Hz High-Pass + 3.2kHz Presence EQ + Studio Compressor + Spatial Panner
+    // 2. Analyser for visual speaking indicator (isolated from output to avoid echo / sample rate clashes)
     initAudio();
     if(AC){
       try {
         if(AC.state === 'suspended') AC.resume().catch(()=>{});
         if(!entry.source){
           const source = AC.createMediaStreamSource(remoteStream);
-
-          // 85Hz Highpass: eliminates desk thumps, breath pops, and 60Hz hum
-          const hp = AC.createBiquadFilter();
-          hp.type = 'highpass';
-          hp.frequency.value = 85;
-
-          // 3.2kHz Peaking Presence EQ: boosts consonant clarity and intelligibility
-          const presence = AC.createBiquadFilter();
-          presence.type = 'peaking';
-          presence.frequency.value = 3200;
-          presence.Q.value = 1.2;
-          presence.gain.value = 2.6;
-
-          // Studio Dynamics Compressor: smooths vocal volume, prevents clipping
-          const comp = AC.createDynamicsCompressor();
-          comp.threshold.value = -24;
-          comp.knee.value = 12;
-          comp.ratio.value = 3.5;
-          comp.attack.value = 0.003;
-          comp.release.value = 0.22;
-
-          const gain = AC.createGain();
-          gain.gain.value = 0.85;
-
-          source.connect(hp);
-          hp.connect(presence);
-          presence.connect(comp);
-          comp.connect(gain);
-
-          let panner = null;
-          if(AC.createStereoPanner){
-            panner = AC.createStereoPanner();
-            panner.pan.value = 0;
-            gain.connect(panner);
-            panner.connect(AC.destination);
-          } else {
-            gain.connect(AC.destination);
-          }
-
           const ana = AC.createAnalyser();
           ana.fftSize = 128;
-          comp.connect(ana);
-
+          source.connect(ana);
           entry.source = source;
-          entry.hp = hp;
-          entry.presence = presence;
-          entry.comp = comp;
-          entry.gain = gain;
-          entry.panner = panner;
           entry.analyser = ana;
           entry.analyserData = new Uint8Array(ana.frequencyBinCount);
         }
       } catch(err){
-        console.warn('WebAudio setup error:', err);
+        console.warn('WebAudio analyser setup error:', err);
       }
     }
   });
@@ -2958,11 +2933,6 @@ function voiceWireCall(call){
       entry.audioEl = null;
     }
     if(entry.source){ try{ entry.source.disconnect(); }catch(e){} }
-    if(entry.hp){ try{ entry.hp.disconnect(); }catch(e){} }
-    if(entry.presence){ try{ entry.presence.disconnect(); }catch(e){} }
-    if(entry.comp){ try{ entry.comp.disconnect(); }catch(e){} }
-    if(entry.gain){ try{ entry.gain.disconnect(); }catch(e){} }
-    if(entry.panner){ try{ entry.panner.disconnect(); }catch(e){} }
     VOICE.peers.delete(peerId);
   });
 
@@ -2970,64 +2940,78 @@ function voiceWireCall(call){
 }
 
 function updateVoiceProximity(dt){
-  const inGame = (match && screen === 'game');
-  const myP = (inGame && typeof getMyPlayer === 'function') ? getMyPlayer() : null;
-  const myPos = myP ? { x: myP.x, y: myP.y } : (inGame && match.players[0] ? { x: match.players[0].x, y: match.players[0].y } : null);
+  const inGame = (match && screen === 'game' && match.players && match.players.length > 0);
+  let myP = null;
+  if(inGame){
+    if(typeof getMyPlayer === 'function') myP = getMyPlayer();
+    if(!myP && NET.mySlot >= 0) myP = match.players.find(p => p.slot === NET.mySlot);
+    if(!myP) myP = match.players[0];
+  }
+  const myPos = myP ? { x: myP.x, y: myP.y } : null;
 
   for(const [peerId, entry] of VOICE.peers.entries()){
-    let targetVol = 0.85;
-    let targetPan = 0;
+    let targetVol = 0.85; // Default clear lobby volume
 
     if(inGame && myPos){
-      let targetP = null;
-      if(NET.isHost){
-        for(let s = 1; s < 4; s++){
-          const ent = NET.hostInputs.get(s);
-          if(ent && ent.owner === peerId){
-            targetP = match.players.find(p => p.slot === s);
-            break;
+      let targetSlot = NET.peerSlots ? NET.peerSlots.get(peerId) : undefined;
+      if(targetSlot === undefined){
+        if(!NET.isHost && peerId.endsWith('-host')) targetSlot = 0;
+        else if(NET.isHost){
+          for(let s = 1; s < 4; s++){
+            const ent = NET.hostInputs.get(s);
+            if(ent && ent.owner === peerId){ targetSlot = s; break; }
           }
         }
-      } else {
-        targetP = match.players.find(p => p.slot === 0);
       }
+
+      const targetP = (targetSlot != null && targetSlot !== NET.mySlot)
+        ? match.players.find(p => p.slot === targetSlot)
+        : (NET.isHost ? null : match.players.find(p => p.slot === 0));
 
       if(targetP){
         const dx = targetP.x - myPos.x;
         const dy = targetP.y - myPos.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        // End-to-end of arena (~1400px): volume is very low (~0.12 faint whisper), ramping to 1.0 close up
-        const normDist = clamp(dist / 1400, 0, 1);
-        targetVol = 0.12 + 0.88 * Math.pow(1 - normDist, 1.8);
-        targetPan = clamp(dx / 600, -0.85, 0.85);
+
+        // Close radius: 180px -> 100% volume
+        // Map width is 2400px, diagonal ~2739px
+        // Across the arena (>2000px): volume drops steeply to 4.5% (faint distant yell)
+        const closeRadius = 180;
+        const maxDist = 2200;
+        if(dist <= closeRadius){
+          targetVol = 1.0;
+        } else {
+          const t = clamp((dist - closeRadius) / (maxDist - closeRadius), 0, 1);
+          targetVol = 0.045 + 0.955 * Math.pow(1 - t, 2.8);
+        }
       }
     }
 
-    // Direct HTML5 Audio volume control (acts as decoder keepalive when WebAudio DSP is active, or primary fallback)
-    const webAudioActive = (AC && AC.state === 'running' && entry.gain);
+    // Direct HTML5 Audio volume control
     if(entry.audioEl){
       try {
-        entry.audioEl.volume = webAudioActive ? 0.001 : clamp(targetVol, 0.05, 1);
+        const curV = entry.audioEl.volume;
+        const nextV = curV + (targetVol - curV) * Math.min(1, dt * 14);
+        entry.audioEl.volume = clamp(nextV, 0.035, 1.0);
+        if(entry.audioEl.paused && entry.audioEl.srcObject){
+          entry.audioEl.play().catch(()=>{});
+        }
       } catch(e){}
     }
 
-    // Web Audio gain & panning (when active)
-    if(entry.gain){
-      entry.gain.gain.value += (targetVol - entry.gain.gain.value) * Math.min(1, dt * 16);
-    }
-    if(entry.panner){
-      entry.panner.pan.value += (targetPan - entry.panner.pan.value) * Math.min(1, dt * 16);
-    }
-
     if(entry.analyser && entry.analyserData){
-      entry.analyser.getByteFrequencyData(entry.analyserData);
-      let sum = 0;
-      for(let i = 0; i < entry.analyserData.length; i++) sum += entry.analyserData[i];
-      entry.speaking = (sum / entry.analyserData.length) > 13;
+      if(entry.remoteMuted){
+        entry.speaking = false;
+      } else {
+        entry.analyser.getByteFrequencyData(entry.analyserData);
+        let sum = 0;
+        for(let i = 0; i < entry.analyserData.length; i++) sum += entry.analyserData[i];
+        entry.speaking = (sum / entry.analyserData.length) > 13;
+      }
     }
   }
 
-  if(VOICE.analyser && VOICE.analyserData && !VOICE.muted){
+  if(VOICE.analyser && VOICE.analyserData && !VOICE.muted && VOICE.enabled){
     VOICE.analyser.getByteFrequencyData(VOICE.analyserData);
     let sum = 0;
     for(let i = 0; i < VOICE.analyserData.length; i++) sum += VOICE.analyserData[i];
@@ -3043,21 +3027,33 @@ function isPlayerSpeaking(slot){
     return !!VOICE.speaking;
   }
   for(const [peerId, entry] of VOICE.peers.entries()){
-    if(entry.speaking){
-      let pSlot = -1;
-      if(NET.isHost){
-        for(let s = 1; s < 4; s++){
-          const ent = NET.hostInputs.get(s);
-          if(ent && ent.owner === peerId){ pSlot = s; break; }
+    if(entry.speaking && !entry.remoteMuted){
+      let pSlot = NET.peerSlots ? NET.peerSlots.get(peerId) : undefined;
+      if(pSlot === undefined){
+        if(!NET.isHost && peerId.endsWith('-host')) pSlot = 0;
+        else if(NET.isHost){
+          for(let s = 1; s < 4; s++){
+            const ent = NET.hostInputs.get(s);
+            if(ent && ent.owner === peerId){ pSlot = s; break; }
+          }
         }
-      } else {
-        pSlot = 0;
       }
       if(pSlot === slot) return true;
     }
   }
   return false;
 }
+
+function voiceEnsurePlayback(){
+  if(AC && AC.state === 'suspended') AC.resume().catch(()=>{});
+  for(const entry of VOICE.peers.values()){
+    if(entry.audioEl && entry.audioEl.paused && entry.audioEl.srcObject){
+      entry.audioEl.play().catch(()=>{});
+    }
+  }
+}
+window.addEventListener('click', voiceEnsurePlayback, { passive: true });
+window.addEventListener('keydown', voiceEnsurePlayback, { passive: true });
 
 function netToast(m){
   toast(m);
@@ -3208,12 +3204,15 @@ function netConnectPeer(room, isHost){
   
   NET.peer.on('open', id2 => {
     NET.myId = id2;
+    NET.peerSlots.clear();
     if(isHost){
+      NET.peerSlots.set(id2, 0);
       NET.peer.on('connection', c => netWireConn(c, true));
       netToast('Hosting room ' + room.toUpperCase() + '! Link copied.');
       setTimeout(() => { netBroadcastSettings(); netBroadcastRoster(); }, 400);
     } else {
       const hostId = 'tag-' + cleanRoom + '-host';
+      NET.peerSlots.set(hostId, 0);
       const connRel = NET.peer.connect(hostId, { reliable: true, label: 'rel' });
       netWireConn(connRel, false);
       const connFast = NET.peer.connect(hostId, { reliable: false, ordered: false, maxRetransmits: 0, label: 'fast' });
@@ -3228,8 +3227,7 @@ function netConnectPeer(room, isHost){
   });
 
   NET.peer.on('call', call => {
-    const streamToSend = (VOICE.localStream && !VOICE.muted) ? VOICE.localStream : (VOICE.localStream || undefined);
-    call.answer(streamToSend || undefined);
+    call.answer(VOICE.localStream || undefined);
     voiceWireCall(call);
   });
 
@@ -3297,6 +3295,7 @@ function netWireConn(conn, isHostSide){
           const ent = NET.hostInputs.get(i);
           if(ent && ent.owner === peerId){
             NET.hostInputs.delete(i);
+            NET.peerSlots.delete(peerId);
             menu.slotColor[i] = -1;
             NET.slotsReady[i] = false;
             break;
@@ -3330,6 +3329,7 @@ function netOnData(m, c){
       return;
     }
     NET.hostInputs.set(slot, { dir:0, jumpEdge:false, jumpHeld:false, downHeld:false, consumeEdge:false, owner: c.peer, seq: 0 });
+    NET.peerSlots.set(c.peer, slot);
     NET.slotsCtrl[slot] = m.ctrl || 'WASD';
     NET.slotsReady[slot] = false;
 
@@ -3342,13 +3342,20 @@ function netOnData(m, c){
     if(pick === -1) pick = slot % PALETTE.length;
     menu.slotColor[slot] = pick;
 
+    const slotsPeer = [NET.myId || '', '', '', ''];
+    for(let i=1; i<4; i++){
+      const ent = NET.hostInputs.get(i);
+      if(ent && ent.owner) slotsPeer[i] = ent.owner;
+    }
+
     c.send({
       t: 'assign',
       slot: slot,
       settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, slotColor: menu.slotColor.slice() },
       mapData: MAPS[settings.map % MAPS.length],
       slotsCtrl: NET.slotsCtrl.slice(),
-      slotsReady: NET.slotsReady.slice()
+      slotsReady: NET.slotsReady.slice(),
+      slotsPeer: slotsPeer
     });
 
     netBroadcastSettings();
@@ -3369,6 +3376,11 @@ function netOnData(m, c){
     if(m.mapData) MAPS[settings.map % MAPS.length] = m.mapData;
     if(m.slotsCtrl) NET.slotsCtrl = m.slotsCtrl.slice();
     if(m.slotsReady) NET.slotsReady = m.slotsReady.slice();
+    if(m.slotsPeer && Array.isArray(m.slotsPeer)){
+      for(let s=0; s<m.slotsPeer.length; s++){
+        if(m.slotsPeer[s]) NET.peerSlots.set(m.slotsPeer[s], s);
+      }
+    }
     buildLevel();
     netShow(false);
     netToast('Connected as P' + (m.slot + 1) + '! Pick controls & click Ready.');
@@ -3378,6 +3390,17 @@ function netOnData(m, c){
     if(m.slotColor){
       menu.slotColor = m.slotColor.slice(0, 4);
       buildLevel();
+    }
+    if(m.slotsPeer && Array.isArray(m.slotsPeer)){
+      for(let s=0; s<m.slotsPeer.length; s++){
+        const pid = m.slotsPeer[s];
+        if(pid){
+          NET.peerSlots.set(pid, s);
+          if(VOICE.enabled && VOICE.localStream && pid !== NET.myId && !VOICE.peers.has(pid)){
+            if(NET.myId > pid) voiceCallPeer(pid, false);
+          }
+        }
+      }
     }
   } else if(m.t === 'ready'){
     if(NET.isHost){
@@ -3535,6 +3558,12 @@ function netOnData(m, c){
     if(VOICE.enabled && VOICE.localStream){
       voiceCallPeer(m.peerId || c.peer, true);
     }
+  } else if(m.t === 'voice_mute'){
+    const peerEntry = VOICE.peers.get(c.peer) || VOICE.peers.get(m.peerId);
+    if(peerEntry){
+      peerEntry.remoteMuted = !!m.muted;
+      if(m.muted) peerEntry.speaking = false;
+    }
   }
 }
 
@@ -3546,11 +3575,17 @@ function netBroadcastSettings(){
 
 function netBroadcastRoster(){
   if(!NET.isHost) return;
+  const slotsPeer = [NET.myId || '', '', '', ''];
+  for(let i=1; i<4; i++){
+    const ent = NET.hostInputs.get(i);
+    if(ent && ent.owner) slotsPeer[i] = ent.owner;
+  }
   const msg = {
     t: 'roster_sync',
     slotsCtrl: NET.slotsCtrl.slice(),
     slotsReady: NET.slotsReady.slice(),
-    slotColor: menu.slotColor.slice()
+    slotColor: menu.slotColor.slice(),
+    slotsPeer: slotsPeer
   };
   netBroadcastReliable(msg);
 }
@@ -3687,6 +3722,7 @@ function netLeaveRoom(){
     }
     VOICE.peers.clear();
   }
+  if(NET.peerSlots) NET.peerSlots.clear();
   NET.role = null;
   NET.room = '';
   NET.mySlot = -1;
