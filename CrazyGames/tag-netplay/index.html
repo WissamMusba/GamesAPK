@@ -1346,32 +1346,60 @@ function applyTag(newItIdx, popX, popY){
   if(!oldIt || !newIt) return;
 
   match.it = newItIdx;
+  if(settings.teams && newIt.team != null){
+    match.itTeam = newIt.team;
+  }
   match.cooldown = 3;
   match.tags[newItIdx]++;
   match.freeze = 0.09; match.shake = 13; match.flash = 0.14;
   match.tagPop = { t: 0.55, x: popX != null ? popX : (oldIt.x + newIt.x) / 2 + 23, y: popY != null ? popY : (oldIt.y + newIt.y) / 2 + 10 };
   oldIt.tagT = 0.7; newIt.tagT = 0.7;
   sfx('tag');
-  tagBurst(match.tagPop.x, match.tagPop.y, PALETTE[oldIt.colIdx].c, PALETTE[newIt.colIdx].c);
+  tagBurst(match.tagPop.x, match.tagPop.y, getPlayerColor(oldIt), getPlayerColor(newIt));
 }
 
 function checkTag(){
   if(!match || match.state !== 'playing' || match.cooldown > 0) return;
-  const P = match.players, it = P[match.it];
-  if(!it) return;
+  const P = match.players;
+  if(!P || P.length < 2) return;
 
   const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
   const isOnlineGuest = isOnline && !NET.isHost;
 
+  if(settings.teams && match.itTeam != null){
+    // "Hunt Together": ALL players on the itTeam hunt together!
+    const hunters = P.filter(p => p.team === match.itTeam);
+    const runners = P.filter(p => p.team !== match.itTeam);
+    for(const hunter of hunters){
+      for(const runner of runners){
+        if(hitRectInclusive(tagBox(hunter), tagBox(runner))){
+          const popX = (hunter.x + runner.x) / 2 + 23, popY = (hunter.y + runner.y) / 2 + 10;
+          if(isOnlineGuest){
+            if(hunter.slot === NET.mySlot){
+              netBroadcastReliable({ t: 'tag_claim', from: hunter.slot, target: runner.slot, x: popX, y: popY });
+              match.cooldown = 0.6;
+            }
+            return;
+          }
+          applyTag(P.indexOf(runner), popX, popY);
+          return;
+        }
+      }
+    }
+    return;
+  }
+
+  // Classic Free-for-All
+  const it = P[match.it];
+  if(!it) return;
   for(let j = 0; j < P.length; j++){
     if(j === match.it) continue;
     if(hitRectInclusive(tagBox(it), tagBox(P[j]))){
       if(isOnlineGuest){
-        // When online guest is IT and catches another player on screen, send tag claim to host
         if(it.slot === NET.mySlot){
           const popX = (it.x + P[j].x) / 2 + 23, popY = (it.y + P[j].y) / 2 + 10;
           netBroadcastReliable({ t: 'tag_claim', from: it.slot, target: P[j].slot, x: popX, y: popY });
-          match.cooldown = 0.6; // Brief local throttle
+          match.cooldown = 0.6;
         }
         return;
       }
@@ -1382,12 +1410,25 @@ function checkTag(){
 }
 function endMatch(){
   try{CG.happytime();}catch(e){}try{CG.gameplayStop();}catch(e){}
-  // Banner on result: try responsive banner on the post-match bar
   try{CG.requestResponsiveBanner('cg-banner-responsive');const el=document.getElementById('cg-banner-resp');if(el)el.style.display='flex';}catch(e){}
-  // Midgame ad — every 2nd completed match, only when the result screen is about to show
   try{if((matchIndex%2)===0)CG.requestMidgame();}catch(e){}
   match.state='result';
-  match.result={loser:match.it};
+  if(settings.teams && match.teamItTime){
+    // Team with the lowest total IT time wins!
+    const activeTeams = Array.from(new Set(match.players.map(p => p.team)));
+    let bestTeam = activeTeams[0] || 0;
+    let minTime = match.teamItTime[bestTeam] || 0;
+    for(const tm of activeTeams){
+      const tmTime = match.teamItTime[tm] || 0;
+      if(tmTime < minTime){
+        minTime = tmTime;
+        bestTeam = tm;
+      }
+    }
+    match.result={winningTeam: bestTeam, teamItTime: match.teamItTime.slice()};
+  } else {
+    match.result={loser:match.it};
+  }
   match.resultT=0;
   confetti();
   sfx('win');
@@ -1410,7 +1451,7 @@ function updateCam(dt){
     const dx=maxX-minX,dy=maxY-minY;
     const needW=dx+640+(N-2)*220,needH=dy+500+(N-2)*120;
     const minS=Math.min(CW/(W+140),CH/(H+140));
-    ts=clamp(Math.min(CW/needW,CH/needH),minS,N>=3?1.35:1.75);
+    ts=clamp(Math.min(CW/needW,CH/needH),minS,N>=6?1.05:(N>=4?1.25:1.75));
   }
   const kp=1-Math.exp(-dt*5.5),ks=1-Math.exp(-dt*3.8);
   cam.x+=(tx-cam.x)*kp;cam.y+=(ty-cam.y)*kp;cam.s+=(ts-cam.s)*ks;
@@ -2756,14 +2797,19 @@ function drawHUD(){
   ptxt(fmtTime(match.timer),CW/2,8+th/2+1,FT(Math.min(22,th*0.54)),urgent?'#fff0f0':'#ffffff');
   
   const P=match.players;
+  const pillH = P.length > 4 ? 22 : 26;
+  const pillGap = P.length > 4 ? 25 : 30;
   for(let i=0;i<P.length;i++){
-    const isIt=match.it===i&&match.state!=='result';
-    const y=10+i*30;
-    g.save();g.globalAlpha=isIt?1:0.75;
-    pill(10,y,isIt?120:86,26,isIt?'rgba(255,210,63,0.92)':'rgba(0,0,0,0.3)',isIt?INK:'rgba(0,0,0,0.5)');
-    g.fillStyle=PALETTE[P[i].colIdx].c;
-    rr(g,14,y+3,20,20,4);g.fill();g.lineWidth=2;g.strokeStyle=INK;g.stroke();
-    txt('P'+(i+1)+(isIt?' IT':''),40,y+14,FN(11,900),isIt?'#3a2c00':'#ffffff','left');
+    const p = P[i];
+    const isIt = settings.teams ? (p.team === match.itTeam && match.state !== 'result') : (match.it === i && match.state !== 'result');
+    const y = 10 + i * pillGap;
+    g.save(); g.globalAlpha = isIt ? 1 : 0.75;
+    const teamBadge = settings.teams ? ((p.team === 0 ? '🔴 ' : (p.team === 1 ? '🔵 ' : '🟢 '))) : '';
+    const label = teamBadge + 'P' + (p.slot + 1) + (isIt ? ' IT' : '');
+    pill(10, y, isIt ? 124 : 92, pillH, isIt ? 'rgba(255,210,63,0.92)' : 'rgba(0,0,0,0.3)', isIt ? INK : 'rgba(0,0,0,0.5)');
+    g.fillStyle = getPlayerColor(p);
+    rr(g, 14, y + (pillH - 16) / 2, 16, 16, 4); g.fill(); g.lineWidth = 1.8; g.strokeStyle = INK; g.stroke();
+    txt(label, 36, y + pillH / 2 + 1, FN(P.length > 4 ? 10 : 11, 900), isIt ? '#3a2c00' : '#ffffff', 'left');
     g.restore();
   }
   
@@ -2928,20 +2974,38 @@ function drawResult(){
   }
   const ap=easeBack(clamp((t-0.35)*2.2,0,1));
   if(ap<=0)return;
-  const P=match.players,loser=match.result.loser;
-  const winners=P.map((p,i)=>i).filter(i=>i!==loser);
+  const P=match.players;
+  const isTeamMatch = !!(settings.teams && match.result && match.result.winningTeam != null);
   const pw=Math.min(740,CW-30),ph=Math.min(440,CH-40);
   const px=CW/2-pw/2,py=CH/2-ph/2;
   g.save();
   g.translate(CW/2,CH/2);g.scale(ap,ap);g.translate(-CW/2,-CH/2);
   rr(g,px,py,pw,ph,20);
   g.fillStyle='rgba(20,28,42,0.96)';g.fill();g.lineWidth=4;g.strokeStyle=INK;g.stroke();
-  const wcol=PALETTE[P[winners[0]].colIdx].c;
-  ptxt(winners.length===1?('PLAYER '+(winners[0]+1)+' WINS!'):(winners.map(w=>'P'+(w+1)).join(' + ')+' WIN!'),CW/2,py+ph*0.12,FT(Math.min(38,CW*0.055)),wcol);
-  ptxt('PLAYER '+(loser+1)+' WAS IT - LOSES!   (MAP '+(settings.map+1)+': '+MAPS[settings.map].name+')',CW/2,py+ph*0.24,FN(Math.min(14,CW*0.028),800),'#ffffff');
-  const psz=Math.min(60,ph*0.17);
-  drawChar(g,CW/2-psz*2.4,py+ph*0.45-Math.abs(Math.sin(tGlobal*5))*10,psz,PALETTE[P[winners[0]].colIdx].c,{face:'happy',fdir:1,grounded:true,seed:2});
-  drawChar(g,CW/2+psz*1.4,py+ph*0.48,psz,PALETTE[P[loser].colIdx].c,{face:'sad',fdir:-1,tilt:-0.06,grounded:true,seed:5});
+
+  if(isTeamMatch){
+    const winTeamIdx = match.result.winningTeam;
+    const winTeam = TEAMS[winTeamIdx] || TEAMS[0];
+    const teamMates = P.filter(p => p.team === winTeamIdx);
+    const winTitle = winTeam.icon + ' ' + winTeam.name + ' WINS!';
+    ptxt(winTitle, CW/2, py+ph*0.13, FT(Math.min(38,CW*0.055)), winTeam.base);
+    ptxt('LOWEST TIME AS IT!   (MAP '+(settings.map+1)+': '+MAPS[settings.map].name+')', CW/2, py+ph*0.25, FN(Math.min(14,CW*0.028),800), '#ffffff');
+    const psz=Math.min(54,ph*0.16);
+    const startX = CW/2 - ((teamMates.length - 1) * psz * 1.5) / 2;
+    for(let mi = 0; mi < teamMates.length; mi++){
+      const p = teamMates[mi];
+      drawChar(g, startX + mi * psz * 1.5, py+ph*0.46 - Math.abs(Math.sin(tGlobal*5 + mi))*8, psz, getPlayerColor(p), { face: 'happy', fdir: 1, grounded: true, seed: mi*3 });
+    }
+  } else {
+    const loser=match.result.loser != null ? match.result.loser : match.it;
+    const winners=P.map((p,i)=>i).filter(i=>i!==loser);
+    const wcol=PALETTE[(P[winners[0]] && P[winners[0]].colIdx) || 0].c;
+    ptxt(winners.length===1?('PLAYER '+(winners[0]+1)+' WINS!'):(winners.map(w=>'P'+(w+1)).join(' + ')+' WIN!'),CW/2,py+ph*0.12,FT(Math.min(38,CW*0.055)),wcol);
+    ptxt('PLAYER '+(loser+1)+' WAS IT - LOSES!   (MAP '+(settings.map+1)+': '+MAPS[settings.map].name+')',CW/2,py+ph*0.24,FN(Math.min(14,CW*0.028),800),'#ffffff');
+    const psz=Math.min(60,ph*0.17);
+    drawChar(g,CW/2-psz*2.4,py+ph*0.45-Math.abs(Math.sin(tGlobal*5))*10,psz,getPlayerColor(P[winners[0]]),{face:'happy',fdir:1,grounded:true,seed:2});
+    if(P[loser]) drawChar(g,CW/2+psz*1.4,py+ph*0.48,psz,getPlayerColor(P[loser]),{face:'sad',fdir:-1,tilt:-0.06,grounded:true,seed:5});
+  }
   txt('TAGS - '+P.map((p,i)=>'P'+(i+1)+': '+match.tags[i]).join('  •  '),CW/2,py+ph*0.66,FN(13,900),'#cfe9d6');
   const b3=Math.min(180,(pw-60)/3);
   const sx0=CW/2-(b3*3+28)/2;
