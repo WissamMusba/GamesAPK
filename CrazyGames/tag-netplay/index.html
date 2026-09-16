@@ -1871,138 +1871,228 @@ function drawTagPop(){
 }
 
 /* ================= MENU ================= */
+/* ================= MENU (Fully Responsive Layout) ================= */
 function slotCardRects(){
-  const isOnline=(typeof NET!=='undefined'&&NET&&NET.role!==null);
-  const cw=isOnline?clamp(CW*0.155,110,175):clamp(CW*0.145,100,160);
-  const gap=clamp(CW*0.025,12,34);
-  const chh=isOnline?clamp(cw*1.30,160,220):cw*0.68;
-  const total=4*cw+3*gap,x0=CW/2-total/2;
-  const y=isOnline?CH*0.23:CH*0.30;
-  const r=[];
-  for(let i=0;i<4;i++)r.push({x:x0+i*(cw+gap),y:y,w:cw,h:chh});
+  const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
+  const isPortrait = (CH > CW && CW < 640);
+  const isShortH = (CH < 640);
+  const r = [];
+
+  if(isPortrait){
+    // Mobile Portrait: 2x2 Grid so cards never get squished or overflow screen
+    const marginX = Math.max(10, Math.floor(CW * 0.035));
+    const gapX = 10;
+    const cw = Math.floor((CW - marginX * 2 - gapX) / 2);
+    const chh = isOnline ? Math.floor(clamp(CH * 0.165, 125, 155)) : Math.floor(clamp(CH * 0.11, 75, 95));
+    const gapY = 8;
+    const y0 = Math.floor(Math.max(96, CH * 0.155));
+    for(let i = 0; i < 4; i++){
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+      r.push({
+        x: marginX + col * (cw + gapX),
+        y: y0 + row * (chh + gapY),
+        w: cw,
+        h: chh
+      });
+    }
+    return r;
+  }
+
+  // Landscape / Laptop / Desktop: 4 cards in a single row
+  const marginX = Math.max(14, Math.floor(CW * 0.025));
+  const maxRowW = Math.min(CW - marginX * 2, 880);
+  const gap = Math.floor(clamp(CW * 0.016, 8, 22));
+  const cw = Math.floor((maxRowW - gap * 3) / 4);
+
+  // Height adapts dynamically to CH so cards NEVER crush menu rows below
+  const chh = isOnline
+    ? Math.floor(clamp(CH * 0.23, isShortH ? 112 : 132, 180))
+    : Math.floor(clamp(CH * 0.15, 65, 105));
+
+  const totalW = 4 * cw + 3 * gap;
+  const x0 = Math.floor(CW / 2 - totalW / 2);
+  // Safely position below TAG title
+  const y = isOnline
+    ? Math.floor(clamp(CH * (isShortH ? 0.17 : 0.21), isShortH ? 82 : 110, 190))
+    : Math.floor(clamp(CH * 0.24, 90, 210));
+
+  for(let i = 0; i < 4; i++){
+    r.push({ x: x0 + i * (cw + gap), y: y, w: cw, h: chh });
+  }
   return r;
 }
 
 function drawMenu(){
   // Menu banners: once, not per frame — guard with last-shot timestamp.
   try{
-    if(!drawMenu._bannersAt||Date.now()-drawMenu._bannersAt>1500){
-      drawMenu._bannersAt=Date.now();
-      const sdk=window.CrazyGames&&window.CrazyGames.SDK;
-      if(sdk&&sdk.banner){
-        const resp=document.getElementById('cg-banner-resp');
-        const top=document.getElementById('cg-banners');
-        if(resp&&resp.style.display==='none'&&!CG._bannerIds.has('cg-banner-responsive')){
-          try{CG.requestResponsiveBanner('cg-banner-responsive');resp.style.display='flex';}catch(e){}
+    if(!drawMenu._bannersAt || Date.now() - drawMenu._bannersAt > 1500){
+      drawMenu._bannersAt = Date.now();
+      const sdk = window.CrazyGames && window.CrazyGames.SDK;
+      if(sdk && sdk.banner){
+        const resp = document.getElementById('cg-banner-resp');
+        const top = document.getElementById('cg-banners');
+        if(resp && resp.style.display === 'none' && !CG._bannerIds.has('cg-banner-responsive')){
+          try{ CG.requestResponsiveBanner('cg-banner-responsive'); resp.style.display = 'flex'; }catch(e){}
         }
-        if(top&&top.style.display==='none'&&!CG._bannerIds.has('cg-banner-top')){
-          try{CG.requestBanner('cg-banner-top','728x90');top.style.display='block';}catch(e){}
+        if(top && top.style.display === 'none' && !CG._bannerIds.has('cg-banner-top')){
+          try{ CG.requestBanner('cg-banner-top', '728x90'); top.style.display = 'block'; }catch(e){}
         }
       }
     }
   }catch(e){}
+
   g.save();
-  g.translate(CW/2,CH/2);g.scale(cam.s,cam.s);g.translate(-cam.x,-cam.y);
+  g.translate(CW/2, CH/2); g.scale(cam.s, cam.s); g.translate(-cam.x, -cam.y);
   drawNightWorld();
   g.restore();
-  txt('v1.2 (Maps Updated)', 16, 20, FN(12, 800), 'rgba(255,255,255,0.5)', 'left');
-  const ly=CH*0.13;
-  const word='TAG';
-  g.font=FT(Math.min(90,CW*0.12));
-  // Slight letter-spacing so caps-heavy fonts don't mush together
-  g.letterSpacing='0.06em';
-  const ls=6; // px gap between letters, scaled with font
-  const ws=[];let widths=0;
-  for(let i=0;i<3;i++){ws.push(g.measureText(word[i]).width);widths+=ws[i];}
-  widths+=ls*2;
-  let xx=CW/2-widths/2;
-  for(let i=0;i<3;i++){
-    g.save();
-    g.translate(xx+ws[i]/2,ly+Math.sin(tGlobal*3+i)*6);
-    g.rotate(Math.sin(tGlobal*2.4+i)*0.04);
-    g.textAlign='center';g.textBaseline='middle';g.lineJoin='round';
-    g.strokeStyle=INK;g.lineWidth=Math.max(6,ws[i]*0.1);
-    g.strokeText(word[i],0,0);
-    g.fillStyle='#ffffff';g.fillText(word[i],0,0);
-    g.restore();
-    xx+=ws[i]+ls;
+
+  const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
+  const isShortH = (CH < 620);
+  const isNarrowW = (CW < 520);
+
+  // Sound Mute button (top right)
+  const si = Math.floor(clamp(Math.min(CW * 0.08, CH * 0.075), 36, 44));
+  const soundX = CW - si - 12, soundY = 10;
+  rr(g, soundX, soundY, si, si, 9);
+  g.fillStyle = 'rgba(255,255,255,0.85)'; g.fill(); g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
+  g.fillStyle = '#3a5a3a';
+  g.beginPath();
+  g.moveTo(soundX + 10, soundY + si/2 - 5);
+  g.lineTo(soundX + 10, soundY + si/2 + 5);
+  g.lineTo(soundX + 16, soundY + si/2 + 5);
+  g.lineTo(soundX + 24, soundY + si/2 + 12);
+  g.lineTo(soundX + 24, soundY + si/2 - 12);
+  g.lineTo(soundX + 16, soundY + si/2 - 5);
+  g.closePath(); g.fill();
+  if(muted){
+    g.strokeStyle = '#c0392b'; g.lineWidth = 3.5;
+    g.beginPath(); g.moveTo(soundX + 27, soundY + si/2 - 8); g.lineTo(soundX + 38, soundY + si/2 + 8); g.stroke();
   }
-  g.letterSpacing='0em';
-  const si=44;
-  rr(g,CW-si-12,12,si,si,10);
-  g.fillStyle='rgba(255,255,255,0.85)';g.fill();g.lineWidth=3;g.strokeStyle=INK;g.stroke();
-  g.fillStyle='#3a5a3a';
-  g.beginPath();g.moveTo(CW-si+2,12+si/2-5);g.lineTo(CW-si+2,12+si/2+5);g.lineTo(CW-si+8,12+si/2+5);g.lineTo(CW-si+16,12+si/2+12);g.lineTo(CW-si+16,12+si/2-12);g.lineTo(CW-si+8,12+si/2-5);g.closePath();g.fill();
-  if(muted){g.strokeStyle='#c0392b';g.lineWidth=4;g.beginPath();g.moveTo(CW-si+20,12+si/2-8);g.lineTo(CW-si+34,12+si/2+8);g.stroke();}
-  zone(CW-si-12,12,si,si,{fn:()=>{muted=!muted;applyEffectiveMute();}});
+  zone(soundX, soundY, si, si, { fn: () => { muted = !muted; applyEffectiveMute(); } });
 
-  // Header navigation buttons
-  if(typeof NET!=='undefined' && NET && NET.role!==null){
+  // Header navigation bar / buttons
+  let headerBottom = 50;
+  if(isOnline){
     // Online room header bar
-    const rh=40, ry=14;
-    const rw=Math.min(460, CW-si-40), rx=16;
-    rr(g,rx,ry,rw,rh,10);
-    g.fillStyle='rgba(14,20,32,0.92)';g.fill();
-    g.lineWidth=2;g.strokeStyle='#2ecc71';g.stroke();
-    
-    // Room title
-    g.font=FN(12,900);g.textAlign='left';g.fillStyle='#2ecc71';
-    g.fillText('ROOM: '+NET.room.toUpperCase()+(NET.isHost?' (HOST)':' (GUEST)'),rx+12,ry+rh/2+4);
-    
-    // Voice mic button
-    const vbw=76, vbh=28, vbx=rx+rw-vbw-168, vby=ry+rh/2-vbh/2;
-    const vOn = (typeof VOICE!=='undefined' && VOICE.enabled);
-    const vMuted = (typeof VOICE!=='undefined' && VOICE.muted);
-    rr(g,vbx,vby,vbw,vbh,6);
-    g.fillStyle=vOn?(vMuted?'rgba(192,57,43,0.85)':'rgba(39,174,96,0.85)'):'rgba(255,255,255,0.18)';g.fill();
-    g.lineWidth=1.5;g.strokeStyle=vOn?(vMuted?'#e74c3c':'#2ecc71'):'rgba(255,255,255,0.35)';g.stroke();
-    ptxt(vOn?(vMuted?'🔇 MUTED':'🎙️ MIC ON'):'🎙️ MIC',vbx+vbw/2,vby+vbh/2+1,FN(9.5,900),'#ffffff');
-    zone(vbx,vby,vbw,vbh,{fn:voiceToggleMic});
+    const rh = Math.floor(clamp(CH * 0.065, 34, 42));
+    const ry = 10;
+    const maxBarW = Math.min(520, soundX - 20);
+    const rx = 12;
+    rr(g, rx, ry, maxBarW, rh, 8);
+    g.fillStyle = 'rgba(14,20,32,0.94)'; g.fill();
+    g.lineWidth = 2; g.strokeStyle = '#2ecc71'; g.stroke();
 
-    // Copy link button
-    const cbw=94, cbh=28, cbx=rx+rw-cbw-68, cby=ry+rh/2-cbh/2;
-    rr(g,cbx,cby,cbw,cbh,6);
-    g.fillStyle='rgba(44,110,63,0.85)';g.fill();
-    g.lineWidth=1.5;g.strokeStyle='#3b9c56';g.stroke();
-    ptxt('📋 COPY LINK',cbx+cbw/2,cby+cbh/2+1,FN(10.5,900),'#ffffff');
-    zone(cbx,cby,cbw,cbh,{fn:()=>netCopyLink()});
-    
-    // Leave room button
-    const lbw=54, lbh=28, lbx=rx+rw-lbw-8, lby=ry+rh/2-lbh/2;
-    rr(g,lbx,lby,lbw,lbh,6);
-    g.fillStyle='rgba(192,57,43,0.85)';g.fill();
-    g.lineWidth=1.5;g.strokeStyle='#e74c3c';g.stroke();
-    ptxt('LEAVE',lbx+lbw/2,lby+lbh/2+1,FN(10.5,900),'#ffffff');
-    zone(lbx,lby,lbw,lbh,{fn:()=>netLeaveRoom()});
+    const isCompact = (maxBarW < 430);
+    const isTiny = (maxBarW < 340);
+    const pad = 5;
+    const bh = rh - pad * 2;
+
+    // 1. Leave button (rightmost)
+    const lbw = isTiny ? 28 : (isCompact ? 44 : 54);
+    const lbx = rx + maxBarW - lbw - pad;
+    const lby = ry + pad;
+    rr(g, lbx, lby, lbw, bh, 5);
+    g.fillStyle = 'rgba(192,57,43,0.85)'; g.fill();
+    g.lineWidth = 1.5; g.strokeStyle = '#e74c3c'; g.stroke();
+    ptxt(isTiny ? '✕' : 'LEAVE', lbx + lbw/2, lby + bh/2 + 1, FN(isCompact ? 9 : 10, 900), '#ffffff');
+    zone(lbx, lby, lbw, bh, { fn: () => netLeaveRoom() });
+
+    // 2. Copy link button
+    const cbw = isTiny ? 30 : (isCompact ? 70 : 92);
+    const cbx = lbx - cbw - pad;
+    const cby = ry + pad;
+    rr(g, cbx, cby, cbw, bh, 5);
+    g.fillStyle = 'rgba(44,110,63,0.85)'; g.fill();
+    g.lineWidth = 1.5; g.strokeStyle = '#3b9c56'; g.stroke();
+    ptxt(isTiny ? '📋' : (isCompact ? '📋 LINK' : '📋 COPY LINK'), cbx + cbw/2, cby + bh/2 + 1, FN(isCompact ? 9 : 10, 900), '#ffffff');
+    zone(cbx, cby, cbw, bh, { fn: () => netCopyLink() });
+
+    // 3. Voice mic button
+    const vOn = (typeof VOICE !== 'undefined' && VOICE.enabled);
+    const vMuted = (typeof VOICE !== 'undefined' && VOICE.muted);
+    const vbw = isTiny ? 30 : (isCompact ? 58 : 74);
+    const vbx = cbx - vbw - pad;
+    const vby = ry + pad;
+    rr(g, vbx, vby, vbw, bh, 5);
+    g.fillStyle = vOn ? (vMuted ? 'rgba(192,57,43,0.85)' : 'rgba(39,174,96,0.85)') : 'rgba(255,255,255,0.18)'; g.fill();
+    g.lineWidth = 1.5; g.strokeStyle = vOn ? (vMuted ? '#e74c3c' : '#2ecc71') : 'rgba(255,255,255,0.35)'; g.stroke();
+    const micLabel = isTiny ? (vMuted ? '🔇' : '🎙️') : (isCompact ? (vMuted ? '🔇 MUTE' : '🎙️ ON') : (vMuted ? '🔇 MUTED' : (vOn ? '🎙️ MIC ON' : '🎙️ MIC')));
+    ptxt(micLabel, vbx + vbw/2, vby + bh/2 + 1, FN(isCompact ? 8.5 : 9.5, 900), '#ffffff');
+    zone(vbx, vby, vbw, bh, { fn: voiceToggleMic });
+
+    // 4. Room title (fills remaining space on the left)
+    const roomTitleW = vbx - rx - pad * 2;
+    if(roomTitleW > 30){
+      g.font = FN(isCompact ? 10 : 12, 900);
+      g.textAlign = 'left'; g.fillStyle = '#2ecc71';
+      const titleStr = isCompact ? (NET.room.toUpperCase() + (NET.isHost ? ' (H)' : ' (G)')) : ('ROOM: ' + NET.room.toUpperCase() + (NET.isHost ? ' (HOST)' : ' (GUEST)'));
+      g.fillText(titleStr, rx + pad + 2, ry + rh/2 + 4);
+    }
+    headerBottom = ry + rh;
   } else {
     // Offline header: HOST ONLINE & JOIN ROOM
-    const obw=122, obh=si, obx=CW-si-12-obw-10;
-    rr(g,obx,12,obw,obh,10);
-    g.fillStyle='rgba(44,110,63,0.92)';g.fill();
-    g.lineWidth=3;g.strokeStyle=INK;g.stroke();
-    ptxt('🌐 HOST ONLINE',obx+obw/2,12+obh/2+1,FN(11.5,900),'#ffffff');
-    zone(obx,12,obw,obh,{fn:()=>netHostAction()});
+    const obw = isNarrowW ? 78 : 120;
+    const obh = si;
+    const obx = soundX - obw - 10;
+    rr(g, obx, 10, obw, obh, 9);
+    g.fillStyle = 'rgba(44,110,63,0.92)'; g.fill();
+    g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
+    ptxt(isNarrowW ? '🌐 HOST' : '🌐 HOST ONLINE', obx + obw/2, 10 + obh/2 + 1, FN(isNarrowW ? 10.5 : 11.5, 900), '#ffffff');
+    zone(obx, 10, obw, obh, { fn: () => netHostAction() });
 
-    const jbw=104, jbh=si, jbx=obx-jbw-10;
-    rr(g,jbx,12,jbw,jbh,10);
-    g.fillStyle='rgba(255,255,255,0.88)';g.fill();
-    g.lineWidth=3;g.strokeStyle=INK;g.stroke();
-    ptxt('🔗 JOIN ROOM',jbx+jbw/2,12+jbh/2+1,FN(11.5,900),'#141b28');
-    zone(jbx,12,jbw,jbh,{fn:()=>netJoinAction()});
+    const jbw = isNarrowW ? 70 : 102;
+    const jbh = si;
+    const jbx = obx - jbw - 10;
+    rr(g, jbx, 10, jbw, jbh, 9);
+    g.fillStyle = 'rgba(255,255,255,0.88)'; g.fill();
+    g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
+    ptxt(isNarrowW ? '🔗 JOIN' : '🔗 JOIN ROOM', jbx + jbw/2, 10 + jbh/2 + 1, FN(isNarrowW ? 10.5 : 11.5, 900), '#141b28');
+    zone(jbx, 10, jbw, jbh, { fn: () => netJoinAction() });
+
+    // Version text (left side, collapses on small screens)
+    if(jbx > 160){
+      txt('v1.2 (Maps Updated)', 16, 20, FN(12, 800), 'rgba(255,255,255,0.5)', 'left');
+    } else if(jbx > 80){
+      txt('v1.2', 16, 20, FN(11, 800), 'rgba(255,255,255,0.5)', 'left');
+    }
+    headerBottom = 10 + si;
   }
 
-  // Shared Roster Banner at the top (under TAG)
-  if(typeof NET!=='undefined' && NET && NET.role!==null){
-    const rosterY=CH*0.18;
-    const pills=[];
-    // P1 (Host)
+  // Dynamic TAG title logo
+  const titleSize = Math.floor(clamp(Math.min(CW * 0.11, CH * 0.10), isShortH ? 30 : 42, 80));
+  const ly = Math.floor(Math.max(headerBottom + titleSize * 0.52, CH * (isShortH ? 0.085 : 0.115)));
+  const word = 'TAG';
+  g.font = FT(titleSize);
+  g.letterSpacing = '0.06em';
+  const ls = Math.max(3, Math.floor(titleSize * 0.08));
+  const ws = []; let widths = 0;
+  for(let i = 0; i < 3; i++){ ws.push(g.measureText(word[i]).width); widths += ws[i]; }
+  widths += ls * 2;
+  let xx = CW/2 - widths/2;
+  for(let i = 0; i < 3; i++){
+    g.save();
+    g.translate(xx + ws[i]/2, ly + Math.sin(tGlobal*3 + i) * Math.min(5, titleSize * 0.1));
+    g.rotate(Math.sin(tGlobal*2.4 + i) * 0.04);
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
+    g.strokeStyle = INK; g.lineWidth = Math.max(4, ws[i] * 0.1);
+    g.strokeText(word[i], 0, 0);
+    g.fillStyle = '#ffffff'; g.fillText(word[i], 0, 0);
+    g.restore();
+    xx += ws[i] + ls;
+  }
+  g.letterSpacing = '0em';
+
+  // Shared Roster Banner (shown ONLY on spacious screens >= 720px height to prevent crushing)
+  if(isOnline && CH >= 720 && CW >= 750){
+    const rosterY = ly + titleSize * 0.5 + 24;
+    const pills = [];
     pills.push({
       slot:0, title:'P1 Host'+(NET.mySlot===0?' (YOU)':''),
       ctrl:NET.slotsCtrl[0]||'WASD', ready:!!NET.slotsReady[0],
       col:menu.slotColor[0]>=0?menu.slotColor[0]:0, connected:true
     });
-    // P2 (Guest)
-    const p2Conn=NET.isHost?NET.hostInputs.has(1):menu.slotColor[1]>=0;
+    const p2Conn = NET.isHost ? NET.hostInputs.has(1) : menu.slotColor[1] >= 0;
     if(p2Conn){
       pills.push({
         slot:1, title:'P2 Guest'+(NET.mySlot===1?' (YOU)':''),
@@ -2010,13 +2100,10 @@ function drawMenu(){
         col:menu.slotColor[1]>=0?menu.slotColor[1]:1, connected:true
       });
     } else {
-      pills.push({
-        slot:1, title:'P2 Guest', ctrl:'WAITING… (SHARE LINK)', ready:false, col:-1, connected:false
-      });
+      pills.push({ slot:1, title:'P2 Guest', ctrl:'WAITING… (SHARE LINK)', ready:false, col:-1, connected:false });
     }
-    // P3 & P4 if connected
-    for(let si=2;si<4;si++){
-      const cConn=NET.isHost?NET.hostInputs.has(si):menu.slotColor[si]>=0;
+    for(let si=2; si<4; si++){
+      const cConn = NET.isHost ? NET.hostInputs.has(si) : menu.slotColor[si] >= 0;
       if(cConn){
         pills.push({
           slot:si, title:'P'+(si+1)+' Guest'+(NET.mySlot===si?' (YOU)':''),
@@ -2025,236 +2112,283 @@ function drawMenu(){
         });
       }
     }
-    const pw=clamp((CW-50)/pills.length-10, 160, 250);
-    const ph=34;
-    const totW=pills.length*pw+(pills.length-1)*10;
-    const startX=CW/2-totW/2;
-    for(let pi=0;pi<pills.length;pi++){
-      const p=pills[pi], px=startX+pi*(pw+10);
-      rr(g,px,rosterY-ph/2,pw,ph,7);
-      g.fillStyle=p.connected?'rgba(16,24,38,0.92)':'rgba(16,24,38,0.6)'; g.fill();
-      g.lineWidth=2; g.strokeStyle=p.connected?(p.ready?'#2ecc71':'#e67e22'):'rgba(255,255,255,0.2)'; g.stroke();
-      if(p.connected&&p.col>=0){
-        rr(g,px+6,rosterY-7,14,14,3); g.fillStyle=PALETTE[p.col].c; g.fill();
+    const pw = clamp((CW-50)/pills.length-10, 150, 240);
+    const ph = 32;
+    const totW = pills.length*pw + (pills.length-1)*10;
+    const startX = CW/2 - totW/2;
+    for(let pi=0; pi<pills.length; pi++){
+      const p = pills[pi], px = startX + pi*(pw+10);
+      rr(g, px, rosterY-ph/2, pw, ph, 7);
+      g.fillStyle = p.connected ? 'rgba(16,24,38,0.92)' : 'rgba(16,24,38,0.6)'; g.fill();
+      g.lineWidth = 2; g.strokeStyle = p.connected ? (p.ready?'#2ecc71':'#e67e22') : 'rgba(255,255,255,0.2)'; g.stroke();
+      if(p.connected && p.col>=0){
+        rr(g, px+6, rosterY-7, 14, 14, 3); g.fillStyle = PALETTE[p.col].c; g.fill();
       }
-      g.font=FN(11,800); g.textAlign='left'; g.fillStyle='#ffffff';
-      const lbl=p.connected?(p.title+' • '+p.ctrl):(p.title+' • Waiting to join...');
-      g.fillText(lbl, p.connected?px+26:px+8, rosterY+4);
+      g.font = FN(11,800); g.textAlign = 'left'; g.fillStyle = '#ffffff';
+      const lbl = p.connected ? (p.title+' • '+p.ctrl) : (p.title+' • Waiting…');
+      g.fillText(lbl, p.connected ? px+26 : px+8, rosterY+4);
       if(p.connected){
-        const bw=66, bh=22, bx=px+pw-bw-6, by=rosterY-bh/2;
-        rr(g,bx,by,bw,bh,4);
-        g.fillStyle=p.ready?'#27ae60':'#d35400'; g.fill();
+        const bw = 64, bh = 22, bx = px+pw-bw-6, by = rosterY-bh/2;
+        rr(g, bx, by, bw, bh, 4);
+        g.fillStyle = p.ready ? '#27ae60' : '#d35400'; g.fill();
         ptxt(p.ready?'READY':'NOT RDY', bx+bw/2, by+bh/2+1, FN(10,900), '#ffffff');
       } else {
-        zone(px, rosterY-ph/2, pw, ph, {fn:()=>netCopyLink()});
+        zone(px, rosterY-ph/2, pw, ph, { fn: () => netCopyLink() });
       }
     }
   }
 
   // Player cards
-  const rects=slotCardRects();
-  for(let i=0;i<4;i++){
-    const r=rects[i],col=menu.slotColor[i];
-    const isOnline=(typeof NET!=='undefined'&&NET&&NET.role!==null);
+  const rects = slotCardRects();
+  for(let i=0; i<4; i++){
+    const r = rects[i], col = menu.slotColor[i];
     if(isOnline){
-      const isMySlot=(i===NET.mySlot);
-      const isConn=(i===0?true:(NET.isHost?NET.hostInputs.has(i):col>=0));
-      rr(g,r.x-4,r.y-4,r.w+8,r.h+8,12);
-      g.fillStyle='#ffffff';g.fill();g.lineWidth=4;g.strokeStyle=INK;g.stroke();
-      rr(g,r.x,r.y,r.w,r.h,8);
-      g.fillStyle=isConn?(col>=0?PALETTE[col].c:'#25303f'):'#182030';
+      const isMySlot = (i === NET.mySlot);
+      const isConn = (i === 0 ? true : (NET.isHost ? NET.hostInputs.has(i) : col >= 0));
+      rr(g, r.x-4, r.y-4, r.w+8, r.h+8, 12);
+      g.fillStyle = '#ffffff'; g.fill(); g.lineWidth = 3.5; g.strokeStyle = INK; g.stroke();
+      rr(g, r.x, r.y, r.w, r.h, 8);
+      g.fillStyle = isConn ? (col >= 0 ? PALETTE[col].c : '#25303f') : '#182030';
       g.fill();
-      g.lineWidth=3;g.strokeStyle=isConn?(col>=0?INK:'rgba(255,255,255,0.25)'):'rgba(255,255,255,0.15)';g.stroke();
-      const cx=r.x+r.w/2;
+      g.lineWidth = 2.5; g.strokeStyle = isConn ? (col >= 0 ? INK : 'rgba(255,255,255,0.25)') : 'rgba(255,255,255,0.15)'; g.stroke();
+      const cx = r.x + r.w/2;
+
       if(isConn){
         // Header
-        const who=(i===0?'P1 HOST':('P'+(i+1)+' GUEST'))+(isMySlot?' (YOU)':'');
-        ptxt(who,cx,r.y+16,FN(Math.min(13,r.w*0.10),900),'#ffffff');
+        const who = (i === 0 ? 'P1 HOST' : ('P' + (i+1) + ' GUEST')) + (isMySlot ? ' (YOU)' : '');
+        const headH = Math.floor(clamp(r.h * 0.12, 12, 18));
+        ptxt(who, cx, r.y + headH + 1, FN(Math.min(13, r.w * 0.095), 900), '#ffffff');
         
-        // Button bounds
-        const rdyW=r.w-12, rdyH=38, rdyY=r.y+r.h-44;
-        const btnW=r.w-12, btnH=34, btnY=rdyY-btnH-6;
+        // Button bounds (responsive to card height)
+        const btnPad = Math.max(3, Math.floor(r.h * 0.025));
+        const rdyH = Math.floor(clamp(r.h * 0.20, 24, 38));
+        const btnH = Math.floor(clamp(r.h * 0.18, 22, 34));
+        const rdyW = r.w - 12;
+        const btnW = r.w - 12;
+        const rdyY = r.y + r.h - rdyH - btnPad - 2;
+        const btnY = rdyY - btnH - btnPad;
 
         // Middle: Avatar + Color cycle
-        const avY=r.y+20+(btnY-r.y-20)*0.5;
-        drawChar(g,cx,avY,Math.min(32,r.w*0.24),PALETTE[col>=0?col:i].c,{face:'happy',grounded:true,seed:i});
+        const headBottom = r.y + headH * 2;
+        const avY = headBottom + (btnY - headBottom) * 0.5;
+        const charSz = clamp(Math.min(r.w * 0.24, (btnY - headBottom) * 0.65), 18, 34);
+        drawChar(g, cx, avY, charSz, PALETTE[col >= 0 ? col : i].c, { face: 'happy', grounded: true, seed: i });
         if(isMySlot){
-          txt('◀',r.x+12,avY+2,FN(15,900),'rgba(255,255,255,0.9)');
-          txt('▶',r.x+r.w-12,avY+2,FN(15,900),'rgba(255,255,255,0.9)');
-          zone(r.x,r.y+20,r.w*0.4,btnY-r.y-20,{fn:()=>{
-            if(NET.isHost){ cycleSlot(i,-1); netBroadcastSettings(); netBroadcastRoster(); }
+          txt('◀', r.x + 10, avY + 2, FN(Math.min(15, r.w * 0.11), 900), 'rgba(255,255,255,0.9)');
+          txt('▶', r.x + r.w - 10, avY + 2, FN(Math.min(15, r.w * 0.11), 900), 'rgba(255,255,255,0.9)');
+          zone(r.x, headBottom, r.w * 0.4, btnY - headBottom, { fn: () => {
+            if(NET.isHost){ cycleSlot(i, -1); netBroadcastSettings(); netBroadcastRoster(); }
             else netCycleMyColor(-1);
           }});
-          zone(r.x+r.w*0.6,r.y+20,r.w*0.4,btnY-r.y-20,{fn:()=>{
-            if(NET.isHost){ cycleSlot(i,1); netBroadcastSettings(); netBroadcastRoster(); }
+          zone(r.x + r.w * 0.6, headBottom, r.w * 0.4, btnY - headBottom, { fn: () => {
+            if(NET.isHost){ cycleSlot(i, 1); netBroadcastSettings(); netBroadcastRoster(); }
             else netCycleMyColor(1);
           }});
         }
 
-        // Control Scheme Toggle (Larger touch target & font)
-        rr(g,cx-btnW/2,btnY,btnW,btnH,6);
-        g.fillStyle='rgba(0,0,0,0.55)';g.fill();
-        g.lineWidth=2;g.strokeStyle=isMySlot?'#ffffff':'rgba(255,255,255,0.3)';g.stroke();
-        const ctrlLbl=(NET.slotsCtrl[i]||'WASD')+(isMySlot?' ▾':'');
-        ptxt('🎮 '+ctrlLbl,cx,btnY+btnH/2+1,FN(Math.min(13,r.w*0.095),900),'#ffffff');
+        // Control Scheme Toggle
+        rr(g, cx - btnW/2, btnY, btnW, btnH, 6);
+        g.fillStyle = 'rgba(0,0,0,0.55)'; g.fill();
+        g.lineWidth = 2; g.strokeStyle = isMySlot ? '#ffffff' : 'rgba(255,255,255,0.3)'; g.stroke();
+        const ctrlLbl = (NET.slotsCtrl[i] || 'WASD') + (isMySlot ? ' ▾' : '');
+        ptxt('🎮 ' + ctrlLbl, cx, btnY + btnH/2 + 1, FN(Math.min(13, r.w * 0.095), 900), '#ffffff');
         if(isMySlot){
-          zone(cx-btnW/2,btnY,btnW,btnH,{fn:()=>netCycleMyControl()});
+          zone(cx - btnW/2, btnY, btnW, btnH, { fn: () => netCycleMyControl() });
         }
 
-        // Ready Toggle Button (Larger touch target & font)
-        const isRdy=NET.slotsReady[i];
-        const rdyCol=isRdy?'#27ae60':(isMySlot?'#e67e22':'rgba(0,0,0,0.45)');
-        rr(g,cx-rdyW/2,rdyY,rdyW,rdyH,7);
-        g.fillStyle=rdyCol;g.fill();
-        g.lineWidth=2;g.strokeStyle=isRdy?'#2ecc71':'rgba(255,255,255,0.35)';g.stroke();
-        const rdyTxt=isRdy?'READY ✓':(isMySlot?'CLICK READY':'NOT READY');
-        ptxt(rdyTxt,cx,rdyY+rdyH/2+1,FN(Math.min(13.5,r.w*0.10),900),'#ffffff');
+        // Ready Toggle Button
+        const isRdy = NET.slotsReady[i];
+        const rdyCol = isRdy ? '#27ae60' : (isMySlot ? '#e67e22' : 'rgba(0,0,0,0.45)');
+        rr(g, cx - rdyW/2, rdyY, rdyW, rdyH, 7);
+        g.fillStyle = rdyCol; g.fill();
+        g.lineWidth = 2; g.strokeStyle = isRdy ? '#2ecc71' : 'rgba(255,255,255,0.35)'; g.stroke();
+        const rdyTxt = isRdy ? 'READY ✓' : (isMySlot ? 'CLICK READY' : 'NOT READY');
+        ptxt(rdyTxt, cx, rdyY + rdyH/2 + 1, FN(Math.min(13.5, r.w * 0.10), 900), '#ffffff');
         if(isMySlot){
-          zone(cx-rdyW/2,rdyY,rdyW,rdyH,{fn:()=>netToggleMyReady()});
+          zone(cx - rdyW/2, rdyY, rdyW, rdyH, { fn: () => netToggleMyReady() });
         }
       } else {
-        ptxt('P'+(i+1)+' EMPTY',cx,r.y+18,FN(12,800),'#718096');
-        ptxt('WAITING…',cx,r.y+r.h*0.42,FN(13,800),'#50607a');
-        const shW=r.w-12, shH=38, shY=r.y+r.h-44;
-        rr(g,cx-shW/2,shY,shW,shH,7);
-        g.fillStyle='rgba(44,110,63,0.35)';g.fill();
-        g.lineWidth=2;g.strokeStyle='#2ecc71';g.stroke();
-        ptxt('📋 INVITE',cx,shY+shH/2+1,FN(12,900),'#8ef0b0');
-        zone(r.x,r.y,r.w,r.h,{fn:()=>netCopyLink()});
+        const headH = Math.floor(clamp(r.h * 0.12, 12, 18));
+        ptxt('P' + (i+1) + ' EMPTY', cx, r.y + headH + 1, FN(12, 800), '#718096');
+        const shW = r.w - 12, shH = Math.floor(clamp(r.h * 0.22, 24, 38));
+        const shY = r.y + r.h - shH - 6;
+        const midY = r.y + headH * 2 + (shY - (r.y + headH * 2)) * 0.45;
+        ptxt('WAITING…', cx, midY, FN(clamp(r.w * 0.095, 11, 14), 800), '#50607a');
+        rr(g, cx - shW/2, shY, shW, shH, 7);
+        g.fillStyle = 'rgba(44,110,63,0.35)'; g.fill();
+        g.lineWidth = 2; g.strokeStyle = '#2ecc71'; g.stroke();
+        ptxt('📋 INVITE', cx, shY + shH/2 + 1, FN(12, 900), '#8ef0b0');
+        zone(r.x, r.y, r.w, r.h, { fn: () => netCopyLink() });
       }
     } else {
       // Offline original card rendering
-      const padHere=!!PAD[i];
-      rr(g,r.x-4,r.y-4,r.w+8,r.h+8,12);
-      g.fillStyle='#ffffff';g.fill();g.lineWidth=4;g.strokeStyle=INK;g.stroke();
-      rr(g,r.x,r.y,r.w,r.h,8);
-      g.fillStyle=col>=0?PALETTE[col].c:(padHere?'#2a3548':'#25303f');
+      const padHere = !!PAD[i];
+      rr(g, r.x-4, r.y-4, r.w+8, r.h+8, 12);
+      g.fillStyle = '#ffffff'; g.fill(); g.lineWidth = 3.5; g.strokeStyle = INK; g.stroke();
+      rr(g, r.x, r.y, r.w, r.h, 8);
+      g.fillStyle = col >= 0 ? PALETTE[col].c : (padHere ? '#2a3548' : '#25303f');
       g.fill();
-      g.lineWidth=3;g.strokeStyle=col>=0?INK:'rgba(255,255,255,0.25)';g.stroke();
-      const cx=r.x+r.w/2,cy=r.y+r.h/2;
-      if(col>=0){
-        const isPad=!!PAD[i];
-        const label=isPad?'⦾ PAD':SLOTS[i].label;
-        g.save();g.globalAlpha=0.62;
-        padGlyph(cx,cy-12,r.w*0.18,true);
+      g.lineWidth = 2.5; g.strokeStyle = col >= 0 ? INK : 'rgba(255,255,255,0.25)'; g.stroke();
+      const cx = r.x + r.w/2, cy = r.y + r.h/2;
+      const glyphR = clamp(Math.min(r.w * 0.18, r.h * 0.22), 12, 26);
+      if(col >= 0){
+        const isPad = !!PAD[i];
+        const label = isPad ? '⦾ PAD' : SLOTS[i].label;
+        g.save(); g.globalAlpha = 0.62;
+        padGlyph(cx, cy - glyphR * 0.7, glyphR, true);
         g.restore();
-        ptxt(label,cx,cy+12,FN(Math.min(14,r.w*0.10),900),'#ffffff');
-        txt('◀   ▶',cx,r.y+r.h-16,FN(Math.min(16,r.w*0.12),900),'rgba(255,255,255,0.85)');
+        ptxt(label, cx, cy + glyphR * 0.8, FN(Math.min(14, r.w * 0.10), 900), '#ffffff');
+        txt('◀   ▶', cx, r.y + r.h - Math.max(10, r.h * 0.14), FN(Math.min(16, r.w * 0.12), 900), 'rgba(255,255,255,0.85)');
       }else if(padHere){
-        padGlyph(cx,cy-6,r.w*0.20,true);
-        txt('◀   ▶',cx,r.y+r.h-16,FN(Math.min(16,r.w*0.12),900),'rgba(255,255,255,0.85)');
+        padGlyph(cx, cy - glyphR * 0.4, glyphR * 1.1, true);
+        txt('◀   ▶', cx, r.y + r.h - Math.max(10, r.h * 0.14), FN(Math.min(16, r.w * 0.12), 900), 'rgba(255,255,255,0.85)');
       }else{
-        ptxt(SLOTS[i].label,cx,cy-4,FN(Math.min(20,r.w*0.14),900),'#cfe9c9');
-        txt('◀   ▶',cx,r.y+r.h-16,FN(Math.min(16,r.w*0.12),900),'rgba(255,255,255,0.7)');
+        ptxt(SLOTS[i].label, cx, cy - 4, FN(Math.min(20, r.w * 0.14), 900), '#cfe9c9');
+        txt('◀   ▶', cx, r.y + r.h - Math.max(10, r.h * 0.14), FN(Math.min(16, r.w * 0.12), 900), 'rgba(255,255,255,0.7)');
       }
-      zone(r.x-4,r.y-4,r.w*0.4+4,r.h+8,{fn:()=>cycleSlot(i,-1)});
-      zone(r.x+r.w*0.6,r.y-4,r.w*0.4+4,r.h+8,{fn:()=>cycleSlot(i,1)});
+      zone(r.x-4, r.y-4, r.w*0.4+4, r.h+8, { fn: () => cycleSlot(i, -1) });
+      zone(r.x+r.w*0.6, r.y-4, r.w*0.4+4, r.h+8, { fn: () => cycleSlot(i, 1) });
     }
   }
 
-  // Menu Options Rows
-  const ry0=CH*0.55,step=CH*0.072;
-  for(let i=0;i<ROWS.length;i++){
-    const y=ry0+i*step;
-    const hl=(menu.mode==='rows'&&menu.row===i);
-    const fs=Math.min(21,CH*0.034);
-    const sc=hl?1.12:1;
-    g.save();
-    g.translate(CW/2,y);g.scale(sc,sc);
-    let s='';
-    let rowCol=hl?'#ffffff':'#c8d8e8';
-    
-    if(typeof NET!=='undefined' && NET && NET.role!==null){
-      const act=activeSlots();
-      const readyCount=act.filter(s=>NET.slotsReady[s]).length;
-      const allReady=(act.length>=2)&&(readyCount===act.length);
+  // Menu Options Rows - Dynamically anchored strictly below the player cards
+  let maxCardBottom = 0;
+  for(let i=0; i<rects.length; i++){
+    if(rects[i].y + rects[i].h > maxCardBottom) maxCardBottom = rects[i].y + rects[i].h;
+  }
 
-      if(i===0)s='PLAYERS (ONLINE ROSTER):  '+act.length+'/4 CONNECTED';
-      else if(i===1)s='MAP:  ‹  '+(settings.map+1)+'. '+MAPS[settings.map].name+'  ›';
-      else if(i===2)s='TIMER:  ‹  '+settings.time+'s  ›';
-      else if(i===3)s='‹  '+RULE_NAMES[menu.rule]+': '+(ruleValue()?'ON':'OFF')+'  ›';
-      else {
+  const footerH = Math.max(22, Math.floor(CH * 0.045));
+  const availableBelow = Math.max(120, CH - maxCardBottom - footerH);
+  const rowCount = ROWS.length; // 5
+  const isVeryCompact = (availableBelow < 175);
+  const step = clamp(availableBelow / (rowCount + 0.65), isVeryCompact ? 22 : 28, 48);
+  const totalRowsSpan = (rowCount - 1) * step;
+  const ry0 = Math.floor(maxCardBottom + Math.max(14, (availableBelow - totalRowsSpan) * 0.42));
+  const baseFs = clamp(step * 0.42, 11, 20);
+
+  for(let i=0; i<ROWS.length; i++){
+    const y = ry0 + i * step;
+    const hl = (menu.mode === 'rows' && menu.row === i);
+    const sc = hl ? 1.08 : 1;
+    g.save();
+    g.translate(CW/2, y); g.scale(sc, sc);
+    let s = '';
+    let rowCol = hl ? '#ffffff' : '#c8d8e8';
+
+    if(isOnline){
+      const act = activeSlots();
+      const readyCount = act.filter(s => NET.slotsReady[s]).length;
+      const allReady = (act.length >= 2) && (readyCount === act.length);
+
+      if(i === 0){
+        s = isNarrowW
+          ? ('PLAYERS: ' + act.length + '/4 CONNECTED')
+          : ('PLAYERS (ONLINE ROSTER):  ' + act.length + '/4 CONNECTED');
+      } else if(i === 1){
+        s = 'MAP:  ‹  ' + (settings.map + 1) + '. ' + MAPS[settings.map].name + '  ›';
+      } else if(i === 2){
+        s = 'TIMER:  ‹  ' + settings.time + 's  ›';
+      } else if(i === 3){
+        s = '‹  ' + RULE_NAMES[menu.rule] + ': ' + (ruleValue() ? 'ON' : 'OFF') + '  ›';
+      } else {
         if(NET.isHost){
-          if(act.length<2){
-            s='WAITING FOR FRIEND TO JOIN (CLICK TO COPY LINK)';
-            rowCol='#8899aa';
+          if(act.length < 2){
+            s = isNarrowW ? 'WAITING FOR FRIEND (COPY LINK)' : 'WAITING FOR FRIEND TO JOIN (CLICK TO COPY LINK)';
+            rowCol = '#8899aa';
           } else if(allReady){
-            s='▶ START MATCH (ALL READY!)';
-            rowCol='#00ff88';
+            s = '▶ START MATCH (ALL READY!)';
+            rowCol = '#00ff88';
           } else {
-            s='WAITING FOR READY ('+readyCount+'/'+act.length+')';
-            rowCol='#f39c12';
+            s = 'WAITING FOR READY (' + readyCount + '/' + act.length + ')';
+            rowCol = '#f39c12';
           }
         } else {
           if(allReady){
-            s='ALL READY! WAITING FOR HOST TO START…';
-            rowCol='#2ecc71';
+            s = isNarrowW ? 'ALL READY! WAITING FOR HOST…' : 'ALL READY! WAITING FOR HOST TO START…';
+            rowCol = '#2ecc71';
           } else {
-            s='CLICK READY ON YOUR CARD ('+readyCount+'/'+act.length+' READY)';
-            rowCol='#f39c12';
+            s = isNarrowW ? ('CLICK READY (' + readyCount + '/' + act.length + ')') : ('CLICK READY ON YOUR CARD (' + readyCount + '/' + act.length + ' READY)');
+            rowCol = '#f39c12';
           }
         }
       }
     } else {
       // Offline mode
-      if(i===0)s='CHANGE PLAYERS  '+activeSlots().length+'P';
-      else if(i===1)s='MAP:  ‹  '+(settings.map+1)+'. '+MAPS[settings.map].name+'  ›';
-      else if(i===2)s='TIMER:  ‹  '+settings.time+'s  ›';
-      else if(i===3)s='‹  '+RULE_NAMES[menu.rule]+': '+(ruleValue()?'ON':'OFF')+'  ›';
-      else s=activeSlots().length<2?'START MATCH (MIN 2 PLAYERS)':'START MATCH';
-      rowCol=hl?(i===4&&activeSlots().length<2?'#ff7777':'#ffffff'):(i===4&&activeSlots().length<2?'#884444':'#c8d8e8');
+      if(i === 0) s = 'CHANGE PLAYERS  ' + activeSlots().length + 'P';
+      else if(i === 1) s = 'MAP:  ‹  ' + (settings.map + 1) + '. ' + MAPS[settings.map].name + '  ›';
+      else if(i === 2) s = 'TIMER:  ‹  ' + settings.time + 's  ›';
+      else if(i === 3) s = '‹  ' + RULE_NAMES[menu.rule] + ': ' + (ruleValue() ? 'ON' : 'OFF') + '  ›';
+      else {
+        s = (activeSlots().length < 2)
+          ? (isNarrowW ? 'START (MIN 2 PLAYERS)' : 'START MATCH (MIN 2 PLAYERS)')
+          : 'START MATCH';
+        rowCol = hl ? (activeSlots().length < 2 ? '#ff7777' : '#ffffff') : (activeSlots().length < 2 ? '#884444' : '#c8d8e8');
+      }
     }
-    ptxt(s,0,0,i===4?FT(fs+2):FN(fs,900),rowCol);
+    ptxt(s, 0, 0, i === 4 ? FT(baseFs + 2) : FN(baseFs, 900), rowCol);
     g.restore();
-    const tw2=CW*0.62;
-    zone(CW/2-tw2/2,y-step*0.45,tw2,step*0.9,{fn:()=>{
-      if(menu.mode==='slots')return;
-      if(i===0){
-        if(typeof NET!=='undefined' && NET && NET.role!==null){
-          if(NET.isHost && activeSlots().length<2) netCopyLink();
+
+    const tw2 = Math.min(CW * 0.86, 560);
+    zone(CW/2 - tw2/2, y - step * 0.45, tw2, step * 0.9, { fn: () => {
+      if(menu.mode === 'slots') return;
+      if(i === 0){
+        if(isOnline){
+          if(NET.isHost && activeSlots().length < 2) netCopyLink();
           return;
         }
-        menu.mode='slots';sfx('ok');
+        menu.mode = 'slots'; sfx('ok');
       }
-      else if(i===4){
-        if(typeof NET!=='undefined' && NET && NET.role!==null){
+      else if(i === 4){
+        if(isOnline){
           if(!NET.isHost){ toast('HOST STARTS THE MATCH ONCE ALL ARE READY'); return; }
-          const act=activeSlots();
-          if(act.length<2){ netCopyLink(); netToast('Invite link copied! Send it to your friend.'); return; }
-          const allReady=act.every(s=>NET.slotsReady[s]);
+          const act = activeSlots();
+          if(act.length < 2){ netCopyLink(); netToast('Invite link copied! Send it to your friend.'); return; }
+          const allReady = act.every(s => NET.slotsReady[s]);
           if(!allReady){ toast('WAITING FOR ALL PLAYERS TO HIT READY!'); sfx('back'); return; }
           sfx('go'); startMatch();
           return;
         }
-        if(activeSlots().length<2){
-          menu.mode='slots';
-          menu.row=0;
+        if(activeSlots().length < 2){
+          menu.mode = 'slots';
+          menu.row = 0;
           toast('CHOOSE AT LEAST 2 PLAYERS!');
           sfx('back');
-        }else{
-          sfx('go');startMatch();
+        } else {
+          sfx('go'); startMatch();
         }
       }
-      else if(menu.row===i)rowEdit(1);
-      else{menu.row=i;sfx('ui');}
+      else if(menu.row === i) rowEdit(1);
+      else { menu.row = i; sfx('ui'); }
     }});
   }
-  if(menu.mode==='rows'){
-    ptxt('‹',CW*0.14,ry0+menu.row*step,FT(34),'#ffffff');
-    ptxt('›',CW*0.86,ry0+menu.row*step,FT(34),'#ffffff');
-    zone(CW*0.08,ry0+menu.row*step-26,CW*0.12,52,{fn:()=>rowEdit(-1)});
-    zone(CW*0.80,ry0+menu.row*step-26,CW*0.12,52,{fn:()=>rowEdit(1)});
+
+  // Row navigation arrows
+  if(menu.mode === 'rows'){
+    const chevDist = Math.min(CW * 0.44, Math.max(120, CW * 0.30));
+    const chevSz = Math.min(30, Math.floor(step * 0.85));
+    ptxt('‹', CW/2 - chevDist, ry0 + menu.row * step, FT(chevSz), '#ffffff');
+    ptxt('›', CW/2 + chevDist, ry0 + menu.row * step, FT(chevSz), '#ffffff');
+    zone(CW/2 - chevDist - 24, ry0 + menu.row * step - step * 0.45, 48, step * 0.9, { fn: () => rowEdit(-1) });
+    zone(CW/2 + chevDist - 24, ry0 + menu.row * step - step * 0.45, 48, step * 0.9, { fn: () => rowEdit(1) });
   }
-  ptxt(menu.mode==='slots'?'P1-4: W/A/S/D cycles colour  •  P1 WASD  •  P2 Arrows  •  P3 IJKL or PAD  •  P4 TFGH or PAD — up to 4 controllers  •   ENTER = CONTINUE'
-                         :'UP/DN SELECT   L/R CHANGE   ENTER OK   •   HOTKEYS: 1-0 = MAP, B = THEME ',
-    CW/2,CH*0.955,FN(Math.min(13,CW*0.024),800),'rgba(255,255,255,0.6)');
-  if(menu.toastT>0&&menu.toast){
-    const a=clamp(menu.toastT,0,1);
-    g.save();g.globalAlpha=a;
-    g.font=FN(16,900);
-    const w4=g.measureText(menu.toast).width+50;
-    pill(CW/2-w4/2,CH*0.44,w4,40,'rgba(30,30,30,0.85)','#ffffff');
-    txt(menu.toast,CW/2,CH*0.44+21,FN(15,900),'#ffffff');
+
+  // Footer instructions (responsive to touch & screen width)
+  const footerY = Math.max(CH - 18, ry0 + (ROWS.length - 1) * step + step * 0.7);
+  const footerTxt = isTouch
+    ? 'TAP CARDS TO CUSTOMIZE  •  TAP ROWS TO CHANGE SETTINGS'
+    : (menu.mode === 'slots'
+      ? 'P1-4: W/A/S/D cycles colour  •  P1 WASD  •  P2 Arrows  •  P3 IJKL/PAD  •  ENTER CONTINUE'
+      : 'UP/DN SELECT   L/R CHANGE   ENTER OK   •   1-0 MAP, B THEME');
+  ptxt(footerTxt, CW/2, footerY, FN(clamp(CW * 0.022, 9.5, 12.5), 800), 'rgba(255,255,255,0.55)');
+
+  // Toast message
+  if(menu.toastT > 0 && menu.toast){
+    const a = clamp(menu.toastT, 0, 1);
+    g.save(); g.globalAlpha = a;
+    g.font = FN(15, 900);
+    const w4 = g.measureText(menu.toast).width + 44;
+    pill(CW/2 - w4/2, CH * 0.44, w4, 38, 'rgba(30,30,30,0.88)', '#ffffff');
+    txt(menu.toast, CW/2, CH * 0.44 + 20, FN(14, 900), '#ffffff');
     g.restore();
   }
 }

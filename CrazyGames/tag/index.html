@@ -1543,11 +1543,38 @@ function drawTagPop(){
 
 /* ================= MENU ================= */
 function slotCardRects(){
-  const cw=clamp(CW*0.145,96,160),gap=clamp(CW*0.03,18,46),chh=cw*0.68;
-  const total=4*cw+3*gap,x0=CW/2-total/2;
-  const y=CH*0.30;
-  const r=[];
-  for(let i=0;i<4;i++)r.push({x:x0+i*(cw+gap),y:y,w:cw,h:chh});
+  const isPortrait = (CH > CW && CW < 640);
+  const r = [];
+
+  if(isPortrait){
+    // Mobile Portrait: 2x2 Grid so cards never get squished or overflow screen
+    const marginX = Math.max(10, Math.floor(CW * 0.035));
+    const gapX = 10;
+    const cw = Math.floor((CW - marginX * 2 - gapX) / 2);
+    const chh = Math.floor(clamp(CH * 0.11, 75, 95));
+    const gapY = 8;
+    const y0 = Math.floor(Math.max(96, CH * 0.155));
+    for(let i = 0; i < 4; i++){
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+      r.push({ x: marginX + col * (cw + gapX), y: y0 + row * (chh + gapY), w: cw, h: chh });
+    }
+    return r;
+  }
+
+  // Landscape / Laptop / Desktop: 4 cards in a row
+  const marginX = Math.max(14, Math.floor(CW * 0.025));
+  const maxRowW = Math.min(CW - marginX * 2, 880);
+  const gap = Math.floor(clamp(CW * 0.016, 8, 22));
+  const cw = Math.floor((maxRowW - gap * 3) / 4);
+  const chh = Math.floor(clamp(CH * 0.15, 65, 105));
+  const totalW = 4 * cw + 3 * gap;
+  const x0 = Math.floor(CW / 2 - totalW / 2);
+  const y = Math.floor(clamp(CH * 0.24, 90, 210));
+
+  for(let i = 0; i < 4; i++){
+    r.push({ x: x0 + i * (cw + gap), y: y, w: cw, h: chh });
+  }
   return r;
 }
 
@@ -1556,120 +1583,166 @@ function drawMenu(){
   g.translate(CW/2,CH/2);g.scale(cam.s,cam.s);g.translate(-cam.x,-cam.y);
   drawNightWorld();
   g.restore();
-  txt('v1.2 (Maps Updated)', 16, 20, FN(12, 800), 'rgba(255,255,255,0.5)', 'left');
-  const ly=CH*0.13;
-  const word='TAG';
-  g.font=FT(Math.min(90,CW*0.12));
-  // Slight letter-spacing so caps-heavy fonts don't mush together
-  g.letterSpacing='0.06em';
-  const ls=6; // px gap between letters, scaled with font
-  const ws=[];let widths=0;
-  for(let i=0;i<3;i++){ws.push(g.measureText(word[i]).width);widths+=ws[i];}
-  widths+=ls*2;
-  let xx=CW/2-widths/2;
-  for(let i=0;i<3;i++){
-    g.save();
-    g.translate(xx+ws[i]/2,ly+Math.sin(tGlobal*3+i)*6);
-    g.rotate(Math.sin(tGlobal*2.4+i)*0.04);
-    g.textAlign='center';g.textBaseline='middle';g.lineJoin='round';
-    g.strokeStyle=INK;g.lineWidth=Math.max(6,ws[i]*0.1);
-    g.strokeText(word[i],0,0);
-    g.fillStyle='#ffffff';g.fillText(word[i],0,0);
-    g.restore();
-    xx+=ws[i]+ls;
+
+  const isShortH = (CH < 620);
+  const isNarrowW = (CW < 520);
+
+  const si = Math.floor(clamp(Math.min(CW * 0.08, CH * 0.075), 36, 44));
+  const soundX = CW - si - 12, soundY = 10;
+  rr(g, soundX, soundY, si, si, 9);
+  g.fillStyle = 'rgba(255,255,255,0.85)'; g.fill(); g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
+  g.fillStyle = '#3a5a3a';
+  g.beginPath();
+  g.moveTo(soundX + 10, soundY + si/2 - 5);
+  g.lineTo(soundX + 10, soundY + si/2 + 5);
+  g.lineTo(soundX + 16, soundY + si/2 + 5);
+  g.lineTo(soundX + 24, soundY + si/2 + 12);
+  g.lineTo(soundX + 24, soundY + si/2 - 12);
+  g.lineTo(soundX + 16, soundY + si/2 - 5);
+  g.closePath(); g.fill();
+  if(muted){
+    g.strokeStyle = '#c0392b'; g.lineWidth = 3.5;
+    g.beginPath(); g.moveTo(soundX + 27, soundY + si/2 - 8); g.lineTo(soundX + 38, soundY + si/2 + 8); g.stroke();
   }
-  g.letterSpacing='0em';
-  const si=44;
-  rr(g,CW-si-12,12,si,si,10);
-  g.fillStyle='rgba(255,255,255,0.85)';g.fill();g.lineWidth=3;g.strokeStyle=INK;g.stroke();
-  g.fillStyle='#3a5a3a';
-  g.beginPath();g.moveTo(CW-si+2,12+si/2-5);g.lineTo(CW-si+2,12+si/2+5);g.lineTo(CW-si+8,12+si/2+5);g.lineTo(CW-si+16,12+si/2+12);g.lineTo(CW-si+16,12+si/2-12);g.lineTo(CW-si+8,12+si/2-5);g.closePath();g.fill();
-  if(muted){g.strokeStyle='#c0392b';g.lineWidth=4;g.beginPath();g.moveTo(CW-si+20,12+si/2-8);g.lineTo(CW-si+34,12+si/2+8);g.stroke();}
-  zone(CW-si-12,12,si,si,{fn:()=>{muted=!muted;if(master)master.gain.value=muted?0:0.5;}});
-  const rects=slotCardRects();
-  for(let i=0;i<4;i++){
-    const r=rects[i],col=menu.slotColor[i];
-    const padHere=!!PAD[i];
-    const locked=false; // all 4 slots playable via controller now; still allow touch but not locked off
-    rr(g,r.x-4,r.y-4,r.w+8,r.h+8,12);
-    g.fillStyle='#ffffff';g.fill();g.lineWidth=4;g.strokeStyle=INK;g.stroke();
-    rr(g,r.x,r.y,r.w,r.h,8);
-    g.fillStyle=col>=0?PALETTE[col].c:(padHere?'#2a3548':'#25303f');
+  zone(soundX, soundY, si, si, { fn: () => { muted = !muted; if(master) master.gain.value = muted ? 0 : 0.5; } });
+
+  if(soundX > 160){
+    txt('v1.2 (Maps Updated)', 16, 20, FN(12, 800), 'rgba(255,255,255,0.5)', 'left');
+  } else if(soundX > 80){
+    txt('v1.2', 16, 20, FN(11, 800), 'rgba(255,255,255,0.5)', 'left');
+  }
+
+  const titleSize = Math.floor(clamp(Math.min(CW * 0.11, CH * 0.10), isShortH ? 30 : 42, 80));
+  const ly = Math.floor(Math.max(si + 14 + titleSize * 0.52, CH * (isShortH ? 0.085 : 0.115)));
+  const word = 'TAG';
+  g.font = FT(titleSize);
+  g.letterSpacing = '0.06em';
+  const ls = Math.max(3, Math.floor(titleSize * 0.08));
+  const ws = []; let widths = 0;
+  for(let i = 0; i < 3; i++){ ws.push(g.measureText(word[i]).width); widths += ws[i]; }
+  widths += ls * 2;
+  let xx = CW/2 - widths/2;
+  for(let i = 0; i < 3; i++){
+    g.save();
+    g.translate(xx + ws[i]/2, ly + Math.sin(tGlobal*3 + i) * Math.min(5, titleSize * 0.1));
+    g.rotate(Math.sin(tGlobal*2.4 + i) * 0.04);
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
+    g.strokeStyle = INK; g.lineWidth = Math.max(4, ws[i] * 0.1);
+    g.strokeText(word[i], 0, 0);
+    g.fillStyle = '#ffffff'; g.fillText(word[i], 0, 0);
+    g.restore();
+    xx += ws[i] + ls;
+  }
+  g.letterSpacing = '0em';
+
+  const rects = slotCardRects();
+  for(let i = 0; i < 4; i++){
+    const r = rects[i], col = menu.slotColor[i];
+    const padHere = !!PAD[i];
+    rr(g, r.x-4, r.y-4, r.w+8, r.h+8, 12);
+    g.fillStyle = '#ffffff'; g.fill(); g.lineWidth = 3.5; g.strokeStyle = INK; g.stroke();
+    rr(g, r.x, r.y, r.w, r.h, 8);
+    g.fillStyle = col >= 0 ? PALETTE[col].c : (padHere ? '#2a3548' : '#25303f');
     g.fill();
-    g.lineWidth=3;g.strokeStyle=col>=0?INK:'rgba(255,255,255,0.25)';g.stroke();
-    const cx=r.x+r.w/2,cy=r.y+r.h/2;
-    if(col>=0){
-      // Active: vivid fill + controller glyph overlaid + chevrons + binding label that shows real input
-      const isPad=!!PAD[i];
-      const label=isPad?'⦾ PAD':SLOTS[i].label;
-      g.save();g.globalAlpha=0.62;
-      padGlyph(cx,cy-12,r.w*0.18,true);
+    g.lineWidth = 2.5; g.strokeStyle = col >= 0 ? INK : 'rgba(255,255,255,0.25)'; g.stroke();
+    const cx = r.x + r.w/2, cy = r.y + r.h/2;
+    const glyphR = clamp(Math.min(r.w * 0.18, r.h * 0.22), 12, 26);
+    if(col >= 0){
+      const isPad = !!PAD[i];
+      const label = isPad ? '⦾ PAD' : SLOTS[i].label;
+      g.save(); g.globalAlpha = 0.62;
+      padGlyph(cx, cy - glyphR * 0.7, glyphR, true);
       g.restore();
-      ptxt(label,cx,cy+12,FN(Math.min(14,r.w*0.10),900),'#ffffff');
-      txt('◀   ▶',cx,r.y+r.h-16,FN(Math.min(16,r.w*0.12),900),'rgba(255,255,255,0.85)');
+      ptxt(label, cx, cy + glyphR * 0.8, FN(Math.min(14, r.w * 0.10), 900), '#ffffff');
+      txt('◀   ▶', cx, r.y + r.h - Math.max(10, r.h * 0.14), FN(Math.min(16, r.w * 0.12), 900), 'rgba(255,255,255,0.85)');
     }else if(padHere){
-      padGlyph(cx,cy-6,r.w*0.20,true);
-      txt('◀   ▶',cx,r.y+r.h-16,FN(Math.min(16,r.w*0.12),900),'rgba(255,255,255,0.85)');
+      padGlyph(cx, cy - glyphR * 0.4, glyphR * 1.1, true);
+      txt('◀   ▶', cx, r.y + r.h - Math.max(10, r.h * 0.14), FN(Math.min(16, r.w * 0.12), 900), 'rgba(255,255,255,0.85)');
     }else{
-      ptxt(SLOTS[i].label,cx,cy-4,FN(Math.min(20,r.w*0.14),900),'#cfe9c9');
-      txt('◀   ▶',cx,r.y+r.h-16,FN(Math.min(16,r.w*0.12),900),'rgba(255,255,255,0.7)');
+      ptxt(SLOTS[i].label, cx, cy - 4, FN(Math.min(20, r.w * 0.14), 900), '#cfe9c9');
+      txt('◀   ▶', cx, r.y + r.h - Math.max(10, r.h * 0.14), FN(Math.min(16, r.w * 0.12), 900), 'rgba(255,255,255,0.7)');
     }
-    if(!locked){
-      zone(r.x-4,r.y-4,r.w*0.4+4,r.h+8,{fn:()=>cycleSlot(i,-1)});
-      zone(r.x+r.w*0.6,r.y-4,r.w*0.4+4,r.h+8,{fn:()=>cycleSlot(i,1)});
-    }
+    zone(r.x-4, r.y-4, r.w*0.4+4, r.h+8, { fn: () => cycleSlot(i, -1) });
+    zone(r.x+r.w*0.6, r.y-4, r.w*0.4+4, r.h+8, { fn: () => cycleSlot(i, 1) });
   }
-  const ry0=CH*0.52,step=CH*0.075;
-  for(let i=0;i<ROWS.length;i++){
-    const y=ry0+i*step;
-    const hl=(menu.mode==='rows'&&menu.row===i);
-    const fs=Math.min(21,CH*0.034);
-    const sc=hl?1.12:1;
+
+  let maxCardBottom = 0;
+  for(let i=0; i<rects.length; i++){
+    if(rects[i].y + rects[i].h > maxCardBottom) maxCardBottom = rects[i].y + rects[i].h;
+  }
+
+  const footerH = Math.max(22, Math.floor(CH * 0.045));
+  const availableBelow = Math.max(120, CH - maxCardBottom - footerH);
+  const rowCount = ROWS.length; // 5
+  const isVeryCompact = (availableBelow < 175);
+  const step = clamp(availableBelow / (rowCount + 0.65), isVeryCompact ? 22 : 28, 48);
+  const totalRowsSpan = (rowCount - 1) * step;
+  const ry0 = Math.floor(maxCardBottom + Math.max(14, (availableBelow - totalRowsSpan) * 0.42));
+  const baseFs = clamp(step * 0.42, 11, 20);
+
+  for(let i = 0; i < ROWS.length; i++){
+    const y = ry0 + i * step;
+    const hl = (menu.mode === 'rows' && menu.row === i);
+    const sc = hl ? 1.08 : 1;
     g.save();
-    g.translate(CW/2,y);g.scale(sc,sc);
-    let s='';
-    if(i===0)s='CHANGE PLAYERS  '+activeSlots().length+'P';
-    else if(i===1)s='MAP:  ‹  '+(settings.map+1)+'. '+MAPS[settings.map].name+'  ›';
-    else if(i===2)s='TIMER:  ‹  '+settings.time+'s  ›';
-    else if(i===3)s='‹  '+RULE_NAMES[menu.rule]+': '+(ruleValue()?'ON':'OFF')+'  ›';
-    else s=activeSlots().length<2?'START MATCH (MIN 2 PLAYERS)':'START MATCH';
-    const rowCol=hl?(i===4&&activeSlots().length<2?'#ff7777':'#ffffff'):(i===4&&activeSlots().length<2?'#884444':'#c8d8e8');
-    ptxt(s,0,0,i===4?FT(fs+2):FN(fs,900),rowCol);
+    g.translate(CW/2, y); g.scale(sc, sc);
+    let s = '';
+    if(i === 0) s = 'CHANGE PLAYERS  ' + activeSlots().length + 'P';
+    else if(i === 1) s = 'MAP:  ‹  ' + (settings.map + 1) + '. ' + MAPS[settings.map].name + '  ›';
+    else if(i === 2) s = 'TIMER:  ‹  ' + settings.time + 's  ›';
+    else if(i === 3) s = '‹  ' + RULE_NAMES[menu.rule] + ': ' + (ruleValue() ? 'ON' : 'OFF') + '  ›';
+    else {
+      s = (activeSlots().length < 2)
+        ? (isNarrowW ? 'START (MIN 2 PLAYERS)' : 'START MATCH (MIN 2 PLAYERS)')
+        : 'START MATCH';
+    }
+    const rowCol = hl ? (i === 4 && activeSlots().length < 2 ? '#ff7777' : '#ffffff') : (i === 4 && activeSlots().length < 2 ? '#884444' : '#c8d8e8');
+    ptxt(s, 0, 0, i === 4 ? FT(baseFs + 2) : FN(baseFs, 900), rowCol);
     g.restore();
-    const tw2=CW*0.56;
-    zone(CW/2-tw2/2,y-step*0.45,tw2,step*0.9,{fn:()=>{
-      if(menu.mode==='slots')return;
-      if(i===0){menu.mode='slots';sfx('ok');}
-      else if(i===4){
-        if(activeSlots().length<2){
-          menu.mode='slots';
-          menu.row=0;
+
+    const tw2 = Math.min(CW * 0.86, 560);
+    zone(CW/2 - tw2/2, y - step * 0.45, tw2, step * 0.9, { fn: () => {
+      if(menu.mode === 'slots') return;
+      if(i === 0){ menu.mode = 'slots'; sfx('ok'); }
+      else if(i === 4){
+        if(activeSlots().length < 2){
+          menu.mode = 'slots';
+          menu.row = 0;
           toast('CHOOSE AT LEAST 2 PLAYERS!');
           sfx('back');
-        }else{
-          sfx('go');startMatch();
+        } else {
+          sfx('go'); startMatch();
         }
       }
-      else if(menu.row===i)rowEdit(1);
-      else{menu.row=i;sfx('ui');}
+      else if(menu.row === i) rowEdit(1);
+      else { menu.row = i; sfx('ui'); }
     }});
   }
-  if(menu.mode==='rows'){
-    ptxt('‹',CW*0.14,ry0+menu.row*step,FT(34),'#ffffff');
-    ptxt('›',CW*0.86,ry0+menu.row*step,FT(34),'#ffffff');
-    zone(CW*0.08,ry0+menu.row*step-26,CW*0.12,52,{fn:()=>rowEdit(-1)});
-    zone(CW*0.80,ry0+menu.row*step-26,CW*0.12,52,{fn:()=>rowEdit(1)});
+
+  if(menu.mode === 'rows'){
+    const chevDist = Math.min(CW * 0.44, Math.max(120, CW * 0.30));
+    const chevSz = Math.min(30, Math.floor(step * 0.85));
+    ptxt('‹', CW/2 - chevDist, ry0 + menu.row * step, FT(chevSz), '#ffffff');
+    ptxt('›', CW/2 + chevDist, ry0 + menu.row * step, FT(chevSz), '#ffffff');
+    zone(CW/2 - chevDist - 24, ry0 + menu.row * step - step * 0.45, 48, step * 0.9, { fn: () => rowEdit(-1) });
+    zone(CW/2 + chevDist - 24, ry0 + menu.row * step - step * 0.45, 48, step * 0.9, { fn: () => rowEdit(1) });
   }
-  ptxt(menu.mode==='slots'?'P1-4: W/A/S/D cycles colour  •  P1 WASD  •  P2 Arrows  •  P3 IJKL or PAD  •  P4 TFGH or PAD — up to 4 controllers  •   ENTER = CONTINUE  •  O/P = FONT'
-                         :'UP/DN SELECT   L/R CHANGE   ENTER OK   •   HOTKEYS: 1-0 = MAP, B = THEME  •  O/P = FONT',
-    CW/2,CH*0.955,FN(Math.min(13,CW*0.024),800),'rgba(255,255,255,0.6)');
-  if(menu.toastT>0&&menu.toast){
-    const a=clamp(menu.toastT,0,1);
-    g.save();g.globalAlpha=a;
-    g.font=FN(16,900);
-    const w4=g.measureText(menu.toast).width+50;
-    pill(CW/2-w4/2,CH*0.44,w4,40,'rgba(30,30,30,0.85)','#ffffff');
-    txt(menu.toast,CW/2,CH*0.44+21,FN(15,900),'#ffffff');
+
+  const footerY = Math.max(CH - 18, ry0 + (ROWS.length - 1) * step + step * 0.7);
+  const footerTxt = isTouch
+    ? 'TAP CARDS TO CUSTOMIZE  •  TAP ROWS TO CHANGE SETTINGS'
+    : (menu.mode === 'slots'
+      ? 'P1-4: W/A/S/D cycles colour  •  P1 WASD  •  P2 Arrows  •  P3 IJKL/PAD  •  ENTER CONTINUE'
+      : 'UP/DN SELECT   L/R CHANGE   ENTER OK   •   1-0 MAP, B THEME');
+  ptxt(footerTxt, CW/2, footerY, FN(clamp(CW * 0.022, 9.5, 12.5), 800), 'rgba(255,255,255,0.55)');
+
+  if(menu.toastT > 0 && menu.toast){
+    const a = clamp(menu.toastT, 0, 1);
+    g.save(); g.globalAlpha = a;
+    g.font = FN(15, 900);
+    const w4 = g.measureText(menu.toast).width + 44;
+    pill(CW/2 - w4/2, CH * 0.44, w4, 38, 'rgba(30,30,30,0.88)', '#ffffff');
+    txt(menu.toast, CW/2, CH * 0.44 + 20, FN(14, 900), '#ffffff');
     g.restore();
   }
 }
