@@ -3150,16 +3150,17 @@ function updateVoiceProximity(dt){
         const dy = targetP.y - myPos.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
 
-        // Near (<= 250px): 100% full volume
-        // Mid (spawn ~1140px): 55% volume (clearly audible)
-        // Across arena (2200px): 25% volume (solid contrast, but never muted)
-        const closeRadius = 250;
-        const maxDist = 2200;
+        // Near (<= 180px): 100% full volume
+        // Mid (spawn/medium ~800px): ~40% volume
+        // Across arena (>= 1800px): ~5-6% faint whisper (huge contrast between close and far)
+        const closeRadius = 180;
+        const maxDist = 2000;
         if(isNaN(dist) || dist <= closeRadius){
           targetVol = 1.0;
         } else {
           const t = clamp((dist - closeRadius) / (maxDist - closeRadius), 0, 1);
-          targetVol = 0.25 + 0.75 * Math.pow(1 - t, 1.5);
+          // Steep exponential falloff (2.2 exponent): drops off quickly to a faint 5% whisper
+          targetVol = 0.05 + 0.95 * Math.pow(1 - t, 2.2);
         }
       }
     }
@@ -3169,7 +3170,7 @@ function updateVoiceProximity(dt){
       try {
         const curV = entry.audioEl.volume;
         const nextV = curV + (targetVol - curV) * Math.min(1, dt * 14);
-        entry.audioEl.volume = clamp(nextV, 0.20, 1.0);
+        entry.audioEl.volume = clamp(nextV, 0.04, 1.0);
         if(entry.audioEl.paused && entry.audioEl.srcObject){
           entry.audioEl.play().catch(()=>{});
         }
