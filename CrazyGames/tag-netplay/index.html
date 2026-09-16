@@ -2744,8 +2744,7 @@ async function voiceInit(){
     for(const track of VOICE.localStream.getAudioTracks()){ track.enabled = true; }
     netBroadcastReliable({ t: 'voice_mute', slot: NET.mySlot, peerId: NET.myId, muted: false });
     netToast('Microphone unmuted 🎙️');
-    voiceCallAllPeers(true);
-    netBroadcastReliable({ t: 'voice_req', peerId: NET.myId });
+    voiceSyncAllPeers();
     return true;
   }
 
@@ -2781,9 +2780,8 @@ async function voiceInit(){
       } catch(e){}
     }
 
-    netToast('Voice chat active! 🎙️ (HD Proximity on)');
-    voiceCallAllPeers(true);
-    netBroadcastReliable({ t: 'voice_req', peerId: NET.myId });
+    netToast('Voice chat active! 🎙️');
+    voiceSyncAllPeers();
     return true;
   } catch(err){
     console.warn('Microphone permission error:', err);
@@ -2833,40 +2831,55 @@ function voiceToggleMic(){
 function voiceCallPeer(peerId, forceNew){
   if(!NET.peer || !peerId || peerId === NET.myId || !VOICE.localStream) return;
   const existing = VOICE.peers.get(peerId);
-  if(existing && existing.call && existing.call.open && !forceNew){
+  // If we already have an active open call with remote audio stream playing, don't recreate it unless forced
+  if(existing && existing.call && existing.call.open && existing.stream && !forceNew){
     return;
   }
+  // Prevent duplicate concurrent outgoing calls to the same peer
+  if(existing && existing._calling) return;
 
-  if(existing && existing.call){
-    try{ existing.call.close(); }catch(e){}
+  if(!existing){
+    VOICE.peers.set(peerId, {
+      call: null,
+      stream: null,
+      audioEl: null,
+      source: null,
+      analyser: null,
+      analyserData: null,
+      speaking: false,
+      remoteMuted: false,
+      _calling: true
+    });
+  } else {
+    existing._calling = true;
   }
 
   try {
     const call = NET.peer.call(peerId, VOICE.localStream);
     if(call) voiceWireCall(call);
-  } catch(e){}
+  } catch(e){
+    const ent = VOICE.peers.get(peerId);
+    if(ent) ent._calling = false;
+  }
 }
 
-function voiceCallAllPeers(forceNew){
+function voiceSyncAllPeers(){
   if(!NET.peer || !VOICE.localStream) return;
-  for(const peerId of NET.conns.keys()){
-    voiceCallPeer(peerId, forceNew);
-  }
-  if(NET.peerSlots){
-    for(const [pid, slot] of NET.peerSlots.entries()){
-      if(pid && pid !== NET.myId && !VOICE.peers.has(pid)){
-        voiceCallPeer(pid, forceNew);
-      }
+  // If Host: initiate calls to all guests who don't have an active call
+  if(NET.isHost){
+    for(const peerId of NET.conns.keys()){
+      voiceCallPeer(peerId, false);
     }
+  } else {
+    // If Guest: notify Host that our mic is ready so Host can call us (avoids glare/dual-calling)
+    netBroadcastReliable({ t: 'voice_req', peerId: NET.myId, hasStream: true });
   }
 }
 
 function voiceWireCall(call){
   const peerId = call.peer;
   let entry = VOICE.peers.get(peerId);
-  if(entry && entry.call && entry.call !== call){
-    try{ entry.call.close(); }catch(e){}
-  }
+  const prevCall = (entry && entry.call && entry.call !== call) ? entry.call : null;
 
   if(!entry){
     entry = {
@@ -2877,50 +2890,61 @@ function voiceWireCall(call){
       analyser: null,
       analyserData: null,
       speaking: false,
-      remoteMuted: false
+      remoteMuted: false,
+      _calling: false
     };
     VOICE.peers.set(peerId, entry);
   } else {
     entry.call = call;
+    entry._calling = false;
+  }
+
+  // Safely close previous call without nuking the active entry
+  if(prevCall){
+    try { prevCall.close(); } catch(e){}
   }
 
   const applyBoost = () => {
     if(call.peerConnection) boostAudioSender(call.peerConnection);
   };
-  call.on('open', applyBoost);
+  call.on('open', () => {
+    entry._calling = false;
+    applyBoost();
+  });
   setTimeout(applyBoost, 400);
 
   call.on('stream', remoteStream => {
-    entry.stream = remoteStream;
+    const current = VOICE.peers.get(peerId);
+    if(!current || (current.call && current.call !== call)) return;
+    current.stream = remoteStream;
 
-    // 1. Native HTML5 Audio Element: handles direct Opus RTP decoding & cross-device playback
-    if(!entry.audioEl){
+    // Reuse existing audio element if already created, or create one
+    if(!current.audioEl){
       const el = document.createElement('audio');
       el.autoplay = true;
       el.playsInline = true;
       el.style.display = 'none';
       document.body.appendChild(el);
-      entry.audioEl = el;
+      current.audioEl = el;
     }
-    entry.audioEl.srcObject = remoteStream;
-    entry.audioEl.volume = 0.85;
-    const playP = entry.audioEl.play();
-    if(playP && playP.catch) playP.catch(e => console.log('Autoplay deferred to interaction', e));
+    current.audioEl.srcObject = remoteStream;
+    current.audioEl.volume = 0.85;
+    const playP = current.audioEl.play();
+    if(playP && playP.catch) playP.catch(() => {});
 
-    // 2. Analyser for visual speaking indicator (isolated from output to avoid echo / sample rate clashes)
+    // Analyser setup for visual speaking indicator
     initAudio();
     if(AC){
       try {
         if(AC.state === 'suspended') AC.resume().catch(()=>{});
-        if(!entry.source){
-          const source = AC.createMediaStreamSource(remoteStream);
-          const ana = AC.createAnalyser();
-          ana.fftSize = 128;
-          source.connect(ana);
-          entry.source = source;
-          entry.analyser = ana;
-          entry.analyserData = new Uint8Array(ana.frequencyBinCount);
-        }
+        if(current.source){ try{ current.source.disconnect(); }catch(e){} }
+        const source = AC.createMediaStreamSource(remoteStream);
+        const ana = AC.createAnalyser();
+        ana.fftSize = 128;
+        source.connect(ana);
+        current.source = source;
+        current.analyser = ana;
+        current.analyserData = new Uint8Array(ana.frequencyBinCount);
       } catch(err){
         console.warn('WebAudio analyser setup error:', err);
       }
@@ -2928,19 +2952,27 @@ function voiceWireCall(call){
   });
 
   call.on('close', () => {
-    if(entry.audioEl){
-      try{ entry.audioEl.pause(); entry.audioEl.srcObject = null; entry.audioEl.remove(); }catch(e){}
-      entry.audioEl = null;
+    // CRITICAL FIX: Only clean up if this closed call is ACTUALLY the active call for this peer!
+    const current = VOICE.peers.get(peerId);
+    if(current && current.call === call){
+      if(current.audioEl){
+        try{ current.audioEl.pause(); current.audioEl.srcObject = null; current.audioEl.remove(); }catch(e){}
+        current.audioEl = null;
+      }
+      if(current.source){ try{ current.source.disconnect(); }catch(e){} }
+      VOICE.peers.delete(peerId);
     }
-    if(entry.source){ try{ entry.source.disconnect(); }catch(e){} }
-    VOICE.peers.delete(peerId);
   });
 
-  call.on('error', () => {});
+  call.on('error', e => {
+    const current = VOICE.peers.get(peerId);
+    if(current && current.call === call) current._calling = false;
+  });
 }
 
 function updateVoiceProximity(dt){
   const inGame = (match && screen === 'game' && match.players && match.players.length > 0);
+  const isPlaying = (inGame && match.state === 'playing');
   let myP = null;
   if(inGame){
     if(typeof getMyPlayer === 'function') myP = getMyPlayer();
@@ -2950,9 +2982,9 @@ function updateVoiceProximity(dt){
   const myPos = myP ? { x: myP.x, y: myP.y } : null;
 
   for(const [peerId, entry] of VOICE.peers.entries()){
-    let targetVol = 0.85; // Default clear lobby volume
+    let targetVol = 0.85; // Default clear volume for menu, lobby, countdown, results
 
-    if(inGame && myPos){
+    if(isPlaying && myPos){
       let targetSlot = NET.peerSlots ? NET.peerSlots.get(peerId) : undefined;
       if(targetSlot === undefined){
         if(!NET.isHost && peerId.endsWith('-host')) targetSlot = 0;
@@ -2968,31 +3000,31 @@ function updateVoiceProximity(dt){
         ? match.players.find(p => p.slot === targetSlot)
         : (NET.isHost ? null : match.players.find(p => p.slot === 0));
 
-      if(targetP){
+      if(targetP && myPos && targetP.x != null && myPos.x != null){
         const dx = targetP.x - myPos.x;
         const dy = targetP.y - myPos.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
 
-        // Close radius: 180px -> 100% volume
-        // Map width is 2400px, diagonal ~2739px
-        // Across the arena (>2000px): volume drops steeply to 4.5% (faint distant yell)
-        const closeRadius = 180;
+        // Near (<= 250px): 100% full volume
+        // Mid (spawn ~1140px): 55% volume (clearly audible)
+        // Across arena (2200px): 25% volume (solid contrast, but never muted)
+        const closeRadius = 250;
         const maxDist = 2200;
-        if(dist <= closeRadius){
+        if(isNaN(dist) || dist <= closeRadius){
           targetVol = 1.0;
         } else {
           const t = clamp((dist - closeRadius) / (maxDist - closeRadius), 0, 1);
-          targetVol = 0.045 + 0.955 * Math.pow(1 - t, 2.8);
+          targetVol = 0.25 + 0.75 * Math.pow(1 - t, 1.5);
         }
       }
     }
 
-    // Direct HTML5 Audio volume control
+    // Direct HTML5 Audio volume control & continuous playback watchdog
     if(entry.audioEl){
       try {
         const curV = entry.audioEl.volume;
         const nextV = curV + (targetVol - curV) * Math.min(1, dt * 14);
-        entry.audioEl.volume = clamp(nextV, 0.035, 1.0);
+        entry.audioEl.volume = clamp(nextV, 0.20, 1.0);
         if(entry.audioEl.paused && entry.audioEl.srcObject){
           entry.audioEl.play().catch(()=>{});
         }
@@ -3054,6 +3086,22 @@ function voiceEnsurePlayback(){
 }
 window.addEventListener('click', voiceEnsurePlayback, { passive: true });
 window.addEventListener('keydown', voiceEnsurePlayback, { passive: true });
+
+// Auto-healing watchdog: ensures active voice calls stay connected across match restarts and screen changes
+setInterval(() => {
+  if(typeof NET === 'undefined' || !NET || NET.role === null || !NET.peer || NET.peer.destroyed) return;
+  if(typeof VOICE === 'undefined' || !VOICE.enabled || !VOICE.localStream) return;
+  for(const peerId of NET.conns.keys()){
+    const ent = VOICE.peers.get(peerId);
+    if(!ent || !ent.call || !ent.call.open || !ent.stream){
+      if(NET.isHost){
+        voiceCallPeer(peerId, false);
+      } else {
+        netSendRel(peerId, { t: 'voice_req', peerId: NET.myId, hasStream: true });
+      }
+    }
+  }
+}, 2500);
 
 function netToast(m){
   toast(m);
@@ -3265,14 +3313,12 @@ function netWireConn(conn, isHostSide){
       conn.send({ t: 'hello', ctrl: NET.myCtrl || 'WASD' });
       netToast('Connected to host! Syncing menu…');
       if(VOICE.enabled && VOICE.localStream){
-        conn.send({ t: 'voice_req', peerId: NET.myId });
-        setTimeout(() => voiceCallPeer(peerId, true), 600);
+        conn.send({ t: 'voice_req', peerId: NET.myId, hasStream: true });
       }
     } else if(isHostSide && !isFast){
       netToast('Guest connected!');
       if(VOICE.enabled && VOICE.localStream){
-        conn.send({ t: 'voice_req', peerId: NET.myId });
-        setTimeout(() => voiceCallPeer(peerId, true), 600);
+        setTimeout(() => voiceCallPeer(peerId, false), 500);
       }
     }
   };
@@ -3555,8 +3601,17 @@ function netOnData(m, c){
   } else if(m.t === 'toast'){
     netToast(m.msg || '');
   } else if(m.t === 'voice_req'){
+    const peerId = m.peerId || c.peer;
     if(VOICE.enabled && VOICE.localStream){
-      voiceCallPeer(m.peerId || c.peer, true);
+      voiceCallPeer(peerId, false);
+    } else if(m.hasStream){
+      // Host has no mic stream, so authorize guest to call host so host can hear guest
+      c.send({ t: 'voice_guest_call', peerId: NET.myId });
+    }
+  } else if(m.t === 'voice_guest_call'){
+    const peerId = m.peerId || c.peer;
+    if(VOICE.enabled && VOICE.localStream){
+      voiceCallPeer(peerId, false);
     }
   } else if(m.t === 'voice_mute'){
     const peerEntry = VOICE.peers.get(c.peer) || VOICE.peers.get(m.peerId);
