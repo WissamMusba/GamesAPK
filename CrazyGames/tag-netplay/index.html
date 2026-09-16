@@ -2640,6 +2640,17 @@ function drawGame(){
 /* ================= netplay (host-authoritative P2P) ================= */
 const CTRL_SCHEMES = ['WASD', 'Arrows', 'Controller'];
 
+/* Dedicated Signaling Server Configuration (Railway, Render, or self-hosted)
+ * Leave host empty '' to use official PeerJS cloud (0.peerjs.com).
+ * Or paste your Railway / Render domain e.g. 'tag-server-production.up.railway.app'
+ */
+const PEER_SERVER_CONFIG = {
+  host: '', // e.g. 'your-app.up.railway.app' or 'your-app.onrender.com'
+  port: 443,
+  path: '/tag-netplay',
+  secure: true
+};
+
 const NET = {
   peer: null,
   conns: new Map(), // peerId -> { rel: conn, fast: conn }
@@ -3240,19 +3251,65 @@ function inputForNet(p){
 }
 inputFor = inputForNet;
 
-/* PeerJS connect */
-function netConnectPeer(room, isHost){
+/* PeerJS connect (Supports dedicated Railway/Render server with zero-failure cloud fallback) */
+function netConnectPeer(room, isHost, forceFallback = false){
   if(NET.peer){
     try{ NET.peer.destroy(); }catch(e){}
     NET.peer = null;
   }
   const cleanRoom = room.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 6);
   const id = 'tag-' + cleanRoom + (isHost ? '-host' : '-g' + Math.floor(Math.random() * 1e6));
-  NET.peer = new Peer(id, { debug: 0, config: { iceServers: ICE_SERVERS } });
+  
+  // Check if custom server is specified via URL parameter ?server=... or PEER_SERVER_CONFIG
+  let customHost = '';
+  try {
+    const qp = new URLSearchParams(location.search);
+    customHost = qp.get('server') || (typeof PEER_SERVER_CONFIG !== 'undefined' ? PEER_SERVER_CONFIG.host : '') || '';
+    customHost = customHost.replace(/^https?:\/\//i, '').replace(/\/+$/, '').trim();
+  } catch(e){}
+
+  let peerOptions = { debug: 0, config: { iceServers: ICE_SERVERS } };
+  let usingCustom = false;
+  if(customHost && !forceFallback){
+    usingCustom = true;
+    peerOptions = {
+      host: customHost,
+      port: (typeof PEER_SERVER_CONFIG !== 'undefined' && PEER_SERVER_CONFIG.port) || 443,
+      path: (typeof PEER_SERVER_CONFIG !== 'undefined' && PEER_SERVER_CONFIG.path) || '/tag-netplay',
+      secure: (typeof PEER_SERVER_CONFIG !== 'undefined' && PEER_SERVER_CONFIG.secure !== undefined) ? PEER_SERVER_CONFIG.secure : true,
+      debug: 0,
+      config: { iceServers: ICE_SERVERS }
+    };
+  }
+
+  let fallbackTimer = null;
+  if(usingCustom){
+    fallbackTimer = setTimeout(() => {
+      if(!NET.peer || !NET.myId){
+        console.warn('Custom server connection timed out, falling back to public PeerJS cloud.');
+        netToast('Custom server unreachable. Falling back to Cloud…');
+        netConnectPeer(room, isHost, true);
+      }
+    }, 5500);
+  }
+
+  try {
+    NET.peer = new Peer(id, peerOptions);
+  } catch(err){
+    if(usingCustom){
+      netConnectPeer(room, isHost, true);
+      return;
+    }
+    throw err;
+  }
   
   NET.peer.on('open', id2 => {
+    if(fallbackTimer){ clearTimeout(fallbackTimer); fallbackTimer = null; }
     NET.myId = id2;
     NET.peerSlots.clear();
+    if(usingCustom){
+      console.log('[NET] Connected to dedicated signaling server:', customHost);
+    }
     if(isHost){
       NET.peerSlots.set(id2, 0);
       NET.peer.on('connection', c => netWireConn(c, true));
@@ -3281,6 +3338,12 @@ function netConnectPeer(room, isHost){
 
   NET.peer.on('error', e => {
     const t = String(e.type || e.message || 'error').toLowerCase();
+    if(usingCustom && (t.includes('server-error') || t.includes('socket-error') || t.includes('network') || t.includes('failed') || t.includes('could not connect'))){
+      if(fallbackTimer){ clearTimeout(fallbackTimer); fallbackTimer = null; }
+      netToast('Custom server error. Switching to public cloud…');
+      netConnectPeer(room, isHost, true);
+      return;
+    }
     if(t.includes('peer-unavailable')){
       netToast('Host not found. Room may be closed.');
     } else if(t.includes('unavailable-id')){
@@ -3554,14 +3617,17 @@ function netOnData(m, c){
           const dx = hp.x - myP.x;
           const dy = hp.y - myP.y;
           const distSq = dx * dx + dy * dy;
-          if(distSq > 3600){ // > 60px discrepancy
-            myP.x += dx * 0.45;
-            myP.y += dy * 0.45;
+          if(distSq > 10000){ // > 100px massive discrepancy (respawn, teleport, or severe packet drop)
+            myP.x = hp.x;
+            myP.y = hp.y;
             myP.vx = hp.vx;
             myP.vy = hp.vy;
-          } else if(distSq > 9){ // minor drift
-            myP.x += dx * 0.12;
-            myP.y += dy * 0.12;
+          } else if(distSq > 2500){ // 50-100px discrepancy: smooth 24% damping without snapping
+            myP.x += dx * 0.24;
+            myP.y += dy * 0.24;
+          } else if(distSq > 4){ // minor drift: gentle 10% blend
+            myP.x += dx * 0.10;
+            myP.y += dy * 0.10;
           }
           myP.landT = hp.landT;
           myP.tagT = hp.tagT;
@@ -3879,15 +3945,16 @@ function netTick(dt){
 function netGuestInterpolateOthers(dt){
   if(NET.role === null || NET.isHost || !match || !NET.otherTargets) return;
   const k = Math.min(1, dt * 25);
-  const timeSincePacket = Math.min(0.12, Math.max(0, (performance.now() - NET.lastRecvT) / 1000));
+  const timeSincePacket = Math.min(0.14, Math.max(0, (performance.now() - NET.lastRecvT) / 1000));
   for(const p of match.players){
     if(p.slot === NET.mySlot) continue;
     const a = NET.otherTargets.get(p.slot);
     if(!a) continue;
 
-    // Extrapolate target position forward along velocity vector during transit
+    // Extrapolate target position forward along velocity vector during transit.
+    // If grounded, preserve vertical alignment to avoid jittering into platforms.
     const targetX = a.x + a.vx * timeSincePacket;
-    const targetY = a.y + a.vy * timeSincePacket;
+    const targetY = a.grounded ? a.y : (a.y + a.vy * timeSincePacket);
 
     p.x += (targetX - p.x) * k;
     p.y += (targetY - p.y) * k;
@@ -3979,6 +4046,8 @@ function frame(now){
       if(myP){
         physUpdate(myP, dt, inPlay);
       }
+      checkTag();
+      if(typeof updateVoiceProximity === 'function') updateVoiceProximity(dt);
       if(anyPressed(['KeyM'])) toggleSound();
       if(anyPressed(['KeyO'])) toggleFullscreen();
       updateCam(dt);
