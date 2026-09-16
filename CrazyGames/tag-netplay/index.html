@@ -135,21 +135,29 @@ const TOUCH = {
   jumpHeld: false,
   downHeld: false
 };
+
+/* ================= mobile touch joystick & dual slider system ================= */
+const JOY = {
+  // Left horizontal joystick (snaps to center)
+  leftId: null,
+  leftX: 0,        // -1 (left) to +1 (right), rests at 0 (center)
+  leftVisX: 0,     // smooth interpolated visual knob position
+  boundsL: null,   // { x, y, w, h, cx, cy, maxTravel, r }
+
+  // Right vertical dual jump/drop slider (snaps to top)
+  rightId: null,
+  rightY: 0,       // 0 (top/rest) to 1 (pulled down)
+  rightVisY: 0,    // smooth interpolated visual knob position
+  boundsR: null    // { x, y, w, h, cx, cyTop, maxTravel, r }
+};
+
 function applyTouchAction(action, isDown){
-  if(action === 'left'){
-    TOUCH.left = !!isDown;
-  } else if(action === 'right'){
-    TOUCH.right = !!isDown;
-  } else if(action === 'jump'){
-    if(isDown){
-      TOUCH.jumpEdge = true;
-      TOUCH.jumpHeld = true;
-    } else {
-      TOUCH.jumpHeld = false;
-    }
-  } else if(action === 'down'){
-    TOUCH.downHeld = !!isDown;
-  }
+  if(action === 'left') TOUCH.left = !!isDown;
+  else if(action === 'right') TOUCH.right = !!isDown;
+  else if(action === 'jump'){
+    if(isDown){ TOUCH.jumpEdge = true; TOUCH.jumpHeld = true; }
+    else TOUCH.jumpHeld = false;
+  } else if(action === 'down') TOUCH.downHeld = !!isDown;
 }
 
 /* ================= gamepads ================= */
@@ -206,6 +214,31 @@ function zoneAt(x,y,holdOnly){
 }
 function inputDown(x,y,id){
   initAudio();grabFocus();
+  // Check Left horizontal joystick
+  if(match && screen === 'game' && isTouch && JOY.boundsL){
+    const b = JOY.boundsL;
+    if(x >= b.x - 24 && x <= b.x + b.w + 24 && y >= b.y - 24 && y <= b.y + b.h + 24){
+      JOY.leftId = id;
+      const off = clamp((x - b.cx) / b.maxTravel, -1, 1);
+      JOY.leftX = off;
+      TOUCH.left = (off < -0.22);
+      TOUCH.right = (off > 0.22);
+      return;
+    }
+  }
+  // Check Right vertical dual jump/drop slider (snaps to top)
+  if(match && screen === 'game' && isTouch && JOY.boundsR){
+    const b = JOY.boundsR;
+    if(x >= b.x - 24 && x <= b.x + b.w + 24 && y >= b.y - 24 && y <= b.y + b.h + 24){
+      JOY.rightId = id;
+      TOUCH.jumpEdge = true;
+      TOUCH.jumpHeld = true;
+      const off = clamp((y - b.cyTop) / b.maxTravel, 0, 1);
+      JOY.rightY = off;
+      TOUCH.downHeld = (off > 0.35);
+      return;
+    }
+  }
   const z=zoneAt(x,y,false);
   if(z){
     touchPts.set(id,z);
@@ -216,6 +249,21 @@ function inputDown(x,y,id){
   }
 }
 function inputMove(x,y,id){
+  if(JOY.leftId === id && JOY.boundsL){
+    const b = JOY.boundsL;
+    const off = clamp((x - b.cx) / b.maxTravel, -1, 1);
+    JOY.leftX = off;
+    TOUCH.left = (off < -0.22);
+    TOUCH.right = (off > 0.22);
+    return;
+  }
+  if(JOY.rightId === id && JOY.boundsR){
+    const b = JOY.boundsR;
+    const off = clamp((y - b.cyTop) / b.maxTravel, 0, 1);
+    JOY.rightY = off;
+    TOUCH.downHeld = (off > 0.35);
+    return;
+  }
   if(!touchPts.has(id))return;
   const cur=touchPts.get(id);
   if(cur&&(cur.hold||cur.touchAction)){
@@ -234,6 +282,18 @@ function inputMove(x,y,id){
   }
 }
 function inputUp(id){
+  if(JOY.leftId === id){
+    JOY.leftId = null;
+    JOY.leftX = 0; // Snaps back to center!
+    TOUCH.left = false;
+    TOUCH.right = false;
+  }
+  if(JOY.rightId === id){
+    JOY.rightId = null;
+    JOY.rightY = 0; // Snaps back to top!
+    TOUCH.jumpHeld = false;
+    TOUCH.downHeld = false;
+  }
   const z=touchPts.get(id);
   if(z){
     if(z.hold)keys.delete(z.hold);
@@ -456,18 +516,60 @@ const BOOST_MULT=1.31;           /* Blue pad jump: clean ~346px boost, just befo
 
 const PALETTE=[
   {name:'CHERRY',c:'#e8433f'},{name:'SUNNY',c:'#f5a623'},{name:'SKY',c:'#2f9be8'},
-  {name:'GRAPE',c:'#a06cd5'},{name:'MINT',c:'#27c487'},{name:'PINK',c:'#f06292'}
+  {name:'GRAPE',c:'#a06cd5'},{name:'MINT',c:'#27c487'},{name:'PINK',c:'#f06292'},
+  {name:'CYAN',c:'#00d2d3'},{name:'LIME',c:'#a8e024'}
 ];
+
+const TEAMS = [
+  { name: 'RED TEAM', icon: '🔴', base: '#e8433f', shades: ['#e8433f', '#ff6b6b', '#b81414', '#f06595'] },
+  { name: 'BLUE TEAM', icon: '🔵', base: '#2f9be8', shades: ['#2f9be8', '#00d2d3', '#1b4f9c', '#5f27cd'] },
+  { name: 'GREEN TEAM', icon: '🟢', base: '#27c487', shades: ['#27c487', '#a8e024', '#10ac84', '#1dd1a1'] },
+  { name: 'YELLOW TEAM', icon: '🟡', base: '#f5a623', shades: ['#f5a623', '#feca57', '#ff9f43', '#ffeaa7'] }
+];
+
 const TIMES=[50,100,150,200];
-const settings={map:0,doubleJump:true,collision:false,timeIdx:1};
+const settings={map:0,doubleJump:true,collision:false,timeIdx:1,teams:false};
 Object.defineProperty(settings,'time',{get(){return TIMES[this.timeIdx];}});
 
 const SLOTS=[
   {label:'WASD',pad:0,map:{L:['KeyA','KeyQ'],R:'KeyD',U:['KeyW','Space'],D:'KeyS'}},
   {label:'↑←↓→',pad:1,map:{L:'ArrowLeft',R:'ArrowRight',U:'ArrowUp',D:'ArrowDown'}},
   {label:'IJKL',pad:2,map:{L:'KeyJ',R:'KeyL',U:'KeyI',D:'KeyK'}},
-  {label:'TFGH',pad:3,map:{L:'KeyF',R:'KeyH',U:'KeyT',D:'KeyG'}}
+  {label:'TFGH',pad:3,map:{L:'KeyF',R:'KeyH',U:'KeyT',D:'KeyG'}},
+  {label:'P5 (NET)',pad:4,map:{L:['KeyA'],R:'KeyD',U:['KeyW','Space'],D:'KeyS'}},
+  {label:'P6 (NET)',pad:5,map:{L:['KeyA'],R:'KeyD',U:['KeyW','Space'],D:'KeyS'}},
+  {label:'P7 (NET)',pad:6,map:{L:['KeyA'],R:'KeyD',U:['KeyW','Space'],D:'KeyS'}},
+  {label:'P8 (NET)',pad:7,map:{L:['KeyA'],R:'KeyD',U:['KeyW','Space'],D:'KeyS'}}
 ];
+
+function getPlayerColor(p, pList){
+  if(!p) return '#ffffff';
+  if(settings.teams){
+    const teamIdx = p.team != null ? (p.team % TEAMS.length) : 0;
+    const teamDef = TEAMS[teamIdx] || TEAMS[0];
+    const list = pList || (match ? match.players : []);
+    const mates = list.filter(o => o.team === p.team);
+    const rank = Math.max(0, mates.findIndex(o => o.slot === p.slot));
+    return teamDef.shades[rank % teamDef.shades.length] || teamDef.base;
+  }
+  const c = p.colIdx != null ? p.colIdx : p.slot;
+  return (PALETTE[c >= 0 ? c % PALETTE.length : p.slot % PALETTE.length] || PALETTE[0]).c;
+}
+
+function getSlotColor(slot, slotColorArr, slotTeamArr){
+  if(settings.teams){
+    const teamIdx = (slotTeamArr && slotTeamArr[slot] != null) ? (slotTeamArr[slot] % TEAMS.length) : (slot % 2);
+    const teamDef = TEAMS[teamIdx] || TEAMS[0];
+    let rank = 0;
+    const max = (slotColorArr && slotColorArr.length) || 8;
+    for(let s = 0; s < slot; s++){
+      if((slotColorArr ? slotColorArr[s] >= 0 : true) && slotTeamArr && slotTeamArr[s] === teamIdx) rank++;
+    }
+    return teamDef.shades[rank % teamDef.shades.length] || teamDef.base;
+  }
+  const c = slotColorArr ? slotColorArr[slot] : slot;
+  return (PALETTE[c >= 0 ? c % PALETTE.length : slot % PALETTE.length] || PALETTE[0]).c;
+}
 
 /* ================= 10 INTRICATE, ACCESSIBLE MAPS (NO OVERLAPS, PURE JUKE ZONES) ================= */
 /* Format: [x, y, w, h, (optional dy for slope)]
@@ -591,11 +693,45 @@ let currentThemeIdx=0;
 
 /* ================= menu ================= */
 let screen='menu',tGlobal=0;
-const menu={mode:'rows',slotColor:[0,2,-1,-1],row:4,rule:0,toast:null,toastT:0};
+const menu={mode:'rows',slotColor:[0,2,-1,-1,-1,-1,-1,-1],slotTeam:[0,1,0,1,0,1,0,1],row:4,rule:0,toast:null,toastT:0};
 const ROWS=['CHANGE PLAYERS','MAP','TIMER','RULES','START'];
 const RULE_NAMES=['DOUBLE JUMP','BUMP'];
 function toast(m){menu.toast=m;menu.toastT=2.2;}
-function activeSlots(){const r=[];for(let i=0;i<4;i++)if(menu.slotColor[i]>=0)r.push(i);return r;}
+function activeSlots(){
+  const max = (typeof NET !== 'undefined' && NET && NET.role !== null) ? 8 : 4;
+  const r = [];
+  for(let i = 0; i < max; i++){
+    if(menu.slotColor[i] >= 0) r.push(i);
+  }
+  return r;
+}
+function cycleTeam(i, d){
+  if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+  menu.slotTeam[i] = ((menu.slotTeam[i] || 0) + d + TEAMS.length) % TEAMS.length;
+  sfx('ui');
+  if(typeof NET !== 'undefined' && NET && NET.role !== null){
+    if(NET.isHost) netBroadcastRoster();
+    else {
+      for(const pair of NET.conns.values()){
+        netSendRel(pair, { t: 'team', slot: i, team: menu.slotTeam[i] });
+      }
+    }
+  }
+}
+function toggleTeams(){
+  if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){
+    toast('HOST TOGGLES TEAM MODE');
+    sfx('back');
+    return;
+  }
+  settings.teams = !settings.teams;
+  sfx('ui');
+  toast(settings.teams ? 'TEAM MODE: ON' : 'TEAM MODE: OFF (FFA)');
+  if(typeof NET !== 'undefined' && NET && NET.isHost){
+    netBroadcastSettings();
+    netBroadcastRoster();
+  }
+}
 function cycleSlot(i,d){
   const taken=menu.slotColor.filter((c,k)=>c>=0&&k!==i);
   const list=[-1].concat(PALETTE.map((p,idx)=>idx).filter(idx=>taken.indexOf(idx)<0));
@@ -731,12 +867,13 @@ let match=null;
 const cam={x:W/2,y:H/2,s:0.5};
 function makePlayer(i,slot,colIdx){
   const N=activeSlots().length;
-  const s=SLOTS[slot];
+  const s=SLOTS[slot] || SLOTS[0];
   const x=Math.round(WALL+(W-2*WALL)*((i+0.5)/N))-23;
+  const team = (menu.slotTeam && menu.slotTeam[slot] != null) ? menu.slotTeam[slot] : (slot % 2);
   return {x:x,y:H-WALL-46,w:46,h:46,vx:0,vy:0,grounded:true,gp:SOLIDS[1],lastGp:SOLIDS[1],
     face:i%2===0?1:-1,airJumps:settings.doubleJump?1:0,wallJumps:0,coyote:0,jbuf:0,holdT:0,dropT:0,sideT:0,wallSide:0,
     sx:1,sy:1,landT:0,tagT:0,padOn:false,blinkT:rand(1.5,4),blink:0,seed:i*3.7,
-    slot:slot,colIdx:colIdx,trail:[]};
+    slot:slot,colIdx:colIdx,team:team,trail:[]};
 }
 function startMatch(){
   if(typeof NET!=='undefined' && NET && NET.role!==null && !NET.isHost){
@@ -766,7 +903,9 @@ function startMatch(){
   lastStartIT=it;
   buildLevel();
   const players=act.map((slot,i)=>makePlayer(i,slot,menu.slotColor[slot]));
-  match={state:'countdown',cd:3,cdT:0,timer:settings.time,lastTick:settings.time,it:it,cooldown:0,
+  const itTeam = settings.teams ? players[it].team : null;
+  match={state:'countdown',cd:3,cdT:0,timer:settings.time,lastTick:settings.time,it:it,itTeam:itTeam,
+    teamItTime:[0,0,0,0],cooldown:0,
     goFlash:0,freeze:0,shake:0,flash:0,fade:0.6,tagPop:null,resultT:0,
     tags:players.map(()=>0),hintT:7,players:players,result:null,pausedFrom:null,pauseSel:0,
     mapToast:MAPS[settings.map].name,mapToastT:2.5};
@@ -775,8 +914,8 @@ function startMatch(){
 
   // Broadcast to all connected netplay guests
   if(typeof NET!=='undefined' && NET && NET.role!==null && NET.isHost && NET.conns.size>0){
-    const payload={it:match.it, cooldownN:0, matchIndex:matchIndex, currentThemeIdx:currentThemeIdx, lastStartIT:lastStartIT};
-    netBroadcastReliable({t:'start',settings:{map:settings.map,doubleJump:settings.doubleJump,collision:settings.collision,slotColor:menu.slotColor.slice()},mapData:MAPS[settings.map%MAPS.length],payload:payload});
+    const payload={it:match.it, itTeam:match.itTeam, cooldownN:0, matchIndex:matchIndex, currentThemeIdx:currentThemeIdx, lastStartIT:lastStartIT};
+    netBroadcastReliable({t:'start',settings:{map:settings.map,doubleJump:settings.doubleJump,collision:settings.collision,teams:settings.teams,slotColor:menu.slotColor.slice(),slotTeam:(menu.slotTeam?menu.slotTeam.slice():[])},mapData:MAPS[settings.map%MAPS.length],payload:payload});
   }
 }
 function quitToMenu(){
@@ -2476,33 +2615,111 @@ function drawTouchButtons(){
   const isTablet=Math.min(CW,CH)>=550 || (CW/CH<1.7 && Math.min(CW,CH)>=480);
   
   if(!isSplitLocal){
-    /* ================= DUAL-THUMB ERGONOMIC CONTROLS (ONLINE & SOLO) ================= */
-    const r=isTablet?clamp(CH*0.075,38,50):clamp(CH*0.11,28,38);
-    const bm=isTablet?clamp(CH*0.08,36,56):clamp(CH*0.07,20,32);
-    const sm=isTablet?clamp(CW*0.05,34,60):clamp(CW*0.04,18,34);
+    /* ================= SLEEK SEE-THROUGH JOYSTICKS (ONLINE & SOLO) ================= */
+    const r = isTablet ? clamp(CH * 0.058, 24, 32) : clamp(CH * 0.075, 20, 26);
+    const bm = isTablet ? clamp(CH * 0.07, 24, 44) : clamp(CH * 0.06, 16, 26);
+    const sm = isTablet ? clamp(CW * 0.045, 26, 48) : clamp(CW * 0.04, 18, 30);
     
-    // Left thumb: Left & Right directional buttons
-    const cyL=CH-bm-r;
-    const cxL=sm+r;
-    const cxR=cxL+2*r+(isTablet?18:12);
-    
-    // Right thumb: Big Jump & Quick Drop buttons
-    const rJump=r*1.16;
-    const rDrop=r*0.88;
-    const cyJ=CH-bm-rJump;
-    const cxJ=CW-sm-rJump;
-    const cxD=cxJ-rJump-rDrop-(isTablet?20:14);
-    const cyD=cyJ+(rJump-rDrop)*0.3;
-    
-    // Draw Left button
-    drawPadBtnAction(cxL,cyL,r,'left','◀','rgba(0,210,211,0.45)',isTablet?'LEFT':null);
-    // Draw Right button
-    drawPadBtnAction(cxR,cyL,r,'right','▶','rgba(0,210,211,0.45)',isTablet?'RIGHT':null);
-    // Draw Drop button (pink accent)
-    drawPadBtnAction(cxD,cyD,rDrop,'down','▼','rgba(235,75,155,0.65)',isTablet?'DROP':null);
-    // Draw Jump button (cyan/green accent, big circle)
-    drawPadBtnAction(cxJ,cyJ,rJump,'jump','▲','rgba(46,204,113,0.75)',isTablet?'JUMP':null);
-    
+    // --- 1. Left Horizontal-Only Joystick (Snaps to Center) ---
+    const wL = r * 3.6, hL = r * 2.1;
+    const cxL = sm + wL / 2;
+    const cyL = CH - bm - hL / 2;
+    const xL = cxL - wL / 2, yL = cyL - hL / 2;
+    const maxTravelL = (wL - 2 * r) / 2;
+    JOY.boundsL = { x: xL, y: yL, w: wL, h: hL, cx: cxL, cy: cyL, maxTravel: maxTravelL, r: r };
+
+    // --- 2. Right Vertical Dual Slider (Height = 2x Diameter, Snaps to Top) ---
+    const wR = r * 2.1, hR = r * 4.0;
+    const cxR = CW - sm - wR / 2;
+    const yR = CH - bm - hR;
+    const xR = cxR - wR / 2;
+    const cyTopR = yR + r * 1.05;
+    const maxTravelR = hR - 2.1 * r;
+    JOY.boundsR = { x: xR, y: yR, w: wR, h: hR, cx: cxR, cyTop: cyTopR, maxTravel: maxTravelR, r: r };
+
+    // Smooth visual interpolation for knobs
+    JOY.leftVisX += (JOY.leftX - JOY.leftVisX) * 0.40;
+    JOY.rightVisY += (JOY.rightY - JOY.rightVisY) * 0.45;
+
+    // --- Render Left Horizontal Track ---
+    g.save();
+    rr(g, xL, yL, wL, hL, hL / 2);
+    g.fillStyle = 'rgba(255, 255, 255, 0.08)';
+    g.fill();
+    g.lineWidth = 1.5;
+    g.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+    g.stroke();
+
+    // Subtle track slot guideline
+    g.beginPath();
+    g.moveTo(cxL - maxTravelL * 0.85, cyL);
+    g.lineTo(cxL + maxTravelL * 0.85, cyL);
+    g.lineWidth = 2.5;
+    g.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+    g.stroke();
+
+    // Faint chevrons
+    ptxt('◀', xL + r * 0.55, cyL, FN(11, 900), 'rgba(255, 255, 255, 0.28)');
+    ptxt('▶', xL + wL - r * 0.55, cyL, FN(11, 900), 'rgba(255, 255, 255, 0.28)');
+
+    // Render Left Knob (rests in center)
+    const kxL = cxL + JOY.leftVisX * maxTravelL;
+    const leftActive = (TOUCH.left || TOUCH.right);
+    g.beginPath();
+    g.arc(kxL, cyL, r * 0.88, 0, Math.PI * 2);
+    g.fillStyle = leftActive ? 'rgba(0, 210, 211, 0.45)' : 'rgba(255, 255, 255, 0.22)';
+    g.fill();
+    g.lineWidth = 2;
+    g.strokeStyle = leftActive ? '#00d2d3' : 'rgba(255, 255, 255, 0.60)';
+    g.stroke();
+    g.beginPath();
+    g.arc(kxL, cyL, 3, 0, Math.PI * 2);
+    g.fillStyle = leftActive ? '#ffffff' : 'rgba(255, 255, 255, 0.50)';
+    g.fill();
+
+    // --- Render Right Vertical Track ---
+    rr(g, xR, yR, wR, hR, wR / 2);
+    g.fillStyle = 'rgba(255, 255, 255, 0.08)';
+    g.fill();
+    g.lineWidth = 1.5;
+    g.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+    g.stroke();
+
+    // Subtle vertical slot guideline
+    g.beginPath();
+    g.moveTo(cxR, cyTopR + r * 0.2);
+    g.lineTo(cxR, cyTopR + maxTravelR);
+    g.lineWidth = 2.5;
+    g.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+    g.stroke();
+
+    // Faint down chevron at bottom of slider track
+    ptxt('▼', cxR, yR + hR - r * 0.6, FN(11, 900), TOUCH.downHeld ? '#eb4b9b' : 'rgba(235, 75, 155, 0.35)');
+
+    // Render Right Knob (snaps to top, tap jumps, drag down drops)
+    const kyR = cyTopR + JOY.rightVisY * maxTravelR;
+    g.beginPath();
+    g.arc(cxR, kyR, r * 0.88, 0, Math.PI * 2);
+    if(TOUCH.downHeld){
+      g.fillStyle = 'rgba(235, 75, 155, 0.55)';
+      g.strokeStyle = '#eb4b9b';
+    } else if(TOUCH.jumpHeld){
+      g.fillStyle = 'rgba(46, 204, 113, 0.55)';
+      g.strokeStyle = '#2ecc71';
+    } else {
+      g.fillStyle = 'rgba(255, 255, 255, 0.22)';
+      g.strokeStyle = 'rgba(255, 255, 255, 0.60)';
+    }
+    g.fill();
+    g.lineWidth = 2;
+    g.stroke();
+
+    // Icon inside knob (▲ for Jump, ▼ when dragged down for Drop)
+    const knobIcon = (JOY.rightVisY > 0.40) ? '▼' : '▲';
+    const knobCol = (TOUCH.downHeld || TOUCH.jumpHeld) ? '#ffffff' : 'rgba(255, 255, 255, 0.85)';
+    ptxt(knobIcon, cxR, kyR + (knobIcon === '▲' ? -1 : 1), FN(12, 900), knobCol);
+
+    g.restore();
   } else {
     /* ================= 2-PLAYER SPLIT LOCAL (ON 1 TABLET/PHONE) ================= */
     const r=clamp(Math.min((CW-100)/14,CH*0.065),20,40);
