@@ -169,11 +169,12 @@ function calcLocalBounds(){
   const trackW = r * 3.4;
   const trackH = r * 2.0;
 
-  // Ergonomic cluster: Horizontal joystick on left, Jump & Slide buttons right next to it!
-  // Player 1 (Left Half: 0 to midX)
-  const p1DefJoyX = clamp(midX * 0.30, r * 2.0, midX - trackW/2 - r * 3.0);
+  // Corner positioning:
+  // Player 1 (Bottom-Left Corner): Joystick at far left, Jump & Drop buttons to the right of it
+  const p1CornerPad = isTablet ? clamp(CW * 0.045, 24, 44) : clamp(CW * 0.040, 16, 28);
+  const p1DefJoyX = p1CornerPad + trackW / 2;
   const p1DefJoyY = CH - bm - r * 1.05;
-  const p1BtnX = p1DefJoyX + trackW / 2 + r * 1.25;
+  const p1BtnX = p1DefJoyX + trackW / 2 + r * 1.30;
   const p1DropY = p1DefJoyY;
   const p1JumpY = p1DropY - r * 2.15;
   const p1SplitY = (p1JumpY + p1DropY) / 2;
@@ -182,10 +183,11 @@ function calcLocalBounds(){
   const p1BtnMinY = p1JumpY - r * 1.35;
   const p1BtnMaxY = p1DropY + r * 1.35;
 
-  // Player 2 (Right Half: midX to CW)
-  const p2DefJoyX = midX + clamp(midX * 0.30, r * 2.0, midX - trackW/2 - r * 3.0);
+  // Player 2 (Bottom-Right Corner): Jump & Drop buttons at far right, Joystick to the left of them
+  const p2CornerPad = isTablet ? clamp(CW * 0.045, 24, 44) : clamp(CW * 0.040, 16, 28);
+  const p2BtnX = CW - p2CornerPad - r * 1.15;
+  const p2DefJoyX = p2BtnX - r * 1.30 - trackW / 2;
   const p2DefJoyY = CH - bm - r * 1.05;
-  const p2BtnX = p2DefJoyX + trackW / 2 + r * 1.25;
   const p2DropY = p2DefJoyY;
   const p2JumpY = p2DropY - r * 2.15;
   const p2SplitY = (p2JumpY + p2DropY) / 2;
