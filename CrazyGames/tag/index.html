@@ -2828,7 +2828,8 @@ function drawMenu(){
       zone(centerX - tw2/2, y - step * 0.45, tw2, step * 0.9, { fn: () => {
         if(i < 4){
           if(!NET.isHost){ toast('HOST CONTROLS MAP & RULES'); sfx('back'); return; }
-          rowEdit(1);
+          if(i === 3) toggleRule();
+          else rowEdit(1);
         } else {
           // Row 4: Start Match
           if(!NET.isHost){ toast('WAITING FOR HOST TO START'); return; }
@@ -2952,6 +2953,11 @@ function drawMenu(){
           return;
         }
         if(i === 0){ cycleSlot(0, 1); }
+        else if(i === 3){
+          menu.mode = 'rows';
+          menu.row = 3;
+          toggleRule();
+        }
         else {
           menu.mode = 'rows';
           menu.row = i;
@@ -2965,8 +2971,14 @@ function drawMenu(){
       const chevSz = Math.min(30, Math.floor(step * 0.85));
       ptxt('‹', CW/2 - chevDist, ry0 + menu.row * step, FT(chevSz), '#ffffff');
       ptxt('›', CW/2 + chevDist, ry0 + menu.row * step, FT(chevSz), '#ffffff');
-      zone(CW/2 - chevDist - 24, ry0 + menu.row * step - step * 0.45, 48, step * 0.9, { fn: () => rowEdit(-1) });
-      zone(CW/2 + chevDist - 24, ry0 + menu.row * step - step * 0.45, 48, step * 0.9, { fn: () => rowEdit(1) });
+      zone(CW/2 - chevDist - 24, ry0 + menu.row * step - step * 0.45, 48, step * 0.9, { fn: () => {
+        if(menu.row === 3) rowEdit(-1);
+        else rowEdit(-1);
+      }});
+      zone(CW/2 + chevDist - 24, ry0 + menu.row * step - step * 0.45, 48, step * 0.9, { fn: () => {
+        if(menu.row === 3) rowEdit(1);
+        else rowEdit(1);
+      }});
     }
   }
 
