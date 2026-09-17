@@ -151,6 +151,13 @@ const JOY = {
   boundsR: null    // { x, y, w, h, cx, cyTop, maxTravel, r }
 };
 
+/* ================= 2-player local mobile gesture zones (1-Thumb) ================= */
+const GESTURE_SPLIT = {
+  showTutorial: false,
+  p1: { id: null, startX: 0, startY: 0, curX: 0, curY: 0, active: false, left: false, right: false, jumpEdge: false, jumpHeld: false, downHeld: false, tapCandidate: false, startT: 0, tapJumpTimer: 0 },
+  p2: { id: null, startX: 0, startY: 0, curX: 0, curY: 0, active: false, left: false, right: false, jumpEdge: false, jumpHeld: false, downHeld: false, tapCandidate: false, startT: 0, tapJumpTimer: 0 }
+};
+
 function applyTouchAction(action, isDown){
   if(action === 'left') TOUCH.left = !!isDown;
   else if(action === 'right') TOUCH.right = !!isDown;
@@ -214,7 +221,77 @@ function zoneAt(x,y,holdOnly){
 }
 function inputDown(x,y,id){
   initAudio();grabFocus();
-  // Check Left horizontal joystick
+  
+  // Tutorial Card dismiss for 2-Player Local Touch
+  if(match && screen === 'game' && GESTURE_SPLIT.showTutorial){
+    GESTURE_SPLIT.showTutorial = false;
+    if(match.state === 'tutorial'){
+      match.state = 'countdown';
+      match.cd = 3;
+      match.cdT = 0;
+      sfx('count');
+    }
+    return;
+  }
+
+  const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
+  const isSplitLocal = (!isOnline && match && screen === 'game' && match.players && match.players.length === 2 && isTouch);
+
+  // Allow HUD top bar buttons (Pause, Mute, Help) to receive clicks
+  if(y <= 55){
+    const z = zoneAt(x,y,false);
+    if(z){
+      touchPts.set(id,z);
+      if(z.hold){keys.add(z.hold);}
+      if(z.press){for(const c of z.press){pressed.add(c);glow[c]=tGlobal;}}
+      if(z.touchAction){applyTouchAction(z.touchAction,true);}
+      if(z.fn)z.fn();
+      return;
+    }
+  }
+
+  // 2-Player Local Shared Screen Touch Gestures (P1 on Left, P2 on Right)
+  if(isSplitLocal){
+    if(x < CW / 2){
+      const p = GESTURE_SPLIT.p1;
+      if(p.active){
+        // Second finger tap while already running -> Instant Jump!
+        p.jumpEdge = true;
+        p.jumpHeld = true;
+        p.tapJumpTimer = 0.12;
+      } else {
+        p.id = id;
+        p.startX = x;
+        p.startY = y;
+        p.curX = x;
+        p.curY = y;
+        p.active = true;
+        p.tapCandidate = true;
+        p.startT = performance.now();
+      }
+      return;
+    } else {
+      const p = GESTURE_SPLIT.p2;
+      if(p.active){
+        // Second finger tap while already running -> Instant Jump!
+        p.jumpEdge = true;
+        p.jumpHeld = true;
+        p.tapJumpTimer = 0.12;
+      } else {
+        p.id = id;
+        p.startX = x;
+        p.startY = y;
+        p.curX = x;
+        p.curY = y;
+        p.active = true;
+        p.tapCandidate = true;
+        p.startT = performance.now();
+      }
+      return;
+    }
+  }
+
+  // Check Left horizontal joystick (Solo / Online)
   if(match && screen === 'game' && isTouch && JOY.boundsL){
     const b = JOY.boundsL;
     if(x >= b.x - 24 && x <= b.x + b.w + 24 && y >= b.y - 24 && y <= b.y + b.h + 24){
@@ -226,7 +303,7 @@ function inputDown(x,y,id){
       return;
     }
   }
-  // Check Right vertical dual jump/drop slider (snaps to top)
+  // Check Right vertical dual jump/drop slider (Solo / Online)
   if(match && screen === 'game' && isTouch && JOY.boundsR){
     const b = JOY.boundsR;
     if(x >= b.x - 24 && x <= b.x + b.w + 24 && y >= b.y - 24 && y <= b.y + b.h + 24){
@@ -249,6 +326,39 @@ function inputDown(x,y,id){
   }
 }
 function inputMove(x,y,id){
+  const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
+  const isSplitLocal = (!isOnline && match && screen === 'game' && match.players && match.players.length === 2 && isTouch);
+  if(isSplitLocal){
+    if(GESTURE_SPLIT.p1.id === id){
+      const p = GESTURE_SPLIT.p1;
+      p.curX = x; p.curY = y;
+      const dx = x - p.startX, dy = y - p.startY;
+      if(Math.abs(dx) > 18 || Math.abs(dy) > 18) p.tapCandidate = false;
+      p.left = (dx < -20);
+      p.right = (dx > 20);
+      p.downHeld = (dy > 28);
+      if(dy < -28 && !p.jumpHeld){
+        p.jumpEdge = true;
+        p.jumpHeld = true;
+      }
+      return;
+    }
+    if(GESTURE_SPLIT.p2.id === id){
+      const p = GESTURE_SPLIT.p2;
+      p.curX = x; p.curY = y;
+      const dx = x - p.startX, dy = y - p.startY;
+      if(Math.abs(dx) > 18 || Math.abs(dy) > 18) p.tapCandidate = false;
+      p.left = (dx < -20);
+      p.right = (dx > 20);
+      p.downHeld = (dy > 28);
+      if(dy < -28 && !p.jumpHeld){
+        p.jumpEdge = true;
+        p.jumpHeld = true;
+      }
+      return;
+    }
+  }
+
   if(JOY.leftId === id && JOY.boundsL){
     const b = JOY.boundsL;
     const off = clamp((x - b.cx) / b.maxTravel, -1, 1);
@@ -282,6 +392,43 @@ function inputMove(x,y,id){
   }
 }
 function inputUp(id){
+  const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
+  const isSplitLocal = (!isOnline && match && screen === 'game' && match.players && match.players.length === 2 && isTouch);
+  if(isSplitLocal){
+    if(GESTURE_SPLIT.p1.id === id){
+      const p = GESTURE_SPLIT.p1;
+      const dur = performance.now() - p.startT;
+      const dist = Math.hypot(p.curX - p.startX, p.curY - p.startY);
+      if(p.tapCandidate && dur < 320 && dist < 28){
+        p.jumpEdge = true;
+        p.jumpHeld = true;
+        p.tapJumpTimer = 0.12;
+      }
+      p.id = null;
+      p.active = false;
+      p.left = false;
+      p.right = false;
+      p.downHeld = false;
+      p.jumpHeld = false;
+    }
+    if(GESTURE_SPLIT.p2.id === id){
+      const p = GESTURE_SPLIT.p2;
+      const dur = performance.now() - p.startT;
+      const dist = Math.hypot(p.curX - p.startX, p.curY - p.startY);
+      if(p.tapCandidate && dur < 320 && dist < 28){
+        p.jumpEdge = true;
+        p.jumpHeld = true;
+        p.tapJumpTimer = 0.12;
+      }
+      p.id = null;
+      p.active = false;
+      p.left = false;
+      p.right = false;
+      p.downHeld = false;
+      p.jumpHeld = false;
+    }
+  }
+
   if(JOY.leftId === id){
     JOY.leftId = null;
     JOY.leftX = 0; // Snaps back to center!
@@ -904,13 +1051,18 @@ function startMatch(){
   buildLevel();
   const players=act.map((slot,i)=>makePlayer(i,slot,menu.slotColor[slot]));
   const itTeam = settings.teams ? players[it].team : null;
-  match={state:'countdown',cd:3,cdT:0,timer:settings.time,lastTick:settings.time,it:it,itTeam:itTeam,
+  const isOnlineMatch = (typeof NET !== 'undefined' && NET && NET.role !== null);
+  const isSplitLocalTouch = (isTouch && !isOnlineMatch && act.length === 2);
+  const initState = isSplitLocalTouch ? 'tutorial' : 'countdown';
+  if(isSplitLocalTouch) GESTURE_SPLIT.showTutorial = true;
+  else GESTURE_SPLIT.showTutorial = false;
+  match={state:initState,cd:3,cdT:0,timer:settings.time,lastTick:settings.time,it:it,itTeam:itTeam,
     teamItTime:[0,0,0,0],cooldown:0,
     goFlash:0,freeze:0,shake:0,flash:0,fade:0.6,tagPop:null,resultT:0,
     tags:players.map(()=>0),hintT:7,players:players,result:null,pausedFrom:null,pauseSel:0,
     mapToast:MAPS[settings.map].name,mapToastT:2.5};
   screen='game';
-  sfx('count');
+  if(!isSplitLocalTouch) sfx('count');
 
   // Broadcast to all connected netplay guests
   if(typeof NET!=='undefined' && NET && NET.role!==null && NET.isHost && NET.conns.size>0){
@@ -923,6 +1075,7 @@ function quitToMenu(){
   if(typeof NET!=='undefined' && NET && NET.role!==null && NET.isHost){
     netBroadcastReliable({t:'to_menu'});
   }
+  GESTURE_SPLIT.showTutorial = false;
   match=null;screen='menu';sfx('back');
 }
 
@@ -1043,6 +1196,17 @@ function inputFor(p){
     if(TOUCH.jumpEdge) jumpEdge = true;
     if(TOUCH.jumpHeld) jumpHeld = true;
     if(TOUCH.downHeld) downHeld = true;
+  }
+  const isOnlineMatch = (typeof NET !== 'undefined' && NET && NET.role !== null);
+  if(isTouch && !isOnlineMatch && match && match.players && match.players.length === 2){
+    const gP = (p.slot === match.players[0].slot) ? GESTURE_SPLIT.p1 : ((p.slot === match.players[1].slot) ? GESTURE_SPLIT.p2 : null);
+    if(gP){
+      if(gP.left) dir = -1;
+      if(gP.right) dir = 1;
+      if(gP.jumpEdge) jumpEdge = true;
+      if(gP.jumpHeld) jumpHeld = true;
+      if(gP.downHeld) downHeld = true;
+    }
   }
   return {dir:clamp(dir,-1,1),jumpEdge:!!jumpEdge,jumpHeld:!!jumpHeld,downHeld:!!downHeld};
 }
@@ -1574,6 +1738,28 @@ function updateGame(dt){
     }
     updateParts(dt);updateCam(dt);match.shake*=Math.exp(-dt*7);match.flash=Math.max(0,match.flash-dt);
     return;
+  }
+  if(match.state==='tutorial'){
+    updateParts(dt);updateCam(dt);
+    return;
+  }
+  if(GESTURE_SPLIT.p1.tapJumpTimer > 0){
+    GESTURE_SPLIT.p1.tapJumpTimer -= dt;
+    if(GESTURE_SPLIT.p1.tapJumpTimer <= 0){
+      GESTURE_SPLIT.p1.jumpEdge = false;
+      GESTURE_SPLIT.p1.jumpHeld = false;
+    }
+  } else {
+    GESTURE_SPLIT.p1.jumpEdge = false;
+  }
+  if(GESTURE_SPLIT.p2.tapJumpTimer > 0){
+    GESTURE_SPLIT.p2.tapJumpTimer -= dt;
+    if(GESTURE_SPLIT.p2.tapJumpTimer <= 0){
+      GESTURE_SPLIT.p2.jumpEdge = false;
+      GESTURE_SPLIT.p2.jumpHeld = false;
+    }
+  } else {
+    GESTURE_SPLIT.p2.jumpEdge = false;
   }
   if(match.freeze>0){match.freeze-=dt;return;}
   match.fade=Math.max(0,match.fade-dt);
@@ -2834,29 +3020,210 @@ function drawTouchButtons(){
 
     g.restore();
   } else {
-    /* ================= 2-PLAYER SPLIT LOCAL (ON 1 TABLET/PHONE) ================= */
-    const r=clamp(Math.min((CW-100)/14,CH*0.065),20,40);
-    const bw=r*2,gap=8;
-    const bm=clamp(CH*0.07,28,50); // safe margin above bottom bezel
-    const y1=CH-bm-r,y0=y1-bw-gap;
-    
-    ptxt('P1',14+1.5*bw+gap,y0-r-12,FN(12,900),'rgba(255,255,255,0.9)');
-    ptxt('P2',CW-14-1.5*bw-gap,y0-r-12,FN(12,900),'rgba(255,255,255,0.9)');
-    
-    // P1 cluster (WASD)
-    const xL=14+r,xD=14+bw+gap+r,xR=14+2*(bw+gap)+r;
-    drawPadBtn(xL,y1,r,0,{hold:'KeyA',pk:'KeyA'});
-    drawPadBtn(xD,y1,r,3,{hold:'KeyS',pk:'KeyS'});
-    drawPadBtn(xR,y1,r,1,{hold:'KeyD',pk:'KeyD'});
-    drawPadBtn(xD,y0,r,2,{press:['KeyW'],pk:'KeyW'});
-    
-    // P2 cluster (Arrows)
-    const xL2=CW-14-2*(bw+gap)-r,xD2=CW-14-bw-gap-r,xR2=CW-14-r;
-    drawPadBtn(xL2,y1,r,0,{hold:'ArrowLeft',pk:'ArrowLeft'});
-    drawPadBtn(xD2,y1,r,3,{hold:'ArrowDown',pk:'ArrowDown'});
-    drawPadBtn(xR2,y1,r,1,{hold:'ArrowRight',pk:'ArrowRight'});
-    drawPadBtn(xD2,y0,r,2,{press:['ArrowUp'],pk:'ArrowUp'});
+    /* ================= 2-PLAYER SPLIT LOCAL (1-THUMB GESTURE ZONES) ================= */
+    const colP1 = (match.players[0] && PALETTE[match.players[0].colIdx]) ? PALETTE[match.players[0].colIdx].c : '#e8433f';
+    const colP2 = (match.players[1] && PALETTE[match.players[1].colIdx]) ? PALETTE[match.players[1].colIdx].c : '#2f9be8';
+
+    g.save();
+    // 1. Subtle Center Dashed Midline
+    g.setLineDash([6, 8]);
+    g.lineWidth = 1.5;
+    g.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+    g.beginPath();
+    g.moveTo(CW / 2, 52);
+    g.lineTo(CW / 2, CH - 14);
+    g.stroke();
+    g.setLineDash([]);
+
+    // 2. Ambient Watermarks in corners
+    const isNarrow = (CW < 600);
+    ptxt('P1 ZONE', Math.max(34, CW * 0.08), CH - 22, FN(isNarrow ? 11 : 13, 900), rgba(colP1, 0.55));
+    ptxt(isNarrow ? '◀ SWIPE / TAP ▶' : '◀ SWIPE TO RUN • TAP TO JUMP • SWIPE ▼ TO DROP ▶', CW * 0.25, CH - 22, FN(isNarrow ? 9 : 10, 800), 'rgba(255, 255, 255, 0.22)');
+
+    ptxt('P2 ZONE', CW - Math.max(34, CW * 0.08), CH - 22, FN(isNarrow ? 11 : 13, 900), rgba(colP2, 0.55));
+    ptxt(isNarrow ? '◀ SWIPE / TAP ▶' : '◀ SWIPE TO RUN • TAP TO JUMP • SWIPE ▼ TO DROP ▶', CW * 0.75, CH - 22, FN(isNarrow ? 9 : 10, 800), 'rgba(255, 255, 255, 0.22)');
+
+    // 3. Dynamic Gesture Rings Under Active Fingers
+    // Player 1 Thumb
+    if(GESTURE_SPLIT.p1.active){
+      const p = GESTURE_SPLIT.p1;
+      // Anchor ring
+      g.beginPath();
+      g.arc(p.startX, p.startY, 28, 0, TAU);
+      g.fillStyle = rgba(colP1, 0.12);
+      g.fill();
+      g.lineWidth = 2;
+      g.strokeStyle = rgba(colP1, 0.45);
+      g.stroke();
+
+      // Connecting guideline
+      g.beginPath();
+      g.moveTo(p.startX, p.startY);
+      g.lineTo(p.curX, p.curY);
+      g.lineWidth = 2;
+      g.strokeStyle = rgba(colP1, 0.35);
+      g.stroke();
+
+      // Floating knob
+      const knobActive = (p.left || p.right || p.downHeld || p.jumpHeld);
+      g.beginPath();
+      g.arc(p.curX, p.curY, 22, 0, TAU);
+      g.fillStyle = knobActive ? rgba(colP1, 0.55) : 'rgba(255,255,255,0.25)';
+      g.fill();
+      g.lineWidth = 2.5;
+      g.strokeStyle = knobActive ? '#ffffff' : rgba(colP1, 0.75);
+      g.stroke();
+
+      // Direction icon inside knob
+      const icon = p.downHeld ? '▼' : (p.jumpHeld ? '▲' : (p.left ? '◀' : (p.right ? '▶' : '•')));
+      ptxt(icon, p.curX, p.curY + 1, FN(13, 900), '#ffffff');
+    }
+
+    // Player 2 Thumb
+    if(GESTURE_SPLIT.p2.active){
+      const p = GESTURE_SPLIT.p2;
+      // Anchor ring
+      g.beginPath();
+      g.arc(p.startX, p.startY, 28, 0, TAU);
+      g.fillStyle = rgba(colP2, 0.12);
+      g.fill();
+      g.lineWidth = 2;
+      g.strokeStyle = rgba(colP2, 0.45);
+      g.stroke();
+
+      // Connecting guideline
+      g.beginPath();
+      g.moveTo(p.startX, p.startY);
+      g.lineTo(p.curX, p.curY);
+      g.lineWidth = 2;
+      g.strokeStyle = rgba(colP2, 0.35);
+      g.stroke();
+
+      // Floating knob
+      const knobActive = (p.left || p.right || p.downHeld || p.jumpHeld);
+      g.beginPath();
+      g.arc(p.curX, p.curY, 22, 0, TAU);
+      g.fillStyle = knobActive ? rgba(colP2, 0.55) : 'rgba(255,255,255,0.25)';
+      g.fill();
+      g.lineWidth = 2.5;
+      g.strokeStyle = knobActive ? '#ffffff' : rgba(colP2, 0.75);
+      g.stroke();
+
+      // Direction icon inside knob
+      const icon = p.downHeld ? '▼' : (p.jumpHeld ? '▲' : (p.left ? '◀' : (p.right ? '▶' : '•')));
+      ptxt(icon, p.curX, p.curY + 1, FN(13, 900), '#ffffff');
+    }
+    g.restore();
   }
+
+  // ================= 4. PRE-MATCH TUTORIAL THUMBNAIL CARD =================
+  if(GESTURE_SPLIT.showTutorial && match){
+    drawLocalTutorialCard();
+  }
+}
+
+function drawLocalTutorialCard(){
+  g.save();
+  // Semi-transparent backdrop
+  g.fillStyle = 'rgba(7, 11, 20, 0.88)';
+  g.fillRect(0, 0, CW, CH);
+
+  const cardW = Math.min(CW * 0.92, 560);
+  const cardH = Math.min(CH * 0.84, 370);
+  const cardX = CW / 2 - cardW / 2;
+  const cardY = CH / 2 - cardH / 2;
+
+  // Outer shadow & card body
+  rr(g, cardX, cardY, cardW, cardH, 18);
+  g.fillStyle = '#131b2b';
+  g.fill();
+  g.lineWidth = 2.5;
+  g.strokeStyle = '#2ecc71';
+  g.stroke();
+
+  // Header pill
+  const pw = Math.min(cardW * 0.85, 360), ph = 34;
+  rr(g, CW / 2 - pw / 2, cardY + 16, pw, ph, 17);
+  g.fillStyle = '#1e2b42';
+  g.fill();
+  g.lineWidth = 1.8;
+  g.strokeStyle = '#2ecc71';
+  g.stroke();
+  ptxt('📱 2-PLAYER TOUCH CONTROLS', CW / 2, cardY + 16 + ph / 2 + 1, FN(14, 900), '#ffffff');
+
+  // Subtitle
+  ptxt('1-Thumb Gesture Zones • Zero Buttons Blocking Arena', CW / 2, cardY + 66, FN(11, 700), '#94a3b8');
+
+  // Two columns: Left (P1) and Right (P2)
+  const colW = (cardW - 36) / 2;
+  const colH = cardH - 165;
+  const colY = cardY + 86;
+  const col1X = cardX + 14;
+  const col2X = cardX + cardW / 2 + 4;
+
+  const colP1 = (match.players[0] && PALETTE[match.players[0].colIdx]) ? PALETTE[match.players[0].colIdx].c : '#e8433f';
+  const colP2 = (match.players[1] && PALETTE[match.players[1].colIdx]) ? PALETTE[match.players[1].colIdx].c : '#2f9be8';
+
+  // --- Column 1: Player 1 (Left Half) ---
+  rr(g, col1X, colY, colW, colH, 12);
+  g.fillStyle = 'rgba(255, 255, 255, 0.04)';
+  g.fill();
+  g.lineWidth = 1.5;
+  g.strokeStyle = rgba(colP1, 0.55);
+  g.stroke();
+
+  // P1 Header badge
+  rr(g, col1X + 10, colY + 10, colW - 20, 26, 8);
+  g.fillStyle = rgba(colP1, 0.25);
+  g.fill();
+  g.lineWidth = 1.2;
+  g.strokeStyle = colP1;
+  g.stroke();
+  ptxt('P1 (LEFT HALF OF SCREEN)', col1X + colW / 2, colY + 23, FN(11, 900), '#ffffff');
+
+  // P1 Gesture instructions
+  const isMini = (colH < 130);
+  const rowH = isMini ? 25 : 30;
+  const rowY0 = colY + 48;
+  ptxt('◀ 👆 ▶  SWIPE L / R TO RUN', col1X + colW / 2, rowY0, FN(isMini ? 10 : 11.5, 800), '#e2e8f0');
+  ptxt('▲ 👆  TAP ANYWHERE TO JUMP', col1X + colW / 2, rowY0 + rowH, FN(isMini ? 10 : 11.5, 800), '#2ecc71');
+  ptxt('▼ 👆  SWIPE DOWN TO DROP', col1X + colW / 2, rowY0 + rowH * 2, FN(isMini ? 10 : 11.5, 800), '#f472b6');
+
+  // --- Column 2: Player 2 (Right Half) ---
+  rr(g, col2X, colY, colW, colH, 12);
+  g.fillStyle = 'rgba(255, 255, 255, 0.04)';
+  g.fill();
+  g.lineWidth = 1.5;
+  g.strokeStyle = rgba(colP2, 0.55);
+  g.stroke();
+
+  // P2 Header badge
+  rr(g, col2X + 10, colY + 10, colW - 20, 26, 8);
+  g.fillStyle = rgba(colP2, 0.25);
+  g.fill();
+  g.lineWidth = 1.2;
+  g.strokeStyle = colP2;
+  g.stroke();
+  ptxt('P2 (RIGHT HALF OF SCREEN)', col2X + colW / 2, colY + 23, FN(11, 900), '#ffffff');
+
+  // P2 Gesture instructions
+  ptxt('◀ 👆 ▶  SWIPE L / R TO RUN', col2X + colW / 2, rowY0, FN(isMini ? 10 : 11.5, 800), '#e2e8f0');
+  ptxt('▲ 👆  TAP ANYWHERE TO JUMP', col2X + colW / 2, rowY0 + rowH, FN(isMini ? 10 : 11.5, 800), '#2ecc71');
+  ptxt('▼ 👆  SWIPE DOWN TO DROP', col2X + colW / 2, rowY0 + rowH * 2, FN(isMini ? 10 : 11.5, 800), '#f472b6');
+
+  // Glowing Start Button at bottom
+  const btnW = Math.min(cardW * 0.72, 280), btnH = 40;
+  const btnX = CW / 2 - btnW / 2, btnY = cardY + cardH - btnH - 14;
+  const pulse = 0.85 + Math.sin(tGlobal * 5) * 0.15;
+  rr(g, btnX, btnY, btnW, btnH, 10);
+  g.fillStyle = 'rgba(46, 204, 113, ' + pulse + ')';
+  g.fill();
+  g.lineWidth = 2.5;
+  g.strokeStyle = '#ffffff';
+  g.stroke();
+  ptxt('▶ TAP ANYWHERE TO PLAY', CW / 2, btnY + btnH / 2 + 1, FN(13.5, 900), '#ffffff');
+
+  g.restore();
 }
 
 function drawHUD(){
@@ -2948,7 +3315,7 @@ function drawHUD(){
   ptxt('▶',xNext+btnSize/2+1,10+btnSize/2+1,FT(14),'#1c6b38');
   zone(xNext,10,btnSize,btnSize,{fn:()=>selectMapQuick(settings.map+1)});
 
-  // Proximity Voice Chat button (online)
+  // Proximity Voice Chat button (online) or Help/Tutorial button (2-player local touch)
   if(typeof NET!=='undefined' && NET && NET.role!==null){
     rr(g,xVoice,10,btnSize,btnSize,9);
     const vOn = (typeof VOICE!=='undefined' && VOICE.enabled);
@@ -2958,6 +3325,13 @@ function drawHUD(){
     g.lineWidth=2.5; g.strokeStyle=INK; g.stroke();
     ptxt(vOn ? (vMuted ? '🔇' : '🎙️') : '🎙️', xVoice+btnSize/2, 10+btnSize/2+1, FN(15,900), vOn?'#ffffff':'#1e293b');
     zone(xVoice,10,btnSize,btnSize,{fn:voiceToggleMic});
+  } else if(isTouch && match.players && match.players.length === 2){
+    rr(g,xVoice,10,btnSize,btnSize,9);
+    g.fillStyle = 'rgba(255,255,255,0.92)';
+    g.fill();
+    g.lineWidth=2.5; g.strokeStyle=INK; g.stroke();
+    ptxt('?', xVoice+btnSize/2, 10+btnSize/2+1, FT(18), '#1e293b');
+    zone(xVoice,10,btnSize,btnSize,{fn:()=>{ GESTURE_SPLIT.showTutorial = true; sfx('ui'); }});
   }
   
   if(match.state==='countdown')drawBigCount(match.cd,'GET READY!');
