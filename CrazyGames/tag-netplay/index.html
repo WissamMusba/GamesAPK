@@ -173,6 +173,9 @@ function calcLocalBounds(){
   const p1BtnX = midX - r * 1.5 - 8;
   const p1DropY = CH - bm - r;
   const p1JumpY = p1DropY - r * 2.3;
+  const p1SplitY = (p1JumpY + p1DropY) / 2;
+  const p1BtnMinX = p1BtnX - r * 1.6;
+  const p1BtnMinY = p1JumpY - r * 1.8;
   const p1DefJoyX = clamp(midX * 0.36, r * 1.8, midX - r * 4.5);
   const p1DefJoyY = CH - bm - r * 1.05;
 
@@ -180,13 +183,16 @@ function calcLocalBounds(){
   const p2BtnX = CW - r * 1.5 - 8;
   const p2DropY = CH - bm - r;
   const p2JumpY = p2DropY - r * 2.3;
+  const p2SplitY = (p2JumpY + p2DropY) / 2;
+  const p2BtnMinX = p2BtnX - r * 1.6;
+  const p2BtnMinY = p2JumpY - r * 1.8;
   const p2DefJoyX = midX + clamp(midX * 0.36, r * 1.8, midX - r * 4.5);
   const p2DefJoyY = CH - bm - r * 1.05;
 
   return {
     midX, r, bm, maxTravel, trackW, trackH,
-    p1: { btnX: p1BtnX, jumpY: p1JumpY, dropY: p1DropY, defJoyX: p1DefJoyX, defJoyY: p1DefJoyY },
-    p2: { btnX: p2BtnX, jumpY: p2JumpY, dropY: p2DropY, defJoyX: p2DefJoyX, defJoyY: p2DefJoyY }
+    p1: { btnX: p1BtnX, jumpY: p1JumpY, dropY: p1DropY, splitY: p1SplitY, btnMinX: p1BtnMinX, btnMinY: p1BtnMinY, defJoyX: p1DefJoyX, defJoyY: p1DefJoyY },
+    p2: { btnX: p2BtnX, jumpY: p2JumpY, dropY: p2DropY, splitY: p2SplitY, btnMinX: p2BtnMinX, btnMinY: p2BtnMinY, defJoyX: p2DefJoyX, defJoyY: p2DefJoyY }
   };
 }
 
@@ -285,29 +291,32 @@ function inputDown(x,y,id){
   // 2-Player Local Shared Screen Touch Controls (Fixed Jump/Drop + Floating Side-to-Side Joystick)
   if(isSplitLocal){
     const b = calcLocalBounds();
-    const hitR = b.r * 1.35;
 
     if(x < b.midX){
       // --- Player 1 (Left Half) ---
       const p = LOCAL_TOUCH.p1;
-      // Fixed Jump Button (Top)
-      if(Math.hypot(x - b.p1.btnX, y - b.p1.jumpY) <= hitR){
-        p.jumpId = id;
-        p.jumpEdge = true;
-        p.jumpHeld = true;
+      // Check if touch lands in P1's fixed button zone (right side of P1's half)
+      if(x >= b.p1.btnMinX && y >= b.p1.btnMinY){
+        if(y < b.p1.splitY){
+          // P1 JUMP BUTTON
+          p.jumpId = id;
+          p.jumpEdge = true;
+          p.jumpHeld = true;
+          p.downHeld = false;
+          const myP = match.players[0];
+          if(myP) myP.jbuf = 0.16;
+        } else {
+          // P1 DROP BUTTON
+          p.dropId = id;
+          p.downHeld = true;
+          p.jumpEdge = false;
+          p.jumpHeld = false;
+          const myP = match.players[0];
+          if(myP && myP.jbuf > 0) myP.jbuf = 0;
+        }
         return;
       }
-      // Fixed Drop Button (Bottom)
-      if(Math.hypot(x - b.p1.btnX, y - b.p1.dropY) <= hitR){
-        p.dropId = id;
-        p.downHeld = true;
-        p.jumpEdge = false;
-        p.jumpHeld = false;
-        const myP = match.players[0];
-        if(myP && myP.jbuf > 0) myP.jbuf = 0;
-        return;
-      }
-      // Floating Side-to-Side Joystick anywhere in P1 half!
+      // Floating Side-to-Side Joystick anywhere else in P1 half!
       p.joyId = id;
       p.startX = x;
       p.startY = y;
@@ -321,24 +330,28 @@ function inputDown(x,y,id){
     } else {
       // --- Player 2 (Right Half) ---
       const p = LOCAL_TOUCH.p2;
-      // Fixed Jump Button (Top)
-      if(Math.hypot(x - b.p2.btnX, y - b.p2.jumpY) <= hitR){
-        p.jumpId = id;
-        p.jumpEdge = true;
-        p.jumpHeld = true;
+      // Check if touch lands in P2's fixed button zone (right side of P2's half)
+      if(x >= b.p2.btnMinX && y >= b.p2.btnMinY){
+        if(y < b.p2.splitY){
+          // P2 JUMP BUTTON
+          p.jumpId = id;
+          p.jumpEdge = true;
+          p.jumpHeld = true;
+          p.downHeld = false;
+          const myP = match.players[1];
+          if(myP) myP.jbuf = 0.16;
+        } else {
+          // P2 DROP BUTTON
+          p.dropId = id;
+          p.downHeld = true;
+          p.jumpEdge = false;
+          p.jumpHeld = false;
+          const myP = match.players[1];
+          if(myP && myP.jbuf > 0) myP.jbuf = 0;
+        }
         return;
       }
-      // Fixed Drop Button (Bottom)
-      if(Math.hypot(x - b.p2.btnX, y - b.p2.dropY) <= hitR){
-        p.dropId = id;
-        p.downHeld = true;
-        p.jumpEdge = false;
-        p.jumpHeld = false;
-        const myP = match.players[1];
-        if(myP && myP.jbuf > 0) myP.jbuf = 0;
-        return;
-      }
-      // Floating Side-to-Side Joystick anywhere in P2 half!
+      // Floating Side-to-Side Joystick anywhere else in P2 half!
       p.joyId = id;
       p.startX = x;
       p.startY = y;
@@ -425,19 +438,19 @@ function inputMove(x,y,id){
     }
     // Retain button hold as long as finger is reasonably close
     if(LOCAL_TOUCH.p1.jumpId === id){
-      LOCAL_TOUCH.p1.jumpHeld = (Math.hypot(x - b.p1.btnX, y - b.p1.jumpY) < b.r * 2.5);
+      LOCAL_TOUCH.p1.jumpHeld = (Math.hypot(x - b.p1.btnX, y - b.p1.jumpY) < b.r * 3.0 || (x >= b.p1.btnMinX - 30 && y < b.p1.splitY + 20));
       return;
     }
     if(LOCAL_TOUCH.p1.dropId === id){
-      LOCAL_TOUCH.p1.downHeld = (Math.hypot(x - b.p1.btnX, y - b.p1.dropY) < b.r * 2.5);
+      LOCAL_TOUCH.p1.downHeld = (Math.hypot(x - b.p1.btnX, y - b.p1.dropY) < b.r * 3.0 || (x >= b.p1.btnMinX - 30 && y >= b.p1.splitY - 20));
       return;
     }
     if(LOCAL_TOUCH.p2.jumpId === id){
-      LOCAL_TOUCH.p2.jumpHeld = (Math.hypot(x - b.p2.btnX, y - b.p2.jumpY) < b.r * 2.5);
+      LOCAL_TOUCH.p2.jumpHeld = (Math.hypot(x - b.p2.btnX, y - b.p2.jumpY) < b.r * 3.0 || (x >= b.p2.btnMinX - 30 && y < b.p2.splitY + 20));
       return;
     }
     if(LOCAL_TOUCH.p2.dropId === id){
-      LOCAL_TOUCH.p2.downHeld = (Math.hypot(x - b.p2.btnX, y - b.p2.dropY) < b.r * 2.5);
+      LOCAL_TOUCH.p2.downHeld = (Math.hypot(x - b.p2.btnX, y - b.p2.dropY) < b.r * 3.0 || (x >= b.p2.btnMinX - 30 && y >= b.p2.splitY - 20));
       return;
     }
     return;
@@ -1293,20 +1306,21 @@ function inputFor(p){
     dir+=(pd.right?1:0)-(pd.left?1:0);
     jumpEdge=jumpEdge||pd.jumpE;jumpHeld=jumpHeld||pd.jumpHeld;downHeld=downHeld||pd.dropHeld;
   }
-  if(p.slot === (typeof NET !== 'undefined' && NET && NET.mySlot >= 0 ? NET.mySlot : 0)){
+  const isOnlineMatch = (typeof NET !== 'undefined' && NET && NET.role !== null);
+  const isSplitLocal = (isTouch && !isOnlineMatch && match && match.players && match.players.length === 2);
+  if(!isSplitLocal && p.slot === (typeof NET !== 'undefined' && NET && NET.mySlot >= 0 ? NET.mySlot : 0)){
     if(TOUCH.left) dir = -1;
     if(TOUCH.right) dir = 1;
     if(TOUCH.jumpEdge) jumpEdge = true;
     if(TOUCH.jumpHeld) jumpHeld = true;
     if(TOUCH.downHeld) downHeld = true;
   }
-  const isOnlineMatch = (typeof NET !== 'undefined' && NET && NET.role !== null);
-  if(isTouch && !isOnlineMatch && match && match.players && match.players.length === 2){
-    const gP = (p.slot === match.players[0].slot) ? GESTURE_SPLIT.p1 : ((p.slot === match.players[1].slot) ? GESTURE_SPLIT.p2 : null);
+  if(isSplitLocal){
+    const gP = (p.slot === match.players[0].slot) ? LOCAL_TOUCH.p1 : ((p.slot === match.players[1].slot) ? LOCAL_TOUCH.p2 : null);
     if(gP){
       if(gP.left) dir = -1;
       if(gP.right) dir = 1;
-      if(gP.jumpEdge) jumpEdge = true;
+      if(gP.jumpEdge){ jumpEdge = true; gP.jumpEdge = false; }
       if(gP.jumpHeld) jumpHeld = true;
       if(gP.downHeld) downHeld = true;
     }
@@ -1847,8 +1861,7 @@ function updateGame(dt){
     updateParts(dt);updateCam(dt);
     return;
   }
-  LOCAL_TOUCH.p1.jumpEdge = false;
-  LOCAL_TOUCH.p2.jumpEdge = false;
+
   if(match.freeze>0){match.freeze-=dt;return;}
   match.fade=Math.max(0,match.fade-dt);
   match.mapToastT=Math.max(0,match.mapToastT-dt);
