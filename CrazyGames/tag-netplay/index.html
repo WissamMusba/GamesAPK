@@ -152,12 +152,43 @@ const JOY = {
   boundsR: null    // { x, y, w, h, cx, cyTop, maxTravel, r }
 };
 
-/* ================= 2-player local mobile gesture zones (1-Thumb) ================= */
-const GESTURE_SPLIT = {
+/* ================= 2-player local mobile controls (Ergonomic Joysticks + Fixed Buttons) ================= */
+const LOCAL_TOUCH = {
   showTutorial: false,
-  p1: { id: null, startX: 0, startY: 0, curX: 0, curY: 0, active: false, left: false, right: false, jumpEdge: false, jumpHeld: false, downHeld: false, tapCandidate: false, startT: 0, tapJumpTimer: 0 },
-  p2: { id: null, startX: 0, startY: 0, curX: 0, curY: 0, active: false, left: false, right: false, jumpEdge: false, jumpHeld: false, downHeld: false, tapCandidate: false, startT: 0, tapJumpTimer: 0 }
+  p1: { joyId: null, startX: 0, startY: 0, curX: 0, curY: 0, active: false, offX: 0, visOffX: 0, left: false, right: false, jumpId: null, jumpHeld: false, jumpEdge: false, dropId: null, downHeld: false },
+  p2: { joyId: null, startX: 0, startY: 0, curX: 0, curY: 0, active: false, offX: 0, visOffX: 0, left: false, right: false, jumpId: null, jumpHeld: false, jumpEdge: false, dropId: null, downHeld: false }
 };
+const GESTURE_SPLIT = LOCAL_TOUCH; // Backward compatibility alias
+
+function calcLocalBounds(){
+  const midX = CW / 2;
+  const isTablet = (Math.min(CW, CH) >= 500);
+  const r = isTablet ? clamp(CH * 0.065, 24, 32) : clamp(CH * 0.080, 22, 28);
+  const bm = isTablet ? clamp(CH * 0.07, 24, 42) : clamp(CH * 0.06, 16, 26);
+  const maxTravel = r * 1.45;
+  const trackW = r * 3.4;
+  const trackH = r * 2.0;
+
+  // Player 1 Buttons (fixed on right side of P1 half, near midX)
+  const p1BtnX = midX - r * 1.5 - 8;
+  const p1DropY = CH - bm - r;
+  const p1JumpY = p1DropY - r * 2.3;
+  const p1DefJoyX = clamp(midX * 0.36, r * 1.8, midX - r * 4.5);
+  const p1DefJoyY = CH - bm - r * 1.05;
+
+  // Player 2 Buttons (fixed on right side of P2 half, near CW)
+  const p2BtnX = CW - r * 1.5 - 8;
+  const p2DropY = CH - bm - r;
+  const p2JumpY = p2DropY - r * 2.3;
+  const p2DefJoyX = midX + clamp(midX * 0.36, r * 1.8, midX - r * 4.5);
+  const p2DefJoyY = CH - bm - r * 1.05;
+
+  return {
+    midX, r, bm, maxTravel, trackW, trackH,
+    p1: { btnX: p1BtnX, jumpY: p1JumpY, dropY: p1DropY, defJoyX: p1DefJoyX, defJoyY: p1DefJoyY },
+    p2: { btnX: p2BtnX, jumpY: p2JumpY, dropY: p2DropY, defJoyX: p2DefJoyX, defJoyY: p2DefJoyY }
+  };
+}
 
 function applyTouchAction(action, isDown){
   if(action === 'left') TOUCH.left = !!isDown;
@@ -251,43 +282,72 @@ function inputDown(x,y,id){
     }
   }
 
-  // 2-Player Local Shared Screen Touch Gestures (P1 on Left, P2 on Right)
+  // 2-Player Local Shared Screen Touch Controls (Fixed Jump/Drop + Floating Side-to-Side Joystick)
   if(isSplitLocal){
-    if(x < CW / 2){
-      const p = GESTURE_SPLIT.p1;
-      if(p.active){
-        // Second finger tap while already running -> Instant Jump!
+    const b = calcLocalBounds();
+    const hitR = b.r * 1.35;
+
+    if(x < b.midX){
+      // --- Player 1 (Left Half) ---
+      const p = LOCAL_TOUCH.p1;
+      // Fixed Jump Button (Top)
+      if(Math.hypot(x - b.p1.btnX, y - b.p1.jumpY) <= hitR){
+        p.jumpId = id;
         p.jumpEdge = true;
         p.jumpHeld = true;
-        p.tapJumpTimer = 0.12;
-      } else {
-        p.id = id;
-        p.startX = x;
-        p.startY = y;
-        p.curX = x;
-        p.curY = y;
-        p.active = true;
-        p.tapCandidate = true;
-        p.startT = performance.now();
+        return;
       }
+      // Fixed Drop Button (Bottom)
+      if(Math.hypot(x - b.p1.btnX, y - b.p1.dropY) <= hitR){
+        p.dropId = id;
+        p.downHeld = true;
+        p.jumpEdge = false;
+        p.jumpHeld = false;
+        const myP = match.players[0];
+        if(myP && myP.jbuf > 0) myP.jbuf = 0;
+        return;
+      }
+      // Floating Side-to-Side Joystick anywhere in P1 half!
+      p.joyId = id;
+      p.startX = x;
+      p.startY = y;
+      p.curX = x;
+      p.curY = y;
+      p.active = true;
+      p.offX = 0;
+      p.left = false;
+      p.right = false;
       return;
     } else {
-      const p = GESTURE_SPLIT.p2;
-      if(p.active){
-        // Second finger tap while already running -> Instant Jump!
+      // --- Player 2 (Right Half) ---
+      const p = LOCAL_TOUCH.p2;
+      // Fixed Jump Button (Top)
+      if(Math.hypot(x - b.p2.btnX, y - b.p2.jumpY) <= hitR){
+        p.jumpId = id;
         p.jumpEdge = true;
         p.jumpHeld = true;
-        p.tapJumpTimer = 0.12;
-      } else {
-        p.id = id;
-        p.startX = x;
-        p.startY = y;
-        p.curX = x;
-        p.curY = y;
-        p.active = true;
-        p.tapCandidate = true;
-        p.startT = performance.now();
+        return;
       }
+      // Fixed Drop Button (Bottom)
+      if(Math.hypot(x - b.p2.btnX, y - b.p2.dropY) <= hitR){
+        p.dropId = id;
+        p.downHeld = true;
+        p.jumpEdge = false;
+        p.jumpHeld = false;
+        const myP = match.players[1];
+        if(myP && myP.jbuf > 0) myP.jbuf = 0;
+        return;
+      }
+      // Floating Side-to-Side Joystick anywhere in P2 half!
+      p.joyId = id;
+      p.startX = x;
+      p.startY = y;
+      p.curX = x;
+      p.curY = y;
+      p.active = true;
+      p.offX = 0;
+      p.left = false;
+      p.right = false;
       return;
     }
   }
@@ -342,34 +402,45 @@ function inputMove(x,y,id){
   const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
   const isSplitLocal = (!isOnline && match && screen === 'game' && match.players && match.players.length === 2 && isTouch);
   if(isSplitLocal){
-    if(GESTURE_SPLIT.p1.id === id){
-      const p = GESTURE_SPLIT.p1;
+    const b = calcLocalBounds();
+    // P1 Joystick
+    if(LOCAL_TOUCH.p1.joyId === id){
+      const p = LOCAL_TOUCH.p1;
       p.curX = x; p.curY = y;
-      const dx = x - p.startX, dy = y - p.startY;
-      if(Math.abs(dx) > 18 || Math.abs(dy) > 18) p.tapCandidate = false;
-      p.left = (dx < -20);
-      p.right = (dx > 20);
-      p.downHeld = (dy > 28);
-      if(dy < -28 && !p.jumpHeld){
-        p.jumpEdge = true;
-        p.jumpHeld = true;
-      }
+      const dx = x - p.startX;
+      p.offX = clamp(dx / b.maxTravel, -1, 1);
+      p.left = (p.offX < -0.22);
+      p.right = (p.offX > 0.22);
       return;
     }
-    if(GESTURE_SPLIT.p2.id === id){
-      const p = GESTURE_SPLIT.p2;
+    // P2 Joystick
+    if(LOCAL_TOUCH.p2.joyId === id){
+      const p = LOCAL_TOUCH.p2;
       p.curX = x; p.curY = y;
-      const dx = x - p.startX, dy = y - p.startY;
-      if(Math.abs(dx) > 18 || Math.abs(dy) > 18) p.tapCandidate = false;
-      p.left = (dx < -20);
-      p.right = (dx > 20);
-      p.downHeld = (dy > 28);
-      if(dy < -28 && !p.jumpHeld){
-        p.jumpEdge = true;
-        p.jumpHeld = true;
-      }
+      const dx = x - p.startX;
+      p.offX = clamp(dx / b.maxTravel, -1, 1);
+      p.left = (p.offX < -0.22);
+      p.right = (p.offX > 0.22);
       return;
     }
+    // Retain button hold as long as finger is reasonably close
+    if(LOCAL_TOUCH.p1.jumpId === id){
+      LOCAL_TOUCH.p1.jumpHeld = (Math.hypot(x - b.p1.btnX, y - b.p1.jumpY) < b.r * 2.5);
+      return;
+    }
+    if(LOCAL_TOUCH.p1.dropId === id){
+      LOCAL_TOUCH.p1.downHeld = (Math.hypot(x - b.p1.btnX, y - b.p1.dropY) < b.r * 2.5);
+      return;
+    }
+    if(LOCAL_TOUCH.p2.jumpId === id){
+      LOCAL_TOUCH.p2.jumpHeld = (Math.hypot(x - b.p2.btnX, y - b.p2.jumpY) < b.r * 2.5);
+      return;
+    }
+    if(LOCAL_TOUCH.p2.dropId === id){
+      LOCAL_TOUCH.p2.downHeld = (Math.hypot(x - b.p2.btnX, y - b.p2.dropY) < b.r * 2.5);
+      return;
+    }
+    return;
   }
 
   if(JOY.leftId === id && JOY.boundsL){
@@ -417,37 +488,41 @@ function inputUp(id){
   const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
   const isSplitLocal = (!isOnline && match && screen === 'game' && match.players && match.players.length === 2 && isTouch);
   if(isSplitLocal){
-    if(GESTURE_SPLIT.p1.id === id){
-      const p = GESTURE_SPLIT.p1;
-      const dur = performance.now() - p.startT;
-      const dist = Math.hypot(p.curX - p.startX, p.curY - p.startY);
-      if(p.tapCandidate && dur < 320 && dist < 28){
-        p.jumpEdge = true;
-        p.jumpHeld = true;
-        p.tapJumpTimer = 0.12;
-      }
-      p.id = null;
+    // P1
+    if(LOCAL_TOUCH.p1.joyId === id){
+      const p = LOCAL_TOUCH.p1;
+      p.joyId = null;
       p.active = false;
+      p.offX = 0;
       p.left = false;
       p.right = false;
-      p.downHeld = false;
-      p.jumpHeld = false;
     }
-    if(GESTURE_SPLIT.p2.id === id){
-      const p = GESTURE_SPLIT.p2;
-      const dur = performance.now() - p.startT;
-      const dist = Math.hypot(p.curX - p.startX, p.curY - p.startY);
-      if(p.tapCandidate && dur < 320 && dist < 28){
-        p.jumpEdge = true;
-        p.jumpHeld = true;
-        p.tapJumpTimer = 0.12;
-      }
-      p.id = null;
+    if(LOCAL_TOUCH.p1.jumpId === id){
+      LOCAL_TOUCH.p1.jumpId = null;
+      LOCAL_TOUCH.p1.jumpHeld = false;
+      LOCAL_TOUCH.p1.jumpEdge = false;
+    }
+    if(LOCAL_TOUCH.p1.dropId === id){
+      LOCAL_TOUCH.p1.dropId = null;
+      LOCAL_TOUCH.p1.downHeld = false;
+    }
+    // P2
+    if(LOCAL_TOUCH.p2.joyId === id){
+      const p = LOCAL_TOUCH.p2;
+      p.joyId = null;
       p.active = false;
+      p.offX = 0;
       p.left = false;
       p.right = false;
-      p.downHeld = false;
-      p.jumpHeld = false;
+    }
+    if(LOCAL_TOUCH.p2.jumpId === id){
+      LOCAL_TOUCH.p2.jumpId = null;
+      LOCAL_TOUCH.p2.jumpHeld = false;
+      LOCAL_TOUCH.p2.jumpEdge = false;
+    }
+    if(LOCAL_TOUCH.p2.dropId === id){
+      LOCAL_TOUCH.p2.dropId = null;
+      LOCAL_TOUCH.p2.downHeld = false;
     }
   }
 
@@ -1077,8 +1152,13 @@ function startMatch(){
   const isOnlineMatch = (typeof NET !== 'undefined' && NET && NET.role !== null);
   const isSplitLocalTouch = (isTouch && !isOnlineMatch && act.length === 2);
   const initState = isSplitLocalTouch ? 'tutorial' : 'countdown';
-  if(isSplitLocalTouch) GESTURE_SPLIT.showTutorial = true;
-  else GESTURE_SPLIT.showTutorial = false;
+  if(isSplitLocalTouch){
+    LOCAL_TOUCH.showTutorial = true;
+    LOCAL_TOUCH.p1.joyId = null; LOCAL_TOUCH.p1.active = false; LOCAL_TOUCH.p1.left = false; LOCAL_TOUCH.p1.right = false; LOCAL_TOUCH.p1.offX = 0; LOCAL_TOUCH.p1.visOffX = 0; LOCAL_TOUCH.p1.jumpId = null; LOCAL_TOUCH.p1.jumpHeld = false; LOCAL_TOUCH.p1.jumpEdge = false; LOCAL_TOUCH.p1.dropId = null; LOCAL_TOUCH.p1.downHeld = false;
+    LOCAL_TOUCH.p2.joyId = null; LOCAL_TOUCH.p2.active = false; LOCAL_TOUCH.p2.left = false; LOCAL_TOUCH.p2.right = false; LOCAL_TOUCH.p2.offX = 0; LOCAL_TOUCH.p2.visOffX = 0; LOCAL_TOUCH.p2.jumpId = null; LOCAL_TOUCH.p2.jumpHeld = false; LOCAL_TOUCH.p2.jumpEdge = false; LOCAL_TOUCH.p2.dropId = null; LOCAL_TOUCH.p2.downHeld = false;
+  } else {
+    LOCAL_TOUCH.showTutorial = false;
+  }
   match={state:initState,cd:3,cdT:0,timer:settings.time,lastTick:settings.time,it:it,itTeam:itTeam,
     teamItTime:[0,0,0,0],cooldown:0,
     goFlash:0,freeze:0,shake:0,flash:0,fade:0.6,tagPop:null,resultT:0,
@@ -1767,24 +1847,8 @@ function updateGame(dt){
     updateParts(dt);updateCam(dt);
     return;
   }
-  if(GESTURE_SPLIT.p1.tapJumpTimer > 0){
-    GESTURE_SPLIT.p1.tapJumpTimer -= dt;
-    if(GESTURE_SPLIT.p1.tapJumpTimer <= 0){
-      GESTURE_SPLIT.p1.jumpEdge = false;
-      GESTURE_SPLIT.p1.jumpHeld = false;
-    }
-  } else {
-    GESTURE_SPLIT.p1.jumpEdge = false;
-  }
-  if(GESTURE_SPLIT.p2.tapJumpTimer > 0){
-    GESTURE_SPLIT.p2.tapJumpTimer -= dt;
-    if(GESTURE_SPLIT.p2.tapJumpTimer <= 0){
-      GESTURE_SPLIT.p2.jumpEdge = false;
-      GESTURE_SPLIT.p2.jumpHeld = false;
-    }
-  } else {
-    GESTURE_SPLIT.p2.jumpEdge = false;
-  }
+  LOCAL_TOUCH.p1.jumpEdge = false;
+  LOCAL_TOUCH.p2.jumpEdge = false;
   if(match.freeze>0){match.freeze-=dt;return;}
   match.fade=Math.max(0,match.fade-dt);
   match.mapToastT=Math.max(0,match.mapToastT-dt);
@@ -3052,99 +3116,99 @@ function drawTouchButtons(){
 
     g.restore();
   } else {
-    /* ================= 2-PLAYER SPLIT LOCAL (1-THUMB GESTURE ZONES) ================= */
+    /* ================= 2-PLAYER LOCAL SPLIT (SIDE-TO-SIDE JOYSTICK + FIXED JUMP/DROP) ================= */
+    const b = calcLocalBounds();
     const colP1 = (match.players[0] && PALETTE[match.players[0].colIdx]) ? PALETTE[match.players[0].colIdx].c : '#e8433f';
     const colP2 = (match.players[1] && PALETTE[match.players[1].colIdx]) ? PALETTE[match.players[1].colIdx].c : '#2f9be8';
 
     g.save();
+
     // 1. Subtle Center Dashed Midline
     g.setLineDash([6, 8]);
     g.lineWidth = 1.5;
     g.strokeStyle = 'rgba(255, 255, 255, 0.16)';
     g.beginPath();
-    g.moveTo(CW / 2, 52);
-    g.lineTo(CW / 2, CH - 14);
+    g.moveTo(b.midX, 52);
+    g.lineTo(b.midX, CH - 14);
     g.stroke();
     g.setLineDash([]);
 
-    // 2. Ambient Watermarks in corners
+    // 2. Ambient Corner Watermarks
     const isNarrow = (CW < 600);
-    ptxt('P1 ZONE', Math.max(34, CW * 0.08), CH - 22, FN(isNarrow ? 11 : 13, 900), rgba(colP1, 0.55));
-    ptxt(isNarrow ? '◀ SWIPE / TAP ▶' : '◀ SWIPE TO RUN • TAP TO JUMP • SWIPE ▼ TO DROP ▶', CW * 0.25, CH - 22, FN(isNarrow ? 9 : 10, 800), 'rgba(255, 255, 255, 0.22)');
+    ptxt('P1 ZONE', Math.max(34, CW * 0.08), 34, FN(isNarrow ? 10 : 12, 900), rgba(colP1, 0.45));
+    ptxt('P2 ZONE', CW - Math.max(34, CW * 0.08), 34, FN(isNarrow ? 10 : 12, 900), rgba(colP2, 0.45));
 
-    ptxt('P2 ZONE', CW - Math.max(34, CW * 0.08), CH - 22, FN(isNarrow ? 11 : 13, 900), rgba(colP2, 0.55));
-    ptxt(isNarrow ? '◀ SWIPE / TAP ▶' : '◀ SWIPE TO RUN • TAP TO JUMP • SWIPE ▼ TO DROP ▶', CW * 0.75, CH - 22, FN(isNarrow ? 9 : 10, 800), 'rgba(255, 255, 255, 0.22)');
+    // Helper to draw a player's controls
+    const drawPlayerControls = (pData, cfg, col) => {
+      // Smooth visual knob interpolation
+      pData.visOffX += (pData.offX - pData.visOffX) * 0.40;
 
-    // 3. Dynamic Gesture Rings Under Active Fingers
-    // Player 1 Thumb
-    if(GESTURE_SPLIT.p1.active){
-      const p = GESTURE_SPLIT.p1;
-      // Anchor ring
-      g.beginPath();
-      g.arc(p.startX, p.startY, 28, 0, TAU);
-      g.fillStyle = rgba(colP1, 0.12);
+      // --- A. Side-to-Side Joystick Track ---
+      // If active, anchor track at touch position. If idle, show at default resting position.
+      const jx = pData.active ? pData.startX : cfg.defJoyX;
+      const jy = pData.active ? pData.startY : cfg.defJoyY;
+      const tw = b.trackW, th = b.trackH;
+
+      rr(g, jx - tw / 2, jy - th / 2, tw, th, th / 2);
+      g.fillStyle = pData.active ? rgba(col, 0.12) : 'rgba(255, 255, 255, 0.08)';
       g.fill();
-      g.lineWidth = 2;
-      g.strokeStyle = rgba(colP1, 0.45);
+      g.lineWidth = 1.5;
+      g.strokeStyle = pData.active ? rgba(col, 0.50) : 'rgba(255, 255, 255, 0.20)';
       g.stroke();
 
-      // Connecting guideline
+      // Track slot line
       g.beginPath();
-      g.moveTo(p.startX, p.startY);
-      g.lineTo(p.curX, p.curY);
-      g.lineWidth = 2;
-      g.strokeStyle = rgba(colP1, 0.35);
-      g.stroke();
-
-      // Floating knob
-      const knobActive = (p.left || p.right || p.downHeld || p.jumpHeld);
-      g.beginPath();
-      g.arc(p.curX, p.curY, 22, 0, TAU);
-      g.fillStyle = knobActive ? rgba(colP1, 0.55) : 'rgba(255,255,255,0.25)';
-      g.fill();
+      g.moveTo(jx - b.maxTravel * 0.85, jy);
+      g.lineTo(jx + b.maxTravel * 0.85, jy);
       g.lineWidth = 2.5;
-      g.strokeStyle = knobActive ? '#ffffff' : rgba(colP1, 0.75);
+      g.strokeStyle = pData.active ? rgba(col, 0.25) : 'rgba(255, 255, 255, 0.10)';
       g.stroke();
 
-      // Direction icon inside knob
-      const icon = p.downHeld ? '▼' : (p.jumpHeld ? '▲' : (p.left ? '◀' : (p.right ? '▶' : '•')));
-      ptxt(icon, p.curX, p.curY + 1, FN(13, 900), '#ffffff');
-    }
+      // Chevrons inside track
+      ptxt('◀', jx - tw / 2 + b.r * 0.5, jy, FN(10, 900), pData.left ? '#ffffff' : 'rgba(255, 255, 255, 0.30)');
+      ptxt('▶', jx + tw / 2 - b.r * 0.5, jy, FN(10, 900), pData.right ? '#ffffff' : 'rgba(255, 255, 255, 0.30)');
 
-    // Player 2 Thumb
-    if(GESTURE_SPLIT.p2.active){
-      const p = GESTURE_SPLIT.p2;
-      // Anchor ring
+      // Joystick Knob
+      const kx = jx + pData.visOffX * b.maxTravel;
+      const isJoyActive = (pData.left || pData.right);
       g.beginPath();
-      g.arc(p.startX, p.startY, 28, 0, TAU);
-      g.fillStyle = rgba(colP2, 0.12);
+      g.arc(kx, jy, b.r * 0.82, 0, TAU);
+      g.fillStyle = isJoyActive ? rgba(col, 0.65) : 'rgba(255, 255, 255, 0.22)';
       g.fill();
       g.lineWidth = 2;
-      g.strokeStyle = rgba(colP2, 0.45);
+      g.strokeStyle = isJoyActive ? '#ffffff' : rgba(col, 0.60);
       g.stroke();
 
-      // Connecting guideline
-      g.beginPath();
-      g.moveTo(p.startX, p.startY);
-      g.lineTo(p.curX, p.curY);
-      g.lineWidth = 2;
-      g.strokeStyle = rgba(colP2, 0.35);
-      g.stroke();
+      // Knob center pip or arrow
+      const knobIcon = pData.left ? '◀' : (pData.right ? '▶' : '•');
+      ptxt(knobIcon, kx, jy + (knobIcon === '•' ? 0 : 1), FN(12, 900), isJoyActive ? '#ffffff' : 'rgba(255, 255, 255, 0.65)');
 
-      // Floating knob
-      const knobActive = (p.left || p.right || p.downHeld || p.jumpHeld);
+      // --- B. Fixed JUMP Button (Top) ---
+      const jumpR = b.r * 0.88;
       g.beginPath();
-      g.arc(p.curX, p.curY, 22, 0, TAU);
-      g.fillStyle = knobActive ? rgba(colP2, 0.55) : 'rgba(255,255,255,0.25)';
+      g.arc(cfg.btnX, cfg.jumpY, jumpR, 0, TAU);
+      g.fillStyle = pData.jumpHeld ? 'rgba(46, 204, 113, 0.65)' : 'rgba(255, 255, 255, 0.12)';
       g.fill();
-      g.lineWidth = 2.5;
-      g.strokeStyle = knobActive ? '#ffffff' : rgba(colP2, 0.75);
+      g.lineWidth = pData.jumpHeld ? 2.5 : 1.8;
+      g.strokeStyle = pData.jumpHeld ? '#2ecc71' : 'rgba(255, 255, 255, 0.35)';
       g.stroke();
+      ptxt('▲', cfg.btnX, cfg.jumpY, FN(13, 900), pData.jumpHeld ? '#ffffff' : 'rgba(255, 255, 255, 0.85)');
 
-      // Direction icon inside knob
-      const icon = p.downHeld ? '▼' : (p.jumpHeld ? '▲' : (p.left ? '◀' : (p.right ? '▶' : '•')));
-      ptxt(icon, p.curX, p.curY + 1, FN(13, 900), '#ffffff');
-    }
+      // --- C. Fixed DROP Button (Bottom) ---
+      const dropR = b.r * 0.88;
+      g.beginPath();
+      g.arc(cfg.btnX, cfg.dropY, dropR, 0, TAU);
+      g.fillStyle = pData.downHeld ? 'rgba(235, 75, 155, 0.65)' : 'rgba(235, 75, 155, 0.15)';
+      g.fill();
+      g.lineWidth = pData.downHeld ? 2.5 : 1.8;
+      g.strokeStyle = pData.downHeld ? '#eb4b9b' : 'rgba(235, 75, 155, 0.50)';
+      g.stroke();
+      ptxt('▼', cfg.btnX, cfg.dropY + 1, FN(13, 900), pData.downHeld ? '#ffffff' : 'rgba(235, 75, 155, 0.85)');
+    };
+
+    drawPlayerControls(LOCAL_TOUCH.p1, b.p1, colP1);
+    drawPlayerControls(LOCAL_TOUCH.p2, b.p2, colP2);
+
     g.restore();
   }
 
@@ -3184,7 +3248,7 @@ function drawLocalTutorialCard(){
   ptxt('📱 2-PLAYER TOUCH CONTROLS', CW / 2, cardY + 16 + ph / 2 + 1, FN(14, 900), '#ffffff');
 
   // Subtitle
-  ptxt('1-Thumb Gesture Zones • Zero Buttons Blocking Arena', CW / 2, cardY + 66, FN(11, 700), '#94a3b8');
+  ptxt('Ergonomic Joysticks • Fixed Jump & Drop Buttons', CW / 2, cardY + 66, FN(11, 700), '#94a3b8');
 
   // Two columns: Left (P1) and Right (P2)
   const colW = (cardW - 36) / 2;
@@ -3213,13 +3277,13 @@ function drawLocalTutorialCard(){
   g.stroke();
   ptxt('P1 (LEFT HALF OF SCREEN)', col1X + colW / 2, colY + 23, FN(11, 900), '#ffffff');
 
-  // P1 Gesture instructions
+  // P1 Instructions
   const isMini = (colH < 130);
   const rowH = isMini ? 25 : 30;
   const rowY0 = colY + 48;
-  ptxt('◀ 👆 ▶  SWIPE L / R TO RUN', col1X + colW / 2, rowY0, FN(isMini ? 10 : 11.5, 800), '#e2e8f0');
-  ptxt('▲ 👆  TAP ANYWHERE TO JUMP', col1X + colW / 2, rowY0 + rowH, FN(isMini ? 10 : 11.5, 800), '#2ecc71');
-  ptxt('▼ 👆  SWIPE DOWN TO DROP', col1X + colW / 2, rowY0 + rowH * 2, FN(isMini ? 10 : 11.5, 800), '#f472b6');
+  ptxt('🕹️  TOUCH ANYWHERE TO RUN', col1X + colW / 2, rowY0, FN(isMini ? 10 : 11.5, 800), '#e2e8f0');
+  ptxt('▲  FIXED JUMP BUTTON', col1X + colW / 2, rowY0 + rowH, FN(isMini ? 10 : 11.5, 800), '#2ecc71');
+  ptxt('▼  FIXED DROP BUTTON', col1X + colW / 2, rowY0 + rowH * 2, FN(isMini ? 10 : 11.5, 800), '#f472b6');
 
   // --- Column 2: Player 2 (Right Half) ---
   rr(g, col2X, colY, colW, colH, 12);
@@ -3238,10 +3302,10 @@ function drawLocalTutorialCard(){
   g.stroke();
   ptxt('P2 (RIGHT HALF OF SCREEN)', col2X + colW / 2, colY + 23, FN(11, 900), '#ffffff');
 
-  // P2 Gesture instructions
-  ptxt('◀ 👆 ▶  SWIPE L / R TO RUN', col2X + colW / 2, rowY0, FN(isMini ? 10 : 11.5, 800), '#e2e8f0');
-  ptxt('▲ 👆  TAP ANYWHERE TO JUMP', col2X + colW / 2, rowY0 + rowH, FN(isMini ? 10 : 11.5, 800), '#2ecc71');
-  ptxt('▼ 👆  SWIPE DOWN TO DROP', col2X + colW / 2, rowY0 + rowH * 2, FN(isMini ? 10 : 11.5, 800), '#f472b6');
+  // P2 Instructions
+  ptxt('🕹️  TOUCH ANYWHERE TO RUN', col2X + colW / 2, rowY0, FN(isMini ? 10 : 11.5, 800), '#e2e8f0');
+  ptxt('▲  FIXED JUMP BUTTON', col2X + colW / 2, rowY0 + rowH, FN(isMini ? 10 : 11.5, 800), '#2ecc71');
+  ptxt('▼  FIXED DROP BUTTON', col2X + colW / 2, rowY0 + rowH * 2, FN(isMini ? 10 : 11.5, 800), '#f472b6');
 
   // Glowing Start Button at bottom
   const btnW = Math.min(cardW * 0.72, 280), btnH = 40;
