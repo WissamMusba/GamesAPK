@@ -148,6 +148,7 @@ const JOY = {
   rightId: null,
   rightY: 0,       // 0 (top/rest) to 1 (pulled down)
   rightVisY: 0,    // smooth interpolated visual knob position
+  rightStartY: 0,  // touch start Y to detect downward drag immediately
   boundsR: null    // { x, y, w, h, cx, cyTop, maxTravel, r }
 };
 
@@ -308,11 +309,23 @@ function inputDown(x,y,id){
     const b = JOY.boundsR;
     if(x >= b.x - 24 && x <= b.x + b.w + 24 && y >= b.y - 24 && y <= b.y + b.h + 24){
       JOY.rightId = id;
-      TOUCH.jumpEdge = true;
-      TOUCH.jumpHeld = true;
+      JOY.rightStartY = y;
       const off = clamp((y - b.cyTop) / b.maxTravel, 0, 1);
       JOY.rightY = off;
-      TOUCH.downHeld = (off > 0.35);
+      
+      // If touch starts on or near the drop zone (off > 0.22 or y > b.cyTop + 14) -> DROP ONLY, NEVER JUMP!
+      if(off > 0.22 || y > b.cyTop + 14){
+        TOUCH.downHeld = true;
+        TOUCH.jumpEdge = false;
+        TOUCH.jumpHeld = false;
+        const myP = getMyPlayer();
+        if(myP && myP.jbuf > 0) myP.jbuf = 0;
+      } else {
+        // Touching the top knob (JUMP ZONE)
+        TOUCH.downHeld = false;
+        TOUCH.jumpEdge = true;
+        TOUCH.jumpHeld = true;
+      }
       return;
     }
   }
@@ -371,7 +384,16 @@ function inputMove(x,y,id){
     const b = JOY.boundsR;
     const off = clamp((y - b.cyTop) / b.maxTravel, 0, 1);
     JOY.rightY = off;
-    TOUCH.downHeld = (off > 0.35);
+    if(off > 0.22 || (y - JOY.rightStartY > 12)){
+      TOUCH.downHeld = true;
+      TOUCH.jumpHeld = false;
+      TOUCH.jumpEdge = false;
+      const myP = getMyPlayer();
+      if(myP && myP.jbuf > 0) myP.jbuf = 0;
+    } else {
+      TOUCH.downHeld = false;
+      TOUCH.jumpHeld = true;
+    }
     return;
   }
   if(!touchPts.has(id))return;
@@ -440,6 +462,7 @@ function inputUp(id){
     JOY.rightY = 0; // Snaps back to top!
     TOUCH.jumpHeld = false;
     TOUCH.downHeld = false;
+    TOUCH.jumpEdge = false;
   }
   const z=touchPts.get(id);
   if(z){
@@ -1257,6 +1280,7 @@ function physUpdate(p,dt,allow){
   const hoverPlat=!p.grounded&&p.vy>-60&&p.vy<160?zoneAtFeet(p,'drop'):null;
   const hoverDrop=!!hoverPlat&&(p.x+6>=hoverPlat.x)&&(p.x+p.w-6<=hoverPlat.x+hoverPlat.w);
   if(downHeld&&(planted||hoverDrop)){
+    p.jbuf = 0;
     const dropPlat=planted?p.gp:hoverPlat;
     if(dropPlat){
       p.dropT=0.35;
@@ -1276,7 +1300,7 @@ function physUpdate(p,dt,allow){
   /* JUMP HANDLING: Ground, Wall-Jump, Double Jump, and Blue Pad Boost.
      Tap = shorter hop; holding jump sustains reduced gravity for 0.10s so a
      full hold rises just past the old fixed jump height. */
-  if(p.jbuf>0){
+  if(p.jbuf>0 && !downHeld){
     if(p.grounded||p.coyote>0){
       const boost=(p.grounded&&zoneAtFeet(p,'boost'))?BOOST_MULT:1;
       p.vy=-JUMP_V*boost;
@@ -2992,18 +3016,26 @@ function drawTouchButtons(){
     g.strokeStyle = 'rgba(255, 255, 255, 0.12)';
     g.stroke();
 
-    // Faint down chevron at bottom of slider track
-    ptxt('▼', cxR, yR + hR - r * 0.6, FN(11, 900), TOUCH.downHeld ? '#eb4b9b' : 'rgba(235, 75, 155, 0.35)');
+    // Dedicated Drop Pad target at bottom
+    const cyBotR = yR + hR - r * 1.05;
+    g.beginPath();
+    g.arc(cxR, cyBotR, r * 0.76, 0, Math.PI * 2);
+    g.fillStyle = TOUCH.downHeld ? 'rgba(235, 75, 155, 0.45)' : 'rgba(235, 75, 155, 0.14)';
+    g.fill();
+    g.lineWidth = 1.5;
+    g.strokeStyle = TOUCH.downHeld ? '#eb4b9b' : 'rgba(235, 75, 155, 0.50)';
+    g.stroke();
+    ptxt('▼', cxR, cyBotR + 1, FN(11, 900), TOUCH.downHeld ? '#ffffff' : 'rgba(235, 75, 155, 0.85)');
 
     // Render Right Knob (snaps to top, tap jumps, drag down drops)
     const kyR = cyTopR + JOY.rightVisY * maxTravelR;
     g.beginPath();
     g.arc(cxR, kyR, r * 0.88, 0, Math.PI * 2);
-    if(TOUCH.downHeld){
-      g.fillStyle = 'rgba(235, 75, 155, 0.55)';
+    if(TOUCH.downHeld || JOY.rightVisY > 0.25){
+      g.fillStyle = 'rgba(235, 75, 155, 0.65)';
       g.strokeStyle = '#eb4b9b';
     } else if(TOUCH.jumpHeld){
-      g.fillStyle = 'rgba(46, 204, 113, 0.55)';
+      g.fillStyle = 'rgba(46, 204, 113, 0.65)';
       g.strokeStyle = '#2ecc71';
     } else {
       g.fillStyle = 'rgba(255, 255, 255, 0.22)';
@@ -3014,8 +3046,8 @@ function drawTouchButtons(){
     g.stroke();
 
     // Icon inside knob (▲ for Jump, ▼ when dragged down for Drop)
-    const knobIcon = (JOY.rightVisY > 0.40) ? '▼' : '▲';
-    const knobCol = (TOUCH.downHeld || TOUCH.jumpHeld) ? '#ffffff' : 'rgba(255, 255, 255, 0.85)';
+    const knobIcon = (TOUCH.downHeld || JOY.rightVisY > 0.25) ? '▼' : '▲';
+    const knobCol = (TOUCH.downHeld || TOUCH.jumpHeld || JOY.rightVisY > 0.25) ? '#ffffff' : 'rgba(255, 255, 255, 0.85)';
     ptxt(knobIcon, cxR, kyR + (knobIcon === '▲' ? -1 : 1), FN(12, 900), knobCol);
 
     g.restore();
