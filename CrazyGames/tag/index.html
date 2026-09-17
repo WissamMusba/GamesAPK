@@ -2,23 +2,62 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="theme-color" content="#0b0f16"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta http-equiv="Expires" content="0"/>
-<title>TAG! — 2-4 Player Chase Arena (v1.2)</title>
+<title>TAG! — Online Test Build (tag-netplay)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link id="font-link-1" href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800;900&family=Rubik:ital,wght@0,700;0,800;0,900;1,900&display=swap" rel="stylesheet"/>
+<script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <link id="font-link-20" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Anton&family=Bangers&family=Black+Han+Sans&family=Luckiest+Guy&family=Righteous&family=Fredoka+One&family=Baloo+2:wght@700;800&family=Nunito:wght@800;900&family=Poppins:wght@700;800;900&family=Montserrat:wght@700;800;900&family=Titan+One&family=Chewy&family=MuseoModerno:wght@700;900&family=Comfortaa:wght@700&family=Space+Grotesk:wght@600;700&family=Orbitron:wght@700;900&family=Russo+One&family=Staatliches&display=swap" rel="stylesheet"/>
 <style>
-html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#0b0f16;font-family:'Outfit','Rubik',system-ui,sans-serif}
-canvas{display:block;width:100vw;height:100vh;outline:none;touch-action:none;
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#0b0f16;font-family:'Outfit','Rubik',system-ui,sans-serif}
+canvas{position:fixed;top:0;left:0;width:100%;height:100%;display:block;outline:none;touch-action:none;
  -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:none;-webkit-touch-callout:none}
+/* ---- netplay join modal (optional, only when manual code entry is clicked) ---- */
+#netUI{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;background:rgba(5,8,13,0.85);backdrop-filter:blur(4px);font-family:'Outfit','Rubik',system-ui,sans-serif}
+#netUI.on{display:flex}
+#netCard{background:#141b28;border:2px solid #2a3550;border-radius:16px;padding:24px 28px;max-width:min(400px,92vw);width:100%;text-align:center;color:#eef3fa;box-shadow:0 16px 60px rgba(0,0,0,0.7)}
+#netCard h2{margin:0 0 6px;font-size:22px;letter-spacing:1px}
+#netCard h2 span{color:#2ecc71}
+#netCard p{margin:6px 0 14px;font-size:14px;color:#9fb0c9;line-height:1.5}
+#netCard .row{display:flex;gap:10px;margin-top:14px}
+#netCard button{flex:1;background:#1a2334;color:#eef3fa;border:1px solid #2a3550;border-radius:8px;padding:11px 10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:background 0.15s}
+#netCard button:hover{background:#232f47}
+#netCard button.go{background:#27ae60;border-color:#2ecc71}
+#netCard button.go:hover{background:#2ecc71}
+#netCard input{width:100%;box-sizing:border-box;background:#0e1420;color:#eef3fa;border:1px solid #2a3550;border-radius:8px;padding:12px;font-size:17px;text-align:center;letter-spacing:3px;text-transform:uppercase;font-family:Consolas,monospace}
+#netCard input:focus{outline:none;border-color:#2ecc71}
+#netToast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:60;background:rgba(10,14,22,0.95);border:2px solid #2ecc71;color:#ffffff;border-radius:10px;padding:10px 22px;font-size:14px;font-weight:700;display:none;pointer-events:none;font-family:'Outfit',system-ui,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,0.6)}
 </style>
 </head>
 <body>
 <canvas id="g"></canvas>
+<!-- Netplay join modal (only shown when clicking 'JOIN ROOM' manually) -->
+<div id="netUI"><div id="netCard">
+  <h2>JOIN <span>ONLINE ROOM</span></h2>
+  <p id="netDesc">Enter 6-letter room code or paste invite link:</p>
+  <input id="netCode" maxlength="64" placeholder="ROOM CODE / LINK"/>
+  <div class="row">
+    <button id="netJoinGo" class="go">Join</button>
+    <button id="netClose">Cancel</button>
+  </div>
+</div></div>
+<div id="netToast"></div>
+<!-- SDK Banners: rendered DOM containers so CrazyGames can inject without painting over the canvas -->
+<div id="cg-banners" style="position:fixed;left:50%;top:0;transform:translateX(-50%);z-index:10;display:none;pointer-events:none">
+  <div id="cg-banner-top" style="min-height:50px;min-width:320px"></div>
+</div>
+<div id="cg-banner-resp" style="position:fixed;bottom:0;left:0;right:0;display:none;pointer-events:none;justify-content:center;padding:4px 0;background:rgba(10,10,16,0.92);border-top:1px solid #2a2c3d">
+  <div id="cg-banner-responsive" style="min-height:50px;min-width:320px;max-width:728px;width:100%"></div>
+</div>
 <script>
 "use strict";
 const TAU=Math.PI*2;
@@ -31,22 +70,39 @@ function rgba(hex,a){const n=parseInt(hex.slice(1),16);return'rgba('+(n>>16)+','
 const FT=px=>'900 '+px+'px "'+FAMILIES[fontIdx]+'",system-ui,sans-serif';
 const FN=(px,w)=>(w||800)+' '+px+'px "'+FAMILIES[fontIdx]+'",system-ui,sans-serif';
 const FAMILIES=['Outfit','Bebas Neue','Anton','Bangers','Black Han Sans','Luckiest Guy','Righteous','Fredoka One','Baloo 2','Nunito','Poppins','Montserrat','Titan One','Chewy','MuseoModerno','Comfortaa','Space Grotesk','Orbitron','Russo One','Staatliches'];
-let fontIdx=0;
-try{const s=Number(localStorage.getItem('tag_font_idx'));if(Number.isInteger(s)&&s>=0&&s<FAMILIES.length)fontIdx=s;}catch(e){}
-function cycleFont(d){
-  fontIdx=(fontIdx+d+FAMILIES.length)%FAMILIES.length;
-  try{localStorage.setItem('tag_font_idx',String(fontIdx));}catch(e){}
-  if(document.fonts&&document.fonts.load)document.fonts.load('900 32px "'+FAMILIES[fontIdx]+'"').catch(()=>{});
-  toast('FONT: '+(fontIdx+1)+'/20 — '+FAMILIES[fontIdx]);
-}
+const PINNED_FONTIdx=8; // font #9 = Baloo 2 — pinned for CrazyGames
+let fontIdx=PINNED_FONTIdx;
+function cycleFont(d){ toast('Fonts locked to pinned pick #' + (PINNED_FONTIdx+1) + ' — ' + FAMILIES[PINNED_FONTIdx]); }
 const INK='#141414';
 
 const cv=document.getElementById('g'),g=cv.getContext('2d');
 let CW=0,CH=0,DPR=1;
-function resize(){DPR=Math.min(2,window.devicePixelRatio||1);CW=window.innerWidth;CH=window.innerHeight;cv.width=Math.floor(CW*DPR);cv.height=Math.floor(CH*DPR);}
-window.addEventListener('resize',resize);resize();
-cv.style.touchAction='none';
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
+
+function resize(){
+  const rect = cv.getBoundingClientRect();
+  CW = Math.floor(rect.width || window.innerWidth);
+  CH = Math.floor(rect.height || window.innerHeight);
+  const maxDpr = isTouch ? 1.5 : 2;
+  DPR = Math.min(maxDpr, window.devicePixelRatio || 1);
+  cv.width = Math.floor(CW * DPR);
+  cv.height = Math.floor(CH * DPR);
+}
+window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', () => setTimeout(resize, 140));
+resize();
+cv.style.touchAction='none';
+
+function getCanvasCoords(clientX, clientY){
+  const rect = cv.getBoundingClientRect();
+  const scaleX = rect.width ? (CW / rect.width) : 1;
+  const scaleY = rect.height ? (CH / rect.height) : 1;
+  return {
+    x: (clientX - rect.left) * scaleX,
+    y: (clientY - rect.top) * scaleY
+  };
+}
+
 function grabFocus(){try{window.focus();}catch(e){}}
 window.addEventListener('load',grabFocus);grabFocus();
 
@@ -70,6 +126,89 @@ document.addEventListener('keyup',e=>keys.delete(e.code));
 window.addEventListener('blur',()=>{keys.clear();touchPts.clear();});
 window.addEventListener('contextmenu',e=>e.preventDefault());
 const anyPressed=list=>{for(const k of list)if(pressed.has(k))return true;return false;};
+
+/* ================= mobile touch action state ================= */
+const TOUCH = {
+  left: false,
+  right: false,
+  jumpEdge: false,
+  jumpHeld: false,
+  downHeld: false
+};
+
+/* ================= mobile touch joystick & dual slider system ================= */
+const JOY = {
+  // Left horizontal joystick (snaps to center)
+  leftId: null,
+  leftX: 0,        // -1 (left) to +1 (right), rests at 0 (center)
+  leftVisX: 0,     // smooth interpolated visual knob position
+  boundsL: null,   // { x, y, w, h, cx, cy, maxTravel, r }
+
+  // Right vertical dual jump/drop slider (snaps to top)
+  rightId: null,
+  rightY: 0,       // 0 (top/rest) to 1 (pulled down)
+  rightVisY: 0,    // smooth interpolated visual knob position
+  rightStartY: 0,  // touch start Y to detect downward drag immediately
+  boundsR: null    // { x, y, w, h, cx, cyTop, maxTravel, r }
+};
+
+/* ================= 2-player local mobile controls (Ergonomic Joysticks + Fixed Buttons) ================= */
+const LOCAL_TOUCH = {
+  showTutorial: false,
+  p1: { joyId: null, startX: 0, startY: 0, curX: 0, curY: 0, active: false, offX: 0, visOffX: 0, left: false, right: false, jumpId: null, jumpHeld: false, jumpEdge: false, dropId: null, downHeld: false },
+  p2: { joyId: null, startX: 0, startY: 0, curX: 0, curY: 0, active: false, offX: 0, visOffX: 0, left: false, right: false, jumpId: null, jumpHeld: false, jumpEdge: false, dropId: null, downHeld: false }
+};
+const GESTURE_SPLIT = LOCAL_TOUCH; // Backward compatibility alias
+
+function calcLocalBounds(){
+  const midX = CW / 2;
+  const isTablet = (Math.min(CW, CH) >= 500);
+  const r = isTablet ? clamp(CH * 0.065, 24, 32) : clamp(CH * 0.080, 22, 28);
+  const bm = isTablet ? clamp(CH * 0.07, 24, 42) : clamp(CH * 0.06, 16, 26);
+  const maxTravel = r * 1.45;
+  const trackW = r * 3.4;
+  const trackH = r * 2.0;
+
+  // Ergonomic cluster: Horizontal joystick on left, Jump & Slide buttons right next to it!
+  // Player 1 (Left Half: 0 to midX)
+  const p1DefJoyX = clamp(midX * 0.30, r * 2.0, midX - trackW/2 - r * 3.0);
+  const p1DefJoyY = CH - bm - r * 1.05;
+  const p1BtnX = p1DefJoyX + trackW / 2 + r * 1.25;
+  const p1DropY = p1DefJoyY;
+  const p1JumpY = p1DropY - r * 2.15;
+  const p1SplitY = (p1JumpY + p1DropY) / 2;
+  const p1BtnMinX = p1BtnX - r * 1.15;
+  const p1BtnMaxX = p1BtnX + r * 1.45;
+  const p1BtnMinY = p1JumpY - r * 1.35;
+  const p1BtnMaxY = p1DropY + r * 1.35;
+
+  // Player 2 (Right Half: midX to CW)
+  const p2DefJoyX = midX + clamp(midX * 0.30, r * 2.0, midX - trackW/2 - r * 3.0);
+  const p2DefJoyY = CH - bm - r * 1.05;
+  const p2BtnX = p2DefJoyX + trackW / 2 + r * 1.25;
+  const p2DropY = p2DefJoyY;
+  const p2JumpY = p2DropY - r * 2.15;
+  const p2SplitY = (p2JumpY + p2DropY) / 2;
+  const p2BtnMinX = p2BtnX - r * 1.15;
+  const p2BtnMaxX = p2BtnX + r * 1.45;
+  const p2BtnMinY = p2JumpY - r * 1.35;
+  const p2BtnMaxY = p2DropY + r * 1.35;
+
+  return {
+    midX, r, bm, maxTravel, trackW, trackH,
+    p1: { btnX: p1BtnX, jumpY: p1JumpY, dropY: p1DropY, splitY: p1SplitY, btnMinX: p1BtnMinX, btnMaxX: p1BtnMaxX, btnMinY: p1BtnMinY, btnMaxY: p1BtnMaxY, defJoyX: p1DefJoyX, defJoyY: p1DefJoyY },
+    p2: { btnX: p2BtnX, jumpY: p2JumpY, dropY: p2DropY, splitY: p2SplitY, btnMinX: p2BtnMinX, btnMaxX: p2BtnMaxX, btnMinY: p2BtnMinY, btnMaxY: p2BtnMaxY, defJoyX: p2DefJoyX, defJoyY: p2DefJoyY }
+  };
+}
+
+function applyTouchAction(action, isDown){
+  if(action === 'left') TOUCH.left = !!isDown;
+  else if(action === 'right') TOUCH.right = !!isDown;
+  else if(action === 'jump'){
+    if(isDown){ TOUCH.jumpEdge = true; TOUCH.jumpHeld = true; }
+    else TOUCH.jumpHeld = false;
+  } else if(action === 'down') TOUCH.downHeld = !!isDown;
+}
 
 /* ================= gamepads ================= */
 const GP={prev:[{},{},{},{}],prevAx:[0,0,0,0],prevAy:[0,0,0,0]};
@@ -107,49 +246,371 @@ function pollGamepads(){
 
 /* ================= touch zones ================= */
 const zones=[];const touchPts=new Map();const glow={};
-function zone(x,y,w,h,o){zones.push({x:x,y:y,w:w,h:h,press:(o&&o.press)||null,hold:(o&&o.hold)||null,fn:(o&&o.fn)||null});}
+function zone(x,y,w,h,o){
+  zones.push({
+    x:x,y:y,w:w,h:h,
+    press:(o&&o.press)||null,
+    hold:(o&&o.hold)||null,
+    fn:(o&&o.fn)||null,
+    upFn:(o&&o.upFn)||null,
+    touchAction:(o&&o.touchAction)||null
+  });
+}
 function zoneAt(x,y,holdOnly){
   for(let i=zones.length-1;i>=0;i--){const z=zones[i];
-    if(holdOnly&&!z.hold)continue;
+    if(holdOnly&&!z.hold&&!z.touchAction)continue;
     if(x>=z.x&&x<=z.x+z.w&&y>=z.y&&y<=z.y+z.h)return z;}
   return null;
 }
 function inputDown(x,y,id){
   initAudio();grabFocus();
+  
+  // Tutorial Card dismiss for 2-Player Local Touch
+  if(match && screen === 'game' && GESTURE_SPLIT.showTutorial){
+    GESTURE_SPLIT.showTutorial = false;
+    if(match.state === 'tutorial'){
+      match.state = 'countdown';
+      match.cd = 3;
+      match.cdT = 0;
+      sfx('count');
+    }
+    return;
+  }
+
+  const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
+  const isSplitLocal = (!isOnline && match && screen === 'game' && match.players && match.players.length === 2 && isTouch);
+
+  // Allow HUD top bar buttons (Pause, Mute, Help) to receive clicks
+  if(y <= 55){
+    const z = zoneAt(x,y,false);
+    if(z){
+      touchPts.set(id,z);
+      if(z.hold){keys.add(z.hold);}
+      if(z.press){for(const c of z.press){pressed.add(c);glow[c]=tGlobal;}}
+      if(z.touchAction){applyTouchAction(z.touchAction,true);}
+      if(z.fn)z.fn();
+      return;
+    }
+  }
+
+  // 2-Player Local Shared Screen Touch Controls (Fixed Jump/Drop + Floating Side-to-Side Joystick)
+  if(isSplitLocal){
+    const b = calcLocalBounds();
+
+    if(x < b.midX){
+      // --- Player 1 (Left Half) ---
+      const p = LOCAL_TOUCH.p1;
+      // Check if touch lands in P1's fixed button zone (right side of P1 cluster)
+      if(x >= b.p1.btnMinX && x <= b.p1.btnMaxX && y >= b.p1.btnMinY && y <= b.p1.btnMaxY){
+        if(y < b.p1.splitY){
+          // P1 JUMP BUTTON
+          p.jumpId = id;
+          p.jumpEdge = true;
+          p.jumpHeld = true;
+          p.downHeld = false;
+          const myP = match.players[0];
+          if(myP) myP.jbuf = 0.16;
+        } else {
+          // P1 DROP BUTTON
+          p.dropId = id;
+          p.downHeld = true;
+          p.jumpEdge = false;
+          p.jumpHeld = false;
+          const myP = match.players[0];
+          if(myP && myP.jbuf > 0) myP.jbuf = 0;
+        }
+        return;
+      }
+      // Floating Side-to-Side Joystick anywhere else in P1 half!
+      p.joyId = id;
+      p.startX = x;
+      p.startY = y;
+      p.curX = x;
+      p.curY = y;
+      p.active = true;
+      p.offX = 0;
+      p.left = false;
+      p.right = false;
+      return;
+    } else {
+      // --- Player 2 (Right Half) ---
+      const p = LOCAL_TOUCH.p2;
+      // Check if touch lands in P2's fixed button zone (right side of P2 cluster)
+      if(x >= b.p2.btnMinX && x <= b.p2.btnMaxX && y >= b.p2.btnMinY && y <= b.p2.btnMaxY){
+        if(y < b.p2.splitY){
+          // P2 JUMP BUTTON
+          p.jumpId = id;
+          p.jumpEdge = true;
+          p.jumpHeld = true;
+          p.downHeld = false;
+          const myP = match.players[1];
+          if(myP) myP.jbuf = 0.16;
+        } else {
+          // P2 DROP BUTTON
+          p.dropId = id;
+          p.downHeld = true;
+          p.jumpEdge = false;
+          p.jumpHeld = false;
+          const myP = match.players[1];
+          if(myP && myP.jbuf > 0) myP.jbuf = 0;
+        }
+        return;
+      }
+      // Floating Side-to-Side Joystick anywhere else in P2 half!
+      p.joyId = id;
+      p.startX = x;
+      p.startY = y;
+      p.curX = x;
+      p.curY = y;
+      p.active = true;
+      p.offX = 0;
+      p.left = false;
+      p.right = false;
+      return;
+    }
+  }
+
+  // Check Left horizontal joystick (Solo / Online)
+  if(match && screen === 'game' && isTouch && JOY.boundsL){
+    const b = JOY.boundsL;
+    if(x >= b.x - 24 && x <= b.x + b.w + 24 && y >= b.y - 24 && y <= b.y + b.h + 24){
+      JOY.leftId = id;
+      const off = clamp((x - b.cx) / b.maxTravel, -1, 1);
+      JOY.leftX = off;
+      TOUCH.left = (off < -0.22);
+      TOUCH.right = (off > 0.22);
+      return;
+    }
+  }
+  // Check Right vertical dual jump/drop slider (Solo / Online)
+  if(match && screen === 'game' && isTouch && JOY.boundsR){
+    const b = JOY.boundsR;
+    if(x >= b.x - 24 && x <= b.x + b.w + 24 && y >= b.y - 24 && y <= b.y + b.h + 24){
+      JOY.rightId = id;
+      JOY.rightStartY = y;
+      const off = clamp((y - b.cyTop) / b.maxTravel, 0, 1);
+      JOY.rightY = off;
+      
+      // If touch starts on or near the drop zone (off > 0.22 or y > b.cyTop + 14) -> DROP ONLY, NEVER JUMP!
+      if(off > 0.22 || y > b.cyTop + 14){
+        TOUCH.downHeld = true;
+        TOUCH.jumpEdge = false;
+        TOUCH.jumpHeld = false;
+        const myP = getMyPlayer();
+        if(myP && myP.jbuf > 0) myP.jbuf = 0;
+      } else {
+        // Touching the top knob (JUMP ZONE)
+        TOUCH.downHeld = false;
+        TOUCH.jumpEdge = true;
+        TOUCH.jumpHeld = true;
+      }
+      return;
+    }
+  }
   const z=zoneAt(x,y,false);
   if(z){
-    if(z.hold){touchPts.set(id,z);keys.add(z.hold);}
+    touchPts.set(id,z);
+    if(z.hold){keys.add(z.hold);}
     if(z.press){for(const c of z.press){pressed.add(c);glow[c]=tGlobal;}}
+    if(z.touchAction){applyTouchAction(z.touchAction,true);}
     if(z.fn)z.fn();
   }
 }
 function inputMove(x,y,id){
+  const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
+  const isSplitLocal = (!isOnline && match && screen === 'game' && match.players && match.players.length === 2 && isTouch);
+  if(isSplitLocal){
+    const b = calcLocalBounds();
+    // P1 Joystick
+    if(LOCAL_TOUCH.p1.joyId === id){
+      const p = LOCAL_TOUCH.p1;
+      p.curX = x; p.curY = y;
+      const dx = x - p.startX;
+      p.offX = clamp(dx / b.maxTravel, -1, 1);
+      p.left = (p.offX < -0.22);
+      p.right = (p.offX > 0.22);
+      return;
+    }
+    // P2 Joystick
+    if(LOCAL_TOUCH.p2.joyId === id){
+      const p = LOCAL_TOUCH.p2;
+      p.curX = x; p.curY = y;
+      const dx = x - p.startX;
+      p.offX = clamp(dx / b.maxTravel, -1, 1);
+      p.left = (p.offX < -0.22);
+      p.right = (p.offX > 0.22);
+      return;
+    }
+    // Retain button hold as long as finger is reasonably close
+    if(LOCAL_TOUCH.p1.jumpId === id){
+      LOCAL_TOUCH.p1.jumpHeld = (Math.hypot(x - b.p1.btnX, y - b.p1.jumpY) < b.r * 3.0 || (x >= b.p1.btnMinX - 30 && y < b.p1.splitY + 20));
+      return;
+    }
+    if(LOCAL_TOUCH.p1.dropId === id){
+      LOCAL_TOUCH.p1.downHeld = (Math.hypot(x - b.p1.btnX, y - b.p1.dropY) < b.r * 3.0 || (x >= b.p1.btnMinX - 30 && y >= b.p1.splitY - 20));
+      return;
+    }
+    if(LOCAL_TOUCH.p2.jumpId === id){
+      LOCAL_TOUCH.p2.jumpHeld = (Math.hypot(x - b.p2.btnX, y - b.p2.jumpY) < b.r * 3.0 || (x >= b.p2.btnMinX - 30 && y < b.p2.splitY + 20));
+      return;
+    }
+    if(LOCAL_TOUCH.p2.dropId === id){
+      LOCAL_TOUCH.p2.downHeld = (Math.hypot(x - b.p2.btnX, y - b.p2.dropY) < b.r * 3.0 || (x >= b.p2.btnMinX - 30 && y >= b.p2.splitY - 20));
+      return;
+    }
+    return;
+  }
+
+  if(JOY.leftId === id && JOY.boundsL){
+    const b = JOY.boundsL;
+    const off = clamp((x - b.cx) / b.maxTravel, -1, 1);
+    JOY.leftX = off;
+    TOUCH.left = (off < -0.22);
+    TOUCH.right = (off > 0.22);
+    return;
+  }
+  if(JOY.rightId === id && JOY.boundsR){
+    const b = JOY.boundsR;
+    const off = clamp((y - b.cyTop) / b.maxTravel, 0, 1);
+    JOY.rightY = off;
+    if(off > 0.22 || (y - JOY.rightStartY > 12)){
+      TOUCH.downHeld = true;
+      TOUCH.jumpHeld = false;
+      TOUCH.jumpEdge = false;
+      const myP = getMyPlayer();
+      if(myP && myP.jbuf > 0) myP.jbuf = 0;
+    } else {
+      TOUCH.downHeld = false;
+      TOUCH.jumpHeld = true;
+    }
+    return;
+  }
   if(!touchPts.has(id))return;
   const cur=touchPts.get(id);
-  const z=zoneAt(x,y,true);
-  if(z!==cur){
-    if(cur&&cur.hold)keys.delete(cur.hold);
-    if(z)keys.add(z.hold);
-    touchPts.set(id,z);
+  if(cur&&(cur.hold||cur.touchAction)){
+    const z=zoneAt(x,y,true);
+    if(z!==cur){
+      if(cur&&cur.hold)keys.delete(cur.hold);
+      if(cur&&cur.touchAction)applyTouchAction(cur.touchAction,false);
+      if(z&&z.hold)keys.add(z.hold);
+      if(z&&z.touchAction)applyTouchAction(z.touchAction,true);
+      touchPts.set(id,z);
+    }
+  }else if(cur&&cur.upFn){
+    if(x<cur.x-10||x>cur.x+cur.w+10||y<cur.y-10||y>cur.y+cur.h+10){
+      touchPts.set(id,null);
+    }
   }
 }
 function inputUp(id){
+  const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
+  const isSplitLocal = (!isOnline && match && screen === 'game' && match.players && match.players.length === 2 && isTouch);
+  if(isSplitLocal){
+    // P1
+    if(LOCAL_TOUCH.p1.joyId === id){
+      const p = LOCAL_TOUCH.p1;
+      p.joyId = null;
+      p.active = false;
+      p.offX = 0;
+      p.left = false;
+      p.right = false;
+    }
+    if(LOCAL_TOUCH.p1.jumpId === id){
+      LOCAL_TOUCH.p1.jumpId = null;
+      LOCAL_TOUCH.p1.jumpHeld = false;
+      LOCAL_TOUCH.p1.jumpEdge = false;
+    }
+    if(LOCAL_TOUCH.p1.dropId === id){
+      LOCAL_TOUCH.p1.dropId = null;
+      LOCAL_TOUCH.p1.downHeld = false;
+    }
+    // P2
+    if(LOCAL_TOUCH.p2.joyId === id){
+      const p = LOCAL_TOUCH.p2;
+      p.joyId = null;
+      p.active = false;
+      p.offX = 0;
+      p.left = false;
+      p.right = false;
+    }
+    if(LOCAL_TOUCH.p2.jumpId === id){
+      LOCAL_TOUCH.p2.jumpId = null;
+      LOCAL_TOUCH.p2.jumpHeld = false;
+      LOCAL_TOUCH.p2.jumpEdge = false;
+    }
+    if(LOCAL_TOUCH.p2.dropId === id){
+      LOCAL_TOUCH.p2.dropId = null;
+      LOCAL_TOUCH.p2.downHeld = false;
+    }
+  }
+
+  if(JOY.leftId === id){
+    JOY.leftId = null;
+    JOY.leftX = 0; // Snaps back to center!
+    TOUCH.left = false;
+    TOUCH.right = false;
+  }
+  if(JOY.rightId === id){
+    JOY.rightId = null;
+    JOY.rightY = 0; // Snaps back to top!
+    TOUCH.jumpHeld = false;
+    TOUCH.downHeld = false;
+    TOUCH.jumpEdge = false;
+  }
   const z=touchPts.get(id);
-  if(z&&z.hold)keys.delete(z.hold);
+  if(z){
+    if(z.hold)keys.delete(z.hold);
+    if(z.touchAction)applyTouchAction(z.touchAction,false);
+    if(z.upFn)z.upFn();
+  }
   touchPts.delete(id);
 }
-if(typeof window.PointerEvent!=='undefined'){
-  cv.addEventListener('pointerdown',e=>{e.preventDefault();inputDown(e.clientX,e.clientY,e.pointerId);},{passive:false});
-  cv.addEventListener('pointermove',e=>{inputMove(e.clientX,e.clientY,e.pointerId);},{passive:false});
-  cv.addEventListener('pointerup',e=>inputUp(e.pointerId));
-  cv.addEventListener('pointercancel',e=>inputUp(e.pointerId));
+if(window.PointerEvent){
+  cv.addEventListener('pointerdown',e=>{
+    e.preventDefault();
+    const pt=getCanvasCoords(e.clientX,e.clientY);
+    inputDown(pt.x,pt.y,e.pointerId!=null?e.pointerId:'touch');
+  },{passive:false});
+  cv.addEventListener('pointermove',e=>{
+    e.preventDefault();
+    const pt=getCanvasCoords(e.clientX,e.clientY);
+    inputMove(pt.x,pt.y,e.pointerId!=null?e.pointerId:'touch');
+  },{passive:false});
+  cv.addEventListener('pointerup',e=>{
+    inputUp(e.pointerId!=null?e.pointerId:'touch');
+  },{passive:false});
+  cv.addEventListener('pointercancel',e=>{
+    inputUp(e.pointerId!=null?e.pointerId:'touch');
+  },{passive:false});
 }else{
-  cv.addEventListener('touchstart',e=>{e.preventDefault();for(const t of e.changedTouches)inputDown(t.clientX,t.clientY,'t'+t.identifier);},{passive:false});
-  cv.addEventListener('touchmove',e=>{e.preventDefault();for(const t of e.changedTouches)inputMove(t.clientX,t.clientY,'t'+t.identifier);},{passive:false});
-  cv.addEventListener('touchend',e=>{for(const t of e.changedTouches)inputUp('t'+t.identifier);});
-  cv.addEventListener('touchcancel',e=>{for(const t of e.changedTouches)inputUp('t'+t.identifier);});
-  cv.addEventListener('mousedown',e=>inputDown(e.clientX,e.clientY,'mouse'));
-  cv.addEventListener('mousemove',e=>inputMove(e.clientX,e.clientY,'mouse'));
+  cv.addEventListener('touchstart',e=>{
+    e.preventDefault();
+    for(const t of e.changedTouches){
+      const pt=getCanvasCoords(t.clientX,t.clientY);
+      inputDown(pt.x,pt.y,'t'+t.identifier);
+    }
+  },{passive:false});
+  cv.addEventListener('touchmove',e=>{
+    e.preventDefault();
+    for(const t of e.changedTouches){
+      const pt=getCanvasCoords(t.clientX,t.clientY);
+      inputMove(pt.x,pt.y,'t'+t.identifier);
+    }
+  },{passive:false});
+  cv.addEventListener('touchend',e=>{
+    for(const t of e.changedTouches)inputUp('t'+t.identifier);
+  },{passive:false});
+  cv.addEventListener('touchcancel',e=>{
+    for(const t of e.changedTouches)inputUp('t'+t.identifier);
+  },{passive:false});
+  cv.addEventListener('mousedown',e=>{
+    const pt=getCanvasCoords(e.clientX,e.clientY);
+    inputDown(pt.x,pt.y,'mouse');
+  });
+  cv.addEventListener('mousemove',e=>{
+    const pt=getCanvasCoords(e.clientX,e.clientY);
+    inputMove(pt.x,pt.y,'mouse');
+  });
   cv.addEventListener('mouseup',()=>inputUp('mouse'));
   cv.addEventListener('mouseleave',()=>inputUp('mouse'));
 }
@@ -237,11 +698,31 @@ const CG={
 };
 function applySdkMute(m){sdkMuted=!!m;applyEffectiveMute();}
 function applyEffectiveMute(){const eff=muted||sdkMuted;try{if(master)master.gain.value=eff?0:0.5;}catch(e){}}
-let _cgBoot=null;
+function unlockAllAudio(){
+  if(AC && AC.state === 'suspended') AC.resume().catch(()=>{});
+  if(typeof VOICE !== 'undefined' && VOICE.peers){
+    for(const entry of VOICE.peers.values()){
+      if(entry.audioEl && entry.audioEl.paused){
+        entry.audioEl.play().catch(()=>{});
+      }
+    }
+  }
+}
 
 function initAudio(){
-  if(AC){if(AC.state==='suspended')AC.resume().catch(()=>{});applyEffectiveMute();return;}
-  try{AC=new (window.AudioContext||window.webkitAudioContext)();master=AC.createGain();master.gain.value=(muted||sdkMuted)?0:0.5;master.connect(AC.destination);}catch(e){AC=null;}
+  if(AC){
+    if(AC.state==='suspended')AC.resume().catch(()=>{});
+    applyEffectiveMute();
+    unlockAllAudio();
+    return;
+  }
+  try{
+    AC=new (window.AudioContext||window.webkitAudioContext)();
+    master=AC.createGain();
+    master.gain.value=(muted||sdkMuted)?0:0.5;
+    master.connect(AC.destination);
+  }catch(e){AC=null;}
+  unlockAllAudio();
   if(!_cgBoot){_cgBoot=CG.boot();}
 }
 function beep(f0,f1,dur,type,vol,delay){
@@ -298,20 +779,60 @@ const BOOST_MULT=1.31;           /* Blue pad jump: clean ~346px boost, just befo
 
 const PALETTE=[
   {name:'CHERRY',c:'#e8433f'},{name:'SUNNY',c:'#f5a623'},{name:'SKY',c:'#2f9be8'},
-  {name:'GRAPE',c:'#a06cd5'},{name:'MINT',c:'#27c487'},{name:'PINK',c:'#f06292'}
+  {name:'GRAPE',c:'#a06cd5'},{name:'MINT',c:'#27c487'},{name:'PINK',c:'#f06292'},
+  {name:'CYAN',c:'#00d2d3'},{name:'LIME',c:'#a8e024'}
 ];
+
+const TEAMS = [
+  { name: 'RED TEAM', icon: '🔴', base: '#e8433f', shades: ['#e8433f', '#ff6b6b', '#b81414', '#f06595'] },
+  { name: 'BLUE TEAM', icon: '🔵', base: '#2f9be8', shades: ['#2f9be8', '#00d2d3', '#1b4f9c', '#5f27cd'] },
+  { name: 'GREEN TEAM', icon: '🟢', base: '#27c487', shades: ['#27c487', '#a8e024', '#10ac84', '#1dd1a1'] },
+  { name: 'YELLOW TEAM', icon: '🟡', base: '#f5a623', shades: ['#f5a623', '#feca57', '#ff9f43', '#ffeaa7'] }
+];
+
 const TIMES=[50,100,150,200];
-const settings={map:0,doubleJump:true,collision:false,timeIdx:1};
+const settings={map:0,doubleJump:true,collision:false,timeIdx:1,teams:false};
 Object.defineProperty(settings,'time',{get(){return TIMES[this.timeIdx];}});
 
 const SLOTS=[
-  // Each slot can be driven by WASD OR arrows interchangeably — no per-slot lock.
-  // Default labels show the "primary" hint; the actual left/right sources include both.
-  {label:'WASD',pad:0,map:{L:['KeyA','ArrowLeft'],R:['KeyD','ArrowRight'],U:'KeyW',D:'KeyS'}},
-  {label:'↑←↓→',pad:1,map:{L:['ArrowLeft','KeyA'],R:['ArrowRight','KeyD'],U:'ArrowUp',D:'ArrowDown'}},
+  {label:'WASD',pad:0,map:{L:['KeyA','KeyQ'],R:'KeyD',U:['KeyW','Space'],D:'KeyS'}},
+  {label:'↑←↓→',pad:1,map:{L:'ArrowLeft',R:'ArrowRight',U:'ArrowUp',D:'ArrowDown'}},
   {label:'IJKL',pad:2,map:{L:'KeyJ',R:'KeyL',U:'KeyI',D:'KeyK'}},
-  {label:'TFGH',pad:3,map:{L:'KeyF',R:'KeyH',U:'KeyT',D:'KeyG'}}
+  {label:'TFGH',pad:3,map:{L:'KeyF',R:'KeyH',U:'KeyT',D:'KeyG'}},
+  {label:'P5 (NET)',pad:4,map:{L:['KeyA'],R:'KeyD',U:['KeyW','Space'],D:'KeyS'}},
+  {label:'P6 (NET)',pad:5,map:{L:['KeyA'],R:'KeyD',U:['KeyW','Space'],D:'KeyS'}},
+  {label:'P7 (NET)',pad:6,map:{L:['KeyA'],R:'KeyD',U:['KeyW','Space'],D:'KeyS'}},
+  {label:'P8 (NET)',pad:7,map:{L:['KeyA'],R:'KeyD',U:['KeyW','Space'],D:'KeyS'}}
 ];
+
+function getPlayerColor(p, pList){
+  if(!p) return '#ffffff';
+  if(settings.teams){
+    const teamIdx = p.team != null ? (p.team % TEAMS.length) : 0;
+    const teamDef = TEAMS[teamIdx] || TEAMS[0];
+    const list = pList || (match ? match.players : []);
+    const mates = list.filter(o => o.team === p.team);
+    const rank = Math.max(0, mates.findIndex(o => o.slot === p.slot));
+    return teamDef.shades[rank % teamDef.shades.length] || teamDef.base;
+  }
+  const c = p.colIdx != null ? p.colIdx : p.slot;
+  return (PALETTE[c >= 0 ? c % PALETTE.length : p.slot % PALETTE.length] || PALETTE[0]).c;
+}
+
+function getSlotColor(slot, slotColorArr, slotTeamArr){
+  if(settings.teams){
+    const teamIdx = (slotTeamArr && slotTeamArr[slot] != null) ? (slotTeamArr[slot] % TEAMS.length) : (slot % 2);
+    const teamDef = TEAMS[teamIdx] || TEAMS[0];
+    let rank = 0;
+    const max = (slotColorArr && slotColorArr.length) || 8;
+    for(let s = 0; s < slot; s++){
+      if((slotColorArr ? slotColorArr[s] >= 0 : true) && slotTeamArr && slotTeamArr[s] === teamIdx) rank++;
+    }
+    return teamDef.shades[rank % teamDef.shades.length] || teamDef.base;
+  }
+  const c = slotColorArr ? slotColorArr[slot] : slot;
+  return (PALETTE[c >= 0 ? c % PALETTE.length : slot % PALETTE.length] || PALETTE[0]).c;
+}
 
 /* ================= 10 INTRICATE, ACCESSIBLE MAPS (NO OVERLAPS, PURE JUKE ZONES) ================= */
 /* Format: [x, y, w, h, (optional dy for slope)]
@@ -435,11 +956,45 @@ let currentThemeIdx=0;
 
 /* ================= menu ================= */
 let screen='menu',tGlobal=0;
-const menu={mode:'slots',slotColor:[0,2,-1,-1],row:4,rule:0,toast:null,toastT:0};
+const menu={mode:'rows',slotColor:[0,2,-1,-1,-1,-1,-1,-1],slotTeam:[0,1,0,1,0,1,0,1],row:4,rule:0,toast:null,toastT:0};
 const ROWS=['CHANGE PLAYERS','MAP','TIMER','RULES','START'];
 const RULE_NAMES=['DOUBLE JUMP','BUMP'];
 function toast(m){menu.toast=m;menu.toastT=2.2;}
-function activeSlots(){const r=[];for(let i=0;i<4;i++)if(menu.slotColor[i]>=0)r.push(i);return r;}
+function activeSlots(){
+  const max = (typeof NET !== 'undefined' && NET && NET.role !== null) ? 8 : 4;
+  const r = [];
+  for(let i = 0; i < max; i++){
+    if(menu.slotColor[i] >= 0) r.push(i);
+  }
+  return r;
+}
+function cycleTeam(i, d){
+  if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+  menu.slotTeam[i] = ((menu.slotTeam[i] || 0) + d + TEAMS.length) % TEAMS.length;
+  sfx('ui');
+  if(typeof NET !== 'undefined' && NET && NET.role !== null){
+    if(NET.isHost) netBroadcastRoster();
+    else {
+      for(const pair of NET.conns.values()){
+        netSendRel(pair, { t: 'team', slot: i, team: menu.slotTeam[i] });
+      }
+    }
+  }
+}
+function toggleTeams(){
+  if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){
+    toast('HOST TOGGLES TEAM MODE');
+    sfx('back');
+    return;
+  }
+  settings.teams = !settings.teams;
+  sfx('ui');
+  toast(settings.teams ? 'TEAM MODE: ON' : 'TEAM MODE: OFF (FFA)');
+  if(typeof NET !== 'undefined' && NET && NET.isHost){
+    netBroadcastSettings();
+    netBroadcastRoster();
+  }
+}
 function cycleSlot(i,d){
   const taken=menu.slotColor.filter((c,k)=>c>=0&&k!==i);
   const list=[-1].concat(PALETTE.map((p,idx)=>idx).filter(idx=>taken.indexOf(idx)<0));
@@ -458,17 +1013,58 @@ function toggleRule(){
   if(menu.rule===0)settings.doubleJump=!settings.doubleJump;
   else settings.collision=!settings.collision;
   sfx('ui');
+  if(NET.isHost) netBroadcastSettings();
 }
 function rowEdit(d){
+  if(typeof NET!=='undefined' && NET && NET.role!==null && !NET.isHost){
+    toast('HOST CONTROLS MAP & RULES');
+    sfx('back');
+    return;
+  }
   switch(menu.row){
     case 1:settings.map=(settings.map+d+MAPS.length)%MAPS.length;buildLevel();sfx('ui');break;
     case 2:settings.timeIdx=(settings.timeIdx+d+TIMES.length)%TIMES.length;sfx('ui');break;
     case 3:menu.rule=(menu.rule+d+2)%2;sfx('ui');break;
   }
+  if(typeof NET!=='undefined' && NET && NET.isHost && typeof netBroadcastSettings==='function') netBroadcastSettings();
 }
 function rowEnter(){
-  if(menu.row===0){menu.mode='slots';sfx('ok');}
+  if(menu.row===0){
+    if(typeof NET!=='undefined' && NET && NET.role!==null){
+      // in online mode, row 0 is online roster status
+      if(NET.isHost && activeSlots().length<2){
+        if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(netLink(NET.room)).catch(()=>{});
+        netToast('Invite link copied! Share with your friend.');
+      }
+      return;
+    }
+    menu.mode='slots';sfx('ok');
+  }
   else if(menu.row===4){
+    if(typeof NET!=='undefined' && NET && NET.role!==null){
+      if(!NET.isHost){
+        toast('WAITING FOR HOST TO START');
+        sfx('back');
+        return;
+      }
+      const act=activeSlots();
+      if(act.length<2){
+        if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(netLink(NET.room)).catch(()=>{});
+        netToast('Invite link copied! Send it to your friend.');
+        toast('WAITING FOR A FRIEND TO JOIN!');
+        sfx('back');
+        return;
+      }
+      const allReady=act.every(s=>NET.slotsReady[s]);
+      if(!allReady){
+        toast('WAITING FOR ALL PLAYERS TO HIT READY!');
+        sfx('back');
+        return;
+      }
+      sfx('go');
+      startMatch();
+      return;
+    }
     if(activeSlots().length<2){
       menu.mode='slots';
       menu.row=0;
@@ -479,7 +1075,14 @@ function rowEnter(){
       startMatch();
     }
   }
-  else if(menu.row===3)toggleRule();
+  else if(menu.row===3){
+    if(typeof NET!=='undefined' && NET && NET.role!==null && !NET.isHost){
+      toast('HOST CONTROLS MAP & RULES');
+      sfx('back');
+      return;
+    }
+    toggleRule();
+  }
   else rowEdit(1);
 }
 function menuConfirm(){
@@ -489,8 +1092,6 @@ function menuConfirm(){
   }else rowEnter();
 }
 function updateMenu(dt){
-  if(anyPressed(['KeyP']))cycleFont(1);
-  if(anyPressed(['KeyO']))cycleFont(-1);
   if(anyPressed(['KeyM'])){muted=!muted;applyEffectiveMute();}
   menu.toastT-=dt;
   if(menu.mode==='slots'){
@@ -529,14 +1130,19 @@ let match=null;
 const cam={x:W/2,y:H/2,s:0.5};
 function makePlayer(i,slot,colIdx){
   const N=activeSlots().length;
-  const s=SLOTS[slot];
+  const s=SLOTS[slot] || SLOTS[0];
   const x=Math.round(WALL+(W-2*WALL)*((i+0.5)/N))-23;
+  const team = (menu.slotTeam && menu.slotTeam[slot] != null) ? menu.slotTeam[slot] : (slot % 2);
   return {x:x,y:H-WALL-46,w:46,h:46,vx:0,vy:0,grounded:true,gp:SOLIDS[1],lastGp:SOLIDS[1],
     face:i%2===0?1:-1,airJumps:settings.doubleJump?1:0,wallJumps:0,coyote:0,jbuf:0,holdT:0,dropT:0,sideT:0,wallSide:0,
     sx:1,sy:1,landT:0,tagT:0,padOn:false,blinkT:rand(1.5,4),blink:0,seed:i*3.7,
-    slot:slot,colIdx:colIdx,trail:[]};
+    slot:slot,colIdx:colIdx,team:team,trail:[]};
 }
 function startMatch(){
+  if(typeof NET!=='undefined' && NET && NET.role!==null && !NET.isHost){
+    toast('HOST RESTARTS THE MATCH');
+    return;
+  }
   const act=activeSlots();
   if(act.length<2){
     menu.mode='slots';
@@ -545,6 +1151,11 @@ function startMatch(){
     sfx('back');
     return;
   }
+  // Clear any result/menu banners so the arena is clean
+  try{CG.clearAllBanners();}catch(e){}
+  try{const a=document.getElementById('cg-banner-resp');if(a)a.style.display='none';}catch(e){}
+  try{const b=document.getElementById('cg-banners');if(b)b.style.display='none';}catch(e){}
+  try{CG.gameplayStart();}catch(e){}
   matchIndex++;
   /* AUTOMATIC CLEAN GRADIENT BACKGROUND CHANGE ON EVERY MATCH */
   currentThemeIdx=(matchIndex-1)%THEMES.length;
@@ -555,14 +1166,39 @@ function startMatch(){
   lastStartIT=it;
   buildLevel();
   const players=act.map((slot,i)=>makePlayer(i,slot,menu.slotColor[slot]));
-  match={state:'countdown',cd:3,cdT:0,timer:settings.time,lastTick:settings.time,it:it,cooldown:0,
+  const itTeam = settings.teams ? players[it].team : null;
+  const isOnlineMatch = (typeof NET !== 'undefined' && NET && NET.role !== null);
+  const isSplitLocalTouch = (isTouch && !isOnlineMatch && act.length === 2);
+  const initState = isSplitLocalTouch ? 'tutorial' : 'countdown';
+  if(isSplitLocalTouch){
+    LOCAL_TOUCH.showTutorial = true;
+    LOCAL_TOUCH.p1.joyId = null; LOCAL_TOUCH.p1.active = false; LOCAL_TOUCH.p1.left = false; LOCAL_TOUCH.p1.right = false; LOCAL_TOUCH.p1.offX = 0; LOCAL_TOUCH.p1.visOffX = 0; LOCAL_TOUCH.p1.jumpId = null; LOCAL_TOUCH.p1.jumpHeld = false; LOCAL_TOUCH.p1.jumpEdge = false; LOCAL_TOUCH.p1.dropId = null; LOCAL_TOUCH.p1.downHeld = false;
+    LOCAL_TOUCH.p2.joyId = null; LOCAL_TOUCH.p2.active = false; LOCAL_TOUCH.p2.left = false; LOCAL_TOUCH.p2.right = false; LOCAL_TOUCH.p2.offX = 0; LOCAL_TOUCH.p2.visOffX = 0; LOCAL_TOUCH.p2.jumpId = null; LOCAL_TOUCH.p2.jumpHeld = false; LOCAL_TOUCH.p2.jumpEdge = false; LOCAL_TOUCH.p2.dropId = null; LOCAL_TOUCH.p2.downHeld = false;
+  } else {
+    LOCAL_TOUCH.showTutorial = false;
+  }
+  match={state:initState,cd:3,cdT:0,timer:settings.time,lastTick:settings.time,it:it,itTeam:itTeam,
+    teamItTime:[0,0,0,0],cooldown:0,
     goFlash:0,freeze:0,shake:0,flash:0,fade:0.6,tagPop:null,resultT:0,
     tags:players.map(()=>0),hintT:7,players:players,result:null,pausedFrom:null,pauseSel:0,
     mapToast:MAPS[settings.map].name,mapToastT:2.5};
   screen='game';
-  sfx('count');
+  if(!isSplitLocalTouch) sfx('count');
+
+  // Broadcast to all connected netplay guests
+  if(typeof NET!=='undefined' && NET && NET.role!==null && NET.isHost && NET.conns.size>0){
+    const payload={it:match.it, itTeam:match.itTeam, cooldownN:0, matchIndex:matchIndex, currentThemeIdx:currentThemeIdx, lastStartIT:lastStartIT};
+    netBroadcastReliable({t:'start',settings:{map:settings.map,doubleJump:settings.doubleJump,collision:settings.collision,teams:settings.teams,slotColor:menu.slotColor.slice(),slotTeam:(menu.slotTeam?menu.slotTeam.slice():[])},mapData:MAPS[settings.map%MAPS.length],payload:payload});
+  }
 }
-function quitToMenu(){match=null;screen='menu';sfx('back');}
+function quitToMenu(){
+  try{CG.gameplayStop();}catch(e){}
+  if(typeof NET!=='undefined' && NET && NET.role!==null && NET.isHost){
+    netBroadcastReliable({t:'to_menu'});
+  }
+  GESTURE_SPLIT.showTutorial = false;
+  match=null;screen='menu';sfx('back');
+}
 
 /* ================= particles & ghost trails ================= */
 const parts=[];
@@ -595,34 +1231,42 @@ function drawParts(){
   g.globalAlpha=1;
 }
 
-/* ============ PLAIN, MINIMALIST GRADIENT BACKGROUNDS (NO BUILDINGS) ============ */
+/* ============ PLAIN, MINIMALIST GRADIENT BACKGROUNDS (CACHED PER THEME) ============ */
+let _cachedThemeIdx = -1, _cachedNightGr = null, _cachedIntGr = null, _cachedVignette = null;
+function updateThemeGradients(){
+  if(_cachedThemeIdx === currentThemeIdx && _cachedNightGr) return;
+  _cachedThemeIdx = currentThemeIdx;
+  const th = THEMES[currentThemeIdx];
+  _cachedNightGr = g.createLinearGradient(0, -900, 0, H + 900);
+  _cachedNightGr.addColorStop(0, th.top);
+  _cachedNightGr.addColorStop(0.5, th.mid);
+  _cachedNightGr.addColorStop(1, th.bot);
+
+  _cachedIntGr = g.createLinearGradient(0, WALL, 0, H - WALL);
+  _cachedIntGr.addColorStop(0, th.top);
+  _cachedIntGr.addColorStop(0.5, th.mid);
+  _cachedIntGr.addColorStop(1, th.bot);
+
+  _cachedVignette = g.createRadialGradient(W / 2, H / 2, H * 0.4, W / 2, H / 2, H * 1.05);
+  _cachedVignette.addColorStop(0, 'rgba(0,0,0,0)');
+  _cachedVignette.addColorStop(1, 'rgba(0,0,0,0.30)');
+}
+
 function drawNightWorld(){
-  const th=THEMES[currentThemeIdx];
-  const gr=g.createLinearGradient(0,-900,0,H+900);
-  gr.addColorStop(0,th.top);gr.addColorStop(0.5,th.mid);gr.addColorStop(1,th.bot);
-  g.fillStyle=gr;
-  g.fillRect(-1000,-1000,W+2000,H+2000);
+  updateThemeGradients();
+  g.fillStyle = _cachedNightGr;
+  g.fillRect(-1000, -1000, W + 2000, H + 2000);
 }
 
 function drawInterior(){
-  const th=THEMES[currentThemeIdx];
+  updateThemeGradients();
   g.save();
-  rr(g,WALL,WALL,W-2*WALL,H-2*WALL,10);g.clip();
-  
-  /* Smooth plain gradient - completely clean and distraction-free */
-  const ig=g.createLinearGradient(0,WALL,0,H-WALL);
-  ig.addColorStop(0,th.top);
-  ig.addColorStop(0.5,th.mid);
-  ig.addColorStop(1,th.bot);
-  g.fillStyle=ig;
-  g.fillRect(WALL,WALL,W-2*WALL,H-2*WALL);
-  
-  /* Soft lighting vignette for depth */
-  const vg=g.createRadialGradient(W/2,H/2,H*0.4,W/2,H/2,H*1.05);
-  vg.addColorStop(0,'rgba(0,0,0,0)');
-  vg.addColorStop(1,'rgba(0,0,0,0.30)');
-  g.fillStyle=vg;g.fillRect(WALL,WALL,W-2*WALL,H-2*WALL);
-  
+  rr(g, WALL, WALL, W - 2 * WALL, H - 2 * WALL, 10);
+  g.clip();
+  g.fillStyle = _cachedIntGr;
+  g.fillRect(WALL, WALL, W - 2 * WALL, H - 2 * WALL);
+  g.fillStyle = _cachedVignette;
+  g.fillRect(WALL, WALL, W - 2 * WALL, H - 2 * WALL);
   g.restore();
 }
 
@@ -654,16 +1298,37 @@ function landOn(p,gp,impact,wasG){
   }
 }
 function inputFor(p){
-  /* Each slot merges its keyboard aliases with its pad. WASD and Arrows are
-     aliases for slots 0/1 (so a player can pick either); no slot is pad-locked. */
+  /* Offline: each slot has its dedicated keyboard scheme and pad (P1: WASD, P2: Arrows, P3: IJKL, P4: TFGH) */
   const s=SLOTS[p.slot],m=s.map,pd=PAD[s.pad];
   const hasL=Array.isArray(m.L),hasR=Array.isArray(m.R);
   let dir=(hasR?(m.R.some(k=>keys.has(k))?1:0):(keys.has(m.R)?1:0))
          -(hasL?(m.L.some(k=>keys.has(k))?1:0):(keys.has(m.L)?1:0));
-  let jumpEdge=pressed.has(m.U),jumpHeld=keys.has(m.U),downHeld=keys.has(m.D);
+  const hasU=Array.isArray(m.U),hasD=Array.isArray(m.D);
+  let jumpEdge=hasU?(m.U.some(k=>pressed.has(k))):(pressed.has(m.U));
+  let jumpHeld=hasU?(m.U.some(k=>keys.has(k))):(keys.has(m.U));
+  let downHeld=hasD?(m.D.some(k=>keys.has(k))):(keys.has(m.D));
   if(pd){
     dir+=(pd.right?1:0)-(pd.left?1:0);
     jumpEdge=jumpEdge||pd.jumpE;jumpHeld=jumpHeld||pd.jumpHeld;downHeld=downHeld||pd.dropHeld;
+  }
+  const isOnlineMatch = (typeof NET !== 'undefined' && NET && NET.role !== null);
+  const isSplitLocal = (isTouch && !isOnlineMatch && match && match.players && match.players.length === 2);
+  if(!isSplitLocal && p.slot === (typeof NET !== 'undefined' && NET && NET.mySlot >= 0 ? NET.mySlot : 0)){
+    if(TOUCH.left) dir = -1;
+    if(TOUCH.right) dir = 1;
+    if(TOUCH.jumpEdge) jumpEdge = true;
+    if(TOUCH.jumpHeld) jumpHeld = true;
+    if(TOUCH.downHeld) downHeld = true;
+  }
+  if(isSplitLocal){
+    const gP = (p.slot === match.players[0].slot) ? LOCAL_TOUCH.p1 : ((p.slot === match.players[1].slot) ? LOCAL_TOUCH.p2 : null);
+    if(gP){
+      if(gP.left) dir = -1;
+      if(gP.right) dir = 1;
+      if(gP.jumpEdge){ jumpEdge = true; gP.jumpEdge = false; }
+      if(gP.jumpHeld) jumpHeld = true;
+      if(gP.downHeld) downHeld = true;
+    }
   }
   return {dir:clamp(dir,-1,1),jumpEdge:!!jumpEdge,jumpHeld:!!jumpHeld,downHeld:!!downHeld};
 }
@@ -714,6 +1379,7 @@ function physUpdate(p,dt,allow){
   const hoverPlat=!p.grounded&&p.vy>-60&&p.vy<160?zoneAtFeet(p,'drop'):null;
   const hoverDrop=!!hoverPlat&&(p.x+6>=hoverPlat.x)&&(p.x+p.w-6<=hoverPlat.x+hoverPlat.w);
   if(downHeld&&(planted||hoverDrop)){
+    p.jbuf = 0;
     const dropPlat=planted?p.gp:hoverPlat;
     if(dropPlat){
       p.dropT=0.35;
@@ -733,7 +1399,7 @@ function physUpdate(p,dt,allow){
   /* JUMP HANDLING: Ground, Wall-Jump, Double Jump, and Blue Pad Boost.
      Tap = shorter hop; holding jump sustains reduced gravity for 0.10s so a
      full hold rises just past the old fixed jump height. */
-  if(p.jbuf>0){
+  if(p.jbuf>0 && !downHeld){
     if(p.grounded||p.coyote>0){
       const boost=(p.grounded&&zoneAtFeet(p,'boost'))?BOOST_MULT:1;
       p.vy=-JUMP_V*boost;
@@ -958,31 +1624,104 @@ function pairCollide(){
   }
 }
 function tagBox(p){const pad=5;return{x:p.x-pad,y:p.y-pad,w:p.w+2*pad,h:p.h+2*pad};}
+function applyTag(newItIdx, popX, popY){
+  if(!match || match.state !== 'playing' || match.cooldown > 0) return;
+  const P = match.players;
+  if(newItIdx < 0 || newItIdx >= P.length) return;
+  const oldIt = P[match.it];
+  const newIt = P[newItIdx];
+  if(!oldIt || !newIt) return;
+
+  match.it = newItIdx;
+  if(settings.teams && newIt.team != null){
+    match.itTeam = newIt.team;
+  }
+  match.cooldown = 3;
+  match.tags[newItIdx]++;
+  match.freeze = 0.09; match.shake = 13; match.flash = 0.14;
+  match.tagPop = { t: 0.55, x: popX != null ? popX : (oldIt.x + newIt.x) / 2 + 23, y: popY != null ? popY : (oldIt.y + newIt.y) / 2 + 10 };
+  oldIt.tagT = 0.7; newIt.tagT = 0.7;
+  sfx('tag');
+  tagBurst(match.tagPop.x, match.tagPop.y, getPlayerColor(oldIt), getPlayerColor(newIt));
+}
+
 function checkTag(){
-  if(match.state!=='playing'||match.cooldown>0)return;
-  const P=match.players,it=P[match.it];
-  for(let j=0;j<P.length;j++){
-    if(j===match.it)continue;
-    // Inclusive border + 5px expansion: outline/edge touch now tags, and near-miss grazes count.
-    if(hitRectInclusive(tagBox(it),tagBox(P[j]))){
-      match.it=j;
-      match.cooldown=3;
-      match.tags[j]++;
-      match.freeze=0.09;match.shake=13;match.flash=0.14;
-      match.tagPop={t:0.55,x:(it.x+P[j].x)/2+23,y:(it.y+P[j].y)/2+10};
-      it.tagT=0.7;P[j].tagT=0.7;
-      sfx('tag');
-      tagBurst(match.tagPop.x,match.tagPop.y,PALETTE[it.colIdx].c,PALETTE[P[j].colIdx].c);
+  if(!match || match.state !== 'playing' || match.cooldown > 0) return;
+  const P = match.players;
+  if(!P || P.length < 2) return;
+
+  const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
+  const isOnlineGuest = isOnline && !NET.isHost;
+
+  if(settings.teams && match.itTeam != null){
+    // "Hunt Together": ALL players on the itTeam hunt together!
+    const hunters = P.filter(p => p.team === match.itTeam);
+    const runners = P.filter(p => p.team !== match.itTeam);
+    for(const hunter of hunters){
+      for(const runner of runners){
+        if(hitRectInclusive(tagBox(hunter), tagBox(runner))){
+          const popX = (hunter.x + runner.x) / 2 + 23, popY = (hunter.y + runner.y) / 2 + 10;
+          if(isOnlineGuest){
+            if(hunter.slot === NET.mySlot){
+              netBroadcastReliable({ t: 'tag_claim', from: hunter.slot, target: runner.slot, x: popX, y: popY });
+              match.cooldown = 0.6;
+            }
+            return;
+          }
+          applyTag(P.indexOf(runner), popX, popY);
+          return;
+        }
+      }
+    }
+    return;
+  }
+
+  // Classic Free-for-All
+  const it = P[match.it];
+  if(!it) return;
+  for(let j = 0; j < P.length; j++){
+    if(j === match.it) continue;
+    if(hitRectInclusive(tagBox(it), tagBox(P[j]))){
+      if(isOnlineGuest){
+        if(it.slot === NET.mySlot){
+          const popX = (it.x + P[j].x) / 2 + 23, popY = (it.y + P[j].y) / 2 + 10;
+          netBroadcastReliable({ t: 'tag_claim', from: it.slot, target: P[j].slot, x: popX, y: popY });
+          match.cooldown = 0.6;
+        }
+        return;
+      }
+      applyTag(j, (it.x + P[j].x) / 2 + 23, (it.y + P[j].y) / 2 + 10);
       return;
     }
   }
 }
 function endMatch(){
+  try{CG.happytime();}catch(e){}try{CG.gameplayStop();}catch(e){}
+  try{CG.requestResponsiveBanner('cg-banner-responsive');const el=document.getElementById('cg-banner-resp');if(el)el.style.display='flex';}catch(e){}
+  try{if((matchIndex%2)===0)CG.requestMidgame();}catch(e){}
   match.state='result';
-  match.result={loser:match.it};
+  if(settings.teams && match.teamItTime){
+    // Team with the lowest total IT time wins!
+    const activeTeams = Array.from(new Set(match.players.map(p => p.team)));
+    let bestTeam = activeTeams[0] || 0;
+    let minTime = match.teamItTime[bestTeam] || 0;
+    for(const tm of activeTeams){
+      const tmTime = match.teamItTime[tm] || 0;
+      if(tmTime < minTime){
+        minTime = tmTime;
+        bestTeam = tm;
+      }
+    }
+    match.result={winningTeam: bestTeam, teamItTime: match.teamItTime.slice()};
+  } else {
+    match.result={loser:match.it};
+  }
   match.resultT=0;
   confetti();
   sfx('win');
+  if(typeof NET!=='undefined' && NET && NET.isHost && NET.midgameJoiner){
+    netToast('New player joined — returning to lobby!');
+  }
 }
 
 /* ================= camera ================= */
@@ -999,7 +1738,7 @@ function updateCam(dt){
     const dx=maxX-minX,dy=maxY-minY;
     const needW=dx+640+(N-2)*220,needH=dy+500+(N-2)*120;
     const minS=Math.min(CW/(W+140),CH/(H+140));
-    ts=clamp(Math.min(CW/needW,CH/needH),minS,N>=3?1.35:1.75);
+    ts=clamp(Math.min(CW/needW,CH/needH),minS,N>=6?1.05:(N>=4?1.25:1.75));
   }
   const kp=1-Math.exp(-dt*5.5),ks=1-Math.exp(-dt*3.8);
   cam.x+=(tx-cam.x)*kp;cam.y+=(ty-cam.y)*kp;cam.s+=(ts-cam.s)*ks;
@@ -1011,12 +1750,24 @@ function updateCam(dt){
 /* ================= game update & fullscreen ================= */
 function toggleFullscreen(){
   try{
-    if(!document.fullscreenElement&&!document.webkitFullscreenElement){
-      if(document.documentElement.requestFullscreen)document.documentElement.requestFullscreen().catch(()=>{});
-      else if(document.documentElement.webkitRequestFullscreen)document.documentElement.webkitRequestFullscreen();
+    const de = document.documentElement;
+    const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement || document.webkitIsFullScreen);
+    const req = de.requestFullscreen || de.webkitRequestFullscreen || de.webkitRequestFullScreen || cv.requestFullscreen || cv.webkitRequestFullscreen || cv.webkitRequestFullScreen || de.mozRequestFullScreen || de.msRequestFullscreen;
+    if(!req){
+      window.scrollTo(0, 0);
+      if(match){ match.mapToast = 'ADD TO HOME SCREEN FOR FULLSCREEN'; match.mapToastT = 2.5; }
+      return;
+    }
+    if(!isFs){
+      const target = (de.requestFullscreen || de.webkitRequestFullscreen || de.webkitRequestFullScreen) ? de : cv;
+      const p = req.call(target);
+      if(p && p.catch) p.catch(()=>{});
     }else{
-      if(document.exitFullscreen)document.exitFullscreen().catch(()=>{});
-      else if(document.webkitExitFullscreen)document.webkitExitFullscreen();
+      const exit = document.exitFullscreen || document.webkitExitFullscreen || document.webkitCancelFullScreen || document.mozCancelFullScreen || document.msExitFullscreen;
+      if(exit){
+        const p = exit.call(document);
+        if(p && p.catch) p.catch(()=>{});
+      }
     }
   }catch(e){}
 }
@@ -1029,7 +1780,7 @@ function toggleSound(){
 function togglePause(){
   if(!match)return;
   if(match.state==='paused'){match.state=match.pausedFrom;match.pausedFrom=null;sfx('ok');}
-  else if(match.state==='playing'||match.state==='countdown'){match.pausedFrom=match.state;match.state='paused';match.pauseSel=0;sfx('back');}
+  else if(match.state==='playing'||match.state==='countdown'){match.pausedFrom=match.state;match.state='paused';match.pauseSel=0;try{CG.gameplayStop();}catch(e){}sfx('back');}
 }
 function cycleTheme(){
   currentThemeIdx=(currentThemeIdx+1)%THEMES.length;
@@ -1055,6 +1806,7 @@ function updateGame(dt){
   if(anyPressed(['KeyP']))togglePause();
   if(anyPressed(['KeyN']))selectMapQuick(settings.map+1);
   if(anyPressed(['KeyB']))cycleTheme();
+  if(anyPressed(['KeyV']))voiceToggleMic();
   
   /* Number keys 1-9, 0 to switch to any map instantly */
   for(let k=1;k<=9;k++)if(pressed.has('Digit'+k))selectMapQuick(k-1);
@@ -1078,11 +1830,43 @@ function updateGame(dt){
   }
   if(match.state==='result'){
     match.resultT+=dt;
-    if(anyPressed(['Enter','NumpadEnter','Space'])){sfx('go');startMatch();}
-    for(let i=0;i<4;i++){if(PAD[i]&&PAD[i].confirmE){sfx('go');startMatch();}}
+    if(typeof NET!=='undefined' && NET && NET.isHost && NET.midgameJoiner && match.resultT >= 4.0){
+      NET.midgameJoiner = false;
+      quitToMenu();
+      return;
+    }
+    if(anyPressed(['Enter','NumpadEnter','Space'])){
+      if(typeof NET!=='undefined' && NET && NET.role!==null){
+        if(!NET.isHost) return;
+        if(NET.midgameJoiner){
+          NET.midgameJoiner = false;
+          quitToMenu();
+          return;
+        }
+      }
+      sfx('go');startMatch();
+    }
+    for(let i=0;i<4;i++){
+      if(PAD[i]&&PAD[i].confirmE){
+        if(typeof NET!=='undefined' && NET && NET.role!==null){
+          if(!NET.isHost) return;
+          if(NET.midgameJoiner){
+            NET.midgameJoiner = false;
+            quitToMenu();
+            return;
+          }
+        }
+        sfx('go');startMatch();
+      }
+    }
     updateParts(dt);updateCam(dt);match.shake*=Math.exp(-dt*7);match.flash=Math.max(0,match.flash-dt);
     return;
   }
+  if(match.state==='tutorial'){
+    updateParts(dt);updateCam(dt);
+    return;
+  }
+
   if(match.freeze>0){match.freeze-=dt;return;}
   match.fade=Math.max(0,match.fade-dt);
   match.mapToastT=Math.max(0,match.mapToastT-dt);
@@ -1095,7 +1879,17 @@ function updateGame(dt){
       else sfx('count');
     }
   }
-  for(const p of match.players)physUpdate(p,dt,inPlay);
+  for(const p of match.players){
+    if(typeof NET !== 'undefined' && NET && NET.role !== null && NET.isHost){
+      if(p.slot === NET.mySlot || p.slot === 0){
+        physUpdate(p, dt, inPlay);
+      } else {
+        netApplyRemoteTarget(p, dt);
+      }
+    } else {
+      physUpdate(p, dt, inPlay);
+    }
+  }
   // Tag before bump — skins kissing counts before bodies push apart.
   checkTag();
   pairCollide();
@@ -1108,6 +1902,10 @@ function updateGame(dt){
       if(match.cooldown<=0){match.cooldown=0;match.goFlash=0.8;sfx('go');}
     }
     match.timer-=dt;
+    if(settings.teams && match.itTeam != null){
+      if(!match.teamItTime) match.teamItTime = [0,0,0,0];
+      match.teamItTime[match.itTeam] += dt;
+    }
     const s=Math.ceil(match.timer);
     if(s!==match.lastTick){if(s<=5&&s>0)sfx('tick');match.lastTick=s;}
     if(match.timer<=0){match.timer=0;endMatch();return;}
@@ -1124,6 +1922,7 @@ function update(dt){
   pollGamepads();
   if(screen==='menu'){updateMenu(dt);updateCam(dt);}
   else updateGame(dt);
+  if(typeof updateVoiceProximity==='function')updateVoiceProximity(dt);
 }
 
 /* ================= text/ui ================= */
@@ -1470,8 +2269,8 @@ function drawPlayers(){
   const P=match.players;
   for(let i=0;i<P.length;i++){
     const p=P[i];
-    const col=PALETTE[p.colIdx].c;
-    const isIt=match.it===i&&match.state!=='result';
+    const col=getPlayerColor(p);
+    const isIt=settings.teams ? (p.team === match.itTeam && match.state !== 'result') : (match.it===i&&match.state!=='result');
     
     /* 1. Dynamic Contact Shadow on Ground/Platform */
     g.fillStyle='rgba(0,0,0,0.28)';
@@ -1504,7 +2303,24 @@ function drawPlayers(){
       fdir:p.face,blink:p.blink>0,shake:p.tagT>0.45?4:0,
       moving:Math.abs(p.vx)>60,grounded:p.grounded,seed:p.seed
     });
-    ptxt('P'+(i+1),p.x+p.w/2,p.y-12,FN(12,900),col);
+    const teamBadge = settings.teams ? ((p.team === 0 ? ' [RED]' : (p.team === 1 ? ' [BLUE]' : ' [GRN]'))) : '';
+    ptxt('P'+(p.slot+1)+teamBadge,p.x+p.w/2,p.y-12,FN(11,900),col);
+    // Proximity voice speaking indicator
+    if(typeof isPlayerSpeaking==='function' && isPlayerSpeaking(p.slot!=null?p.slot:i)){
+      const spkY=p.y-26, spkX=p.x+p.w/2;
+      const pulse=1+0.18*Math.sin(tGlobal*14);
+      g.save();
+      g.translate(spkX, spkY);
+      g.scale(pulse, pulse);
+      g.beginPath();g.arc(0,0,10,0,TAU);
+      g.fillStyle='rgba(46, 204, 113, 0.9)';g.fill();
+      g.lineWidth=1.5;g.strokeStyle='#ffffff';g.stroke();
+      ptxt('🎙️',0,0.5,FN(8.5,900),'#ffffff');
+      g.strokeStyle='rgba(46, 204, 113, 0.65)';g.lineWidth=1.8;
+      g.beginPath();g.arc(0,0,15,-0.6,0.6);g.stroke();
+      g.beginPath();g.arc(0,0,15,Math.PI-0.6,Math.PI+0.6);g.stroke();
+      g.restore();
+    }
     if(match.state==='playing'&&match.cooldown>0){
       g.save();
       g.globalAlpha=0.3+0.2*Math.sin(tGlobal*8);
@@ -1513,7 +2329,15 @@ function drawPlayers(){
       g.restore();
     }
   }
-  if(match.state!=='result')drawITArrow(P[match.it]);
+  if(match.state!=='result'){
+    if(settings.teams && match.itTeam != null){
+      for(const p of P){
+        if(p.team === match.itTeam) drawITArrow(p);
+      }
+    } else {
+      drawITArrow(P[match.it]);
+    }
+  }
 }
 
 function drawTagPop(){
@@ -1542,35 +2366,66 @@ function drawTagPop(){
 }
 
 /* ================= MENU ================= */
+/* ================= MENU (Fully Responsive Layout) ================= */
 function slotCardRects(){
+  const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
   const isPortrait = (CH > CW && CW < 640);
+  const isShortH = (CH < 640);
+  const isPhone2P = (isTouch && !isOnline && (CW < 950 || CH < 600));
   const r = [];
+
+  if(isPhone2P){
+    // Mobile Phone Local: 2 large, prominent, easy-to-tap cards centered
+    const maxRowW = Math.min(CW - 24, 460);
+    const gap = 16;
+    const cw = Math.floor((maxRowW - gap) / 2);
+    const chh = Math.floor(clamp(CH * 0.22, 80, 115));
+    const totalW = 2 * cw + gap;
+    const x0 = Math.floor(CW / 2 - totalW / 2);
+    const y = Math.floor(clamp(CH * 0.23, 86, 175));
+    r.push({ x: x0, y: y, w: cw, h: chh });
+    r.push({ x: x0 + cw + gap, y: y, w: cw, h: chh });
+    return r;
+  }
 
   if(isPortrait){
     // Mobile Portrait: 2x2 Grid so cards never get squished or overflow screen
     const marginX = Math.max(10, Math.floor(CW * 0.035));
     const gapX = 10;
     const cw = Math.floor((CW - marginX * 2 - gapX) / 2);
-    const chh = Math.floor(clamp(CH * 0.11, 75, 95));
+    const chh = isOnline ? Math.floor(clamp(CH * 0.165, 125, 155)) : Math.floor(clamp(CH * 0.11, 75, 95));
     const gapY = 8;
     const y0 = Math.floor(Math.max(96, CH * 0.155));
     for(let i = 0; i < 4; i++){
       const col = i % 2;
       const row = Math.floor(i / 2);
-      r.push({ x: marginX + col * (cw + gapX), y: y0 + row * (chh + gapY), w: cw, h: chh });
+      r.push({
+        x: marginX + col * (cw + gapX),
+        y: y0 + row * (chh + gapY),
+        w: cw,
+        h: chh
+      });
     }
     return r;
   }
 
-  // Landscape / Laptop / Desktop: 4 cards in a row
+  // Landscape / Laptop / Desktop: 4 cards in a single row
   const marginX = Math.max(14, Math.floor(CW * 0.025));
   const maxRowW = Math.min(CW - marginX * 2, 880);
   const gap = Math.floor(clamp(CW * 0.016, 8, 22));
   const cw = Math.floor((maxRowW - gap * 3) / 4);
-  const chh = Math.floor(clamp(CH * 0.15, 65, 105));
+
+  // Height adapts dynamically to CH so cards NEVER crush menu rows below
+  const chh = isOnline
+    ? Math.floor(clamp(CH * 0.23, isShortH ? 112 : 132, 180))
+    : Math.floor(clamp(CH * 0.15, 65, 105));
+
   const totalW = 4 * cw + 3 * gap;
   const x0 = Math.floor(CW / 2 - totalW / 2);
-  const y = Math.floor(clamp(CH * 0.24, 90, 210));
+  // Safely position below TAG title
+  const y = isOnline
+    ? Math.floor(clamp(CH * (isShortH ? 0.17 : 0.21), isShortH ? 82 : 110, 190))
+    : Math.floor(clamp(CH * 0.24, 90, 210));
 
   for(let i = 0; i < 4; i++){
     r.push({ x: x0 + i * (cw + gap), y: y, w: cw, h: chh });
@@ -1579,14 +2434,34 @@ function slotCardRects(){
 }
 
 function drawMenu(){
+  // Menu banners: once, not per frame — guard with last-shot timestamp.
+  try{
+    if(!drawMenu._bannersAt || Date.now() - drawMenu._bannersAt > 1500){
+      drawMenu._bannersAt = Date.now();
+      const sdk = window.CrazyGames && window.CrazyGames.SDK;
+      if(sdk && sdk.banner){
+        const resp = document.getElementById('cg-banner-resp');
+        const top = document.getElementById('cg-banners');
+        if(resp && resp.style.display === 'none' && !CG._bannerIds.has('cg-banner-responsive')){
+          try{ CG.requestResponsiveBanner('cg-banner-responsive'); resp.style.display = 'flex'; }catch(e){}
+        }
+        if(top && top.style.display === 'none' && !CG._bannerIds.has('cg-banner-top')){
+          try{ CG.requestBanner('cg-banner-top', '728x90'); top.style.display = 'block'; }catch(e){}
+        }
+      }
+    }
+  }catch(e){}
+
   g.save();
-  g.translate(CW/2,CH/2);g.scale(cam.s,cam.s);g.translate(-cam.x,-cam.y);
+  g.translate(CW/2, CH/2); g.scale(cam.s, cam.s); g.translate(-cam.x, -cam.y);
   drawNightWorld();
   g.restore();
 
+  const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
   const isShortH = (CH < 620);
   const isNarrowW = (CW < 520);
 
+  // Sound Mute button (top right)
   const si = Math.floor(clamp(Math.min(CW * 0.08, CH * 0.075), 36, 44));
   const soundX = CW - si - 12, soundY = 10;
   rr(g, soundX, soundY, si, si, 9);
@@ -1604,16 +2479,110 @@ function drawMenu(){
     g.strokeStyle = '#c0392b'; g.lineWidth = 3.5;
     g.beginPath(); g.moveTo(soundX + 27, soundY + si/2 - 8); g.lineTo(soundX + 38, soundY + si/2 + 8); g.stroke();
   }
-  zone(soundX, soundY, si, si, { fn: () => { muted = !muted; if(master) master.gain.value = muted ? 0 : 0.5; } });
+  zone(soundX, soundY, si, si, { fn: () => { muted = !muted; applyEffectiveMute(); } });
 
-  if(soundX > 160){
-    txt('v1.2 (Maps Updated)', 16, 20, FN(12, 800), 'rgba(255,255,255,0.5)', 'left');
-  } else if(soundX > 80){
-    txt('v1.2', 16, 20, FN(11, 800), 'rgba(255,255,255,0.5)', 'left');
+  // Team Mode Toggle button (right next to Mute button)
+  const tbw = isNarrowW ? 64 : 88;
+  const tbh = si;
+  const tbx = soundX - tbw - 8;
+  rr(g, tbx, soundY, tbw, tbh, 9);
+  g.fillStyle = settings.teams ? 'rgba(46, 204, 113, 0.95)' : 'rgba(255,255,255,0.85)';
+  g.fill(); g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
+  ptxt(settings.teams ? (isNarrowW ? '👥 ON' : '👥 TEAMS') : (isNarrowW ? '👥 OFF' : '👥 SOLO'), tbx + tbw/2, soundY + tbh/2 + 1, FN(isNarrowW ? 10.5 : 12, 900), settings.teams ? '#ffffff' : '#2c3e50');
+  zone(tbx, soundY, tbw, tbh, { fn: toggleTeams });
+
+  // Header navigation bar / buttons
+  let headerBottom = 50;
+  if(isOnline){
+    // Online room header bar
+    const rh = Math.floor(clamp(CH * 0.065, 34, 42));
+    const ry = 10;
+    const maxBarW = Math.min(520, tbx - 14);
+    const rx = 12;
+    rr(g, rx, ry, maxBarW, rh, 8);
+    g.fillStyle = 'rgba(14,20,32,0.94)'; g.fill();
+    g.lineWidth = 2; g.strokeStyle = '#2ecc71'; g.stroke();
+
+    const isCompact = (maxBarW < 430);
+    const isTiny = (maxBarW < 340);
+    const pad = 5;
+    const bh = rh - pad * 2;
+
+    // 1. Leave button (rightmost)
+    const lbw = isTiny ? 28 : (isCompact ? 44 : 54);
+    const lbx = rx + maxBarW - lbw - pad;
+    const lby = ry + pad;
+    rr(g, lbx, lby, lbw, bh, 5);
+    g.fillStyle = 'rgba(192,57,43,0.85)'; g.fill();
+    g.lineWidth = 1.5; g.strokeStyle = '#e74c3c'; g.stroke();
+    ptxt(isTiny ? '✕' : 'LEAVE', lbx + lbw/2, lby + bh/2 + 1, FN(isCompact ? 9 : 10, 900), '#ffffff');
+    zone(lbx, lby, lbw, bh, { fn: () => netLeaveRoom() });
+
+    // 2. Copy link button
+    const cbw = isTiny ? 30 : (isCompact ? 70 : 92);
+    const cbx = lbx - cbw - pad;
+    const cby = ry + pad;
+    rr(g, cbx, cby, cbw, bh, 5);
+    g.fillStyle = 'rgba(44,110,63,0.85)'; g.fill();
+    g.lineWidth = 1.5; g.strokeStyle = '#3b9c56'; g.stroke();
+    ptxt(isTiny ? '📋' : (isCompact ? '📋 LINK' : '📋 COPY LINK'), cbx + cbw/2, cby + bh/2 + 1, FN(isCompact ? 9 : 10, 900), '#ffffff');
+    zone(cbx, cby, cbw, bh, { fn: () => netCopyLink() });
+
+    // 3. Voice mic button
+    const vOn = (typeof VOICE !== 'undefined' && VOICE.enabled);
+    const vMuted = (typeof VOICE !== 'undefined' && VOICE.muted);
+    const vbw = isTiny ? 30 : (isCompact ? 58 : 74);
+    const vbx = cbx - vbw - pad;
+    const vby = ry + pad;
+    rr(g, vbx, vby, vbw, bh, 5);
+    g.fillStyle = vOn ? (vMuted ? 'rgba(192,57,43,0.85)' : 'rgba(39,174,96,0.85)') : 'rgba(255,255,255,0.18)'; g.fill();
+    g.lineWidth = 1.5; g.strokeStyle = vOn ? (vMuted ? '#e74c3c' : '#2ecc71') : 'rgba(255,255,255,0.35)'; g.stroke();
+    const micLabel = isTiny ? (vMuted ? '🔇' : '🎙️') : (isCompact ? (vMuted ? '🔇 MUTE' : '🎙️ ON') : (vMuted ? '🔇 MUTED' : (vOn ? '🎙️ MIC ON' : '🎙️ MIC')));
+    ptxt(micLabel, vbx + vbw/2, vby + bh/2 + 1, FN(isCompact ? 8.5 : 9.5, 900), '#ffffff');
+    zone(vbx, vby, vbw, bh, { fn: voiceToggleMic });
+
+    // 4. Room title (fills remaining space on the left)
+    const roomTitleW = vbx - rx - pad * 2;
+    if(roomTitleW > 30){
+      g.font = FN(isCompact ? 10 : 12, 900);
+      g.textAlign = 'left'; g.fillStyle = '#2ecc71';
+      const titleStr = isCompact ? (NET.room.toUpperCase() + (NET.isHost ? ' (H)' : ' (G)')) : ('ROOM: ' + NET.room.toUpperCase() + (NET.isHost ? ' (HOST)' : ' (GUEST)'));
+      g.fillText(titleStr, rx + pad + 2, ry + rh/2 + 4);
+    }
+    headerBottom = ry + rh;
+  } else {
+    // Offline header: HOST ONLINE & JOIN ROOM
+    const HIDE_ONLINE_BUTTONS = true;
+    if(!HIDE_ONLINE_BUTTONS){
+      const obw = isNarrowW ? 78 : 120;
+      const obh = si;
+      const obx = tbx - obw - 10;
+      rr(g, obx, 10, obw, obh, 9);
+      g.fillStyle = 'rgba(44,110,63,0.92)'; g.fill();
+      g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
+      ptxt(isNarrowW ? '🌐 HOST' : '🌐 HOST ONLINE', obx + obw/2, 10 + obh/2 + 1, FN(isNarrowW ? 10.5 : 11.5, 900), '#ffffff');
+      zone(obx, 10, obw, obh, { fn: () => netHostAction() });
+
+      const jbw = isNarrowW ? 70 : 102;
+      const jbh = si;
+      const jbx = obx - jbw - 10;
+      rr(g, jbx, 10, jbw, jbh, 9);
+      g.fillStyle = 'rgba(255,255,255,0.88)'; g.fill();
+      g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
+      ptxt(isNarrowW ? '🔗 JOIN' : '🔗 JOIN ROOM', jbx + jbw/2, 10 + jbh/2 + 1, FN(isNarrowW ? 10.5 : 11.5, 900), '#141b28');
+      zone(jbx, 10, jbw, jbh, { fn: () => netJoinAction() });
+
+      // Version text
+      if(jbx > 160){
+        txt('v1.3 (Teams & 8P)', 16, 20, FN(12, 800), 'rgba(255,255,255,0.5)', 'left');
+      }
+    }
+    headerBottom = 10 + si;
   }
 
-  const titleSize = Math.floor(clamp(Math.min(CW * 0.11, CH * 0.10), isShortH ? 30 : 42, 80));
-  const ly = Math.floor(Math.max(si + 14 + titleSize * 0.52, CH * (isShortH ? 0.085 : 0.115)));
+  // Dynamic TAG title logo
+  const titleSize = Math.floor(clamp(Math.min(CW * 0.11, CH * 0.10), isShortH ? 28 : 38, 72));
+  const ly = Math.floor(Math.max(headerBottom + titleSize * 0.50, CH * (isShortH ? 0.08 : 0.105)));
   const word = 'TAG';
   g.font = FT(titleSize);
   g.letterSpacing = '0.06em';
@@ -1635,99 +2604,371 @@ function drawMenu(){
   }
   g.letterSpacing = '0em';
 
-  const rects = slotCardRects();
-  for(let i = 0; i < 4; i++){
-    const r = rects[i], col = menu.slotColor[i];
-    const padHere = !!PAD[i];
-    rr(g, r.x-4, r.y-4, r.w+8, r.h+8, 12);
-    g.fillStyle = '#ffffff'; g.fill(); g.lineWidth = 3.5; g.strokeStyle = INK; g.stroke();
-    rr(g, r.x, r.y, r.w, r.h, 8);
-    g.fillStyle = col >= 0 ? PALETTE[col].c : (padHere ? '#2a3548' : '#25303f');
-    g.fill();
-    g.lineWidth = 2.5; g.strokeStyle = col >= 0 ? INK : 'rgba(255,255,255,0.25)'; g.stroke();
-    const cx = r.x + r.w/2, cy = r.y + r.h/2;
-    const glyphR = clamp(Math.min(r.w * 0.18, r.h * 0.22), 12, 26);
-    if(col >= 0){
-      const isPad = !!PAD[i];
-      const label = isPad ? '⦾ PAD' : SLOTS[i].label;
-      g.save(); g.globalAlpha = 0.62;
-      padGlyph(cx, cy - glyphR * 0.7, glyphR, true);
-      g.restore();
-      ptxt(label, cx, cy + glyphR * 0.8, FN(Math.min(14, r.w * 0.10), 900), '#ffffff');
-      txt('◀   ▶', cx, r.y + r.h - Math.max(10, r.h * 0.14), FN(Math.min(16, r.w * 0.12), 900), 'rgba(255,255,255,0.85)');
-    }else if(padHere){
-      padGlyph(cx, cy - glyphR * 0.4, glyphR * 1.1, true);
-      txt('◀   ▶', cx, r.y + r.h - Math.max(10, r.h * 0.14), FN(Math.min(16, r.w * 0.12), 900), 'rgba(255,255,255,0.85)');
-    }else{
-      ptxt(SLOTS[i].label, cx, cy - 4, FN(Math.min(20, r.w * 0.14), 900), '#cfe9c9');
-      txt('◀   ▶', cx, r.y + r.h - Math.max(10, r.h * 0.14), FN(Math.min(16, r.w * 0.12), 900), 'rgba(255,255,255,0.7)');
-    }
-    zone(r.x-4, r.y-4, r.w*0.4+4, r.h+8, { fn: () => cycleSlot(i, -1) });
-    zone(r.x+r.w*0.6, r.y-4, r.w*0.4+4, r.h+8, { fn: () => cycleSlot(i, 1) });
-  }
-
   let maxCardBottom = 0;
-  for(let i=0; i<rects.length; i++){
-    if(rects[i].y + rects[i].h > maxCardBottom) maxCardBottom = rects[i].y + rects[i].h;
-  }
 
-  const footerH = Math.max(22, Math.floor(CH * 0.045));
-  const availableBelow = Math.max(120, CH - maxCardBottom - footerH);
-  const rowCount = ROWS.length; // 5
-  const isVeryCompact = (availableBelow < 175);
-  const step = clamp(availableBelow / (rowCount + 0.65), isVeryCompact ? 22 : 28, 48);
-  const totalRowsSpan = (rowCount - 1) * step;
-  const ry0 = Math.floor(maxCardBottom + Math.max(14, (availableBelow - totalRowsSpan) * 0.42));
-  const baseFs = clamp(step * 0.42, 11, 20);
+  if(isOnline){
+    /* ======================================================================
+       ONLINE MODE: LEFT SIDEBAR ROSTER + PROMINENT "YOU" CARD IN CENTER
+       ====================================================================== */
+    const mySlot = NET.mySlot >= 0 ? NET.mySlot : 0;
+    const act = activeSlots();
+    const readyCount = act.filter(s => NET.slotsReady[s]).length;
+    const allReady = (act.length >= 2) && (readyCount === act.length);
 
-  for(let i = 0; i < ROWS.length; i++){
-    const y = ry0 + i * step;
-    const hl = (menu.mode === 'rows' && menu.row === i);
-    const sc = hl ? 1.08 : 1;
-    g.save();
-    g.translate(CW/2, y); g.scale(sc, sc);
-    let s = '';
-    if(i === 0) s = 'CHANGE PLAYERS  ' + activeSlots().length + 'P';
-    else if(i === 1) s = 'MAP:  ‹  ' + (settings.map + 1) + '. ' + MAPS[settings.map].name + '  ›';
-    else if(i === 2) s = 'TIMER:  ‹  ' + settings.time + 's  ›';
-    else if(i === 3) s = '‹  ' + RULE_NAMES[menu.rule] + ': ' + (ruleValue() ? 'ON' : 'OFF') + '  ›';
-    else {
-      s = (activeSlots().length < 2)
-        ? (isNarrowW ? 'START (MIN 2 PLAYERS)' : 'START MATCH (MIN 2 PLAYERS)')
-        : 'START MATCH';
-    }
-    const rowCol = hl ? (i === 4 && activeSlots().length < 2 ? '#ff7777' : '#ffffff') : (i === 4 && activeSlots().length < 2 ? '#884444' : '#c8d8e8');
-    ptxt(s, 0, 0, i === 4 ? FT(baseFs + 2) : FN(baseFs, 900), rowCol);
-    g.restore();
+    const hasSidebar = (CW >= 620);
+    const sbW = hasSidebar ? clamp(Math.floor(CW * 0.23), 160, 230) : 0;
+    const sbX = 14;
+    const contentY0 = Math.floor(ly + titleSize * 0.52 + 10);
+    const footerH = Math.max(22, Math.floor(CH * 0.045));
+    const maxH = Math.max(160, CH - contentY0 - footerH - 10);
 
-    const tw2 = Math.min(CW * 0.86, 560);
-    zone(CW/2 - tw2/2, y - step * 0.45, tw2, step * 0.9, { fn: () => {
-      if(menu.mode === 'slots') return;
-      if(i === 0){ menu.mode = 'slots'; sfx('ok'); }
-      else if(i === 4){
-        if(activeSlots().length < 2){
-          menu.mode = 'slots';
-          menu.row = 0;
-          toast('CHOOSE AT LEAST 2 PLAYERS!');
-          sfx('back');
+    if(hasSidebar){
+      // 1. Draw Left Sidebar Roster (Up to 8 Players)
+      rr(g, sbX, contentY0, sbW, maxH, 10);
+      g.fillStyle = 'rgba(14,20,32,0.92)'; g.fill();
+      g.lineWidth = 2; g.strokeStyle = 'rgba(255,255,255,0.2)'; g.stroke();
+
+      // Sidebar Header
+      const sbHeadH = 30;
+      rr(g, sbX, contentY0, sbW, sbHeadH, 10);
+      g.fillStyle = 'rgba(24,32,48,0.96)'; g.fill();
+      ptxt('ROSTER (' + act.length + '/8)', sbX + sbW/2, contentY0 + sbHeadH/2 + 1, FN(11, 900), '#2ecc71');
+
+      // 8 Slot Rows
+      const rowAvailH = maxH - sbHeadH - 6;
+      const rowH = Math.floor(clamp(rowAvailH / 8, 24, 44));
+      for(let s = 0; s < 8; s++){
+        const ry = contentY0 + sbHeadH + 4 + s * rowH;
+        const isConn = (s === 0 ? true : (NET.isHost ? NET.hostInputs.has(s) : menu.slotColor[s] >= 0));
+        const isMe = (s === mySlot);
+        const col = getSlotColor(s, menu.slotColor, menu.slotTeam);
+        const isRdy = !!NET.slotsReady[s];
+
+        rr(g, sbX + 4, ry + 1, sbW - 8, rowH - 2, 6);
+        g.fillStyle = isMe ? 'rgba(255,255,255,0.14)' : (isConn ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.25)');
+        g.fill();
+        if(isMe){ g.lineWidth = 1.5; g.strokeStyle = '#2ecc71'; g.stroke(); }
+
+        if(isConn){
+          // Mini avatar color swatch
+          rr(g, sbX + 8, ry + (rowH - 16)/2, 16, 16, 4);
+          g.fillStyle = col; g.fill(); g.lineWidth = 1.2; g.strokeStyle = INK; g.stroke();
+
+          // Player name
+          const who = 'P' + (s+1) + (s === 0 ? ' (H)' : '') + (isMe ? ' YOU' : '');
+          g.font = FN(Math.min(11, rowH * 0.38), 900); g.textAlign = 'left'; g.fillStyle = isMe ? '#2ecc71' : '#ffffff';
+          g.fillText(who, sbX + 30, ry + rowH/2 + 4);
+
+          // Team Badge if teams active
+          if(settings.teams){
+            const tm = (menu.slotTeam && menu.slotTeam[s] != null) ? menu.slotTeam[s] : (s % 2);
+            const tmIcon = (TEAMS[tm] ? TEAMS[tm].icon : '🔴');
+            ptxt(tmIcon, sbX + sbW - 40, ry + rowH/2 + 1, FN(10, 900), '#ffffff');
+          }
+
+          // Ready icon
+          ptxt(isRdy ? '✓' : '⏳', sbX + sbW - 14, ry + rowH/2 + 1, FN(11, 900), isRdy ? '#2ecc71' : '#e67e22');
         } else {
-          sfx('go'); startMatch();
+          g.font = FN(10, 800); g.textAlign = 'left'; g.fillStyle = '#64748b';
+          g.fillText('+ P' + (s+1) + ' INVITE', sbX + 12, ry + rowH/2 + 4);
+          zone(sbX + 4, ry + 1, sbW - 8, rowH - 2, { fn: () => netCopyLink() });
         }
       }
-      else if(menu.row === i) rowEdit(1);
-      else { menu.row = i; sfx('ui'); }
-    }});
+    }
+
+    // 2. Main Stage (Right of Sidebar): Prominent "YOU" Card
+    const mainX0 = hasSidebar ? (sbX + sbW + 16) : 14;
+    const mainW = CW - mainX0 - 14;
+    const cardW = clamp(Math.floor(mainW * 0.76), 240, 380);
+    const cardX = Math.floor(mainX0 + mainW/2 - cardW/2);
+    const cardY = contentY0;
+    const cardH = Math.floor(clamp(CH * 0.28, isShortH ? 140 : 160, 220));
+
+    // Card background
+    rr(g, cardX - 4, cardY - 4, cardW + 8, cardH + 8, 14);
+    g.fillStyle = '#ffffff'; g.fill(); g.lineWidth = 3.5; g.strokeStyle = INK; g.stroke();
+    rr(g, cardX, cardY, cardW, cardH, 10);
+    const myCol = getSlotColor(mySlot, menu.slotColor, menu.slotTeam);
+    g.fillStyle = myCol; g.fill(); g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
+
+    const cx = cardX + cardW/2;
+    const headH = Math.floor(clamp(cardH * 0.14, 14, 22));
+    const titleWho = 'YOU (P' + (mySlot + 1) + (NET.isHost ? ' HOST' : ' GUEST') + ')';
+    ptxt(titleWho, cx, cardY + headH + 1, FN(13, 900), '#ffffff');
+
+    // Controls on the card
+    const btnPad = Math.max(3, Math.floor(cardH * 0.025));
+    const rdyH = Math.floor(clamp(cardH * 0.20, 26, 38));
+    const ctrlH = Math.floor(clamp(cardH * 0.16, 22, 32));
+    const teamH = Math.floor(clamp(cardH * 0.16, 22, 32));
+    const rdyY = cardY + cardH - rdyH - btnPad - 2;
+    const ctrlY = rdyY - ctrlH - btnPad;
+    const teamY = ctrlY - teamH - btnPad;
+
+    // Middle: Big Animated Avatar
+    const avTop = cardY + headH * 2;
+    const avY = avTop + (teamY - avTop) * 0.5;
+    const charSz = clamp(Math.min(cardW * 0.22, (teamY - avTop) * 0.7), 20, 36);
+    drawChar(g, cx, avY, charSz, myCol, { face: 'happy', grounded: true, seed: mySlot * 3 });
+
+    // Team / Color Selector row
+    const btnW = cardW - 20;
+    rr(g, cx - btnW/2, teamY, btnW, teamH, 6);
+    g.fillStyle = 'rgba(0,0,0,0.65)'; g.fill();
+    g.lineWidth = 1.8; g.strokeStyle = '#ffffff'; g.stroke();
+    if(settings.teams){
+      const myTeam = (menu.slotTeam && menu.slotTeam[mySlot] != null) ? menu.slotTeam[mySlot] : (mySlot % 2);
+      const teamDef = TEAMS[myTeam] || TEAMS[0];
+      ptxt('‹  ' + teamDef.icon + ' ' + teamDef.name + '  ›', cx, teamY + teamH/2 + 1, FN(12, 900), '#ffffff');
+      zone(cx - btnW/2, teamY, btnW * 0.45, teamH, { fn: () => cycleTeam(mySlot, -1) });
+      zone(cx + btnW * 0.05, teamY, btnW * 0.45, teamH, { fn: () => cycleTeam(mySlot, 1) });
+    } else {
+      const curCol = (menu.slotColor[mySlot] >= 0) ? menu.slotColor[mySlot] : mySlot;
+      const colName = (PALETTE[curCol % PALETTE.length] || PALETTE[0]).name;
+      ptxt('‹  🎨 ' + colName + '  ›', cx, teamY + teamH/2 + 1, FN(12, 900), '#ffffff');
+      zone(cx - btnW/2, teamY, btnW * 0.45, teamH, { fn: () => {
+        if(NET.isHost){ cycleSlot(mySlot, -1); netBroadcastSettings(); netBroadcastRoster(); }
+        else netCycleMyColor(-1);
+      }});
+      zone(cx + btnW * 0.05, teamY, btnW * 0.45, teamH, { fn: () => {
+        if(NET.isHost){ cycleSlot(mySlot, 1); netBroadcastSettings(); netBroadcastRoster(); }
+        else netCycleMyColor(1);
+      }});
+    }
+
+    // Control Scheme row
+    rr(g, cx - btnW/2, ctrlY, btnW, ctrlH, 6);
+    g.fillStyle = 'rgba(0,0,0,0.65)'; g.fill();
+    g.lineWidth = 1.8; g.strokeStyle = '#ffffff'; g.stroke();
+    const ctrlName = NET.myCtrl || 'WASD';
+    const ctrlIcon = (ctrlName === 'Controller') ? '🕹️' : (ctrlName === 'Arrows' ? '⬆️' : '🎮');
+    ptxt(ctrlIcon + ' ' + ctrlName + '  ▾', cx, ctrlY + ctrlH/2 + 1, FN(12, 900), '#ffffff');
+    zone(cx - btnW/2, ctrlY, btnW, ctrlH, { fn: () => netCycleMyControl() });
+
+    // Dedicated Big Ready Button
+    const isMeRdy = !!NET.slotsReady[mySlot];
+    rr(g, cx - btnW/2, rdyY, btnW, rdyH, 8);
+    g.fillStyle = isMeRdy ? '#27ae60' : '#e67e22'; g.fill();
+    g.lineWidth = 2; g.strokeStyle = isMeRdy ? '#2ecc71' : '#ffffff'; g.stroke();
+    ptxt(isMeRdy ? '✔ I\'M READY (CLICK TO UNREADY)' : 'CLICK TO READY', cx, rdyY + rdyH/2 + 1, FN(13, 900), '#ffffff');
+    zone(cx - btnW/2, rdyY, btnW, rdyH, { fn: () => netToggleMyReady() });
+
+    maxCardBottom = cardY + cardH;
+
+    // 3. Settings & Host Start rows anchored below
+    const availableBelow = Math.max(110, CH - maxCardBottom - footerH);
+    const rowCount = 4; // MAP, TIMER, RULES, START
+    const step = clamp(availableBelow / (rowCount + 0.6), 24, 44);
+    const totalSpan = (rowCount - 1) * step;
+    const ry0 = Math.floor(maxCardBottom + Math.max(12, (availableBelow - totalSpan) * 0.38));
+    const baseFs = clamp(step * 0.42, 11, 18);
+    const centerX = Math.floor(mainX0 + mainW/2);
+
+    for(let i = 1; i <= 4; i++){
+      const y = ry0 + (i - 1) * step;
+      const hl = (menu.mode === 'rows' && menu.row === i);
+      const sc = hl ? 1.06 : 1;
+      g.save();
+      g.translate(centerX, y); g.scale(sc, sc);
+
+      let s = '';
+      let rowCol = hl ? '#ffffff' : '#c8d8e8';
+
+      if(i === 1){
+        s = NET.isHost
+          ? ('MAP:  ‹  ' + (settings.map + 1) + '. ' + MAPS[settings.map].name + '  ›')
+          : ('MAP: ' + (settings.map + 1) + '. ' + MAPS[settings.map].name + ' (HOST CHOICE)');
+      } else if(i === 2){
+        s = NET.isHost
+          ? ('TIMER:  ‹  ' + settings.time + 's  ›')
+          : ('TIMER: ' + settings.time + 's');
+      } else if(i === 3){
+        s = NET.isHost
+          ? ('‹  ' + RULE_NAMES[menu.rule] + ': ' + (ruleValue() ? 'ON' : 'OFF') + '  ›')
+          : (RULE_NAMES[menu.rule] + ': ' + (ruleValue() ? 'ON' : 'OFF'));
+      } else if(i === 4){
+        if(NET.isHost){
+          if(act.length < 2){
+            s = isNarrowW ? 'WAITING FOR PLAYERS (SHARE LINK)' : 'WAITING FOR PLAYERS TO JOIN (CLICK TO COPY LINK)';
+            rowCol = '#8899aa';
+          } else if(allReady){
+            s = '▶ START MATCH (ALL READY!)';
+            rowCol = '#00ff88';
+          } else {
+            s = 'WAITING FOR ALL READY (' + readyCount + '/' + act.length + ')';
+            rowCol = '#f39c12';
+          }
+        } else {
+          if(allReady){
+            s = 'ALL READY! WAITING FOR HOST TO START…';
+            rowCol = '#2ecc71';
+          } else {
+            s = isMeRdy
+              ? ('WAITING FOR OTHER PLAYERS (' + readyCount + '/' + act.length + ' READY)')
+              : ('CLICK READY ON YOUR CARD (' + readyCount + '/' + act.length + ' READY)');
+            rowCol = '#f39c12';
+          }
+        }
+      }
+
+      if(i === 4 && NET.isHost && allReady){
+        // Glowing start button badge
+        rr(g, -170, -step * 0.42, 340, step * 0.84, 8);
+        g.fillStyle = 'rgba(46, 204, 113, 0.95)'; g.fill();
+        g.lineWidth = 2; g.strokeStyle = '#ffffff'; g.stroke();
+        ptxt(s, 0, 1, FT(baseFs + 2), '#ffffff');
+      } else {
+        ptxt(s, 0, 0, i === 4 ? FT(baseFs + 2) : FN(baseFs, 900), rowCol);
+      }
+      g.restore();
+
+      const tw2 = Math.min(mainW * 0.9, 520);
+      zone(centerX - tw2/2, y - step * 0.45, tw2, step * 0.9, { fn: () => {
+        if(i < 4){
+          if(!NET.isHost){ toast('HOST CONTROLS MAP & RULES'); sfx('back'); return; }
+          rowEdit(1);
+        } else {
+          // Row 4: Start Match
+          if(!NET.isHost){ toast('WAITING FOR HOST TO START'); return; }
+          if(act.length < 2){ netCopyLink(); netToast('Invite link copied! Send it to your friend.'); return; }
+          if(!allReady){ toast('WAITING FOR ALL PLAYERS TO HIT READY!'); sfx('back'); return; }
+          sfx('go'); startMatch();
+        }
+      }});
+    }
+
+  } else {
+    /* ======================================================================
+       OFFLINE LOCAL MODE: 2 PLAYER CARDS (ON PHONE) / 4 PLAYER CARDS (DESKTOP)
+       ====================================================================== */
+    const isPhone2P = (isTouch && !isOnline && (CW < 950 || CH < 600));
+    if(isPhone2P){
+      menu.slotColor[2] = -1;
+      menu.slotColor[3] = -1;
+      if(menu.slotColor[0] < 0) menu.slotColor[0] = 0;
+      if(menu.slotColor[1] < 0) menu.slotColor[1] = 1;
+    }
+    const rects = slotCardRects();
+    for(let i = 0; i < rects.length; i++){
+      const r = rects[i];
+      const col = getSlotColor(i, menu.slotColor, menu.slotTeam);
+      const isAct = menu.slotColor[i] >= 0;
+
+      rr(g, r.x-4, r.y-4, r.w+8, r.h+8, 12);
+      g.fillStyle = '#ffffff'; g.fill(); g.lineWidth = 3.5; g.strokeStyle = INK; g.stroke();
+      rr(g, r.x, r.y, r.w, r.h, 8);
+      g.fillStyle = isAct ? col : '#25303f';
+      g.fill();
+      g.lineWidth = 2.5; g.strokeStyle = isAct ? INK : 'rgba(255,255,255,0.25)'; g.stroke();
+
+      const cx = r.x + r.w/2, cy = r.y + r.h/2;
+      const glyphR = clamp(Math.min(r.w * 0.18, r.h * 0.22), 12, 26);
+
+      if(isAct){
+        const isPad = !!PAD[i];
+        const label = isPhone2P ? ('PLAYER ' + (i + 1)) : (isPad ? '⦾ PAD' : SLOTS[i].label);
+        g.save(); g.globalAlpha = 0.62;
+        padGlyph(cx, cy - glyphR * 0.7, glyphR, true);
+        g.restore();
+        ptxt(label, cx, cy + glyphR * 0.8, FN(Math.min(14, r.w * 0.10), 900), '#ffffff');
+
+        if(settings.teams){
+          const tm = (menu.slotTeam && menu.slotTeam[i] != null) ? menu.slotTeam[i] : (i % 2);
+          const tmDef = TEAMS[tm] || TEAMS[0];
+          txt('‹ ' + tmDef.icon + ' ' + tmDef.name.slice(0,4) + ' ›', cx, r.y + r.h - Math.max(10, r.h * 0.14), FN(Math.min(14, r.w * 0.10), 900), '#ffffff');
+        } else {
+          txt('◀   ▶', cx, r.y + r.h - Math.max(10, r.h * 0.14), FN(Math.min(16, r.w * 0.12), 900), 'rgba(255,255,255,0.85)');
+        }
+      } else {
+        ptxt(SLOTS[i].label, cx, cy - 4, FN(Math.min(20, r.w * 0.14), 900), '#cfe9c9');
+        txt('◀   ▶', cx, r.y + r.h - Math.max(10, r.h * 0.14), FN(Math.min(16, r.w * 0.12), 900), 'rgba(255,255,255,0.7)');
+      }
+
+      zone(r.x-4, r.y-4, r.w*0.4+4, r.h+8, { fn: () => {
+        if(settings.teams && isAct) cycleTeam(i, -1);
+        else cycleSlot(i, -1);
+      }});
+      zone(r.x+r.w*0.6, r.y-4, r.w*0.4+4, r.h+8, { fn: () => {
+        if(settings.teams && isAct) cycleTeam(i, 1);
+        else cycleSlot(i, 1);
+      }});
+    }
+
+    for(let i=0; i<rects.length; i++){
+      if(rects[i].y + rects[i].h > maxCardBottom) maxCardBottom = rects[i].y + rects[i].h;
+    }
+
+    const footerH = Math.max(22, Math.floor(CH * 0.045));
+    const availableBelow = Math.max(120, CH - maxCardBottom - footerH);
+    const rowCount = ROWS.length;
+    const step = clamp(availableBelow / (rowCount + 0.65), 24, 48);
+    const totalRowsSpan = (rowCount - 1) * step;
+    const ry0 = Math.floor(maxCardBottom + Math.max(14, (availableBelow - totalRowsSpan) * 0.42));
+    const baseFs = clamp(step * 0.42, 11, 20);
+
+    for(let i=0; i<ROWS.length; i++){
+      if(isPhone2P && i === 0) continue; // Skip "CHANGE PLAYERS" row on mobile phone 2P since cards are already prominent
+      const y = ry0 + (isPhone2P ? (i - 0.2) : i) * step;
+      const hl = (menu.mode === 'rows' && menu.row === i);
+      const sc = hl ? 1.06 : 1;
+      g.save();
+      g.translate(CW/2, y); g.scale(sc, sc);
+      let s = '';
+      let rowCol = hl ? '#ffffff' : '#c8d8e8';
+
+      if(i === 0) s = 'CHANGE PLAYERS  ' + activeSlots().length + 'P';
+      else if(i === 1) s = 'MAP:  ‹  ' + (settings.map + 1) + '. ' + MAPS[settings.map].name + '  ›';
+      else if(i === 2) s = 'TIMER:  ‹  ' + settings.time + 's  ›';
+      else if(i === 3) s = '‹  ' + RULE_NAMES[menu.rule] + ': ' + (ruleValue() ? 'ON' : 'OFF') + '  ›';
+      else {
+        s = 'START MATCH';
+        rowCol = '#ffffff';
+      }
+
+      if(i === 4){
+        // Dedicated, prominent Glowing Start Button
+        const btnW = Math.min(CW * 0.74, 280);
+        const btnH = Math.min(step * 0.95, 42);
+        const pulse = 0.88 + Math.sin(tGlobal * 5) * 0.12;
+        rr(g, -btnW/2, -btnH/2, btnW, btnH, 10);
+        g.fillStyle = (activeSlots().length < 2) ? 'rgba(180, 50, 50, 0.85)' : 'rgba(46, 204, 113, ' + pulse + ')';
+        g.fill();
+        g.lineWidth = 2.5;
+        g.strokeStyle = '#ffffff';
+        g.stroke();
+        ptxt('▶ ' + s, 0, 1, FT(baseFs + 2), '#ffffff');
+      } else {
+        ptxt(s, 0, 0, FN(baseFs, 900), rowCol);
+      }
+      g.restore();
+
+      const tw2 = Math.min(CW * 0.86, 560);
+      zone(CW/2 - tw2/2, y - step * 0.45, tw2, step * 0.9, { fn: () => {
+        if(i === 4){
+          if(activeSlots().length < 2){ toast('CHOOSE AT LEAST 2 PLAYERS!'); sfx('back'); }
+          else { sfx('go'); startMatch(); }
+          return;
+        }
+        if(i === 0){ cycleSlot(0, 1); }
+        else {
+          menu.mode = 'rows';
+          menu.row = i;
+          rowEdit(1);
+        }
+      }});
+    }
+
+    if(menu.mode === 'rows'){
+      const chevDist = Math.min(CW * 0.44, Math.max(120, CW * 0.30));
+      const chevSz = Math.min(30, Math.floor(step * 0.85));
+      ptxt('‹', CW/2 - chevDist, ry0 + menu.row * step, FT(chevSz), '#ffffff');
+      ptxt('›', CW/2 + chevDist, ry0 + menu.row * step, FT(chevSz), '#ffffff');
+      zone(CW/2 - chevDist - 24, ry0 + menu.row * step - step * 0.45, 48, step * 0.9, { fn: () => rowEdit(-1) });
+      zone(CW/2 + chevDist - 24, ry0 + menu.row * step - step * 0.45, 48, step * 0.9, { fn: () => rowEdit(1) });
+    }
   }
 
-  if(menu.mode === 'rows'){
-    const chevDist = Math.min(CW * 0.44, Math.max(120, CW * 0.30));
-    const chevSz = Math.min(30, Math.floor(step * 0.85));
-    ptxt('‹', CW/2 - chevDist, ry0 + menu.row * step, FT(chevSz), '#ffffff');
-    ptxt('›', CW/2 + chevDist, ry0 + menu.row * step, FT(chevSz), '#ffffff');
-    zone(CW/2 - chevDist - 24, ry0 + menu.row * step - step * 0.45, 48, step * 0.9, { fn: () => rowEdit(-1) });
-    zone(CW/2 + chevDist - 24, ry0 + menu.row * step - step * 0.45, 48, step * 0.9, { fn: () => rowEdit(1) });
-  }
-
+  // Footer instructions (responsive to touch & screen width)
   const footerY = Math.max(CH - 18, ry0 + (ROWS.length - 1) * step + step * 0.7);
   const footerTxt = isTouch
     ? 'TAP CARDS TO CUSTOMIZE  •  TAP ROWS TO CHANGE SETTINGS'
@@ -1736,6 +2977,7 @@ function drawMenu(){
       : 'UP/DN SELECT   L/R CHANGE   ENTER OK   •   1-0 MAP, B THEME');
   ptxt(footerTxt, CW/2, footerY, FN(clamp(CW * 0.022, 9.5, 12.5), 800), 'rgba(255,255,255,0.55)');
 
+  // Toast message
   if(menu.toastT > 0 && menu.toast){
     const a = clamp(menu.toastT, 0, 1);
     g.save(); g.globalAlpha = a;
@@ -1759,30 +3001,385 @@ function tri(x,y,r,dir){
 function drawPadBtn(cx,cy,r,dir,o){
   const active=o.hold?keys.has(o.hold):(tGlobal-(glow[o.pk]||-9))<0.15;
   g.beginPath();g.arc(cx,cy,r,0,TAU);
-  g.fillStyle=active?'rgba(255,255,255,0.65)':'rgba(0,0,0,0.22)';
+  g.fillStyle=active?'rgba(255,255,255,0.75)':'rgba(15,23,42,0.65)';
   g.fill();
-  g.lineWidth=2.5;g.strokeStyle='rgba(255,255,255,0.6)';g.stroke();
+  g.lineWidth=2.5;g.strokeStyle=active?'#ffffff':'rgba(255,255,255,0.45)';g.stroke();
   tri(cx,cy,r*0.55,dir);
   g.fillStyle=active?'#143c26':'#ffffff';
   g.fill();
-  zone(cx-r-14,cy-r-14,r*2+28,r*2+28,o);
+  zone(cx-r-12,cy-r-12,r*2+24,r*2+24,o);
 }
+
+function drawPadBtnAction(cx,cy,r,actionKey,symbol,glowCol,label){
+  let active = false;
+  if(actionKey === 'left') active = TOUCH.left;
+  else if(actionKey === 'right') active = TOUCH.right;
+  else if(actionKey === 'jump') active = TOUCH.jumpHeld;
+  else if(actionKey === 'down') active = TOUCH.downHeld;
+  
+  g.save();
+  if(active){
+    g.beginPath(); g.arc(cx,cy,r+6,0,TAU);
+    g.fillStyle=glowCol||'rgba(255,255,255,0.3)';
+    g.fill();
+  }
+  
+  // Frosted circular button
+  g.beginPath(); g.arc(cx,cy,r,0,TAU);
+  g.fillStyle=active?'rgba(255,255,255,0.90)':'rgba(15,23,42,0.68)';
+  g.fill();
+  g.lineWidth=active?3.5:2.5;
+  g.strokeStyle=active?'#ffffff':'rgba(255,255,255,0.45)';
+  g.stroke();
+  
+  // Symbol icon
+  g.font=FN(Math.round(r*(label?0.62:0.72)),900);
+  g.textAlign='center';
+  g.textBaseline='middle';
+  g.fillStyle=active?'#0f172a':'#ffffff';
+  g.fillText(symbol,cx,cy+(label?-r*0.12:1));
+  
+  // Optional small label below icon (e.g. JUMP, DROP on tablet)
+  if(label && r>=34){
+    g.font=FN(Math.max(9,Math.round(r*0.22)),900);
+    g.fillStyle=active?'#0f172a':'rgba(255,255,255,0.75)';
+    g.fillText(label,cx,cy+r*0.52);
+  }
+  g.restore();
+  
+  // Generous touch hitbox
+  const padH=16;
+  zone(cx-r-padH,cy-r-padH,2*(r+padH),2*(r+padH),{
+    touchAction: actionKey
+  });
+}
+
 function drawTouchButtons(){
-  const r=clamp(Math.min((CW-80)/12,CH*0.07),20,42);
-  const bw=r*2,gap=10,m=14;
-  const y1=CH-m-r,y0=y1-bw-gap;
-  ptxt('P1',m+1.5*bw+gap,y0-r-14,FN(13,900),'rgba(255,255,255,0.9)');
-  ptxt('P2',CW-m-1.5*bw-gap,y0-r-14,FN(13,900),'rgba(255,255,255,0.9)');
-  const xL=m+r,xD=m+bw+gap+r,xR=m+2*(bw+gap)+r;
-  drawPadBtn(xL,y1,r,0,{hold:'KeyA',pk:'KeyA'});
-  drawPadBtn(xD,y1,r,3,{hold:'KeyS',pk:'KeyS'});
-  drawPadBtn(xR,y1,r,1,{hold:'KeyD',pk:'KeyD'});
-  drawPadBtn(xD,y0,r,2,{press:['KeyW'],pk:'KeyW'});
-  const xL2=CW-m-2*(bw+gap)-r,xD2=CW-m-bw-gap-r,xR2=CW-m-r;
-  drawPadBtn(xL2,y1,r,0,{hold:'ArrowLeft',pk:'ArrowLeft'});
-  drawPadBtn(xD2,y1,r,3,{hold:'ArrowDown',pk:'ArrowDown'});
-  drawPadBtn(xR2,y1,r,1,{hold:'ArrowRight',pk:'ArrowRight'});
-  drawPadBtn(xD2,y0,r,2,{press:['ArrowUp'],pk:'ArrowUp'});
+  if(!match) return;
+  
+  const isOnline=(typeof NET!=='undefined' && NET && NET.role!==null);
+  const isSplitLocal=(!isOnline && match.players.length===2);
+  const isTablet=Math.min(CW,CH)>=550 || (CW/CH<1.7 && Math.min(CW,CH)>=480);
+  
+  if(!isSplitLocal){
+    /* ================= SLEEK SEE-THROUGH JOYSTICKS (ONLINE & SOLO) ================= */
+    const r = isTablet ? clamp(CH * 0.058, 24, 32) : clamp(CH * 0.075, 20, 26);
+    const bm = isTablet ? clamp(CH * 0.07, 24, 44) : clamp(CH * 0.06, 16, 26);
+    const sm = isTablet ? clamp(CW * 0.045, 26, 48) : clamp(CW * 0.04, 18, 30);
+    
+    // --- 1. Left Horizontal-Only Joystick (Snaps to Center) ---
+    const wL = r * 3.6, hL = r * 2.1;
+    const cxL = sm + wL / 2;
+    const cyL = CH - bm - hL / 2;
+    const xL = cxL - wL / 2, yL = cyL - hL / 2;
+    const maxTravelL = (wL - 2 * r) / 2;
+    JOY.boundsL = { x: xL, y: yL, w: wL, h: hL, cx: cxL, cy: cyL, maxTravel: maxTravelL, r: r };
+
+    // --- 2. Right Vertical Dual Slider (Height = 2x Diameter, Snaps to Top) ---
+    const wR = r * 2.1, hR = r * 4.0;
+    const cxR = CW - sm - wR / 2;
+    const yR = CH - bm - hR;
+    const xR = cxR - wR / 2;
+    const cyTopR = yR + r * 1.05;
+    const maxTravelR = hR - 2.1 * r;
+    JOY.boundsR = { x: xR, y: yR, w: wR, h: hR, cx: cxR, cyTop: cyTopR, maxTravel: maxTravelR, r: r };
+
+    // Smooth visual interpolation for knobs
+    JOY.leftVisX += (JOY.leftX - JOY.leftVisX) * 0.40;
+    JOY.rightVisY += (JOY.rightY - JOY.rightVisY) * 0.45;
+
+    // --- Render Left Horizontal Track ---
+    g.save();
+    rr(g, xL, yL, wL, hL, hL / 2);
+    g.fillStyle = 'rgba(255, 255, 255, 0.08)';
+    g.fill();
+    g.lineWidth = 1.5;
+    g.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+    g.stroke();
+
+    // Subtle track slot guideline
+    g.beginPath();
+    g.moveTo(cxL - maxTravelL * 0.85, cyL);
+    g.lineTo(cxL + maxTravelL * 0.85, cyL);
+    g.lineWidth = 2.5;
+    g.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+    g.stroke();
+
+    // Faint chevrons
+    ptxt('◀', xL + r * 0.55, cyL, FN(11, 900), 'rgba(255, 255, 255, 0.28)');
+    ptxt('▶', xL + wL - r * 0.55, cyL, FN(11, 900), 'rgba(255, 255, 255, 0.28)');
+
+    // Render Left Knob (rests in center)
+    const kxL = cxL + JOY.leftVisX * maxTravelL;
+    const leftActive = (TOUCH.left || TOUCH.right);
+    g.beginPath();
+    g.arc(kxL, cyL, r * 0.88, 0, Math.PI * 2);
+    g.fillStyle = leftActive ? 'rgba(0, 210, 211, 0.45)' : 'rgba(255, 255, 255, 0.22)';
+    g.fill();
+    g.lineWidth = 2;
+    g.strokeStyle = leftActive ? '#00d2d3' : 'rgba(255, 255, 255, 0.60)';
+    g.stroke();
+    g.beginPath();
+    g.arc(kxL, cyL, 3, 0, Math.PI * 2);
+    g.fillStyle = leftActive ? '#ffffff' : 'rgba(255, 255, 255, 0.50)';
+    g.fill();
+
+    // --- Render Right Vertical Track ---
+    rr(g, xR, yR, wR, hR, wR / 2);
+    g.fillStyle = 'rgba(255, 255, 255, 0.08)';
+    g.fill();
+    g.lineWidth = 1.5;
+    g.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+    g.stroke();
+
+    // Subtle vertical slot guideline
+    g.beginPath();
+    g.moveTo(cxR, cyTopR + r * 0.2);
+    g.lineTo(cxR, cyTopR + maxTravelR);
+    g.lineWidth = 2.5;
+    g.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+    g.stroke();
+
+    // Dedicated Drop Pad target at bottom
+    const cyBotR = yR + hR - r * 1.05;
+    g.beginPath();
+    g.arc(cxR, cyBotR, r * 0.76, 0, Math.PI * 2);
+    g.fillStyle = TOUCH.downHeld ? 'rgba(235, 75, 155, 0.45)' : 'rgba(235, 75, 155, 0.14)';
+    g.fill();
+    g.lineWidth = 1.5;
+    g.strokeStyle = TOUCH.downHeld ? '#eb4b9b' : 'rgba(235, 75, 155, 0.50)';
+    g.stroke();
+    ptxt('▼', cxR, cyBotR + 1, FN(11, 900), TOUCH.downHeld ? '#ffffff' : 'rgba(235, 75, 155, 0.85)');
+
+    // Render Right Knob (snaps to top, tap jumps, drag down drops)
+    const kyR = cyTopR + JOY.rightVisY * maxTravelR;
+    g.beginPath();
+    g.arc(cxR, kyR, r * 0.88, 0, Math.PI * 2);
+    if(TOUCH.downHeld || JOY.rightVisY > 0.25){
+      g.fillStyle = 'rgba(235, 75, 155, 0.65)';
+      g.strokeStyle = '#eb4b9b';
+    } else if(TOUCH.jumpHeld){
+      g.fillStyle = 'rgba(46, 204, 113, 0.65)';
+      g.strokeStyle = '#2ecc71';
+    } else {
+      g.fillStyle = 'rgba(255, 255, 255, 0.22)';
+      g.strokeStyle = 'rgba(255, 255, 255, 0.60)';
+    }
+    g.fill();
+    g.lineWidth = 2;
+    g.stroke();
+
+    // Icon inside knob (▲ for Jump, ▼ when dragged down for Drop)
+    const knobIcon = (TOUCH.downHeld || JOY.rightVisY > 0.25) ? '▼' : '▲';
+    const knobCol = (TOUCH.downHeld || TOUCH.jumpHeld || JOY.rightVisY > 0.25) ? '#ffffff' : 'rgba(255, 255, 255, 0.85)';
+    ptxt(knobIcon, cxR, kyR + (knobIcon === '▲' ? -1 : 1), FN(12, 900), knobCol);
+
+    g.restore();
+  } else {
+    /* ================= 2-PLAYER LOCAL SPLIT (SIDE-TO-SIDE JOYSTICK + FIXED JUMP/DROP) ================= */
+    const b = calcLocalBounds();
+    const colP1 = (match.players[0] && PALETTE[match.players[0].colIdx]) ? PALETTE[match.players[0].colIdx].c : '#e8433f';
+    const colP2 = (match.players[1] && PALETTE[match.players[1].colIdx]) ? PALETTE[match.players[1].colIdx].c : '#2f9be8';
+
+    g.save();
+
+    // 1. Subtle Center Dashed Midline
+    g.setLineDash([6, 8]);
+    g.lineWidth = 1.5;
+    g.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+    g.beginPath();
+    g.moveTo(b.midX, 52);
+    g.lineTo(b.midX, CH - 14);
+    g.stroke();
+    g.setLineDash([]);
+
+    // 2. Ambient Corner Watermarks
+    const isNarrow = (CW < 600);
+    ptxt('P1 ZONE', Math.max(34, CW * 0.08), 34, FN(isNarrow ? 10 : 12, 900), rgba(colP1, 0.45));
+    ptxt('P2 ZONE', CW - Math.max(34, CW * 0.08), 34, FN(isNarrow ? 10 : 12, 900), rgba(colP2, 0.45));
+
+    // Helper to draw a player's controls
+    const drawPlayerControls = (pData, cfg, col) => {
+      // Smooth visual knob interpolation
+      pData.visOffX += (pData.offX - pData.visOffX) * 0.40;
+
+      // --- A. Side-to-Side Joystick Track ---
+      // If active, anchor track at touch position. If idle, show at default resting position.
+      const jx = pData.active ? pData.startX : cfg.defJoyX;
+      const jy = pData.active ? pData.startY : cfg.defJoyY;
+      const tw = b.trackW, th = b.trackH;
+
+      rr(g, jx - tw / 2, jy - th / 2, tw, th, th / 2);
+      g.fillStyle = pData.active ? rgba(col, 0.12) : 'rgba(255, 255, 255, 0.08)';
+      g.fill();
+      g.lineWidth = 1.5;
+      g.strokeStyle = pData.active ? rgba(col, 0.50) : 'rgba(255, 255, 255, 0.20)';
+      g.stroke();
+
+      // Track slot line
+      g.beginPath();
+      g.moveTo(jx - b.maxTravel * 0.85, jy);
+      g.lineTo(jx + b.maxTravel * 0.85, jy);
+      g.lineWidth = 2.5;
+      g.strokeStyle = pData.active ? rgba(col, 0.25) : 'rgba(255, 255, 255, 0.10)';
+      g.stroke();
+
+      // Chevrons inside track
+      ptxt('◀', jx - tw / 2 + b.r * 0.5, jy, FN(10, 900), pData.left ? '#ffffff' : 'rgba(255, 255, 255, 0.30)');
+      ptxt('▶', jx + tw / 2 - b.r * 0.5, jy, FN(10, 900), pData.right ? '#ffffff' : 'rgba(255, 255, 255, 0.30)');
+
+      // Joystick Knob
+      const kx = jx + pData.visOffX * b.maxTravel;
+      const isJoyActive = (pData.left || pData.right);
+      g.beginPath();
+      g.arc(kx, jy, b.r * 0.82, 0, TAU);
+      g.fillStyle = isJoyActive ? rgba(col, 0.65) : 'rgba(255, 255, 255, 0.22)';
+      g.fill();
+      g.lineWidth = 2;
+      g.strokeStyle = isJoyActive ? '#ffffff' : rgba(col, 0.60);
+      g.stroke();
+
+      // Knob center pip or arrow
+      const knobIcon = pData.left ? '◀' : (pData.right ? '▶' : '•');
+      ptxt(knobIcon, kx, jy + (knobIcon === '•' ? 0 : 1), FN(12, 900), isJoyActive ? '#ffffff' : 'rgba(255, 255, 255, 0.65)');
+
+      // --- B. Fixed JUMP Button (Top) ---
+      const jumpR = b.r * 0.88;
+      g.beginPath();
+      g.arc(cfg.btnX, cfg.jumpY, jumpR, 0, TAU);
+      g.fillStyle = pData.jumpHeld ? 'rgba(46, 204, 113, 0.65)' : 'rgba(255, 255, 255, 0.12)';
+      g.fill();
+      g.lineWidth = pData.jumpHeld ? 2.5 : 1.8;
+      g.strokeStyle = pData.jumpHeld ? '#2ecc71' : 'rgba(255, 255, 255, 0.35)';
+      g.stroke();
+      ptxt('▲', cfg.btnX, cfg.jumpY, FN(13, 900), pData.jumpHeld ? '#ffffff' : 'rgba(255, 255, 255, 0.85)');
+
+      // --- C. Fixed DROP Button (Bottom) ---
+      const dropR = b.r * 0.88;
+      g.beginPath();
+      g.arc(cfg.btnX, cfg.dropY, dropR, 0, TAU);
+      g.fillStyle = pData.downHeld ? 'rgba(235, 75, 155, 0.65)' : 'rgba(235, 75, 155, 0.15)';
+      g.fill();
+      g.lineWidth = pData.downHeld ? 2.5 : 1.8;
+      g.strokeStyle = pData.downHeld ? '#eb4b9b' : 'rgba(235, 75, 155, 0.50)';
+      g.stroke();
+      ptxt('▼', cfg.btnX, cfg.dropY + 1, FN(13, 900), pData.downHeld ? '#ffffff' : 'rgba(235, 75, 155, 0.85)');
+    };
+
+    drawPlayerControls(LOCAL_TOUCH.p1, b.p1, colP1);
+    drawPlayerControls(LOCAL_TOUCH.p2, b.p2, colP2);
+
+    g.restore();
+  }
+
+  // ================= 4. PRE-MATCH TUTORIAL THUMBNAIL CARD =================
+  if(GESTURE_SPLIT.showTutorial && match){
+    drawLocalTutorialCard();
+  }
+}
+
+function drawLocalTutorialCard(){
+  g.save();
+  // Semi-transparent backdrop
+  g.fillStyle = 'rgba(7, 11, 20, 0.88)';
+  g.fillRect(0, 0, CW, CH);
+
+  const cardW = Math.min(CW * 0.92, 560);
+  const cardH = Math.min(CH * 0.84, 370);
+  const cardX = CW / 2 - cardW / 2;
+  const cardY = CH / 2 - cardH / 2;
+
+  // Outer shadow & card body
+  rr(g, cardX, cardY, cardW, cardH, 18);
+  g.fillStyle = '#131b2b';
+  g.fill();
+  g.lineWidth = 2.5;
+  g.strokeStyle = '#2ecc71';
+  g.stroke();
+
+  // Header pill
+  const pw = Math.min(cardW * 0.85, 360), ph = 34;
+  rr(g, CW / 2 - pw / 2, cardY + 16, pw, ph, 17);
+  g.fillStyle = '#1e2b42';
+  g.fill();
+  g.lineWidth = 1.8;
+  g.strokeStyle = '#2ecc71';
+  g.stroke();
+  ptxt('📱 2-PLAYER TOUCH CONTROLS', CW / 2, cardY + 16 + ph / 2 + 1, FN(14, 900), '#ffffff');
+
+  // Subtitle
+  ptxt('Ergonomic Joysticks • Fixed Jump & Drop Buttons', CW / 2, cardY + 66, FN(11, 700), '#94a3b8');
+
+  // Two columns: Left (P1) and Right (P2)
+  const colW = (cardW - 36) / 2;
+  const colH = cardH - 165;
+  const colY = cardY + 86;
+  const col1X = cardX + 14;
+  const col2X = cardX + cardW / 2 + 4;
+
+  const colP1 = (match.players[0] && PALETTE[match.players[0].colIdx]) ? PALETTE[match.players[0].colIdx].c : '#e8433f';
+  const colP2 = (match.players[1] && PALETTE[match.players[1].colIdx]) ? PALETTE[match.players[1].colIdx].c : '#2f9be8';
+
+  // --- Column 1: Player 1 (Left Half) ---
+  rr(g, col1X, colY, colW, colH, 12);
+  g.fillStyle = 'rgba(255, 255, 255, 0.04)';
+  g.fill();
+  g.lineWidth = 1.5;
+  g.strokeStyle = rgba(colP1, 0.55);
+  g.stroke();
+
+  // P1 Header badge
+  rr(g, col1X + 10, colY + 10, colW - 20, 26, 8);
+  g.fillStyle = rgba(colP1, 0.25);
+  g.fill();
+  g.lineWidth = 1.2;
+  g.strokeStyle = colP1;
+  g.stroke();
+  ptxt('P1 (LEFT HALF OF SCREEN)', col1X + colW / 2, colY + 23, FN(11, 900), '#ffffff');
+
+  // P1 Instructions
+  const isMini = (colH < 130);
+  const rowH = isMini ? 25 : 30;
+  const rowY0 = colY + 48;
+  ptxt('🕹️  TOUCH ANYWHERE TO RUN', col1X + colW / 2, rowY0, FN(isMini ? 10 : 11.5, 800), '#e2e8f0');
+  ptxt('▲  FIXED JUMP BUTTON', col1X + colW / 2, rowY0 + rowH, FN(isMini ? 10 : 11.5, 800), '#2ecc71');
+  ptxt('▼  FIXED DROP BUTTON', col1X + colW / 2, rowY0 + rowH * 2, FN(isMini ? 10 : 11.5, 800), '#f472b6');
+
+  // --- Column 2: Player 2 (Right Half) ---
+  rr(g, col2X, colY, colW, colH, 12);
+  g.fillStyle = 'rgba(255, 255, 255, 0.04)';
+  g.fill();
+  g.lineWidth = 1.5;
+  g.strokeStyle = rgba(colP2, 0.55);
+  g.stroke();
+
+  // P2 Header badge
+  rr(g, col2X + 10, colY + 10, colW - 20, 26, 8);
+  g.fillStyle = rgba(colP2, 0.25);
+  g.fill();
+  g.lineWidth = 1.2;
+  g.strokeStyle = colP2;
+  g.stroke();
+  ptxt('P2 (RIGHT HALF OF SCREEN)', col2X + colW / 2, colY + 23, FN(11, 900), '#ffffff');
+
+  // P2 Instructions
+  ptxt('🕹️  TOUCH ANYWHERE TO RUN', col2X + colW / 2, rowY0, FN(isMini ? 10 : 11.5, 800), '#e2e8f0');
+  ptxt('▲  FIXED JUMP BUTTON', col2X + colW / 2, rowY0 + rowH, FN(isMini ? 10 : 11.5, 800), '#2ecc71');
+  ptxt('▼  FIXED DROP BUTTON', col2X + colW / 2, rowY0 + rowH * 2, FN(isMini ? 10 : 11.5, 800), '#f472b6');
+
+  // Glowing Start Button at bottom
+  const btnW = Math.min(cardW * 0.72, 280), btnH = 40;
+  const btnX = CW / 2 - btnW / 2, btnY = cardY + cardH - btnH - 14;
+  const pulse = 0.85 + Math.sin(tGlobal * 5) * 0.15;
+  rr(g, btnX, btnY, btnW, btnH, 10);
+  g.fillStyle = 'rgba(46, 204, 113, ' + pulse + ')';
+  g.fill();
+  g.lineWidth = 2.5;
+  g.strokeStyle = '#ffffff';
+  g.stroke();
+  ptxt('▶ TAP ANYWHERE TO PLAY', CW / 2, btnY + btnH / 2 + 1, FN(13.5, 900), '#ffffff');
+
+  g.restore();
 }
 
 function drawHUD(){
@@ -1795,23 +3392,29 @@ function drawHUD(){
   ptxt(fmtTime(match.timer),CW/2,8+th/2+1,FT(Math.min(22,th*0.54)),urgent?'#fff0f0':'#ffffff');
   
   const P=match.players;
+  const pillH = P.length > 4 ? 22 : 26;
+  const pillGap = P.length > 4 ? 25 : 30;
   for(let i=0;i<P.length;i++){
-    const isIt=match.it===i&&match.state!=='result';
-    const y=10+i*30;
-    g.save();g.globalAlpha=isIt?1:0.75;
-    pill(10,y,isIt?120:86,26,isIt?'rgba(255,210,63,0.92)':'rgba(0,0,0,0.3)',isIt?INK:'rgba(0,0,0,0.5)');
-    g.fillStyle=PALETTE[P[i].colIdx].c;
-    rr(g,14,y+3,20,20,4);g.fill();g.lineWidth=2;g.strokeStyle=INK;g.stroke();
-    txt('P'+(i+1)+(isIt?' IT':''),40,y+14,FN(11,900),isIt?'#3a2c00':'#ffffff','left');
+    const p = P[i];
+    const isIt = settings.teams ? (p.team === match.itTeam && match.state !== 'result') : (match.it === i && match.state !== 'result');
+    const y = 10 + i * pillGap;
+    g.save(); g.globalAlpha = isIt ? 1 : 0.75;
+    const teamBadge = settings.teams ? ((p.team === 0 ? '🔴 ' : (p.team === 1 ? '🔵 ' : '🟢 '))) : '';
+    const label = teamBadge + 'P' + (p.slot + 1) + (isIt ? ' IT' : '');
+    pill(10, y, isIt ? 124 : 92, pillH, isIt ? 'rgba(255,210,63,0.92)' : 'rgba(0,0,0,0.3)', isIt ? INK : 'rgba(0,0,0,0.5)');
+    g.fillStyle = getPlayerColor(p);
+    rr(g, 14, y + (pillH - 16) / 2, 16, 16, 4); g.fill(); g.lineWidth = 1.8; g.strokeStyle = INK; g.stroke();
+    txt(label, 36, y + pillH / 2 + 1, FN(P.length > 4 ? 10 : 11, 900), isIt ? '#3a2c00' : '#ffffff', 'left');
     g.restore();
   }
   
-  /* In-game control bar: Pause, Sound, Fullscreen, Next Map */
+  /* In-game control bar: Pause, Sound, Fullscreen, Next Map, Voice */
   const btnSize=38;
   const xPause=CW-btnSize-12;
   const xMute=xPause-btnSize-8;
   const xFull=xMute-btnSize-8;
   const xNext=xFull-btnSize-8;
+  const xVoice=xNext-btnSize-8;
   
   // Pause button
   rr(g,xPause,10,btnSize,btnSize,9);
@@ -1849,7 +3452,7 @@ function drawHUD(){
   rr(g,xFull,10,btnSize,btnSize,9);
   g.fillStyle='rgba(255,255,255,0.92)';g.fill();g.lineWidth=2.5;g.strokeStyle=INK;g.stroke();
   g.strokeStyle='#1e293b'; g.lineWidth=2.5;
-  const isFull=!!(document.fullscreenElement||document.webkitFullscreenElement);
+  const isFull=!!(document.fullscreenElement||document.webkitFullscreenElement||document.mozFullScreenElement||document.msFullscreenElement||document.webkitIsFullScreen);
   if(!isFull){
     const m=10;
     g.beginPath(); g.moveTo(xFull+m, 10+m+5); g.lineTo(xFull+m, 10+m); g.lineTo(xFull+m+5, 10+m); g.stroke();
@@ -1860,13 +3463,32 @@ function drawHUD(){
     const m=11;
     g.strokeRect(xFull+m, 10+m, btnSize-2*m, btnSize-2*m);
   }
-  zone(xFull,10,btnSize,btnSize,{fn:toggleFullscreen});
+  zone(xFull,10,btnSize,btnSize,{upFn:toggleFullscreen});
   
   // Next map quick button
   rr(g,xNext,10,btnSize,btnSize,9);
   g.fillStyle='rgba(255,255,255,0.92)';g.fill();g.lineWidth=2.5;g.strokeStyle=INK;g.stroke();
   ptxt('▶',xNext+btnSize/2+1,10+btnSize/2+1,FT(14),'#1c6b38');
   zone(xNext,10,btnSize,btnSize,{fn:()=>selectMapQuick(settings.map+1)});
+
+  // Proximity Voice Chat button (online) or Help/Tutorial button (2-player local touch)
+  if(typeof NET!=='undefined' && NET && NET.role!==null){
+    rr(g,xVoice,10,btnSize,btnSize,9);
+    const vOn = (typeof VOICE!=='undefined' && VOICE.enabled);
+    const vMuted = (typeof VOICE!=='undefined' && VOICE.muted);
+    g.fillStyle = vOn ? (vMuted ? 'rgba(231, 76, 60, 0.92)' : 'rgba(39, 174, 96, 0.92)') : 'rgba(255,255,255,0.92)';
+    g.fill();
+    g.lineWidth=2.5; g.strokeStyle=INK; g.stroke();
+    ptxt(vOn ? (vMuted ? '🔇' : '🎙️') : '🎙️', xVoice+btnSize/2, 10+btnSize/2+1, FN(15,900), vOn?'#ffffff':'#1e293b');
+    zone(xVoice,10,btnSize,btnSize,{fn:voiceToggleMic});
+  } else if(isTouch && match.players && match.players.length === 2){
+    rr(g,xVoice,10,btnSize,btnSize,9);
+    g.fillStyle = 'rgba(255,255,255,0.92)';
+    g.fill();
+    g.lineWidth=2.5; g.strokeStyle=INK; g.stroke();
+    ptxt('?', xVoice+btnSize/2, 10+btnSize/2+1, FT(18), '#1e293b');
+    zone(xVoice,10,btnSize,btnSize,{fn:()=>{ GESTURE_SPLIT.showTutorial = true; sfx('ui'); }});
+  }
   
   if(match.state==='countdown')drawBigCount(match.cd,'GET READY!');
   if(match.goFlash>0&&match.state==='playing'){
@@ -1934,7 +3556,17 @@ function drawPause(){
 
 function drawResult(){
   g.fillStyle='rgba(10,16,24,0.72)';g.fillRect(0,0,CW,CH);
-  zone(0,0,CW,CH,{fn:()=>{sfx('go');startMatch();}});
+  zone(0,0,CW,CH,{fn:()=>{
+    if(typeof NET!=='undefined' && NET && NET.role!==null){
+      if(!NET.isHost) return;
+      if(NET.midgameJoiner){
+        NET.midgameJoiner = false;
+        quitToMenu();
+        return;
+      }
+    }
+    sfx('go');startMatch();
+  }});
   const t=match.resultT;
   if(t<0.9){
     const sc=1.4-0.4*easeOut(Math.min(1,t*4));
@@ -1944,26 +3576,62 @@ function drawResult(){
   }
   const ap=easeBack(clamp((t-0.35)*2.2,0,1));
   if(ap<=0)return;
-  const P=match.players,loser=match.result.loser;
-  const winners=P.map((p,i)=>i).filter(i=>i!==loser);
+  const P=match.players;
+  const isTeamMatch = !!(settings.teams && match.result && match.result.winningTeam != null);
   const pw=Math.min(740,CW-30),ph=Math.min(440,CH-40);
   const px=CW/2-pw/2,py=CH/2-ph/2;
   g.save();
   g.translate(CW/2,CH/2);g.scale(ap,ap);g.translate(-CW/2,-CH/2);
   rr(g,px,py,pw,ph,20);
   g.fillStyle='rgba(20,28,42,0.96)';g.fill();g.lineWidth=4;g.strokeStyle=INK;g.stroke();
-  const wcol=PALETTE[P[winners[0]].colIdx].c;
-  ptxt(winners.length===1?('PLAYER '+(winners[0]+1)+' WINS!'):(winners.map(w=>'P'+(w+1)).join(' + ')+' WIN!'),CW/2,py+ph*0.12,FT(Math.min(38,CW*0.055)),wcol);
-  ptxt('PLAYER '+(loser+1)+' WAS IT - LOSES!   (MAP '+(settings.map+1)+': '+MAPS[settings.map].name+')',CW/2,py+ph*0.24,FN(Math.min(14,CW*0.028),800),'#ffffff');
-  const psz=Math.min(60,ph*0.17);
-  drawChar(g,CW/2-psz*2.4,py+ph*0.45-Math.abs(Math.sin(tGlobal*5))*10,psz,PALETTE[P[winners[0]].colIdx].c,{face:'happy',fdir:1,grounded:true,seed:2});
-  drawChar(g,CW/2+psz*1.4,py+ph*0.48,psz,PALETTE[P[loser].colIdx].c,{face:'sad',fdir:-1,tilt:-0.06,grounded:true,seed:5});
+
+  if(isTeamMatch){
+    const winTeamIdx = match.result.winningTeam;
+    const winTeam = TEAMS[winTeamIdx] || TEAMS[0];
+    const teamMates = P.filter(p => p.team === winTeamIdx);
+    const winTitle = winTeam.icon + ' ' + winTeam.name + ' WINS!';
+    ptxt(winTitle, CW/2, py+ph*0.13, FT(Math.min(38,CW*0.055)), winTeam.base);
+    ptxt('LOWEST TIME AS IT!   (MAP '+(settings.map+1)+': '+MAPS[settings.map].name+')', CW/2, py+ph*0.25, FN(Math.min(14,CW*0.028),800), '#ffffff');
+    const psz=Math.min(54,ph*0.16);
+    const startX = CW/2 - ((teamMates.length - 1) * psz * 1.5) / 2;
+    for(let mi = 0; mi < teamMates.length; mi++){
+      const p = teamMates[mi];
+      drawChar(g, startX + mi * psz * 1.5, py+ph*0.46 - Math.abs(Math.sin(tGlobal*5 + mi))*8, psz, getPlayerColor(p), { face: 'happy', fdir: 1, grounded: true, seed: mi*3 });
+    }
+  } else {
+    const loser=match.result.loser != null ? match.result.loser : match.it;
+    const winners=P.map((p,i)=>i).filter(i=>i!==loser);
+    const wcol=PALETTE[(P[winners[0]] && P[winners[0]].colIdx) || 0].c;
+    ptxt(winners.length===1?('PLAYER '+(winners[0]+1)+' WINS!'):(winners.map(w=>'P'+(w+1)).join(' + ')+' WIN!'),CW/2,py+ph*0.12,FT(Math.min(38,CW*0.055)),wcol);
+    ptxt('PLAYER '+(loser+1)+' WAS IT - LOSES!   (MAP '+(settings.map+1)+': '+MAPS[settings.map].name+')',CW/2,py+ph*0.24,FN(Math.min(14,CW*0.028),800),'#ffffff');
+    const psz=Math.min(60,ph*0.17);
+    drawChar(g,CW/2-psz*2.4,py+ph*0.45-Math.abs(Math.sin(tGlobal*5))*10,psz,getPlayerColor(P[winners[0]]),{face:'happy',fdir:1,grounded:true,seed:2});
+    if(P[loser]) drawChar(g,CW/2+psz*1.4,py+ph*0.48,psz,getPlayerColor(P[loser]),{face:'sad',fdir:-1,tilt:-0.06,grounded:true,seed:5});
+  }
   txt('TAGS - '+P.map((p,i)=>'P'+(i+1)+': '+match.tags[i]).join('  •  '),CW/2,py+ph*0.66,FN(13,900),'#cfe9d6');
   const b3=Math.min(180,(pw-60)/3);
   const sx0=CW/2-(b3*3+28)/2;
-  simpleButton(sx0,py+ph*0.77,b3,44,'NEXT MAP',()=>{sfx('ui');selectMapQuick(settings.map+1);});
-  simpleButton(sx0+b3+14,py+ph*0.77,b3,44,'PLAY AGAIN',()=>{sfx('go');startMatch();});
-  simpleButton(sx0+2*(b3+14),py+ph*0.77,b3,44,'MENU',()=>quitToMenu());
+  simpleButton(sx0,py+ph*0.77,b3,44,'NEXT MAP',()=>{
+    if(typeof NET!=='undefined' && NET && NET.role!==null && !NET.isHost){ toast('HOST CHOOSES MAP'); return; }
+    if(typeof NET!=='undefined' && NET && NET.isHost && NET.midgameJoiner){
+      NET.midgameJoiner = false;
+      quitToMenu();
+      return;
+    }
+    sfx('ui');selectMapQuick(settings.map+1);
+  });
+  simpleButton(sx0+b3+14,py+ph*0.77,b3,44,'PLAY AGAIN',()=>{
+    if(typeof NET!=='undefined' && NET && NET.role!==null && !NET.isHost){ toast('HOST RESTARTS THE MATCH'); return; }
+    if(typeof NET!=='undefined' && NET && NET.isHost && NET.midgameJoiner){
+      NET.midgameJoiner = false;
+      quitToMenu();
+      return;
+    }
+    sfx('go');startMatch();
+  });
+  simpleButton(sx0+2*(b3+14),py+ph*0.77,b3,44,'MENU',()=>{
+    quitToMenu();
+  });
   g.restore();
 }
 
@@ -1993,27 +3661,1715 @@ function drawGame(){
   drawHUD();
   if(match.state==='paused')drawPause();
   else if(match.state==='result')drawResult();
-  else if(isTouch&&match.players.length===2)drawTouchButtons();
+  else if(isTouch)drawTouchButtons();
+}
+
+/* ================= netplay (host-authoritative P2P) ================= */
+const CTRL_SCHEMES = ['WASD', 'Arrows', 'Controller'];
+
+/* Dedicated Signaling Server Configuration (Railway, Render, or self-hosted)
+ * Leave host empty '' to use official PeerJS cloud (0.peerjs.com).
+ * Or paste your Railway / Render domain e.g. 'tag-server-production.up.railway.app'
+ */
+const PEER_SERVER_CONFIG = {
+  host: 'tag-netplay-server.onrender.com', // Your live dedicated Singapore Render server!
+  port: 443,
+  path: '/tag-netplay',
+  secure: true
+};
+
+const NET = {
+  peer: null,
+  conns: new Map(), // peerId -> { rel: conn, fast: conn }
+  role: null, // 'host' | 'guest' | null
+  room: '',
+  myId: '',
+  mySlot: -1,
+  isHost: false,
+  myCtrl: 'WASD',
+  slotsCtrl: ['WASD', 'WASD', 'WASD', 'WASD', 'WASD', 'WASD', 'WASD', 'WASD'],
+  slotsReady: [false, false, false, false, false, false, false, false],
+  midgameJoiner: false,
+  peerSlots: new Map(), // peerId -> slot (0..7)
+  tick: 0,
+  seq: 0,
+  hostInputs: new Map(),
+  guestPrev: null,
+  guestNext: null,
+  lastRecvT: 0,
+  lastRecvTick: -1,
+  last3: [],
+  _startLock: 0,
+  _guestTimeout: null
+};
+
+const ICE_SERVERS = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:stun2.l.google.com:19302' },
+  { urls: 'stun:stun3.l.google.com:19302' },
+  { urls: 'stun:stun4.l.google.com:19302' },
+  { urls: 'stun:global.stun.twilio.com:3478' },
+  // OpenRelay Public TURN Relay (enables cross-device audio across different Wi-Fi networks and symmetric NAT)
+  {
+    urls: [
+      'turn:openrelay.metered.ca:80',
+      'turn:openrelay.metered.ca:443',
+      'turn:openrelay.metered.ca:443?transport=tcp'
+    ],
+    username: 'openrelay',
+    credential: 'openrelay'
+  }
+];
+
+function getOrCreateConnPair(peerId){
+  let pair = NET.conns.get(peerId);
+  if(!pair){
+    pair = { rel: null, fast: null };
+    NET.conns.set(peerId, pair);
+  }
+  return pair;
+}
+
+function netSendFast(peerOrPair, msg){
+  const pair = (typeof peerOrPair === 'string') ? NET.conns.get(peerOrPair) : peerOrPair;
+  if(!pair) return;
+  let c = (pair.fast && pair.fast.open) ? pair.fast : null;
+  if(!c && pair.rel && pair.rel.open) c = pair.rel;
+  if(c){
+    try {
+      const dc = c.dataChannel || c._dc;
+      if(dc && dc.bufferedAmount > 32768) return; // Prevent latency queueing
+      c.send(msg);
+    } catch(e){}
+  }
+}
+
+function netSendRel(peerOrPair, msg){
+  const pair = (typeof peerOrPair === 'string') ? NET.conns.get(peerOrPair) : peerOrPair;
+  if(!pair) return;
+  const c = (pair.rel && pair.rel.open) ? pair.rel : (pair.fast && pair.fast.open ? pair.fast : (pair.open ? pair : null));
+  if(c){ try{ c.send(msg); }catch(e){} }
+}
+
+function netBroadcastReliable(msg){
+  if(typeof NET === 'undefined' || !NET || !NET.conns) return;
+  for(const pair of NET.conns.values()){
+    netSendRel(pair, msg);
+  }
+}
+
+/* High-efficiency player state packing: reduces payload by 78% and cuts garbage collection pauses */
+function packPlayer(p){
+  return {
+    s: p.slot,
+    x: Math.round(p.x * 10) / 10,
+    y: Math.round(p.y * 10) / 10,
+    vx: Math.round(p.vx * 10) / 10,
+    vy: Math.round(p.vy * 10) / 10,
+    f: p.face || 1,
+    sx: Math.round((p.sx || 1) * 100) / 100,
+    sy: Math.round((p.sy || 1) * 100) / 100,
+    g: p.grounded ? 1 : 0,
+    aj: p.airJumps || 0,
+    po: p.padOn ? 1 : 0,
+    lt: Math.round((p.landT || 0) * 100) / 100,
+    tt: Math.round((p.tagT || 0) * 100) / 100,
+    b: p.blink > 0 ? 1 : 0
+  };
+}
+
+function unpackPlayer(d){
+  return {
+    slot: d.s != null ? d.s : d.slot,
+    x: d.x,
+    y: d.y,
+    vx: d.vx,
+    vy: d.vy,
+    face: d.f != null ? d.f : (d.face || 1),
+    sx: d.sx != null ? d.sx : 1,
+    sy: d.sy != null ? d.sy : 1,
+    grounded: d.g != null ? !!d.g : !!d.grounded,
+    airJumps: d.aj != null ? d.aj : (d.airJumps || 0),
+    padOn: d.po != null ? !!d.po : !!d.padOn,
+    landT: d.lt != null ? d.lt : (d.landT || 0),
+    tagT: d.tt != null ? d.tt : (d.tagT || 0),
+    blink: d.b != null ? (d.b ? 0.12 : 0) : (d.blink || 0),
+    seq: d.seq || 0
+  };
+}
+
+/* Continuous Predictive Smoothing Filter for Remote Players (Host & Guest) */
+const _remoteTargets = new Map(); // slot -> target state
+
+function netUpdateRemoteTarget(slot, data, pCurrent){
+  if(slot == null || slot < 0) return;
+  let tgt = _remoteTargets.get(slot);
+  if(!tgt){
+    tgt = {
+      targetX: data.x, targetY: data.y, targetVx: data.vx, targetVy: data.vy,
+      errX: 0, errY: 0,
+      face: data.face || 1, sx: data.sx || 1, sy: data.sy || 1,
+      grounded: !!data.grounded, airJumps: data.airJumps || 0,
+      padOn: !!data.padOn, landT: data.landT || 0, tagT: data.tagT || 0,
+      blink: data.blink || 0, seq: (data.seq != null ? data.seq : 0)
+    };
+    _remoteTargets.set(slot, tgt);
+  } else {
+    // Drop older out-of-order packets if seq is positive
+    if(data.seq != null && tgt.seq != null && data.seq > 0 && tgt.seq > 0 && data.seq < tgt.seq) return;
+    if(data.seq != null && data.seq > 0) tgt.seq = data.seq;
+
+    // Calculate error between where player visually was and new target
+    if(pCurrent){
+      const rawDx = pCurrent.x - data.x;
+      const rawDy = pCurrent.y - data.y;
+      // If warp / teleport > 240px, snap instantly without error bleed
+      if(rawDx * rawDx + rawDy * rawDy > 57600){
+        pCurrent.x = data.x;
+        pCurrent.y = data.y;
+        tgt.errX = 0;
+        tgt.errY = 0;
+      } else {
+        tgt.errX = rawDx;
+        tgt.errY = data.grounded ? 0 : rawDy;
+      }
+    } else {
+      tgt.errX = 0;
+      tgt.errY = 0;
+    }
+
+    tgt.targetX = data.x;
+    tgt.targetY = data.y;
+    tgt.targetVx = data.vx;
+    tgt.targetVy = data.vy;
+    tgt.face = data.face != null ? data.face : tgt.face;
+    tgt.sx = data.sx != null ? data.sx : 1;
+    tgt.sy = data.sy != null ? data.sy : 1;
+    tgt.grounded = !!data.grounded;
+    tgt.airJumps = data.airJumps != null ? data.airJumps : tgt.airJumps;
+    tgt.padOn = !!data.padOn;
+    tgt.landT = data.landT != null ? data.landT : tgt.landT;
+    tgt.tagT = data.tagT != null ? data.tagT : tgt.tagT;
+    tgt.blink = data.blink != null ? data.blink : tgt.blink;
+  }
+}
+
+function netApplyRemoteTarget(p, dt){
+  const tgt = _remoteTargets.get(p.slot);
+  if(!tgt) return;
+
+  // Advance authoritative target along velocity vector between packets
+  tgt.targetX += tgt.targetVx * dt;
+  if(!tgt.grounded){
+    tgt.targetY += tgt.targetVy * dt;
+  }
+
+  // Smooth exponential decay of error offset (half-life ~40ms: eliminates all micro-stutters and backward snapping)
+  const decay = Math.exp(-dt * 18);
+  tgt.errX *= decay;
+  tgt.errY *= decay;
+
+  // Visual position combines extrapolated target + smoothly decaying error offset
+  p.x = tgt.targetX + tgt.errX;
+  if(tgt.grounded){
+    p.y = tgt.targetY;
+    p.grounded = true;
+    p.vy = 0;
+  } else {
+    p.y = tgt.targetY + tgt.errY;
+    p.grounded = false;
+    p.vy = tgt.targetVy;
+  }
+  p.vx = tgt.targetVx;
+
+  p.face = tgt.face;
+  p.sx += ((tgt.sx || 1) - p.sx) * Math.min(1, dt * 20);
+  p.sy += ((tgt.sy || 1) - p.sy) * Math.min(1, dt * 20);
+  p.landT = tgt.landT;
+  p.tagT = tgt.tagT;
+  p.padOn = tgt.padOn;
+  p.blink = tgt.blink;
+  p.airJumps = tgt.airJumps;
+
+  // Ghost trail FX for remote sprinting player
+  if(p.trail){
+    for(let tr of p.trail) tr.alpha -= dt * 1.8;
+    if(Math.abs(p.vx) > 300 || p.padOn){
+      p.trail.unshift({ x: p.x, y: p.y, alpha: 0.45 });
+      if(p.trail.length > 4) p.trail.pop();
+    } else if(p.trail.length > 0){
+      p.trail.pop();
+    }
+  }
+}
+
+/* ================= proximity voice chat (WebRTC + HTML5 Audio + Web Audio API) ================= */
+const VOICE = {
+  enabled: false,
+  muted: false,
+  localStream: null,
+  analyser: null,
+  analyserData: null,
+  speaking: false,
+  peers: new Map(), // peerId -> { call, stream, audioEl, source, analyser, analyserData, speaking, remoteMuted }
+  supported: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
+};
+
+async function voiceInit(){
+  if(!window.isSecureContext && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1'){
+    netToast('Mic requires HTTPS! Local HTTP blocks microphone.');
+    return false;
+  }
+  if(!VOICE.supported){
+    netToast('Voice chat not supported on this browser');
+    return false;
+  }
+  initAudio();
+  if(AC && AC.state === 'suspended') AC.resume().catch(()=>{});
+
+  if(VOICE.localStream){
+    VOICE.enabled = true;
+    VOICE.muted = false;
+    for(const track of VOICE.localStream.getAudioTracks()){ track.enabled = true; }
+    netBroadcastReliable({ t: 'voice_mute', slot: NET.mySlot, peerId: NET.myId, muted: false });
+    netToast('Microphone unmuted 🎙️');
+    voiceSyncAllPeers();
+    return true;
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        channelCount: { ideal: 1 },
+        sampleRate: { ideal: 48000 },
+        sampleSize: { ideal: 16 },
+        echoCancellation: { ideal: true },
+        noiseSuppression: { ideal: true },
+        autoGainControl: { ideal: true },
+        googEchoCancellation: { ideal: true },
+        googAutoGainControl: { ideal: true },
+        googNoiseSuppression: { ideal: true },
+        googHighpassFilter: { ideal: true },
+        googTypingNoiseDetection: { ideal: true }
+      },
+      video: false
+    });
+    VOICE.localStream = stream;
+    VOICE.enabled = true;
+    VOICE.muted = false;
+
+    if(AC){
+      try {
+        const src = AC.createMediaStreamSource(stream);
+        const ana = AC.createAnalyser();
+        ana.fftSize = 128;
+        src.connect(ana);
+        VOICE.analyser = ana;
+        VOICE.analyserData = new Uint8Array(ana.frequencyBinCount);
+      } catch(e){}
+    }
+
+    netToast('Voice chat active! 🎙️');
+    voiceSyncAllPeers();
+    return true;
+  } catch(err){
+    console.warn('Microphone permission error:', err);
+    netToast('Microphone access denied or unavailable');
+    return false;
+  }
+}
+
+function boostAudioSender(pc){
+  if(!pc || !pc.getSenders) return;
+  try {
+    const senders = pc.getSenders();
+    for(const sender of senders){
+      if(sender.track && sender.track.kind === 'audio'){
+        const params = sender.getParameters();
+        if(params){
+          if(!params.encodings || params.encodings.length === 0){
+            params.encodings = [{}];
+          }
+          params.encodings[0].maxBitrate = 96000; // 96 kbps high-definition Opus
+          params.encodings[0].priority = 'high';
+          params.encodings[0].networkPriority = 'high';
+          sender.setParameters(params).catch(()=>{});
+        }
+      }
+    }
+  } catch(e){}
+}
+
+function voiceToggleMic(){
+  if(!VOICE.localStream || !VOICE.enabled){
+    voiceInit();
+    return;
+  }
+  VOICE.muted = !VOICE.muted;
+  for(const track of VOICE.localStream.getAudioTracks()){
+    track.enabled = !VOICE.muted;
+  }
+  if(VOICE.muted){
+    VOICE.speaking = false;
+  }
+  netBroadcastReliable({ t: 'voice_mute', slot: NET.mySlot, peerId: NET.myId, muted: VOICE.muted });
+  netToast(VOICE.muted ? 'Microphone muted 🔇' : 'Microphone unmuted 🎙️');
+  sfx('ui');
+}
+
+function voiceCallPeer(peerId, forceNew){
+  if(!NET.peer || !peerId || peerId === NET.myId || !VOICE.localStream) return;
+  const existing = VOICE.peers.get(peerId);
+  // If we already have an active open call with remote audio stream playing, don't recreate it unless forced
+  if(existing && existing.call && existing.call.open && existing.stream && !forceNew){
+    return;
+  }
+  // Prevent duplicate concurrent outgoing calls to the same peer
+  if(existing && existing._calling) return;
+
+  if(!existing){
+    VOICE.peers.set(peerId, {
+      call: null,
+      stream: null,
+      audioEl: null,
+      source: null,
+      analyser: null,
+      analyserData: null,
+      speaking: false,
+      remoteMuted: false,
+      _calling: true
+    });
+  } else {
+    existing._calling = true;
+  }
+
+  try {
+    const call = NET.peer.call(peerId, VOICE.localStream);
+    if(call) voiceWireCall(call);
+  } catch(e){
+    const ent = VOICE.peers.get(peerId);
+    if(ent) ent._calling = false;
+  }
+}
+
+function voiceSyncAllPeers(){
+  if(!NET.peer || !VOICE.localStream) return;
+  // If Host: initiate calls to all guests who don't have an active call
+  if(NET.isHost){
+    for(const peerId of NET.conns.keys()){
+      voiceCallPeer(peerId, false);
+    }
+  } else {
+    // If Guest: notify Host that our mic is ready so Host can call us (avoids glare/dual-calling)
+    netBroadcastReliable({ t: 'voice_req', peerId: NET.myId, hasStream: true });
+  }
+}
+
+function voiceWireCall(call){
+  const peerId = call.peer;
+  let entry = VOICE.peers.get(peerId);
+  const prevCall = (entry && entry.call && entry.call !== call) ? entry.call : null;
+
+  if(!entry){
+    entry = {
+      call: call,
+      stream: null,
+      audioEl: null,
+      source: null,
+      analyser: null,
+      analyserData: null,
+      speaking: false,
+      remoteMuted: false,
+      _calling: false
+    };
+    VOICE.peers.set(peerId, entry);
+  } else {
+    entry.call = call;
+    entry._calling = false;
+  }
+
+  // Safely close previous call without nuking the active entry
+  if(prevCall){
+    try { prevCall.close(); } catch(e){}
+  }
+
+  const applyBoost = () => {
+    if(call.peerConnection) boostAudioSender(call.peerConnection);
+  };
+  call.on('open', () => {
+    entry._calling = false;
+    applyBoost();
+  });
+  setTimeout(applyBoost, 400);
+
+  call.on('stream', remoteStream => {
+    const current = VOICE.peers.get(peerId);
+    if(!current || (current.call && current.call !== call)) return;
+    current.stream = remoteStream;
+
+    // Reuse existing audio element if already created, or create one
+    if(!current.audioEl){
+      const el = document.createElement('audio');
+      el.autoplay = true;
+      el.playsInline = true;
+      el.style.display = 'none';
+      document.body.appendChild(el);
+      current.audioEl = el;
+    }
+    current.audioEl.srcObject = remoteStream;
+    current.audioEl.volume = 0.85;
+    const playP = current.audioEl.play();
+    if(playP && playP.catch) playP.catch(() => {});
+
+    // Analyser setup for visual speaking indicator
+    initAudio();
+    if(AC){
+      try {
+        if(AC.state === 'suspended') AC.resume().catch(()=>{});
+        if(current.source){ try{ current.source.disconnect(); }catch(e){} }
+        const source = AC.createMediaStreamSource(remoteStream);
+        const ana = AC.createAnalyser();
+        ana.fftSize = 128;
+        source.connect(ana);
+        current.source = source;
+        current.analyser = ana;
+        current.analyserData = new Uint8Array(ana.frequencyBinCount);
+      } catch(err){
+        console.warn('WebAudio analyser setup error:', err);
+      }
+    }
+  });
+
+  call.on('close', () => {
+    // CRITICAL FIX: Only clean up if this closed call is ACTUALLY the active call for this peer!
+    const current = VOICE.peers.get(peerId);
+    if(current && current.call === call){
+      if(current.audioEl){
+        try{ current.audioEl.pause(); current.audioEl.srcObject = null; current.audioEl.remove(); }catch(e){}
+        current.audioEl = null;
+      }
+      if(current.source){ try{ current.source.disconnect(); }catch(e){} }
+      VOICE.peers.delete(peerId);
+    }
+  });
+
+  call.on('error', e => {
+    const current = VOICE.peers.get(peerId);
+    if(current && current.call === call) current._calling = false;
+  });
+}
+
+function updateVoiceProximity(dt){
+  const inGame = (match && screen === 'game' && match.players && match.players.length > 0);
+  const isPlaying = (inGame && match.state === 'playing');
+  let myP = null;
+  if(inGame){
+    if(typeof getMyPlayer === 'function') myP = getMyPlayer();
+    if(!myP && NET.mySlot >= 0) myP = match.players.find(p => p.slot === NET.mySlot);
+    if(!myP) myP = match.players[0];
+  }
+  const myPos = myP ? { x: myP.x, y: myP.y } : null;
+
+  for(const [peerId, entry] of VOICE.peers.entries()){
+    let targetVol = 0.85; // Default clear volume for menu, lobby, countdown, results
+
+    if(isPlaying && myPos){
+      let targetSlot = NET.peerSlots ? NET.peerSlots.get(peerId) : undefined;
+      if(targetSlot === undefined){
+        if(!NET.isHost && peerId.endsWith('-host')) targetSlot = 0;
+        else if(NET.isHost){
+          for(let s = 1; s < 4; s++){
+            const ent = NET.hostInputs.get(s);
+            if(ent && ent.owner === peerId){ targetSlot = s; break; }
+          }
+        }
+      }
+
+      const targetP = (targetSlot != null && targetSlot !== NET.mySlot)
+        ? match.players.find(p => p.slot === targetSlot)
+        : (NET.isHost ? null : match.players.find(p => p.slot === 0));
+
+      if(targetP && myPos && targetP.x != null && myPos.x != null){
+        const dx = targetP.x - myPos.x;
+        const dy = targetP.y - myPos.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        // Near (<= 180px): 100% full volume
+        // Mid (spawn/medium ~800px): ~40% volume
+        // Across arena (>= 1800px): ~5-6% faint whisper (huge contrast between close and far)
+        const closeRadius = 180;
+        const maxDist = 2000;
+        if(isNaN(dist) || dist <= closeRadius){
+          targetVol = 1.0;
+        } else {
+          const t = clamp((dist - closeRadius) / (maxDist - closeRadius), 0, 1);
+          // Steep exponential falloff (2.2 exponent): drops off quickly to a faint 5% whisper
+          targetVol = 0.05 + 0.95 * Math.pow(1 - t, 2.2);
+        }
+      }
+    }
+
+    // Direct HTML5 Audio volume control & continuous playback watchdog
+    if(entry.audioEl){
+      try {
+        const curV = entry.audioEl.volume;
+        const nextV = curV + (targetVol - curV) * Math.min(1, dt * 14);
+        entry.audioEl.volume = clamp(nextV, 0.04, 1.0);
+        if(entry.audioEl.paused && entry.audioEl.srcObject){
+          entry.audioEl.play().catch(()=>{});
+        }
+      } catch(e){}
+    }
+
+    if(entry.analyser && entry.analyserData){
+      if(entry.remoteMuted){
+        entry.speaking = false;
+      } else {
+        entry.analyser.getByteFrequencyData(entry.analyserData);
+        let sum = 0;
+        for(let i = 0; i < entry.analyserData.length; i++) sum += entry.analyserData[i];
+        entry.speaking = (sum / entry.analyserData.length) > 13;
+      }
+    }
+  }
+
+  if(VOICE.analyser && VOICE.analyserData && !VOICE.muted && VOICE.enabled){
+    VOICE.analyser.getByteFrequencyData(VOICE.analyserData);
+    let sum = 0;
+    for(let i = 0; i < VOICE.analyserData.length; i++) sum += VOICE.analyserData[i];
+    VOICE.speaking = (sum / VOICE.analyserData.length) > 13;
+  } else {
+    VOICE.speaking = false;
+  }
+}
+
+function isPlayerSpeaking(slot){
+  if(!match) return false;
+  if(slot === NET.mySlot){
+    return !!VOICE.speaking;
+  }
+  for(const [peerId, entry] of VOICE.peers.entries()){
+    if(entry.speaking && !entry.remoteMuted){
+      let pSlot = NET.peerSlots ? NET.peerSlots.get(peerId) : undefined;
+      if(pSlot === undefined){
+        if(!NET.isHost && peerId.endsWith('-host')) pSlot = 0;
+        else if(NET.isHost){
+          for(let s = 1; s < 4; s++){
+            const ent = NET.hostInputs.get(s);
+            if(ent && ent.owner === peerId){ pSlot = s; break; }
+          }
+        }
+      }
+      if(pSlot === slot) return true;
+    }
+  }
+  return false;
+}
+
+function voiceEnsurePlayback(){
+  if(AC && AC.state === 'suspended') AC.resume().catch(()=>{});
+  for(const entry of VOICE.peers.values()){
+    if(entry.audioEl && entry.audioEl.paused && entry.audioEl.srcObject){
+      entry.audioEl.play().catch(()=>{});
+    }
+  }
+}
+window.addEventListener('click', voiceEnsurePlayback, { passive: true });
+window.addEventListener('keydown', voiceEnsurePlayback, { passive: true });
+
+// Auto-healing watchdog: ensures active voice calls stay connected across match restarts and screen changes
+setInterval(() => {
+  if(typeof NET === 'undefined' || !NET || NET.role === null || !NET.peer || NET.peer.destroyed) return;
+  if(typeof VOICE === 'undefined' || !VOICE.enabled || !VOICE.localStream) return;
+  for(const peerId of NET.conns.keys()){
+    const ent = VOICE.peers.get(peerId);
+    if(!ent || !ent.call || !ent.call.open || !ent.stream){
+      if(NET.isHost){
+        voiceCallPeer(peerId, false);
+      } else {
+        netSendRel(peerId, { t: 'voice_req', peerId: NET.myId, hasStream: true });
+      }
+    }
+  }
+}, 2500);
+
+function netToast(m){
+  toast(m);
+  const t = document.getElementById('netToast');
+  if(!t) return;
+  t.textContent = m;
+  t.style.display = 'block';
+  clearTimeout(t._h);
+  t._h = setTimeout(() => { t.style.display = 'none'; }, 2800);
+}
+
+function netShow(on){
+  const el = document.getElementById('netUI');
+  if(el) el.classList.toggle('on', !!on);
+}
+
+function netLink(room){
+  let p = location.pathname;
+  if(p.endsWith('/')){ /* keep */ }
+  else if(/\/[^\/]+\.[a-z]+$/i.test(p)) p = p.replace(/\/[^\/]*$/, '/');
+  else p = p + '/';
+  return location.origin + p + '?room=' + room.toUpperCase();
+}
+
+function netCopyLink(){
+  const l = netLink(NET.room);
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(l).then(() => netToast('Invite link copied! Send it to your friend.')).catch(() => prompt('Copy invite link:', l));
+  } else {
+    prompt('Copy invite link:', l);
+  }
+}
+
+function netMakeCode(){
+  const a = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  let s = '';
+  for(let i=0; i<6; i++) s += a[Math.floor(Math.random() * a.length)];
+  return s;
+}
+
+/* Sample controls based on player's chosen scheme */
+function sampleControls(scheme){
+  let dir = 0, jumpEdge = false, jumpHeld = false, downHeld = false;
+  if(scheme === 'WASD'){
+    const L = keys.has('KeyA') || keys.has('KeyQ');
+    const R = keys.has('KeyD');
+    dir = (R ? 1 : 0) - (L ? 1 : 0);
+    jumpEdge = pressed.has('KeyW') || pressed.has('Space');
+    jumpHeld = keys.has('KeyW') || keys.has('Space');
+    downHeld = keys.has('KeyS');
+  } else if(scheme === 'Arrows'){
+    const L = keys.has('ArrowLeft');
+    const R = keys.has('ArrowRight');
+    dir = (R ? 1 : 0) - (L ? 1 : 0);
+    jumpEdge = pressed.has('ArrowUp') || pressed.has('Space');
+    jumpHeld = keys.has('ArrowUp') || keys.has('Space');
+    downHeld = keys.has('ArrowDown');
+  } else if(scheme === 'IJKL'){
+    const L = keys.has('KeyJ');
+    const R = keys.has('KeyL');
+    dir = (R ? 1 : 0) - (L ? 1 : 0);
+    jumpEdge = pressed.has('KeyI');
+    jumpHeld = keys.has('KeyI');
+    downHeld = keys.has('KeyK');
+  } else if(scheme === 'TFGH'){
+    const L = keys.has('KeyF');
+    const R = keys.has('KeyH');
+    dir = (R ? 1 : 0) - (L ? 1 : 0);
+    jumpEdge = pressed.has('KeyT');
+    jumpHeld = keys.has('KeyT');
+    downHeld = keys.has('KeyG');
+  } else if(scheme === 'Controller'){
+    for(let pi=0; pi<4; pi++){
+      const pd = PAD[pi];
+      if(pd && pd.connected){
+        dir = (pd.right ? 1 : 0) - (pd.left ? 1 : 0);
+        jumpEdge = pd.jumpE;
+        jumpHeld = pd.jumpHeld;
+        downHeld = pd.dropHeld;
+        break;
+      }
+    }
+  }
+  // Allow connected controller to drive any scheme seamlessly
+  for(let pi=0; pi<4; pi++){
+    const pd = PAD[pi];
+    if(pd && pd.connected){
+      if(pd.left) dir = -1;
+      if(pd.right) dir = 1;
+      if(pd.jumpE) jumpEdge = true;
+      if(pd.jumpHeld) jumpHeld = true;
+      if(pd.dropHeld) downHeld = true;
+      break;
+    }
+  }
+  // Mobile / Tablet on-screen touch controls
+  if(TOUCH.left) dir = -1;
+  if(TOUCH.right) dir = 1;
+  if(TOUCH.jumpEdge) jumpEdge = true;
+  if(TOUCH.jumpHeld) jumpHeld = true;
+  if(TOUCH.downHeld) downHeld = true;
+
+  return { dir: clamp(dir, -1, 1), jumpEdge: !!jumpEdge, jumpHeld: !!jumpHeld, downHeld: !!downHeld };
+}
+
+/* Input shim: host runs local input for slot 0 (or its own slot); guest inputs are buffered */
+const _inputFor = inputFor;
+function inputForNet(p){
+  if(NET.role !== null){
+    if(NET.isHost){
+      const slot = p.slot;
+      if(slot === NET.mySlot || slot === 0){
+        return sampleControls(NET.myCtrl || 'WASD');
+      }
+      const ext = NET.hostInputs.get(slot);
+      if(ext){
+        let edge = false;
+        if(ext.jumpQueue > 0){
+          ext.jumpQueue--;
+          edge = true;
+        } else if(ext.consumeEdge){
+          ext.consumeEdge = false;
+          edge = true;
+        }
+        return { dir: clamp(ext.dir, -1, 1), jumpEdge: edge, jumpHeld: !!ext.jumpHeld, downHeld: !!ext.downHeld };
+      }
+      return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
+    } else {
+      if(p.slot === NET.mySlot){
+        return NET.myCurrentInput || sampleControls(NET.myCtrl || 'WASD');
+      }
+      return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
+    }
+  }
+  return _inputFor(p);
+}
+inputFor = inputForNet;
+
+/* PeerJS connect (Supports dedicated Railway/Render server with zero-failure cloud fallback) */
+function netConnectPeer(room, isHost, forceFallback = false){
+  if(NET.peer){
+    try{ NET.peer.destroy(); }catch(e){}
+    NET.peer = null;
+  }
+  const cleanRoom = room.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 6);
+  const id = 'tag-' + cleanRoom + (isHost ? '-host' : '-g' + Math.floor(Math.random() * 1e6));
+  
+  // Check if custom server is specified via URL parameter ?server=... or PEER_SERVER_CONFIG
+  let customHost = '';
+  try {
+    const qp = new URLSearchParams(location.search);
+    customHost = qp.get('server') || (typeof PEER_SERVER_CONFIG !== 'undefined' ? PEER_SERVER_CONFIG.host : '') || '';
+    customHost = customHost.replace(/^https?:\/\//i, '').replace(/\/+$/, '').trim();
+  } catch(e){}
+
+  let peerOptions = { debug: 0, config: { iceServers: ICE_SERVERS } };
+  let usingCustom = false;
+  if(customHost && !forceFallback){
+    usingCustom = true;
+    peerOptions = {
+      host: customHost,
+      port: (typeof PEER_SERVER_CONFIG !== 'undefined' && PEER_SERVER_CONFIG.port) || 443,
+      path: (typeof PEER_SERVER_CONFIG !== 'undefined' && PEER_SERVER_CONFIG.path) || '/tag-netplay',
+      secure: (typeof PEER_SERVER_CONFIG !== 'undefined' && PEER_SERVER_CONFIG.secure !== undefined) ? PEER_SERVER_CONFIG.secure : true,
+      debug: 0,
+      config: { iceServers: ICE_SERVERS }
+    };
+  }
+
+  let fallbackTimer = null;
+  if(usingCustom){
+    fallbackTimer = setTimeout(() => {
+      if(!NET.peer || !NET.myId){
+        console.warn('Custom server connection timed out, falling back to public PeerJS cloud.');
+        netToast('Custom server unreachable. Falling back to Cloud…');
+        netConnectPeer(room, isHost, true);
+      }
+    }, 5500);
+  }
+
+  try {
+    NET.peer = new Peer(id, peerOptions);
+  } catch(err){
+    if(usingCustom){
+      netConnectPeer(room, isHost, true);
+      return;
+    }
+    throw err;
+  }
+  
+  NET.peer.on('open', id2 => {
+    if(fallbackTimer){ clearTimeout(fallbackTimer); fallbackTimer = null; }
+    NET.myId = id2;
+    NET.peerSlots.clear();
+    if(usingCustom){
+      console.log('[NET] Connected to dedicated signaling server:', customHost);
+    }
+    if(isHost){
+      NET.peerSlots.set(id2, 0);
+      NET.peer.on('connection', c => netWireConn(c, true));
+      netToast('Hosting room ' + room.toUpperCase() + '! Link copied.');
+      setTimeout(() => { netBroadcastSettings(); netBroadcastRoster(); }, 400);
+    } else {
+      const hostId = 'tag-' + cleanRoom + '-host';
+      NET.peerSlots.set(hostId, 0);
+      const connRel = NET.peer.connect(hostId, { reliable: true, label: 'rel' });
+      netWireConn(connRel, false);
+      const connFast = NET.peer.connect(hostId, { reliable: false, ordered: false, maxRetransmits: 0, label: 'fast' });
+      netWireConn(connFast, false);
+      NET._guestTimeout = setTimeout(() => {
+        const pair = NET.conns.get(hostId);
+        if(!pair || (!pair.rel && !pair.fast)){
+          netToast('Could not find host. Check the room code.');
+        }
+      }, 7000);
+    }
+  });
+
+  NET.peer.on('call', call => {
+    call.answer(VOICE.localStream || undefined);
+    voiceWireCall(call);
+  });
+
+  NET.peer.on('error', e => {
+    const t = String(e.type || e.message || 'error').toLowerCase();
+    if(usingCustom && (t.includes('server-error') || t.includes('socket-error') || t.includes('network') || t.includes('failed') || t.includes('could not connect'))){
+      if(fallbackTimer){ clearTimeout(fallbackTimer); fallbackTimer = null; }
+      netToast('Custom server error. Switching to public cloud…');
+      netConnectPeer(room, isHost, true);
+      return;
+    }
+    if(t.includes('peer-unavailable')){
+      netToast('Host not found. Room may be closed.');
+    } else if(t.includes('unavailable-id')){
+      netToast('Room code already in use. Please try again.');
+    } else {
+      netToast('Network: ' + t.slice(0, 50));
+    }
+  });
+
+  NET.peer.on('disconnected', () => {
+    try{ NET.peer.reconnect(); }catch(e){}
+  });
+
+  NET.peer.on('close', () => {
+    netToast('Online session ended');
+    netLeaveRoom();
+  });
+}
+
+function netWireConn(conn, isHostSide){
+  const peerId = conn.peer;
+  const pair = getOrCreateConnPair(peerId);
+  const isFast = (conn.label === 'fast');
+  if(isFast) pair.fast = conn;
+  else pair.rel = conn;
+
+  const onReady = () => {
+    if(NET._guestTimeout){ clearTimeout(NET._guestTimeout); NET._guestTimeout = null; }
+    if(!isHostSide && !isFast){
+      conn.send({ t: 'hello', ctrl: NET.myCtrl || 'WASD' });
+      netToast('Connected to host! Syncing menu…');
+      if(VOICE.enabled && VOICE.localStream){
+        conn.send({ t: 'voice_req', peerId: NET.myId, hasStream: true });
+      }
+    } else if(isHostSide && !isFast){
+      netToast('Guest connected!');
+      if(VOICE.enabled && VOICE.localStream){
+        setTimeout(() => voiceCallPeer(peerId, false), 500);
+      }
+    }
+  };
+
+  if(conn.open){
+    onReady();
+  } else {
+    conn.on('open', onReady);
+  }
+
+  conn.on('data', d => netOnData(d, conn));
+
+  conn.on('close', () => {
+    if(isFast) pair.fast = null;
+    else pair.rel = null;
+    if(!pair.rel && !pair.fast){
+      NET.conns.delete(peerId);
+      if(NET.isHost){
+        for(let i=1; i<8; i++){
+          const ent = NET.hostInputs.get(i);
+          if(ent && ent.owner === peerId){
+            NET.hostInputs.delete(i);
+            NET.peerSlots.delete(peerId);
+            _remoteTargets.delete(i);
+            menu.slotColor[i] = -1;
+            NET.slotsReady[i] = false;
+            if(match && match.players){
+              const idx = match.players.findIndex(p => p.slot === i);
+              if(idx !== -1){
+                match.players.splice(idx, 1);
+                if(match.tags) match.tags.splice(idx, 1);
+                if(match.it >= match.players.length) match.it = 0;
+              }
+            }
+            break;
+          }
+        }
+        netBroadcastSettings();
+        netBroadcastRoster();
+        netToast('A player left the room');
+      } else {
+        netToast('Host left. Room closed.');
+        netLeaveRoom();
+      }
+    }
+  });
+
+  conn.on('error', () => {});
+}
+
+function netOnData(m, c){
+  if(!m || !m.t) return;
+  if(m.t === 'hello' && NET.isHost){
+    let slot = -1;
+    for(let i=1; i<8; i++){
+      if(!NET.hostInputs.has(i) && menu.slotColor[i] === -1){
+        slot = i;
+        break;
+      }
+    }
+    if(slot === -1){
+      c.send({ t: 'full' });
+      return;
+    }
+    NET.hostInputs.set(slot, { dir:0, jumpEdge:false, jumpHeld:false, downHeld:false, consumeEdge:false, owner: c.peer, seq: 0 });
+    NET.peerSlots.set(c.peer, slot);
+    NET.slotsCtrl[slot] = m.ctrl || 'WASD';
+    NET.slotsReady[slot] = false;
+
+    // Pick first available color
+    const taken = menu.slotColor.filter(v => v >= 0);
+    let pick = -1;
+    for(let pi=0; pi<PALETTE.length; pi++){
+      if(!taken.includes(pi)){ pick = pi; break; }
+    }
+    if(pick === -1) pick = slot % PALETTE.length;
+    menu.slotColor[slot] = pick;
+
+    const slotsPeer = [NET.myId || '', '', '', '', '', '', '', ''];
+    for(let i=1; i<8; i++){
+      const ent = NET.hostInputs.get(i);
+      if(ent && ent.owner) slotsPeer[i] = ent.owner;
+    }
+
+    c.send({
+      t: 'assign',
+      slot: slot,
+      settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, slotColor: menu.slotColor.slice(), slotTeam: (menu.slotTeam ? menu.slotTeam.slice() : []) },
+      mapData: MAPS[settings.map % MAPS.length],
+      slotsCtrl: NET.slotsCtrl.slice(),
+      slotsReady: NET.slotsReady.slice(),
+      slotsPeer: slotsPeer
+    });
+
+    netBroadcastSettings();
+    netBroadcastRoster();
+    netToast('Player joined as P' + (slot + 1));
+    if(match && screen === 'game'){
+      let existingP = match.players.find(p => p.slot === slot);
+      if(!existingP){
+        const newP = makePlayer(match.players.length, slot, pick);
+        match.players.push(newP);
+        match.tags.push(0);
+      }
+      const payload = {
+        it: match.it,
+        cooldownN: match.cooldown,
+        matchIndex: matchIndex,
+        currentThemeIdx: currentThemeIdx,
+        lastStartIT: lastStartIT,
+        timer: match.timer,
+        state: match.state,
+        cd: match.cd,
+        cdT: match.cdT,
+        tags: match.tags.slice(),
+        players: match.players.map(p => packPlayer(p))
+      };
+      netSendRel(c, {
+        t: 'midgame_start',
+        settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, slotColor: menu.slotColor.slice(), slotTeam: (menu.slotTeam ? menu.slotTeam.slice() : []) },
+        mapData: MAPS[settings.map % MAPS.length],
+        payload: payload
+      });
+      netToast('P' + (slot + 1) + ' joined live!');
+    }
+  } else if(m.t === 'midgame_start' && !NET.isHost){
+    settings.map = m.settings.map | 0;
+    settings.doubleJump = !!m.settings.doubleJump;
+    settings.collision = !!m.settings.collision;
+    if(m.settings.teams != null) settings.teams = !!m.settings.teams;
+    if(m.settings.slotColor) menu.slotColor = m.settings.slotColor.slice(0, 8);
+    if(m.settings.slotTeam) menu.slotTeam = m.settings.slotTeam.slice(0, 8);
+    if(m.mapData) MAPS[settings.map % MAPS.length] = m.mapData;
+    buildLevel();
+    startMatchNetGuest(m.payload);
+    if(match && m.payload){
+      if(m.payload.timer != null) match.timer = m.payload.timer;
+      if(m.payload.state != null) match.state = m.payload.state;
+      if(m.payload.cd != null) match.cd = m.payload.cd;
+      if(m.payload.cooldownN != null) match.cooldown = m.payload.cooldownN;
+      if(m.payload.itTeam !== undefined) match.itTeam = m.payload.itTeam;
+      if(m.payload.teamItTime) match.teamItTime = m.payload.teamItTime.slice();
+      if(m.payload.tags) match.tags = m.payload.tags.slice();
+      if(m.payload.players && Array.isArray(m.payload.players)){
+        for(const rawP of m.payload.players){
+          const pData = unpackPlayer(rawP);
+          const pObj = match.players.find(p => p.slot === pData.slot);
+          if(pObj){
+            pObj.x = pData.x;
+            pObj.y = pData.y;
+            pObj.vx = pData.vx;
+            pObj.vy = pData.vy;
+            if(pData.slot !== NET.mySlot){
+              netUpdateRemoteTarget(pData.slot, pData, pObj);
+            }
+          }
+        }
+      }
+    }
+    netShow(false);
+    netToast('Joined match in progress!');
+  } else if(m.t === 'assign' && !NET.isHost){
+    NET.mySlot = m.slot;
+    if(m.settings){
+      settings.map = m.settings.map | 0;
+      settings.doubleJump = !!m.settings.doubleJump;
+      settings.collision = !!m.settings.collision;
+      if(m.settings.teams != null) settings.teams = !!m.settings.teams;
+      if(m.settings.slotColor) menu.slotColor = m.settings.slotColor.slice(0, 8);
+      if(m.settings.slotTeam) menu.slotTeam = m.settings.slotTeam.slice(0, 8);
+    }
+    if(m.mapData) MAPS[settings.map % MAPS.length] = m.mapData;
+    if(m.slotsCtrl) NET.slotsCtrl = m.slotsCtrl.slice();
+    if(m.slotsReady) NET.slotsReady = m.slotsReady.slice();
+    if(m.slotsPeer && Array.isArray(m.slotsPeer)){
+      for(let s=0; s<m.slotsPeer.length; s++){
+        if(m.slotsPeer[s]) NET.peerSlots.set(m.slotsPeer[s], s);
+      }
+    }
+    buildLevel();
+    netShow(false);
+    netToast('Connected as P' + (m.slot + 1) + '! Pick controls & click Ready.');
+  } else if(m.t === 'roster_sync'){
+    if(m.slotsCtrl) NET.slotsCtrl = m.slotsCtrl.slice();
+    if(m.slotsReady) NET.slotsReady = m.slotsReady.slice();
+    if(m.slotColor){
+      menu.slotColor = m.slotColor.slice(0, 8);
+      buildLevel();
+    }
+    if(m.slotTeam) menu.slotTeam = m.slotTeam.slice(0, 8);
+    if(m.slotsPeer && Array.isArray(m.slotsPeer)){
+      for(let s=0; s<m.slotsPeer.length; s++){
+        const pid = m.slotsPeer[s];
+        if(pid){
+          NET.peerSlots.set(pid, s);
+          if(VOICE.enabled && VOICE.localStream && pid !== NET.myId && !VOICE.peers.has(pid)){
+            if(NET.myId > pid) voiceCallPeer(pid, false);
+          }
+        }
+      }
+    }
+  } else if(m.t === 'team'){
+    if(NET.isHost){
+      if(m.slot >= 0 && m.slot < 8 && m.team != null){
+        if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+        menu.slotTeam[m.slot] = m.team;
+        netBroadcastRoster();
+      }
+    }
+  } else if(m.t === 'ready'){
+    if(NET.isHost){
+      if(m.slot >= 0 && m.slot < 8){
+        NET.slotsReady[m.slot] = !!m.ready;
+        netBroadcastRoster();
+      }
+    }
+  } else if(m.t === 'ctrl'){
+    if(NET.isHost){
+      if(m.slot >= 0 && m.slot < 8 && m.ctrl){
+        NET.slotsCtrl[m.slot] = m.ctrl;
+        netBroadcastRoster();
+      }
+    }
+  } else if(m.t === 'color'){
+    if(NET.isHost){
+      if(m.slot >= 0 && m.slot < 8 && m.color >= 0){
+        menu.slotColor[m.slot] = m.color;
+        buildLevel();
+        netBroadcastSettings();
+        netBroadcastRoster();
+      }
+    }
+  } else if(m.t === 'settings' && !NET.isHost){
+    if(m.mapData) MAPS[settings.map % MAPS.length] = m.mapData;
+    settings.map = m.settings.map | 0;
+    settings.doubleJump = !!m.settings.doubleJump;
+    settings.collision = !!m.settings.collision;
+    if(m.settings.teams != null) settings.teams = !!m.settings.teams;
+    if(m.settings.slotColor) menu.slotColor = m.settings.slotColor.slice(0, 8);
+    if(m.settings.slotTeam) menu.slotTeam = m.settings.slotTeam.slice(0, 8);
+    buildLevel();
+  } else if(m.t === 'p_state' && NET.isHost){
+    const slot = m.s != null ? m.s : m.slot;
+    if(slot === NET.mySlot || slot === 0) return;
+    const pData = unpackPlayer(m);
+    let pObj = (match && match.players) ? match.players.find(p => p.slot === slot) : null;
+    if(!pObj && match && match.players){
+      const col = (menu.slotColor[slot] >= 0) ? menu.slotColor[slot] : (slot % PALETTE.length);
+      pObj = makePlayer(match.players.length, slot, col);
+      pObj.x = pData.x;
+      pObj.y = pData.y;
+      match.players.push(pObj);
+      if(match.tags.length < match.players.length) match.tags.push(0);
+    }
+    netUpdateRemoteTarget(slot, pData, pObj);
+  } else if(m.t === 'tag_claim' && NET.isHost){
+    if(match && match.state === 'playing' && match.cooldown <= 0){
+      const P = match.players;
+      const hunterIdx = P.findIndex(p => p.slot === m.from);
+      if(hunterIdx !== -1){
+        const hunterP = P[hunterIdx];
+        const isHunter = settings.teams ? (hunterP.team === match.itTeam) : (hunterIdx === match.it);
+        if(isHunter){
+          const targetIdx = P.findIndex(p => p.slot === m.target);
+          if(targetIdx !== -1){
+            const tgtP = P[targetIdx];
+            const canTag = settings.teams ? (tgtP.team !== match.itTeam) : (targetIdx !== match.it);
+            if(canTag && tgtP){
+              const distSq = (hunterP.x - tgtP.x)**2 + (hunterP.y - tgtP.y)**2;
+              if(distSq < 45000){ // within ~212px strike reach factoring latency
+                applyTag(targetIdx, m.x, m.y);
+              }
+            }
+          }
+        }
+      }
+    }
+  } else if(m.t === 'input' && NET.isHost){
+    const ent = NET.hostInputs.get(m.slot);
+    if(!ent || ent.owner !== c.peer) return;
+    if(m.inputs && Array.isArray(m.inputs)){
+      for(const inp of m.inputs){
+        if(!inp || inp.seq <= ent.seq) continue;
+        ent.seq = inp.seq; ent.dir = inp.dir | 0; ent.jumpHeld = !!inp.jumpHeld; ent.downHeld = !!inp.downHeld;
+        if(inp.jumpEdge) ent.jumpQueue = Math.min(3, (ent.jumpQueue || 0) + 1);
+      }
+    } else {
+      if(m.seq <= ent.seq) return;
+      ent.seq = m.seq; ent.dir = m.dir | 0; ent.jumpHeld = !!m.jumpHeld; ent.downHeld = !!m.downHeld;
+      if(m.jumpEdge) ent.jumpQueue = Math.min(3, (ent.jumpQueue || 0) + 1);
+    }
+  } else if(m.t === 'state' && !NET.isHost){
+    if(m.tick != null){
+      if(m.tick <= NET.lastRecvTick) return;
+      NET.lastRecvTick = m.tick;
+    }
+    NET.lastRecvT = performance.now();
+    if(m.settings){
+      settings.map = m.settings.map; settings.doubleJump = m.settings.doubleJump; settings.collision = m.settings.collision;
+      if(m.settings.teams != null) settings.teams = !!m.settings.teams;
+    }
+    if(match){
+      if(m.state){
+        if(match.state !== m.state){
+          if(m.state === 'playing') sfx('go');
+          if(m.state === 'result'){ confetti(); sfx('win'); }
+        }
+        match.state = m.state;
+      }
+      if(m.cd != null) match.cd = m.cd;
+      if(m.cdT != null) match.cdT = m.cdT;
+      if(m.goFlash != null) match.goFlash = m.goFlash;
+      if(m.result) match.result = m.result;
+      if(m.resultT != null) match.resultT = m.resultT;
+      if(m.tags) match.tags = m.tags.slice();
+      if(m.shake && m.shake > match.shake) match.shake = m.shake;
+      if(m.flash && m.flash > match.flash) match.flash = m.flash;
+      if(m.payloadTagPop){
+        if(!match.tagPop){
+          sfx('tag');
+          const itP = match.players[m.it];
+          const col1 = itP && PALETTE[itP.colIdx] ? PALETTE[itP.colIdx].c : '#ffffff';
+          tagBurst(m.payloadTagPop.x, m.payloadTagPop.y, col1, '#ffea88');
+        }
+        match.tagPop = m.payloadTagPop;
+      }
+      match.it = m.it;
+      if(m.itTeam !== undefined) match.itTeam = m.itTeam;
+      if(m.teamItTime) match.teamItTime = m.teamItTime.slice();
+      match.cooldown = m.cooldown;
+      match.timer = m.timer;
+
+      // Update all players
+      if(m.players && Array.isArray(m.players)){
+        const activeRemoteSlots = new Set();
+        const myP = getMyPlayer();
+        for(let i = 0; i < m.players.length; i++){
+          const pData = unpackPlayer(m.players[i]);
+          const slot = (pData.slot != null) ? pData.slot : i;
+
+          if(slot === NET.mySlot){
+            // Local player is 100% self-authoritative — never snap or rubberband against delayed host echoes
+          } else {
+            // Remote player: update smooth continuous predictive error-decay filter
+            activeRemoteSlots.add(slot);
+            let pObj = match.players.find(p => p.slot === slot);
+            if(!pObj){
+              const col = (menu.slotColor[slot] >= 0) ? menu.slotColor[slot] : (slot % PALETTE.length);
+              pObj = makePlayer(match.players.length, slot, col);
+              pObj.x = pData.x;
+              pObj.y = pData.y;
+              match.players.push(pObj);
+              if(match.tags.length < match.players.length) match.tags.push(0);
+            }
+            if(m.tick != null) pData.seq = m.tick;
+            netUpdateRemoteTarget(slot, pData, pObj);
+          }
+        }
+        if(match.players.length > m.players.length){
+          match.players = match.players.filter(p => p.slot === NET.mySlot || activeRemoteSlots.has(p.slot));
+        }
+      }
+    }
+  } else if(m.t === 'start' && !NET.isHost){
+    settings.map = m.settings.map | 0;
+    settings.doubleJump = !!m.settings.doubleJump;
+    settings.collision = !!m.settings.collision;
+    if(m.settings.teams != null) settings.teams = !!m.settings.teams;
+    if(m.settings.slotColor) menu.slotColor = m.settings.slotColor.slice(0, 8);
+    if(m.settings.slotTeam) menu.slotTeam = m.settings.slotTeam.slice(0, 8);
+    if(m.mapData) MAPS[settings.map % MAPS.length] = m.mapData;
+    buildLevel();
+    startMatchNetGuest(m.payload);
+    netShow(false);
+  } else if(m.t === 'to_menu' && !NET.isHost){
+    match = null;
+    screen = 'menu';
+  } else if(m.t === 'full'){
+    netToast('Room is full (8 players)');
+    netLeaveRoom();
+  } else if(m.t === 'toast'){
+    netToast(m.msg || '');
+  } else if(m.t === 'voice_req'){
+    const peerId = m.peerId || c.peer;
+    if(VOICE.enabled && VOICE.localStream){
+      voiceCallPeer(peerId, false);
+    } else if(m.hasStream){
+      // Host has no mic stream, so authorize guest to call host so host can hear guest
+      c.send({ t: 'voice_guest_call', peerId: NET.myId });
+    }
+  } else if(m.t === 'voice_guest_call'){
+    const peerId = m.peerId || c.peer;
+    if(VOICE.enabled && VOICE.localStream){
+      voiceCallPeer(peerId, false);
+    }
+  } else if(m.t === 'voice_mute'){
+    const peerEntry = VOICE.peers.get(c.peer) || VOICE.peers.get(m.peerId);
+    if(peerEntry){
+      peerEntry.remoteMuted = !!m.muted;
+      if(m.muted) peerEntry.speaking = false;
+    }
+  }
+}
+
+function netBroadcastSettings(){
+  if(!NET.isHost) return;
+  const payload = { settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, slotColor: menu.slotColor.slice(), slotTeam: (menu.slotTeam ? menu.slotTeam.slice() : []) }, mapData: MAPS[settings.map % MAPS.length] };
+  netBroadcastReliable({ t: 'settings', settings: payload.settings, mapData: payload.mapData });
+}
+
+function netBroadcastRoster(){
+  if(!NET.isHost) return;
+  const slotsPeer = [NET.myId || '', '', '', '', '', '', '', ''];
+  for(let i=1; i<8; i++){
+    const ent = NET.hostInputs.get(i);
+    if(ent && ent.owner) slotsPeer[i] = ent.owner;
+  }
+  const msg = {
+    t: 'roster_sync',
+    slotsCtrl: NET.slotsCtrl.slice(),
+    slotsReady: NET.slotsReady.slice(),
+    slotColor: menu.slotColor.slice(),
+    slotTeam: menu.slotTeam ? menu.slotTeam.slice() : [],
+    slotsPeer: slotsPeer
+  };
+  netBroadcastReliable(msg);
+}
+
+function netBroadcastState(state){
+  for(const pair of NET.conns.values()){
+    netSendFast(pair, { t: 'state', ...state });
+  }
+}
+
+function netToggleMyReady(){
+  if(NET.role === null) return;
+  const mySlot = NET.mySlot;
+  if(mySlot < 0 || mySlot >= 8) return;
+  const newReady = !NET.slotsReady[mySlot];
+  NET.slotsReady[mySlot] = newReady;
+  sfx('ui');
+  if(NET.isHost){
+    netBroadcastRoster();
+  } else {
+    for(const pair of NET.conns.values()){
+      netSendRel(pair, { t: 'ready', slot: mySlot, ready: newReady });
+    }
+  }
+}
+
+function netCycleMyControl(){
+  const curIdx = CTRL_SCHEMES.indexOf(NET.myCtrl);
+  const nextScheme = CTRL_SCHEMES[(curIdx + 1) % CTRL_SCHEMES.length];
+  NET.myCtrl = nextScheme;
+  sfx('ui');
+  const mySlot = NET.mySlot;
+  if(mySlot >= 0 && mySlot < 8){
+    NET.slotsCtrl[mySlot] = nextScheme;
+    if(NET.isHost){
+      netBroadcastRoster();
+    } else {
+      for(const pair of NET.conns.values()){
+        netSendRel(pair, { t: 'ctrl', slot: mySlot, ctrl: nextScheme });
+      }
+    }
+  }
+}
+
+function netCycleMyColor(d){
+  if(NET.role === null || NET.isHost) return;
+  const slot = NET.mySlot;
+  if(slot < 0) return;
+  const taken = menu.slotColor.filter((c, k) => c >= 0 && k !== slot);
+  const list = PALETTE.map((p, idx) => idx).filter(idx => taken.indexOf(idx) < 0);
+  if(list.length === 0) return;
+  let cur = list.indexOf(menu.slotColor[slot]);
+  cur = (cur + d + list.length) % list.length;
+  menu.slotColor[slot] = list[cur];
+  buildLevel();
+  sfx('ui');
+  for(const pair of NET.conns.values()){
+    netSendRel(pair, { t: 'color', slot: slot, color: list[cur] });
+  }
+}
+
+function netHostAction(){
+  const code = netMakeCode();
+  NET.role = 'host';
+  NET.isHost = true;
+  NET.room = code;
+  NET.mySlot = 0;
+  NET.myCtrl = 'WASD';
+  NET.slotsCtrl[0] = 'WASD';
+  NET.slotsReady = [false, false, false, false, false, false, false, false];
+  NET.midgameJoiner = false;
+  menu.mode = 'rows';
+  menu.slotColor = [menu.slotColor[0] >= 0 ? menu.slotColor[0] : 0, -1, -1, -1, -1, -1, -1, -1];
+  menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+  history.replaceState(null, '', '?room=' + code);
+  
+  netCopyLink();
+  netConnectPeer(code, true);
+  netShow(false);
+}
+
+function netJoinAction(codeParam){
+  let code = codeParam;
+  if(!code){
+    const el = document.getElementById('netCode');
+    if(el) el.value = '';
+    netShow(true);
+    if(el) el.focus();
+    return;
+  }
+  if(code.includes('room=')){
+    try{
+      const u = new URL(code);
+      code = u.searchParams.get('room') || '';
+    }catch(e){
+      const m = code.match(/room=([A-Za-z0-9]+)/);
+      if(m) code = m[1];
+    }
+  }
+  code = code.replace(/[^A-Za-z0-9]/g, '').slice(0, 6).toUpperCase();
+  if(code.length < 4){
+    netToast('Enter a 6-letter room code');
+    return;
+  }
+  NET.role = 'guest';
+  NET.isHost = false;
+  NET.room = code;
+  NET.mySlot = -1;
+  NET.myCtrl = 'WASD';
+  NET.slotsReady = [false, false, false, false, false, false, false, false];
+  NET.midgameJoiner = false;
+  menu.mode = 'rows';
+  history.replaceState(null, '', '?room=' + code);
+  netShow(false);
+  netToast('Joining room ' + code + '…');
+  netConnectPeer(code, false);
+}
+
+function netLeaveRoom(){
+  if(NET.peer){
+    try{ NET.peer.destroy(); }catch(e){}
+    NET.peer = null;
+  }
+  for(const pair of NET.conns.values()){
+    if(pair.rel){ try{ pair.rel.close(); }catch(e){} }
+    if(pair.fast){ try{ pair.fast.close(); }catch(e){} }
+  }
+  NET.conns.clear();
+  if(typeof VOICE !== 'undefined' && VOICE.peers){
+    for(const entry of VOICE.peers.values()){
+      if(entry.audioEl){
+        try{ entry.audioEl.pause(); entry.audioEl.srcObject = null; entry.audioEl.remove(); }catch(e){}
+      }
+      if(entry.call){ try{ entry.call.close(); }catch(e){} }
+    }
+    VOICE.peers.clear();
+  }
+  if(NET.peerSlots) NET.peerSlots.clear();
+  NET.role = null;
+  NET.room = '';
+  NET.mySlot = -1;
+  NET.isHost = false;
+  NET.midgameJoiner = false;
+  NET.hostInputs.clear();
+  NET.slotsReady = [false, false, false, false, false, false, false, false];
+  NET.lastRecvTick = -1;
+  _remoteTargets.clear();
+  menu.slotColor = [0, 2, -1, -1, -1, -1, -1, -1];
+  menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+  history.replaceState(null, '', location.pathname);
+  netShow(false);
+  netToast('Playing offline');
+}
+
+/* Match bootstrap wrappers */
+function startMatchNetGuest(p){
+  if(p.matchIndex != null) matchIndex = p.matchIndex;
+  if(p.currentThemeIdx != null) currentThemeIdx = p.currentThemeIdx;
+  if(p.lastStartIT != null) lastStartIT = p.lastStartIT;
+  const act = activeSlots();
+  buildLevel();
+  const players = act.map((slot, i) => makePlayer(i, slot, menu.slotColor[slot]));
+  const initState = p.state || 'countdown';
+  match = {
+    state: initState,
+    cd: p.cd != null ? p.cd : 3,
+    cdT: p.cdT != null ? p.cdT : 0,
+    timer: p.timer != null ? p.timer : settings.time,
+    lastTick: Math.ceil(p.timer != null ? p.timer : settings.time),
+    it: p.it != null ? p.it : 0,
+    itTeam: p.itTeam != null ? p.itTeam : (players[p.it || 0] ? players[p.it || 0].team : null),
+    teamItTime: p.teamItTime ? p.teamItTime.slice() : [0, 0, 0, 0],
+    cooldown: p.cooldownN != null ? p.cooldownN : 0,
+    goFlash: 0, freeze: 0, shake: 0, flash: 0, fade: 0.6, tagPop: null, resultT: 0,
+    tags: p.tags ? p.tags.slice() : players.map(() => 0),
+    hintT: 7, players: players, result: null, pausedFrom: null, pauseSel: 0,
+    mapToast: MAPS[settings.map % MAPS.length].name, mapToastT: 2.5
+  };
+  screen = 'game';
+  if(initState === 'countdown') sfx('count');
+  netShow(false);
+}
+
+function getMyPlayer(){
+  if(!match || NET.mySlot < 0) return null;
+  return match.players.find(p => p.slot === NET.mySlot) || (NET.mySlot < match.players.length ? match.players[NET.mySlot] : null);
+}
+
+/* 60Hz Host physics broadcast + Guest state transmission */
+let _netStateT = 0, _netInputT = 0;
+function netTick(dt){
+  if(NET.role === null) return;
+  if(NET.isHost){
+    // Host broadcasts all player positions & match state at 60Hz
+    _netStateT += dt;
+    if(_netStateT >= 0.015 && match && match.players){
+      _netStateT = 0;
+      const packedPlayers = match.players.map(p => packPlayer(p));
+      netBroadcastState({
+        players: packedPlayers,
+        it: match.it,
+        itTeam: match.itTeam,
+        teamItTime: match.teamItTime ? match.teamItTime.slice() : null,
+        cooldown: Math.round(match.cooldown * 100) / 100,
+        timer: Math.round(match.timer * 10) / 10,
+        payloadTagPop: match.tagPop,
+        state: match.state,
+        cd: match.cd,
+        cdT: match.cdT != null ? Math.round(match.cdT * 100) / 100 : 0,
+        goFlash: match.goFlash != null ? Math.round(match.goFlash * 100) / 100 : 0,
+        freeze: match.freeze != null ? Math.round(match.freeze * 100) / 100 : 0,
+        shake: match.shake != null ? Math.round(match.shake * 10) / 10 : 0,
+        flash: match.flash != null ? Math.round(match.flash * 10) / 10 : 0,
+        result: match.result,
+        resultT: match.resultT != null ? Math.round(match.resultT * 100) / 100 : 0,
+        tags: match.tags.slice(),
+        tick: NET.tick++,
+        settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams }
+      });
+    }
+  } else {
+    // Guest: send local player position and state at 60Hz over fast WebRTC channel
+    if(NET.mySlot === -1 || !match) return;
+    _netInputT += dt;
+    if(_netInputT >= 0.015){
+      _netInputT = 0;
+      const myP = getMyPlayer();
+      if(myP){
+        const pData = packPlayer(myP);
+        pData.t = 'p_state';
+        pData.seq = ++NET.seq;
+        for(const pair of NET.conns.values()){
+          netSendFast(pair, pData);
+        }
+      }
+    }
+  }
+}
+
+/* Modal UI wiring */
+function netInitUI(){
+  const joinGo = document.getElementById('netJoinGo'),
+    closeBtn = document.getElementById('netClose'),
+    codeEl = document.getElementById('netCode');
+
+  if(joinGo){
+    joinGo.onclick = () => {
+      const v = codeEl ? codeEl.value.trim() : '';
+      if(v) netJoinAction(v);
+    };
+  }
+  if(closeBtn){
+    closeBtn.onclick = () => netShow(false);
+  }
+  if(codeEl){
+    codeEl.onkeydown = e => {
+      if(e.key === 'Enter'){
+        const v = codeEl.value.trim();
+        if(v) netJoinAction(v);
+      } else if(e.key === 'Escape'){
+        netShow(false);
+      }
+    };
+  }
+
+  // Check URL ?room= parameter on boot -> auto-joins immediately!
+  const qp = new URLSearchParams(location.search);
+  const roomQ = (qp.get('room') || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 6).toUpperCase();
+  if(roomQ){
+    netJoinAction(roomQ);
+  }
 }
 
 /* ================= main loop ================= */
 function render(){
   zones.length=0;
   g.setTransform(DPR,0,0,DPR,0,0);
+  if(NET.role!==null && NET.isHost && match && screen==='game'){
+    // small host badge
+    g.save();g.font='700 12px Outfit,system-ui,sans-serif';g.fillStyle='rgba(255,176,32,0.95)';g.fillText('HOST • '+NET.room.toUpperCase(),CW-12,18);g.textAlign='right';g.restore();
+  }
+  if(NET.role!==null && !NET.isHost && match && screen==='game'){
+    g.save();g.font='700 12px Outfit,system-ui,sans-serif';g.fillStyle='rgba(0,210,211,0.95)';g.fillText('GUEST • '+NET.room.toUpperCase(),CW-12,18);g.textAlign='right';g.restore();
+  }
   if(screen==='menu')drawMenu();
   else if(match)drawGame();
 }
 let last=performance.now();
 function frame(now){
   requestAnimationFrame(frame);
+  if(document.hidden && NET.role !== null && NET.isHost){
+    return;
+  }
   const dt=Math.min(0.033,(now-last)/1000);
   last=now;tGlobal+=dt;
+  
+  // Global gamepad polling for every client
+  pollGamepads();
+
+  // Netplay 60Hz tick
+  if(NET.role !== null){
+    netTick(dt);
+  }
   try{
-    update(dt);
+    if(NET.role !== null && !NET.isHost && match){
+      const inPlay = match.state === 'playing';
+      const myP = getMyPlayer();
+      if(myP){
+        physUpdate(myP, dt, inPlay);
+      }
+      // Smooth continuous predictive interpolation for all remote players
+      for(const p of match.players){
+        if(p.slot !== NET.mySlot){
+          netApplyRemoteTarget(p, dt);
+        }
+      }
+      checkTag();
+      if(typeof updateVoiceProximity === 'function') updateVoiceProximity(dt);
+      if(anyPressed(['KeyM'])) toggleSound();
+      if(anyPressed(['KeyO'])) toggleFullscreen();
+      updateCam(dt);
+      updateParts(dt);
+      if(match.tagPop){ match.tagPop.t -= dt; if(match.tagPop.t <= 0) match.tagPop = null; }
+      match.goFlash = Math.max(0, (match.goFlash || 0) - dt);
+      match.flash = Math.max(0, (match.flash || 0) - dt);
+      match.fade = Math.max(0, (match.fade || 0) - dt);
+      match.shake = (match.shake || 0) * Math.exp(-dt * 7);
+      if(match.state === 'result'){ match.resultT = (match.resultT || 0) + dt; }
+    } else {
+      update(dt);
+    }
     render();
   }catch(err){}
+  TOUCH.jumpEdge = false;
   pressed.clear();
 }
+
+/* Background tick worker: keeps host simulation and 60Hz net broadcasting alive even if the tab is hidden or minimized */
+let bgWorker = null;
+function backgroundStep(){
+  if(!document.hidden || NET.role === null) return;
+  const now = performance.now();
+  const dt = Math.min(0.033, (now - last) / 1000);
+  last = now;
+  tGlobal += dt;
+  pollGamepads();
+  if(NET.isHost){
+    if(match && match.state !== 'paused'){
+      updateGame(dt);
+    }
+  } else if(match && match.state !== 'paused'){
+    const myP = getMyPlayer();
+    if(myP) physUpdate(myP, dt, match.state === 'playing');
+  }
+  netTick(dt);
+  TOUCH.jumpEdge = false;
+  pressed.clear();
+}
+
+try {
+  const blob = new Blob([`
+    let tid = null;
+    self.onmessage = function(e){
+      if(e.data === 'start'){
+        if(!tid) tid = setInterval(() => self.postMessage('tick'), 16);
+      } else if(e.data === 'stop'){
+        if(tid){ clearInterval(tid); tid = null; }
+      }
+    };
+  `], { type: 'application/javascript' });
+  bgWorker = new Worker(URL.createObjectURL(blob));
+  bgWorker.onmessage = function(){
+    backgroundStep();
+  };
+  bgWorker.postMessage('start');
+} catch(err) {
+  setInterval(() => {
+    backgroundStep();
+  }, 20);
+}
+
+document.addEventListener('visibilitychange', () => {
+  last = performance.now();
+});
 syncCustomMaps();
 /* Editor launch: tag_map_editor.html "Full Game" stores the map you're viewing
    plus default 2P settings; the game jumps straight into that match. */
@@ -2031,6 +5387,7 @@ try{
   }
 }catch(e){/* normal menu boot */}
 buildLevel();
+netInitUI();
 requestAnimationFrame(frame);
 </script>
 </body>
