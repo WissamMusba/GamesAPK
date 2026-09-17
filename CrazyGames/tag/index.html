@@ -53,10 +53,10 @@ canvas{position:fixed;top:0;left:0;width:100%;height:100%;display:block;outline:
 <div id="netToast"></div>
 <!-- SDK Banners: rendered DOM containers so CrazyGames can inject without painting over the canvas -->
 <div id="cg-banners" style="position:fixed;left:50%;top:0;transform:translateX(-50%);z-index:10;display:none;pointer-events:none">
-  <div id="cg-banner-top" style="min-height:50px;min-width:320px"></div>
+  <div id="cg-banner-top" style="min-height:50px;min-width:320px;pointer-events:auto"></div>
 </div>
-<div id="cg-banner-resp" style="position:fixed;bottom:0;left:0;right:0;display:none;pointer-events:none;justify-content:center;padding:4px 0;background:rgba(10,10,16,0.92);border-top:1px solid #2a2c3d">
-  <div id="cg-banner-responsive" style="min-height:50px;min-width:320px;max-width:728px;width:100%"></div>
+<div id="cg-banner-resp" style="position:fixed;bottom:0;left:0;right:0;z-index:10;display:none;pointer-events:none;justify-content:center;padding:4px 0;background:rgba(10,10,16,0.92);border-top:1px solid #2a2c3d">
+  <div id="cg-banner-responsive" style="min-height:50px;min-width:320px;max-width:728px;width:100%;pointer-events:auto"></div>
 </div>
 <script>
 "use strict";
@@ -170,11 +170,11 @@ function calcLocalBounds(){
   const trackH = r * 2.0;
 
   // Corner positioning:
-  // Player 1 (Bottom-Left Corner): Joystick at far left, Jump & Drop buttons to the right of it
+  // Player 1 (Bottom-Left Corner): Joystick at far left, Jump & Drop buttons shifted right by ~1 button diameter for comfortable thumb spacing
   const p1CornerPad = isTablet ? clamp(CW * 0.045, 24, 44) : clamp(CW * 0.040, 16, 28);
   const p1DefJoyX = p1CornerPad + trackW / 2;
   const p1DefJoyY = CH - bm - r * 1.05;
-  const p1BtnX = p1DefJoyX + trackW / 2 + r * 1.30;
+  const p1BtnX = p1DefJoyX + trackW / 2 + r * 3.30;
   const p1DropY = p1DefJoyY;
   const p1JumpY = p1DropY - r * 2.15;
   const p1SplitY = (p1JumpY + p1DropY) / 2;
@@ -183,10 +183,10 @@ function calcLocalBounds(){
   const p1BtnMinY = p1JumpY - r * 1.35;
   const p1BtnMaxY = p1DropY + r * 1.35;
 
-  // Player 2 (Bottom-Right Corner): Jump & Drop buttons at far right, Joystick to the left of them
+  // Player 2 (Bottom-Right Corner): Jump & Drop buttons at far right, Joystick shifted left towards center by the same gap
   const p2CornerPad = isTablet ? clamp(CW * 0.045, 24, 44) : clamp(CW * 0.040, 16, 28);
   const p2BtnX = CW - p2CornerPad - r * 1.15;
-  const p2DefJoyX = p2BtnX - r * 1.30 - trackW / 2;
+  const p2DefJoyX = p2BtnX - r * 3.30 - trackW / 2;
   const p2DefJoyY = CH - bm - r * 1.05;
   const p2DropY = p2DefJoyY;
   const p2JumpY = p2DropY - r * 2.15;
@@ -280,7 +280,8 @@ function inputDown(x,y,id){
   }
 
   const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
-  const isSplitLocal = (!isOnline && match && screen === 'game' && match.players && match.players.length === 2 && isTouch);
+  const isPlaying = (match && (match.state === 'playing' || match.state === 'countdown'));
+  const isSplitLocal = (!isOnline && match && screen === 'game' && isPlaying && match.players && match.players.length === 2 && isTouch);
 
   // Allow HUD top bar buttons (Pause, Mute, Help) to receive clicks
   if(y <= 55){
@@ -373,7 +374,7 @@ function inputDown(x,y,id){
   }
 
   // Check Left horizontal joystick (Solo / Online)
-  if(match && screen === 'game' && isTouch && JOY.boundsL){
+  if(match && screen === 'game' && isPlaying && isTouch && JOY.boundsL){
     const b = JOY.boundsL;
     if(x >= b.x - 24 && x <= b.x + b.w + 24 && y >= b.y - 24 && y <= b.y + b.h + 24){
       JOY.leftId = id;
@@ -385,7 +386,7 @@ function inputDown(x,y,id){
     }
   }
   // Check Right vertical dual jump/drop slider (Solo / Online)
-  if(match && screen === 'game' && isTouch && JOY.boundsR){
+  if(match && screen === 'game' && isPlaying && isTouch && JOY.boundsR){
     const b = JOY.boundsR;
     if(x >= b.x - 24 && x <= b.x + b.w + 24 && y >= b.y - 24 && y <= b.y + b.h + 24){
       JOY.rightId = id;
@@ -420,7 +421,8 @@ function inputDown(x,y,id){
 }
 function inputMove(x,y,id){
   const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
-  const isSplitLocal = (!isOnline && match && screen === 'game' && match.players && match.players.length === 2 && isTouch);
+  const isPlaying = (match && (match.state === 'playing' || match.state === 'countdown'));
+  const isSplitLocal = (!isOnline && match && screen === 'game' && isPlaying && match.players && match.players.length === 2 && isTouch);
   if(isSplitLocal){
     const b = calcLocalBounds();
     // P1 Joystick
@@ -505,45 +507,41 @@ function inputMove(x,y,id){
   }
 }
 function inputUp(id){
-  const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
-  const isSplitLocal = (!isOnline && match && screen === 'game' && match.players && match.players.length === 2 && isTouch);
-  if(isSplitLocal){
-    // P1
-    if(LOCAL_TOUCH.p1.joyId === id){
-      const p = LOCAL_TOUCH.p1;
-      p.joyId = null;
-      p.active = false;
-      p.offX = 0;
-      p.left = false;
-      p.right = false;
-    }
-    if(LOCAL_TOUCH.p1.jumpId === id){
-      LOCAL_TOUCH.p1.jumpId = null;
-      LOCAL_TOUCH.p1.jumpHeld = false;
-      LOCAL_TOUCH.p1.jumpEdge = false;
-    }
-    if(LOCAL_TOUCH.p1.dropId === id){
-      LOCAL_TOUCH.p1.dropId = null;
-      LOCAL_TOUCH.p1.downHeld = false;
-    }
-    // P2
-    if(LOCAL_TOUCH.p2.joyId === id){
-      const p = LOCAL_TOUCH.p2;
-      p.joyId = null;
-      p.active = false;
-      p.offX = 0;
-      p.left = false;
-      p.right = false;
-    }
-    if(LOCAL_TOUCH.p2.jumpId === id){
-      LOCAL_TOUCH.p2.jumpId = null;
-      LOCAL_TOUCH.p2.jumpHeld = false;
-      LOCAL_TOUCH.p2.jumpEdge = false;
-    }
-    if(LOCAL_TOUCH.p2.dropId === id){
-      LOCAL_TOUCH.p2.dropId = null;
-      LOCAL_TOUCH.p2.downHeld = false;
-    }
+  // P1 Local Touch Reset
+  if(LOCAL_TOUCH.p1.joyId === id){
+    const p = LOCAL_TOUCH.p1;
+    p.joyId = null;
+    p.active = false;
+    p.offX = 0;
+    p.left = false;
+    p.right = false;
+  }
+  if(LOCAL_TOUCH.p1.jumpId === id){
+    LOCAL_TOUCH.p1.jumpId = null;
+    LOCAL_TOUCH.p1.jumpHeld = false;
+    LOCAL_TOUCH.p1.jumpEdge = false;
+  }
+  if(LOCAL_TOUCH.p1.dropId === id){
+    LOCAL_TOUCH.p1.dropId = null;
+    LOCAL_TOUCH.p1.downHeld = false;
+  }
+  // P2 Local Touch Reset
+  if(LOCAL_TOUCH.p2.joyId === id){
+    const p = LOCAL_TOUCH.p2;
+    p.joyId = null;
+    p.active = false;
+    p.offX = 0;
+    p.left = false;
+    p.right = false;
+  }
+  if(LOCAL_TOUCH.p2.jumpId === id){
+    LOCAL_TOUCH.p2.jumpId = null;
+    LOCAL_TOUCH.p2.jumpHeld = false;
+    LOCAL_TOUCH.p2.jumpEdge = false;
+  }
+  if(LOCAL_TOUCH.p2.dropId === id){
+    LOCAL_TOUCH.p2.dropId = null;
+    LOCAL_TOUCH.p2.downHeld = false;
   }
 
   if(JOY.leftId === id){
@@ -621,6 +619,7 @@ if(window.PointerEvent){
 
 let AC=null,master=null,muted=false,sdkMuted=false;
 let _cg=null;
+let lastAdTime = Date.now();
 const CG={
   ready:false,env:'',
   /* Banner bookkeeping: remember placed containers so we can clear one or all */
@@ -650,28 +649,65 @@ const CG={
   gameplayStop(){try{if(this.ok())window.CrazyGames.SDK.game.gameplayStop();}catch(e){}},
   happytime(){try{if(this.ok())window.CrazyGames.SDK.game.happytime();}catch(e){}},
   /* -------- Ad (midgame + reserved rewarded) -------- */
-  /* Midgame: UI break between matches. Wraps ad.requestAd so QA sees it at a sane time. */
+  /* Midgame: UI break between matches. Throttled to 3 minutes. */
   requestMidgame(cb){
     const sdk=window.CrazyGames&&window.CrazyGames.SDK;
     if(!sdk||!sdk.ad||!sdk.ad.requestAd){if(cb)cb(false);return;}
     try{
-      sdk.ad.requestAd('midgame',{}).then(r=>{if(cb)cb(!!(r&&r.adShown));}).catch(()=>{if(cb)cb(false);});
-    }catch(e){if(cb)cb(false);}
+      const callbacks = {
+        adStarted: () => {
+          try{ if(master) master.gain.value = 0; }catch(e){}
+        },
+        adFinished: () => {
+          applyEffectiveMute();
+          if(cb) cb(true);
+        },
+        adError: (err) => {
+          applyEffectiveMute();
+          if(cb) cb(false);
+        }
+      };
+      const p = sdk.ad.requestAd('midgame', callbacks);
+      if(p && p.then){
+        p.then(r=>{ applyEffectiveMute(); if(cb)cb(!!(r&&r.adShown)); }).catch(()=>{ applyEffectiveMute(); if(cb)cb(false); });
+      }
+    }catch(e){ applyEffectiveMute(); if(cb)cb(false); }
   },
   /* Rewarded: wired but no UI invites it — reserved in case QA wants a rewarded entry. */
   requestRewarded(cb){
     const sdk=window.CrazyGames&&window.CrazyGames.SDK;
     if(!sdk||!sdk.ad||!sdk.ad.requestAd){if(cb)cb(false);return;}
     try{
-      sdk.ad.requestAd('rewarded',{}).then(r=>{if(cb)cb(!!(r&&r.adShown));}).catch(()=>{if(cb)cb(false);});
-    }catch(e){if(cb)cb(false);}
+      const callbacks = {
+        adStarted: () => { try{ if(master) master.gain.value = 0; }catch(e){} },
+        adFinished: () => { applyEffectiveMute(); if(cb) cb(true); },
+        adError: () => { applyEffectiveMute(); if(cb) cb(false); }
+      };
+      const p = sdk.ad.requestAd('rewarded', callbacks);
+      if(p && p.then){
+        p.then(r=>{ applyEffectiveMute(); if(cb)cb(!!(r&&r.adShown)); }).catch(()=>{ applyEffectiveMute(); if(cb)cb(false); });
+      }
+    }catch(e){ applyEffectiveMute(); if(cb)cb(false); }
   },
   /* -------- Banner — rectangular divs outside the canvas -------- */
   /* Single banner at a given container id + size (e.g. "728x90", "300x250", "970x90") */
   requestBanner(containerId,size){
     const sdk=window.CrazyGames&&window.CrazyGames.SDK;
-    if(!sdk||!sdk.banner||!sdk.banner.requestBanner){return false;}
-    try{sdk.banner.requestBanner(containerId,size);this._bannerIds.add(containerId);return true;}catch(e){return false;}
+    if(!sdk||!sdk.banner)return false;
+    try{
+      let [w,h] = [728,90];
+      if(typeof size === 'string' && size.includes('x')){
+        const parts = size.split('x').map(Number);
+        w = parts[0]||728; h = parts[1]||90;
+      }
+      if(sdk.banner.requestBanner){
+        sdk.banner.requestBanner({ id: containerId, width: w, height: h }).catch(()=>{});
+      }
+      this._bannerIds.add(containerId);
+      return true;
+    }catch(e){
+      try{ sdk.banner.requestBanner(containerId,size); this._bannerIds.add(containerId); return true; }catch(e2){ return false; }
+    }
   },
   /* Responsive banner — scales to container width; best for the thin top bar on menu. */
   requestResponsiveBanner(containerId){
@@ -679,7 +715,7 @@ const CG={
     if(!sdk||!sdk.banner)return false;
     try{
       if(sdk.banner.requestResponsiveBanner) sdk.banner.requestResponsiveBanner(containerId);
-      else sdk.banner.requestBanner(containerId,'responsive');
+      else if(sdk.banner.requestBanner) sdk.banner.requestBanner({ id: containerId, responsive: true });
       this._bannerIds.add(containerId);return true;
     }catch(e){return false;}
   },
@@ -792,8 +828,8 @@ const TEAMS = [
   { name: 'YELLOW TEAM', icon: '🟡', base: '#f5a623', shades: ['#f5a623', '#feca57', '#ff9f43', '#ffeaa7'] }
 ];
 
-const TIMES=[50,100,150,200];
-const settings={map:0,doubleJump:true,collision:false,timeIdx:1,teams:false};
+const TIMES=[60,120,180];
+const settings={map:0,doubleJump:true,collision:false,timeIdx:0,teams:false};
 Object.defineProperty(settings,'time',{get(){return TIMES[this.timeIdx];}});
 
 const SLOTS=[
@@ -1700,7 +1736,13 @@ function checkTag(){
 function endMatch(){
   try{CG.happytime();}catch(e){}try{CG.gameplayStop();}catch(e){}
   try{CG.requestResponsiveBanner('cg-banner-responsive');const el=document.getElementById('cg-banner-resp');if(el)el.style.display='flex';}catch(e){}
-  try{if((matchIndex%2)===0)CG.requestMidgame();}catch(e){}
+  try{
+    const now = Date.now();
+    if(now - lastAdTime >= 180000){ // 3 minutes throttle
+      lastAdTime = now;
+      CG.requestMidgame();
+    }
+  }catch(e){}
   match.state='result';
   if(settings.teams && match.teamItTime){
     // Team with the lowest total IT time wins!
@@ -1781,8 +1823,19 @@ function toggleSound(){
 }
 function togglePause(){
   if(!match)return;
-  if(match.state==='paused'){match.state=match.pausedFrom;match.pausedFrom=null;sfx('ok');}
-  else if(match.state==='playing'||match.state==='countdown'){match.pausedFrom=match.state;match.state='paused';match.pauseSel=0;try{CG.gameplayStop();}catch(e){}sfx('back');}
+  if(match.state==='paused'){
+    match.state=match.pausedFrom;
+    match.pausedFrom=null;
+    try{CG.gameplayStart();}catch(e){}
+    sfx('ok');
+  }
+  else if(match.state==='playing'||match.state==='countdown'){
+    match.pausedFrom=match.state;
+    match.state='paused';
+    match.pauseSel=0;
+    try{CG.gameplayStop();}catch(e){}
+    sfx('back');
+  }
 }
 function cycleTheme(){
   currentThemeIdx=(currentThemeIdx+1)%THEMES.length;
@@ -3545,19 +3598,21 @@ function drawBigCount(num,label){
 
 function drawPause(){
   g.fillStyle='rgba(10,16,24,0.78)';g.fillRect(0,0,CW,CH);
-  const pw=Math.min(460,CW-30),ph=360;
+  const pw=Math.min(460,CW-30),ph=Math.min(360,CH-24);
   const px=CW/2-pw/2,py=CH/2-ph/2;
   rr(g,px,py,pw,ph,20);
   g.fillStyle='rgba(20,28,42,0.96)';g.fill();g.lineWidth=4;g.strokeStyle=INK;g.stroke();
-  ptxt('PAUSED',CW/2,py+36,FT(30),'#ffffff');
-  ptxt('MAP '+(settings.map+1)+': '+MAPS[settings.map].name,CW/2,py+66,FN(14,800),'#a0c0e8');
+  ptxt('PAUSED',CW/2,py+32,FT(Math.min(28,ph*0.09)),'#ffffff');
+  ptxt('MAP '+(settings.map+1)+': '+MAPS[settings.map].name,CW/2,py+56,FN(Math.min(13,ph*0.045),800),'#a0c0e8');
   const opts=['RESUME','RESTART','NEXT MAP','SOUND: '+(muted?'OFF':'ON'),'FULLSCREEN','QUIT TO MENU'];
+  const rowH = clamp((ph - 76) / 6, 26, 42);
+  const btnH = Math.min(34, rowH - 4);
   for(let i=0;i<6;i++){
-    const y=py+98+i*42;
+    const y=py + 72 + i*rowH + rowH/2;
     const sel=match.pauseSel===i;
-    if(sel){pill(CW/2-150,y-17,300,34,'rgba(255,255,255,0.18)','#ffffff');}
-    ptxt(opts[i],CW/2,y,FN(sel?17:15,900),sel?'#ffffff':'#bcd0e8');
-    zone(CW/2-150,y-17,300,34,{fn:()=>{
+    if(sel){pill(CW/2-150,y-btnH/2,300,btnH,'rgba(255,255,255,0.18)','#ffffff');}
+    ptxt(opts[i],CW/2,y,FN(sel?16:14,900),sel?'#ffffff':'#bcd0e8');
+    zone(CW/2-150,y-btnH/2,300,btnH,{fn:()=>{
       if(i===0)togglePause();
       else if(i===1){sfx('go');startMatch();}
       else if(i===2){selectMapQuick(settings.map+1);}
@@ -3570,17 +3625,19 @@ function drawPause(){
 
 function drawResult(){
   g.fillStyle='rgba(10,16,24,0.72)';g.fillRect(0,0,CW,CH);
-  zone(0,0,CW,CH,{fn:()=>{
-    if(typeof NET!=='undefined' && NET && NET.role!==null){
-      if(!NET.isHost) return;
-      if(NET.midgameJoiner){
-        NET.midgameJoiner = false;
-        quitToMenu();
-        return;
+  if(!isTouch){
+    zone(0,0,CW,CH,{fn:()=>{
+      if(typeof NET!=='undefined' && NET && NET.role!==null){
+        if(!NET.isHost) return;
+        if(NET.midgameJoiner){
+          NET.midgameJoiner = false;
+          quitToMenu();
+          return;
+        }
       }
-    }
-    sfx('go');startMatch();
-  }});
+      sfx('go');startMatch();
+    }});
+  }
   const t=match.resultT;
   if(t<0.9){
     const sc=1.4-0.4*easeOut(Math.min(1,t*4));
@@ -3592,8 +3649,9 @@ function drawResult(){
   if(ap<=0)return;
   const P=match.players;
   const isTeamMatch = !!(settings.teams && match.result && match.result.winningTeam != null);
-  const pw=Math.min(740,CW-30),ph=Math.min(440,CH-40);
-  const px=CW/2-pw/2,py=CH/2-ph/2;
+  const bannerOff = (CH < 520) ? 28 : 0;
+  const pw=Math.min(740,CW-30),ph=Math.min(440,CH-36 - bannerOff);
+  const px=CW/2-pw/2,py=(CH - bannerOff)/2-ph/2;
   g.save();
   g.translate(CW/2,CH/2);g.scale(ap,ap);g.translate(-CW/2,-CH/2);
   rr(g,px,py,pw,ph,20);
@@ -3625,7 +3683,9 @@ function drawResult(){
   txt('TAGS - '+P.map((p,i)=>'P'+(i+1)+': '+match.tags[i]).join('  •  '),CW/2,py+ph*0.66,FN(13,900),'#cfe9d6');
   const b3=Math.min(180,(pw-60)/3);
   const sx0=CW/2-(b3*3+28)/2;
-  simpleButton(sx0,py+ph*0.77,b3,44,'NEXT MAP',()=>{
+  const btnH=Math.min(44, ph*0.125);
+  const btnY=py+ph-btnH-14;
+  simpleButton(sx0,btnY,b3,btnH,'NEXT MAP',()=>{
     if(typeof NET!=='undefined' && NET && NET.role!==null && !NET.isHost){ toast('HOST CHOOSES MAP'); return; }
     if(typeof NET!=='undefined' && NET && NET.isHost && NET.midgameJoiner){
       NET.midgameJoiner = false;
@@ -3634,7 +3694,7 @@ function drawResult(){
     }
     sfx('ui');selectMapQuick(settings.map+1);
   });
-  simpleButton(sx0+b3+14,py+ph*0.77,b3,44,'PLAY AGAIN',()=>{
+  simpleButton(sx0+b3+14,btnY,b3,btnH,'PLAY AGAIN',()=>{
     if(typeof NET!=='undefined' && NET && NET.role!==null && !NET.isHost){ toast('HOST RESTARTS THE MATCH'); return; }
     if(typeof NET!=='undefined' && NET && NET.isHost && NET.midgameJoiner){
       NET.midgameJoiner = false;
@@ -3643,7 +3703,7 @@ function drawResult(){
     }
     sfx('go');startMatch();
   });
-  simpleButton(sx0+2*(b3+14),py+ph*0.77,b3,44,'MENU',()=>{
+  simpleButton(sx0+2*(b3+14),btnY,b3,btnH,'MENU',()=>{
     quitToMenu();
   });
   g.restore();
@@ -5402,6 +5462,7 @@ try{
 }catch(e){/* normal menu boot */}
 buildLevel();
 netInitUI();
+try{ if(!_cgBoot) _cgBoot = CG.boot(); }catch(e){}
 requestAnimationFrame(frame);
 </script>
 </body>
