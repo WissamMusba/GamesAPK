@@ -169,30 +169,35 @@ function calcLocalBounds(){
   const trackW = r * 3.4;
   const trackH = r * 2.0;
 
-  // Player 1 Buttons (fixed on right side of P1 half, near midX)
-  const p1BtnX = midX - r * 1.5 - 8;
-  const p1DropY = CH - bm - r;
-  const p1JumpY = p1DropY - r * 2.3;
-  const p1SplitY = (p1JumpY + p1DropY) / 2;
-  const p1BtnMinX = p1BtnX - r * 1.6;
-  const p1BtnMinY = p1JumpY - r * 1.8;
-  const p1DefJoyX = clamp(midX * 0.36, r * 1.8, midX - r * 4.5);
+  // Ergonomic cluster: Horizontal joystick on left, Jump & Slide buttons right next to it!
+  // Player 1 (Left Half: 0 to midX)
+  const p1DefJoyX = clamp(midX * 0.30, r * 2.0, midX - trackW/2 - r * 3.0);
   const p1DefJoyY = CH - bm - r * 1.05;
+  const p1BtnX = p1DefJoyX + trackW / 2 + r * 1.25;
+  const p1DropY = p1DefJoyY;
+  const p1JumpY = p1DropY - r * 2.15;
+  const p1SplitY = (p1JumpY + p1DropY) / 2;
+  const p1BtnMinX = p1BtnX - r * 1.15;
+  const p1BtnMaxX = p1BtnX + r * 1.45;
+  const p1BtnMinY = p1JumpY - r * 1.35;
+  const p1BtnMaxY = p1DropY + r * 1.35;
 
-  // Player 2 Buttons (fixed on right side of P2 half, near CW)
-  const p2BtnX = CW - r * 1.5 - 8;
-  const p2DropY = CH - bm - r;
-  const p2JumpY = p2DropY - r * 2.3;
-  const p2SplitY = (p2JumpY + p2DropY) / 2;
-  const p2BtnMinX = p2BtnX - r * 1.6;
-  const p2BtnMinY = p2JumpY - r * 1.8;
-  const p2DefJoyX = midX + clamp(midX * 0.36, r * 1.8, midX - r * 4.5);
+  // Player 2 (Right Half: midX to CW)
+  const p2DefJoyX = midX + clamp(midX * 0.30, r * 2.0, midX - trackW/2 - r * 3.0);
   const p2DefJoyY = CH - bm - r * 1.05;
+  const p2BtnX = p2DefJoyX + trackW / 2 + r * 1.25;
+  const p2DropY = p2DefJoyY;
+  const p2JumpY = p2DropY - r * 2.15;
+  const p2SplitY = (p2JumpY + p2DropY) / 2;
+  const p2BtnMinX = p2BtnX - r * 1.15;
+  const p2BtnMaxX = p2BtnX + r * 1.45;
+  const p2BtnMinY = p2JumpY - r * 1.35;
+  const p2BtnMaxY = p2DropY + r * 1.35;
 
   return {
     midX, r, bm, maxTravel, trackW, trackH,
-    p1: { btnX: p1BtnX, jumpY: p1JumpY, dropY: p1DropY, splitY: p1SplitY, btnMinX: p1BtnMinX, btnMinY: p1BtnMinY, defJoyX: p1DefJoyX, defJoyY: p1DefJoyY },
-    p2: { btnX: p2BtnX, jumpY: p2JumpY, dropY: p2DropY, splitY: p2SplitY, btnMinX: p2BtnMinX, btnMinY: p2BtnMinY, defJoyX: p2DefJoyX, defJoyY: p2DefJoyY }
+    p1: { btnX: p1BtnX, jumpY: p1JumpY, dropY: p1DropY, splitY: p1SplitY, btnMinX: p1BtnMinX, btnMaxX: p1BtnMaxX, btnMinY: p1BtnMinY, btnMaxY: p1BtnMaxY, defJoyX: p1DefJoyX, defJoyY: p1DefJoyY },
+    p2: { btnX: p2BtnX, jumpY: p2JumpY, dropY: p2DropY, splitY: p2SplitY, btnMinX: p2BtnMinX, btnMaxX: p2BtnMaxX, btnMinY: p2BtnMinY, btnMaxY: p2BtnMaxY, defJoyX: p2DefJoyX, defJoyY: p2DefJoyY }
   };
 }
 
@@ -295,8 +300,8 @@ function inputDown(x,y,id){
     if(x < b.midX){
       // --- Player 1 (Left Half) ---
       const p = LOCAL_TOUCH.p1;
-      // Check if touch lands in P1's fixed button zone (right side of P1's half)
-      if(x >= b.p1.btnMinX && y >= b.p1.btnMinY){
+      // Check if touch lands in P1's fixed button zone (right side of P1 cluster)
+      if(x >= b.p1.btnMinX && x <= b.p1.btnMaxX && y >= b.p1.btnMinY && y <= b.p1.btnMaxY){
         if(y < b.p1.splitY){
           // P1 JUMP BUTTON
           p.jumpId = id;
@@ -330,8 +335,8 @@ function inputDown(x,y,id){
     } else {
       // --- Player 2 (Right Half) ---
       const p = LOCAL_TOUCH.p2;
-      // Check if touch lands in P2's fixed button zone (right side of P2's half)
-      if(x >= b.p2.btnMinX && y >= b.p2.btnMinY){
+      // Check if touch lands in P2's fixed button zone (right side of P2 cluster)
+      if(x >= b.p2.btnMinX && x <= b.p2.btnMaxX && y >= b.p2.btnMinY && y <= b.p2.btnMaxY){
         if(y < b.p2.splitY){
           // P2 JUMP BUTTON
           p.jumpId = id;
@@ -2366,7 +2371,22 @@ function slotCardRects(){
   const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
   const isPortrait = (CH > CW && CW < 640);
   const isShortH = (CH < 640);
+  const isPhone2P = (isTouch && !isOnline && (CW < 950 || CH < 600));
   const r = [];
+
+  if(isPhone2P){
+    // Mobile Phone Local: 2 large, prominent, easy-to-tap cards centered
+    const maxRowW = Math.min(CW - 24, 460);
+    const gap = 16;
+    const cw = Math.floor((maxRowW - gap) / 2);
+    const chh = Math.floor(clamp(CH * 0.22, 80, 115));
+    const totalW = 2 * cw + gap;
+    const x0 = Math.floor(CW / 2 - totalW / 2);
+    const y = Math.floor(clamp(CH * 0.23, 86, 175));
+    r.push({ x: x0, y: y, w: cw, h: chh });
+    r.push({ x: x0 + cw + gap, y: y, w: cw, h: chh });
+    return r;
+  }
 
   if(isPortrait){
     // Mobile Portrait: 2x2 Grid so cards never get squished or overflow screen
@@ -2532,27 +2552,30 @@ function drawMenu(){
     headerBottom = ry + rh;
   } else {
     // Offline header: HOST ONLINE & JOIN ROOM
-    const obw = isNarrowW ? 78 : 120;
-    const obh = si;
-    const obx = tbx - obw - 10;
-    rr(g, obx, 10, obw, obh, 9);
-    g.fillStyle = 'rgba(44,110,63,0.92)'; g.fill();
-    g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
-    ptxt(isNarrowW ? '🌐 HOST' : '🌐 HOST ONLINE', obx + obw/2, 10 + obh/2 + 1, FN(isNarrowW ? 10.5 : 11.5, 900), '#ffffff');
-    zone(obx, 10, obw, obh, { fn: () => netHostAction() });
+    const HIDE_ONLINE_BUTTONS = false;
+    if(!HIDE_ONLINE_BUTTONS){
+      const obw = isNarrowW ? 78 : 120;
+      const obh = si;
+      const obx = tbx - obw - 10;
+      rr(g, obx, 10, obw, obh, 9);
+      g.fillStyle = 'rgba(44,110,63,0.92)'; g.fill();
+      g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
+      ptxt(isNarrowW ? '🌐 HOST' : '🌐 HOST ONLINE', obx + obw/2, 10 + obh/2 + 1, FN(isNarrowW ? 10.5 : 11.5, 900), '#ffffff');
+      zone(obx, 10, obw, obh, { fn: () => netHostAction() });
 
-    const jbw = isNarrowW ? 70 : 102;
-    const jbh = si;
-    const jbx = obx - jbw - 10;
-    rr(g, jbx, 10, jbw, jbh, 9);
-    g.fillStyle = 'rgba(255,255,255,0.88)'; g.fill();
-    g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
-    ptxt(isNarrowW ? '🔗 JOIN' : '🔗 JOIN ROOM', jbx + jbw/2, 10 + jbh/2 + 1, FN(isNarrowW ? 10.5 : 11.5, 900), '#141b28');
-    zone(jbx, 10, jbw, jbh, { fn: () => netJoinAction() });
+      const jbw = isNarrowW ? 70 : 102;
+      const jbh = si;
+      const jbx = obx - jbw - 10;
+      rr(g, jbx, 10, jbw, jbh, 9);
+      g.fillStyle = 'rgba(255,255,255,0.88)'; g.fill();
+      g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
+      ptxt(isNarrowW ? '🔗 JOIN' : '🔗 JOIN ROOM', jbx + jbw/2, 10 + jbh/2 + 1, FN(isNarrowW ? 10.5 : 11.5, 900), '#141b28');
+      zone(jbx, 10, jbw, jbh, { fn: () => netJoinAction() });
 
-    // Version text
-    if(jbx > 160){
-      txt('v1.3 (Teams & 8P)', 16, 20, FN(12, 800), 'rgba(255,255,255,0.5)', 'left');
+      // Version text
+      if(jbx > 160){
+        txt('v1.3 (Teams & 8P)', 16, 20, FN(12, 800), 'rgba(255,255,255,0.5)', 'left');
+      }
     }
     headerBottom = 10 + si;
   }
@@ -2816,10 +2839,17 @@ function drawMenu(){
 
   } else {
     /* ======================================================================
-       OFFLINE LOCAL MODE: 4 PLAYER CARDS + LOCAL TEAMS SUPPORT
+       OFFLINE LOCAL MODE: 2 PLAYER CARDS (ON PHONE) / 4 PLAYER CARDS (DESKTOP)
        ====================================================================== */
+    const isPhone2P = (isTouch && !isOnline && (CW < 950 || CH < 600));
+    if(isPhone2P){
+      menu.slotColor[2] = -1;
+      menu.slotColor[3] = -1;
+      if(menu.slotColor[0] < 0) menu.slotColor[0] = 0;
+      if(menu.slotColor[1] < 0) menu.slotColor[1] = 1;
+    }
     const rects = slotCardRects();
-    for(let i = 0; i < 4; i++){
+    for(let i = 0; i < rects.length; i++){
       const r = rects[i];
       const col = getSlotColor(i, menu.slotColor, menu.slotTeam);
       const isAct = menu.slotColor[i] >= 0;
@@ -2836,7 +2866,7 @@ function drawMenu(){
 
       if(isAct){
         const isPad = !!PAD[i];
-        const label = isPad ? '⦾ PAD' : SLOTS[i].label;
+        const label = isPhone2P ? ('PLAYER ' + (i + 1)) : (isPad ? '⦾ PAD' : SLOTS[i].label);
         g.save(); g.globalAlpha = 0.62;
         padGlyph(cx, cy - glyphR * 0.7, glyphR, true);
         g.restore();
@@ -2877,9 +2907,10 @@ function drawMenu(){
     const baseFs = clamp(step * 0.42, 11, 20);
 
     for(let i=0; i<ROWS.length; i++){
-      const y = ry0 + i * step;
+      if(isPhone2P && i === 0) continue; // Skip "CHANGE PLAYERS" row on mobile phone 2P since cards are already prominent
+      const y = ry0 + (isPhone2P ? (i - 0.2) : i) * step;
       const hl = (menu.mode === 'rows' && menu.row === i);
-      const sc = hl ? 1.08 : 1;
+      const sc = hl ? 1.06 : 1;
       g.save();
       g.translate(CW/2, y); g.scale(sc, sc);
       let s = '';
@@ -2890,24 +2921,40 @@ function drawMenu(){
       else if(i === 2) s = 'TIMER:  ‹  ' + settings.time + 's  ›';
       else if(i === 3) s = '‹  ' + RULE_NAMES[menu.rule] + ': ' + (ruleValue() ? 'ON' : 'OFF') + '  ›';
       else {
-        s = (activeSlots().length < 2)
-          ? (isNarrowW ? 'START (MIN 2 PLAYERS)' : 'START MATCH (MIN 2 PLAYERS)')
-          : 'START MATCH';
-        rowCol = hl ? (activeSlots().length < 2 ? '#ff7777' : '#ffffff') : (activeSlots().length < 2 ? '#884444' : '#c8d8e8');
+        s = 'START MATCH';
+        rowCol = '#ffffff';
       }
-      ptxt(s, 0, 0, i === 4 ? FT(baseFs + 2) : FN(baseFs, 900), rowCol);
+
+      if(i === 4){
+        // Dedicated, prominent Glowing Start Button
+        const btnW = Math.min(CW * 0.74, 280);
+        const btnH = Math.min(step * 0.95, 42);
+        const pulse = 0.88 + Math.sin(tGlobal * 5) * 0.12;
+        rr(g, -btnW/2, -btnH/2, btnW, btnH, 10);
+        g.fillStyle = (activeSlots().length < 2) ? 'rgba(180, 50, 50, 0.85)' : 'rgba(46, 204, 113, ' + pulse + ')';
+        g.fill();
+        g.lineWidth = 2.5;
+        g.strokeStyle = '#ffffff';
+        g.stroke();
+        ptxt('▶ ' + s, 0, 1, FT(baseFs + 2), '#ffffff');
+      } else {
+        ptxt(s, 0, 0, FN(baseFs, 900), rowCol);
+      }
       g.restore();
 
       const tw2 = Math.min(CW * 0.86, 560);
       zone(CW/2 - tw2/2, y - step * 0.45, tw2, step * 0.9, { fn: () => {
-        if(menu.mode === 'slots') return;
-        if(i === 0){ menu.mode = 'slots'; sfx('ok'); }
-        else if(i === 4){
-          if(activeSlots().length < 2){ menu.mode = 'slots'; menu.row = 0; toast('CHOOSE AT LEAST 2 PLAYERS!'); sfx('back'); }
+        if(i === 4){
+          if(activeSlots().length < 2){ toast('CHOOSE AT LEAST 2 PLAYERS!'); sfx('back'); }
           else { sfx('go'); startMatch(); }
+          return;
         }
-        else if(menu.row === i) rowEdit(1);
-        else { menu.row = i; sfx('ui'); }
+        if(i === 0){ cycleSlot(0, 1); }
+        else {
+          menu.mode = 'rows';
+          menu.row = i;
+          rowEdit(1);
+        }
       }});
     }
 
