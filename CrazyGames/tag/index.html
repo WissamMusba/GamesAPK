@@ -944,78 +944,80 @@ const TagBrain = {
 
   // Observes human playstyle in real-time during match
   observe(dt, match){
-    if(!match || match.state !== 'playing' || !match.isVsBot) return;
-    const human = match.players[0];
-    const bot = match.players[1];
-    if(!human || !bot || !bot.botState) return;
-    const bs = bot.botState;
+    try {
+      if(!match || match.state !== 'playing' || !match.isVsBot) return;
+      const human = match.players[0];
+      const bot = match.players[1];
+      if(!human || !bot || !bot.botState) return;
+      const bs = bot.botState;
 
-    botBrain.stats.totalPlayTimeSec += dt;
-    const humanIsIt = (match.it === 0);
-    const dx = bot.x - human.x;
-    const dy = bot.y - human.y;
-    const dist = Math.hypot(dx, dy);
+      botBrain.stats.totalPlayTimeSec += dt;
+      const humanIsIt = (match.it === 0);
+      const dx = bot.x - human.x;
+      const dy = bot.y - human.y;
+      const dist = Math.hypot(dx, dy);
 
-    // Track human state history over trailing 0.45s window
-    if(!bs.humanHistory) bs.humanHistory = [];
-    bs.humanHistory.push({ t: tGlobal, x: human.x, y: human.y, vx: human.vx, vy: human.vy, grounded: human.grounded });
-    while(bs.humanHistory.length > 30 && tGlobal - bs.humanHistory[0].t > 0.45){
-      bs.humanHistory.shift();
-    }
+      // Track human state history over trailing window (safely bounded)
+      if(!bs.humanHistory) bs.humanHistory = [];
+      bs.humanHistory.push({ t: tGlobal, x: human.x, y: human.y, vx: human.vx, vy: human.vy, grounded: human.grounded });
+      if(bs.humanHistory.length > 35){
+        bs.humanHistory.splice(0, bs.humanHistory.length - 25);
+      }
 
-    if(humanIsIt){
-      // 1. Observe Human as Hunter:
-      // A. Intercept lead time: human chasing and closing in on bot
-      if(Math.abs(bot.vx) > 60 && dist < 460 && dist > 70){
-        const closingSpeed = -(dx * human.vx + dy * human.vy) / (dist || 1);
-        if(closingSpeed > 90){
-          const observedLead = clamp(dist / (Math.abs(human.vx) + 220), 0.12, 0.60);
-          botBrain.hunterModel.leadTime = botBrain.hunterModel.leadTime * 0.985 + observedLead * 0.015;
-          botBrain.hunterModel.cutOffAggression = Math.min(0.95, botBrain.hunterModel.cutOffAggression * 0.99 + 0.01);
+      if(humanIsIt){
+        // 1. Observe Human as Hunter:
+        // A. Intercept lead time: human chasing and closing in on bot
+        if(Math.abs(bot.vx) > 60 && dist < 460 && dist > 70){
+          const closingSpeed = -(dx * human.vx + dy * human.vy) / (dist || 1);
+          if(closingSpeed > 90){
+            const observedLead = clamp(dist / (Math.abs(human.vx) + 220), 0.12, 0.60);
+            botBrain.hunterModel.leadTime = botBrain.hunterModel.leadTime * 0.985 + observedLead * 0.015;
+            botBrain.hunterModel.cutOffAggression = Math.min(0.95, botBrain.hunterModel.cutOffAggression * 0.99 + 0.01);
+          }
         }
-      }
-      // B. Jump distance for tag: human jumps when closing in for a tag
-      if(human.jbuf > 0 && bs.prevHumanGrounded && !human.grounded && dist < 320){
-        botBrain.hunterModel.jumpDistMean = botBrain.hunterModel.jumpDistMean * 0.94 + dist * 0.06;
-      }
-      // C. Speed pad affinity: human runs across speed pads
-      if(human.padOn && !bs.prevHumanPadOn){
-        botBrain.hunterModel.speedPadAffinity = Math.min(1.0, botBrain.hunterModel.speedPadAffinity * 0.98 + 0.04);
-      }
-    } else {
-      // 2. Observe Human as Runner (Learning Jukes):
-      // A. Crossover Juke: Human was running fast in one direction and reverses cleanly in front of hunter
-      const oldSnap = bs.humanHistory.find(s => (tGlobal - s.t) >= 0.22 && (tGlobal - s.t) <= 0.38);
-      if(oldSnap && dist < 280 && (tGlobal - (bs.lastCrossoverT || 0)) > 0.85){
-        if(Math.abs(oldSnap.vx) > 150 && Math.abs(human.vx) > 150 && Math.sign(oldSnap.vx) !== Math.sign(human.vx)){
-          botBrain.runnerModel.crossoverFreq = Math.min(0.92, botBrain.runnerModel.crossoverFreq + 0.035);
-          botBrain.adaptation.humanJukeTendency = Math.min(0.90, botBrain.adaptation.humanJukeTendency + 0.04);
+        // B. Jump distance for tag: human jumps when closing in for a tag
+        if(human.jbuf > 0 && bs.prevHumanGrounded && !human.grounded && dist < 320){
+          botBrain.hunterModel.jumpDistMean = botBrain.hunterModel.jumpDistMean * 0.94 + dist * 0.06;
+        }
+        // C. Speed pad affinity: human runs across speed pads
+        if(human.padOn && !bs.prevHumanPadOn){
+          botBrain.hunterModel.speedPadAffinity = Math.min(1.0, botBrain.hunterModel.speedPadAffinity * 0.98 + 0.04);
+        }
+      } else {
+        // 2. Observe Human as Runner (Learning Jukes):
+        // A. Crossover Juke: Human was running fast in one direction and reverses cleanly in front of hunter
+        const oldSnap = bs.humanHistory.find(s => (tGlobal - s.t) >= 0.20 && (tGlobal - s.t) <= 0.40);
+        if(oldSnap && dist < 280 && (tGlobal - (bs.lastCrossoverT || 0)) > 0.85){
+          if(Math.abs(oldSnap.vx) > 150 && Math.abs(human.vx) > 150 && Math.sign(oldSnap.vx) !== Math.sign(human.vx)){
+            botBrain.runnerModel.crossoverFreq = Math.min(0.92, botBrain.runnerModel.crossoverFreq + 0.035);
+            botBrain.adaptation.humanJukeTendency = Math.min(0.90, botBrain.adaptation.humanJukeTendency + 0.04);
+            botBrain.stats.jukesObserved++;
+            bs.lastCrossoverT = tGlobal;
+            this.addXP(40, 'Learned Crossover Juke');
+          }
+        }
+
+        // B. Leap-Over / Reverse Jump Juke: Human jumps high and reverses over hunter's head
+        if(!human.grounded && bs.prevHumanGrounded && human.vy < -220 && dist < 220 && Math.abs(dx) < 140 && (tGlobal - (bs.lastLeapT || 0)) > 0.90){
+          botBrain.runnerModel.reverseJumpFreq = Math.min(0.90, botBrain.runnerModel.reverseJumpFreq + 0.035);
           botBrain.stats.jukesObserved++;
-          bs.lastCrossoverT = tGlobal;
-          this.addXP(40, 'Learned Crossover Juke');
+          bs.lastLeapT = tGlobal;
+          this.addXP(40, 'Learned Leap-Over Juke');
+        }
+
+        // C. Pink Platform Drop Evasion: Detected cleanly on the drop initiation edge
+        if(human.dropT > 0 && !(bs.prevHumanDropT > 0) && dist < 260 && Math.abs(dy) < 70){
+          botBrain.runnerModel.pinkDropFreq = Math.min(0.90, botBrain.runnerModel.pinkDropFreq + 0.035);
+          botBrain.stats.jukesObserved++;
+          this.addXP(35, 'Learned Pink Drop Juke');
         }
       }
 
-      // B. Leap-Over / Reverse Jump Juke: Human jumps high and reverses over hunter's head
-      if(!human.grounded && bs.prevHumanGrounded && human.vy < -220 && dist < 220 && Math.abs(dx) < 140 && (tGlobal - (bs.lastLeapT || 0)) > 0.90){
-        botBrain.runnerModel.reverseJumpFreq = Math.min(0.90, botBrain.runnerModel.reverseJumpFreq + 0.035);
-        botBrain.stats.jukesObserved++;
-        bs.lastLeapT = tGlobal;
-        this.addXP(40, 'Learned Leap-Over Juke');
-      }
-
-      // C. Pink Platform Drop Evasion: Detected cleanly on the drop initiation edge
-      if(human.dropT > 0 && !(bs.prevHumanDropT > 0) && dist < 260 && Math.abs(dy) < 70){
-        botBrain.runnerModel.pinkDropFreq = Math.min(0.90, botBrain.runnerModel.pinkDropFreq + 0.035);
-        botBrain.stats.jukesObserved++;
-        this.addXP(35, 'Learned Pink Drop Juke');
-      }
-    }
-
-    bs.prevHumanVx = human.vx;
-    bs.prevHumanGrounded = human.grounded;
-    bs.prevHumanDropT = human.dropT;
-    bs.prevHumanPadOn = human.padOn;
+      bs.prevHumanVx = human.vx;
+      bs.prevHumanGrounded = human.grounded;
+      bs.prevHumanDropT = human.dropT;
+      bs.prevHumanPadOn = human.padOn;
+    } catch(e){}
   },
 
   onTag(newItIdx, oldItIdx){
@@ -1046,281 +1048,343 @@ const TagBrain = {
 
   // Main Platforming & Behavioral Cloning Policy Engine
   getBotAction(bot, dt){
-    if(!match || !match.players || match.players.length < 2){
-      return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
-    }
-    const human = match.players[0];
-    const isIt = (match.it === match.players.indexOf(bot));
-    const diff = bot.botDifficulty || settings.botDifficulty || 'MEDIUM';
-    const bs = bot.botState || (bot.botState = {});
-    if(!bs.intent) bs.intent = { type: 'none', timer: 0, dir: 0, downHeld: false };
-
-    // Update jump hold timer (variable jump physics)
-    if(bs.jumpHoldTimer > 0) bs.jumpHoldTimer -= dt;
-    if(bot.grounded) bs.hasDblJumped = false;
-
-    // Manage human trajectory history for reaction latency simulation
-    if(!bs.actionQueue) bs.actionQueue = [];
-    bs.actionQueue.push({
-      t: tGlobal,
-      hx: human.x, hy: human.y,
-      hvx: human.vx, hvy: human.vy,
-      hGrounded: human.grounded
-    });
-    while(bs.actionQueue.length > 30 && tGlobal - bs.actionQueue[0].t > 0.45){
-      bs.actionQueue.shift();
-    }
-
-    // Reaction latency per difficulty tier
-    const latency = (diff === 'EASY') ? 0.22 : ((diff === 'MEDIUM') ? 0.11 : ((diff === 'HARD') ? 0.03 : 0.0));
-    let targetSnapshot = null;
-    for(let i = bs.actionQueue.length - 1; i >= 0; i--){
-      if((tGlobal - bs.actionQueue[i].t) >= latency){
-        targetSnapshot = bs.actionQueue[i];
-        break;
+    try {
+      if(!match || !match.players || match.players.length < 2){
+        return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
       }
-    }
-    if(!targetSnapshot) targetSnapshot = bs.actionQueue[0] || { hx: human.x, hy: human.y, hvx: human.vx, hvy: human.vy };
-    const hx = targetSnapshot.hx, hy = targetSnapshot.hy;
-    const hvx = targetSnapshot.hvx, hvy = targetSnapshot.hvy;
+      const human = match.players[0];
+      const isIt = (match.it === match.players.indexOf(bot));
+      const diff = bot.botDifficulty || settings.botDifficulty || 'MEDIUM';
+      const bs = bot.botState || (bot.botState = {});
+      if(!bs.intent) bs.intent = { type: 'none', timer: 0, dir: 0, downHeld: false };
 
-    // Predictive aim point calculation
-    const learnedLead = botBrain.hunterModel.leadTime || 0.28;
-    const leadMult = (diff === 'EASY') ? 0.0 : ((diff === 'MEDIUM') ? (learnedLead * 0.5) : ((diff === 'HARD') ? learnedLead : (learnedLead * 1.25)));
-    const aimX = clamp(hx + hvx * leadMult, WALL + 28, W - WALL - 28);
-    const aimY = clamp(hy + hvy * (leadMult * 0.5), WALL + 28, H - WALL - 28);
+      // Update jump hold timer (variable jump physics)
+      if(bs.jumpHoldTimer > 0) bs.jumpHoldTimer -= dt;
+      if(bot.grounded) bs.hasDblJumped = false;
 
-    const dx = aimX - (bot.x + bot.w / 2);
-    const dy = aimY - (bot.y + bot.h / 2);
-    const rawDx = hx - (bot.x + bot.w / 2);
-    const rawDy = hy - (bot.y + bot.h / 2);
-    const dist = Math.hypot(rawDx, rawDy);
+      // Manage human trajectory history for reaction latency simulation (safely bounded)
+      if(!bs.actionQueue) bs.actionQueue = [];
+      bs.actionQueue.push({
+        t: tGlobal,
+        hx: human.x, hy: human.y,
+        hvx: human.vx, hvy: human.vy,
+        hGrounded: human.grounded
+      });
+      if(bs.actionQueue.length > 35){
+        bs.actionQueue.splice(0, bs.actionQueue.length - 25);
+      }
 
-    let dir = 0;
-    let jumpEdge = false, jumpHeld = false, downHeld = false;
+      // Reaction latency per difficulty tier
+      const latency = (diff === 'EASY') ? 0.22 : ((diff === 'MEDIUM') ? 0.11 : ((diff === 'HARD') ? 0.03 : 0.0));
+      let targetSnapshot = null;
+      for(let i = bs.actionQueue.length - 1; i >= 0; i--){
+        if((tGlobal - bs.actionQueue[i].t) >= latency){
+          targetSnapshot = bs.actionQueue[i];
+          break;
+        }
+      }
+      if(!targetSnapshot) targetSnapshot = bs.actionQueue[0] || { hx: human.x, hy: human.y, hvx: human.vx, hvy: human.vy };
+      const hx = targetSnapshot.hx, hy = targetSnapshot.hy;
+      const hvx = targetSnapshot.hvx, hvy = targetSnapshot.hvy;
 
-    // Decrement active intent timer
-    if(bs.intent.timer > 0){
-      bs.intent.timer -= dt;
-      dir = bs.intent.dir;
-      if(bs.intent.downHeld) downHeld = true;
-    }
+      // Predictive aim point calculation
+      const learnedLead = botBrain.hunterModel.leadTime || 0.28;
+      const leadMult = (diff === 'EASY') ? 0.0 : ((diff === 'MEDIUM') ? (learnedLead * 0.5) : ((diff === 'HARD') ? learnedLead : (learnedLead * 1.25)));
+      const aimX = clamp(hx + hvx * leadMult, WALL + 28, W - WALL - 28);
+      const aimY = clamp(hy + hvy * (leadMult * 0.5), WALL + 28, H - WALL - 28);
 
-    if(bs.intent.timer <= 0){
-      if(isIt){
-        /* ================= HUNTER CHASE MODE ================= */
-        dir = dx > 20 ? 1 : (dx < -20 ? -1 : 0);
+      let dx = aimX - (bot.x + bot.w / 2);
+      let dy = aimY - (bot.y + bot.h / 2);
+      if(isNaN(dx) || isNaN(dy)){
+        dx = human.x - (bot.x + bot.w / 2);
+        dy = human.y - (bot.y + bot.h / 2);
+      }
+      const rawDx = hx - (bot.x + bot.w / 2);
+      const rawDy = hy - (bot.y + bot.h / 2);
+      const dist = Math.hypot(rawDx, rawDy);
 
-        // Speed pad route routing: if hunter affinity is high, bias towards speed pads
-        if(diff !== 'EASY' && botBrain.hunterModel.speedPadAffinity > 0.45){
-          for(const s of SOLIDS){
-            if(s.t === 'speed' && Math.abs(s.y - (bot.y + bot.h)) < 26){
-              if((dir > 0 && s.x > bot.x && s.x < bot.x + 360) || (dir < 0 && s.x + s.w < bot.x && s.x + s.w > bot.x - 360)){
-                dir = (s.x > bot.x) ? 1 : -1;
+      let dir = 0;
+      let jumpEdge = false, jumpHeld = false, downHeld = false;
+
+      // Decrement active intent timer
+      if(bs.intent.timer > 0){
+        bs.intent.timer -= dt;
+        dir = bs.intent.dir;
+        if(bs.intent.downHeld) downHeld = true;
+      }
+
+      if(bs.intent.timer <= 0){
+        const targetAbove = (dy < -45);
+        const targetBelow = (dy > 45);
+
+        if(isIt){
+          /* ================= HUNTER CHASE MODE ================= */
+          if(Math.abs(dy) < 55){
+            // 1. Target is on roughly same elevation: direct chase with small deadzone
+            dir = dx > 15 ? 1 : (dx < -15 ? -1 : 0);
+          } else if(targetBelow){
+            // 2. Target is BELOW bot:
+            const onPink = (bot.gp && bot.gp.t === 'drop') || !!zoneAtFeet(bot, 'drop');
+            if(onPink){
+              downHeld = true;
+              dir = dx > 12 ? 1 : (dx < -12 ? -1 : 0);
+              bs.intent = { type: 'dropThrough', timer: 0.22, dir: dir, downHeld: true };
+            } else {
+              // On solid platform: CANNOT drop through, MUST run to edge to drop down!
+              const curP = bot.gp || SOLIDS.find(s => bot.x + bot.w > s.x && bot.x < s.x + s.w && Math.abs(s.y - (bot.y + bot.h)) < 24);
+              if(curP){
+                if(hx < curP.x){
+                  dir = -1;
+                } else if(hx > curP.x + curP.w){
+                  dir = 1;
+                } else {
+                  // Target is directly underneath: run towards the closer platform edge!
+                  const distLeft = bot.x - curP.x;
+                  const distRight = (curP.x + curP.w) - bot.x;
+                  dir = (distLeft < distRight) ? -1 : 1;
+                }
+              } else {
+                dir = dx > 10 ? 1 : (dx < -10 ? -1 : (Math.random() < 0.5 ? 1 : -1));
+              }
+            }
+          } else if(targetAbove){
+            // 3. Target is ABOVE bot:
+            // Check if there is a solid ceiling directly overhead blocking a vertical jump
+            const ceiling = SOLIDS.find(s => s.t !== 'drop' && !s.dy && (bot.x + bot.w > s.x + 8 && bot.x < s.x + s.w - 8) && s.y < bot.y && s.y > bot.y - 280);
+            if(ceiling){
+              // Solid platform overhead! Must clear it horizontally before jumping!
+              if(Math.abs(dx) > 30){
+                dir = dx > 0 ? 1 : -1;
+              } else {
+                const toLeft = bot.x - (ceiling.x - 32);
+                const toRight = (ceiling.x + ceiling.w + 32) - bot.x;
+                dir = (toLeft < toRight) ? -1 : 1;
+              }
+            } else {
+              // Clear overhead: direct steer towards target and jump
+              dir = dx > 15 ? 1 : (dx < -15 ? -1 : (hx >= bot.x ? 1 : -1));
+              if(bot.grounded){
+                jumpEdge = true;
+                bs.jumpHoldTimer = HOLD_LIFT_T;
+              } else if(bot.sideT > 0 && diff !== 'EASY'){
+                // Parkour wall jump
+                jumpEdge = true;
+                bs.jumpHoldTimer = HOLD_LIFT_T;
+              }
+            }
+
+            // Intermediate Stepping Stone Climb: if target is high above, steer towards intermediate platforms
+            if(dy < -90 && bot.grounded){
+              const stepPlat = SOLIDS.find(s => s.y < bot.y - 40 && s.y > bot.y - 280 && Math.abs(s.x + s.w/2 - bot.x) < 380);
+              if(stepPlat){
+                dir = (stepPlat.x + stepPlat.w/2 > bot.x) ? 1 : -1;
+                if(Math.abs(stepPlat.x + stepPlat.w/2 - bot.x) < 180){
+                  jumpEdge = true;
+                  bs.jumpHoldTimer = HOLD_LIFT_T;
+                }
+              }
+            }
+          }
+
+          // Speed pad route routing: if hunter affinity is high, bias towards speed pads
+          if(diff !== 'EASY' && botBrain.hunterModel.speedPadAffinity > 0.45){
+            for(const s of SOLIDS){
+              if(s.t === 'speed' && Math.abs(s.y - (bot.y + bot.h)) < 26){
+                if((dir > 0 && s.x > bot.x && s.x < bot.x + 360) || (dir < 0 && s.x + s.w < bot.x && s.x + s.w > bot.x - 360)){
+                  dir = (s.x > bot.x) ? 1 : -1;
+                  break;
+                }
+              }
+            }
+          }
+
+          // Adaptive Counter-Juke reading (Hard / Nightmare):
+          if((diff === 'HARD' || diff === 'NIGHTMARE') && dist < botBrain.runnerModel.jukeDistMean && Math.abs(hvx) > 120){
+            const humanRunningOpposite = (Math.sign(hvx) !== Math.sign(dx));
+            if(humanRunningOpposite){
+              const readProb = (diff === 'NIGHTMARE') ? 0.88 : (botBrain.adaptation.antiOvershootDamping || 0.65);
+              if(Math.random() < readProb){
+                dir = Math.sign(hvx);
+                bs.intent = { type: 'counterJuke', timer: 0.32, dir: dir, downHeld: false };
+                if(bs.popupT <= 0){
+                  bs.popupMsg = '🎯 READ JUKE!';
+                  bs.popupT = 0.70;
+                  botBrain.stats.counterJukesSucceeded++;
+                }
+              }
+            }
+          }
+
+          // Lunge tag attempt (close-quarters burst)
+          const tagLungeDist = botBrain.hunterModel.jumpDistMean || 175;
+          if(dist < tagLungeDist && Math.abs(rawDy) < 90){
+            if(hy < bot.y - 10 || !human.grounded){
+              if(bot.grounded){
+                jumpEdge = true;
+                bs.jumpHoldTimer = HOLD_LIFT_T;
+              }
+            }
+          }
+
+        } else {
+          /* ================= RUNNER FLEE & JUKE MODE ================= */
+          const threatDist = Math.hypot(bot.x - hx, bot.y - hy);
+          dir = bot.x > hx ? 1 : -1;
+
+          // Wall trap escape: when pinned near wall by approaching hunter, initiate leap or wall kick
+          const nearLeftWall = bot.x < WALL + 180 && dir === -1 && hx < WALL + 480;
+          const nearRightWall = bot.x > W - WALL - 220 && dir === 1 && hx > W - WALL - 520;
+          if((nearLeftWall || nearRightWall) && diff !== 'EASY'){
+            if(bot.grounded){
+              // Leap back towards center over hunter
+              const escapeDir = nearLeftWall ? 1 : -1;
+              dir = escapeDir;
+              jumpEdge = true;
+              bs.jumpHoldTimer = HOLD_LIFT_T;
+              bs.intent = { type: 'wallEscape', timer: 0.40, dir: escapeDir, downHeld: false };
+              if(bs.popupT <= 0){ bs.popupMsg = '⚡ WALL ESCAPE!'; bs.popupT = 0.70; }
+              botBrain.stats.jukesExecuted++;
+            } else if(bot.sideT > 0){
+              // Wall-kick off the wall towards safety
+              jumpEdge = true;
+              bs.jumpHoldTimer = HOLD_LIFT_T;
+              const kickDir = nearLeftWall ? 1 : -1;
+              dir = kickDir;
+              bs.intent = { type: 'wallKick', timer: 0.35, dir: kickDir, downHeld: false };
+            }
+          }
+
+          // Evasive Jukes when threatened (<210px) and not trapped
+          if(threatDist < 210 && diff !== 'EASY' && bs.intent.timer <= 0){
+            const onPink = (bot.gp && bot.gp.t === 'drop') || !!zoneAtFeet(bot, 'drop');
+
+            // 1. Pink Platform Drop Juke
+            if(onPink && Math.abs(bot.y - hy) < 55 && Math.random() < botBrain.runnerModel.pinkDropFreq){
+              downHeld = true;
+              bs.intent = { type: 'pinkDrop', timer: 0.30, dir: dir, downHeld: true };
+              if(bs.popupT <= 0){ bs.popupMsg = '⚡ PINK DROP!'; bs.popupT = 0.70; }
+              botBrain.stats.jukesExecuted++;
+            }
+            // 2. Leap-Over / Reverse Jump Juke: Hunter lunging in close
+            else if(threatDist < 165 && Math.abs(bot.y - hy) < 65 && bot.grounded && Math.random() < botBrain.runnerModel.reverseJumpFreq){
+              jumpEdge = true;
+              bs.jumpHoldTimer = HOLD_LIFT_T;
+              const reverseDir = -dir;
+              dir = reverseDir;
+              bs.intent = { type: 'leapOver', timer: 0.38, dir: reverseDir, downHeld: false };
+              if(bs.popupT <= 0){ bs.popupMsg = '⚡ LEAP-OVER!'; bs.popupT = 0.70; }
+              botBrain.stats.jukesExecuted++;
+            }
+            // 3. Crossover Juke: Hunter charging fast towards bot
+            else if(Math.abs(hvx) > 240 && Math.random() < botBrain.runnerModel.crossoverFreq){
+              const crossDir = -dir;
+              dir = crossDir;
+              bs.intent = { type: 'crossover', timer: 0.36, dir: crossDir, downHeld: false };
+              if(bs.popupT <= 0){ bs.popupMsg = '⚡ CROSSOVER!'; bs.popupT = 0.70; }
+              botBrain.stats.jukesExecuted++;
+            }
+          }
+
+          // Elevation safety: climb to stay higher than hunter
+          if(hy >= bot.y && threatDist < 360 && bot.grounded && bs.intent.timer <= 0){
+            for(const s of SOLIDS){
+              if(s.y < bot.y && s.y > bot.y - 280 && Math.abs(s.x + s.w/2 - bot.x) < 280){
+                jumpEdge = true;
+                bs.jumpHoldTimer = HOLD_LIFT_T;
                 break;
               }
             }
           }
         }
-
-        // Adaptive Counter-Juke reading (Hard / Nightmare):
-        // If runner reverses velocity sharply at close range, don't overshoot — brake & cut off!
-        if((diff === 'HARD' || diff === 'NIGHTMARE') && dist < botBrain.runnerModel.jukeDistMean && Math.abs(hvx) > 120){
-          const humanRunningOpposite = (Math.sign(hvx) !== Math.sign(dx));
-          if(humanRunningOpposite){
-            const readProb = (diff === 'NIGHTMARE') ? 0.88 : (botBrain.adaptation.antiOvershootDamping || 0.65);
-            if(Math.random() < readProb){
-              dir = Math.sign(hvx);
-              bs.intent = { type: 'counterJuke', timer: 0.32, dir: dir, downHeld: false };
-              if(bs.popupT <= 0){
-                bs.popupMsg = '🎯 READ JUKE!';
-                bs.popupT = 0.70;
-                botBrain.stats.counterJukesSucceeded++;
-              }
-            }
-          }
-        }
-
-        // Upward chase: target is above bot
-        if(dy < -45){
-          if(bot.grounded){
-            jumpEdge = true;
-            bs.jumpHoldTimer = HOLD_LIFT_T;
-          } else if(bot.sideT > 0 && diff !== 'EASY'){
-            // Parkour wall jump
-            jumpEdge = true;
-            bs.jumpHoldTimer = HOLD_LIFT_T;
-          }
-        }
-
-        // Downward chase: target is below bot on pink platform
-        if(dy > 55){
-          const onPink = (bot.gp && bot.gp.t === 'drop') || !!zoneAtFeet(bot, 'drop');
-          if(onPink){
-            downHeld = true;
-            bs.intent = { type: 'dropThrough', timer: 0.25, dir: dir, downHeld: true };
-          }
-        }
-
-        // Lunge tag attempt (close-quarters burst)
-        const tagLungeDist = botBrain.hunterModel.jumpDistMean || 175;
-        if(dist < tagLungeDist && Math.abs(rawDy) < 90){
-          if(hy < bot.y - 10 || !human.grounded){
-            if(bot.grounded){
-              jumpEdge = true;
-              bs.jumpHoldTimer = HOLD_LIFT_T;
-            }
-          }
-        }
-
-      } else {
-        /* ================= RUNNER FLEE & JUKE MODE ================= */
-        const threatDist = Math.hypot(bot.x - hx, bot.y - hy);
-        dir = bot.x > hx ? 1 : -1;
-
-        // Wall trap escape: when pinned near wall by approaching hunter, initiate leap or wall kick
-        const nearLeftWall = bot.x < WALL + 180 && dir === -1 && hx < WALL + 480;
-        const nearRightWall = bot.x > W - WALL - 220 && dir === 1 && hx > W - WALL - 520;
-        if((nearLeftWall || nearRightWall) && diff !== 'EASY'){
-          if(bot.grounded){
-            // Leap back towards center over hunter
-            const escapeDir = nearLeftWall ? 1 : -1;
-            dir = escapeDir;
-            jumpEdge = true;
-            bs.jumpHoldTimer = HOLD_LIFT_T;
-            bs.intent = { type: 'wallEscape', timer: 0.40, dir: escapeDir, downHeld: false };
-            if(bs.popupT <= 0){ bs.popupMsg = '⚡ WALL ESCAPE!'; bs.popupT = 0.70; }
-            botBrain.stats.jukesExecuted++;
-          } else if(bot.sideT > 0){
-            // Wall-kick off the wall towards safety
-            jumpEdge = true;
-            bs.jumpHoldTimer = HOLD_LIFT_T;
-            const kickDir = nearLeftWall ? 1 : -1;
-            dir = kickDir;
-            bs.intent = { type: 'wallKick', timer: 0.35, dir: kickDir, downHeld: false };
-          }
-        }
-
-        // Evasive Jukes when threatened (<210px) and not trapped
-        if(threatDist < 210 && diff !== 'EASY' && bs.intent.timer <= 0){
-          const onPink = (bot.gp && bot.gp.t === 'drop') || !!zoneAtFeet(bot, 'drop');
-
-          // 1. Pink Platform Drop Juke
-          if(onPink && Math.abs(bot.y - hy) < 55 && Math.random() < botBrain.runnerModel.pinkDropFreq){
-            downHeld = true;
-            bs.intent = { type: 'pinkDrop', timer: 0.30, dir: dir, downHeld: true };
-            if(bs.popupT <= 0){ bs.popupMsg = '⚡ PINK DROP!'; bs.popupT = 0.70; }
-            botBrain.stats.jukesExecuted++;
-          }
-          // 2. Leap-Over / Reverse Jump Juke: Hunter lunging in close
-          else if(threatDist < 165 && Math.abs(bot.y - hy) < 65 && bot.grounded && Math.random() < botBrain.runnerModel.reverseJumpFreq){
-            jumpEdge = true;
-            bs.jumpHoldTimer = HOLD_LIFT_T;
-            const reverseDir = -dir;
-            dir = reverseDir;
-            bs.intent = { type: 'leapOver', timer: 0.38, dir: reverseDir, downHeld: false };
-            if(bs.popupT <= 0){ bs.popupMsg = '⚡ LEAP-OVER!'; bs.popupT = 0.70; }
-            botBrain.stats.jukesExecuted++;
-          }
-          // 3. Crossover Juke: Hunter charging fast towards bot
-          else if(Math.abs(hvx) > 240 && Math.random() < botBrain.runnerModel.crossoverFreq){
-            const crossDir = -dir;
-            dir = crossDir;
-            bs.intent = { type: 'crossover', timer: 0.36, dir: crossDir, downHeld: false };
-            if(bs.popupT <= 0){ bs.popupMsg = '⚡ CROSSOVER!'; bs.popupT = 0.70; }
-            botBrain.stats.jukesExecuted++;
-          }
-        }
-
-        // Elevation safety: climb to stay higher than hunter
-        if(hy >= bot.y && threatDist < 360 && bot.grounded && bs.intent.timer <= 0){
-          for(const s of SOLIDS){
-            if(s.y < bot.y && s.y > bot.y - 280 && Math.abs(s.x + s.w/2 - bot.x) < 280){
-              jumpEdge = true;
-              bs.jumpHoldTimer = HOLD_LIFT_T;
-              break;
-            }
-          }
-        }
       }
-    }
 
-    // Platform Obstacle Clearance (jumps over solid barriers ahead)
-    if(dir !== 0 && bot.grounded){
-      const checkX = (dir > 0) ? (bot.x + bot.w + 12) : (bot.x - 12);
-      const obsAhead = SOLIDS.some(s => s.t !== 'drop' && !s.dy && checkX >= s.x && checkX <= s.x + s.w && bot.y + bot.h > s.y + 10 && bot.y < s.y + s.h);
-      if(obsAhead){
-        jumpEdge = true;
-        bs.jumpHoldTimer = HOLD_LIFT_T;
-      }
-    }
-
-    // Platform Gap Traversal:
-    if(dir !== 0 && bot.grounded){
-      const feetX = bot.x + bot.w/2 + dir * 65;
-      const hasGround = SOLIDS.some(s => feetX >= s.x && feetX <= s.x + s.w && Math.abs(s.y - (bot.y + bot.h)) < 22);
-      if(!hasGround){
-        if(isIt){
-          // Hunter leaps across gap towards runner
-          if(dy <= 80){
-            jumpEdge = true;
-            bs.jumpHoldTimer = HOLD_LIFT_T;
-          }
-        } else {
-          // Runner leaps across gap if there is a platform across, or avoids suicide drop into hunter
-          const hunterBelow = (hy > bot.y + 60);
-          if(!hunterBelow || threatDist < 180){
-            jumpEdge = true;
-            bs.jumpHoldTimer = HOLD_LIFT_T;
-          }
-        }
-      }
-    }
-
-    // Double Jump Execution (Evaluated at the apex of flight, not spammed every frame)
-    if(!bot.grounded && bot.airJumps > 0 && !bs.hasDblJumped && bot.vy >= -90 && bot.vy <= 120){
-      const needClimb = (isIt && dy < -50) || (!isIt && hy >= bot.y - 40 && dist < 220);
-      if(needClimb){
-        const dJumpProb = (diff === 'EASY') ? 0.35 : ((diff === 'MEDIUM') ? 0.75 : 0.98);
-        if(Math.random() < dJumpProb){
+      // Platform Obstacle Clearance (jumps over solid barriers ahead)
+      if(dir !== 0 && bot.grounded){
+        const checkX = (dir > 0) ? (bot.x + bot.w + 12) : (bot.x - 12);
+        const obsAhead = SOLIDS.some(s => s.t !== 'drop' && !s.dy && checkX >= s.x && checkX <= s.x + s.w && bot.y + bot.h > s.y + 10 && bot.y < s.y + s.h);
+        if(obsAhead){
           jumpEdge = true;
           bs.jumpHoldTimer = HOLD_LIFT_T;
-          bs.hasDblJumped = true;
         }
       }
-    }
 
-    // Sustained jump holding for maximum variable jump height
-    if(bs.jumpHoldTimer > 0 && bot.vy < 0){
-      jumpHeld = true;
-    }
-
-    // Robust Unstuck Watchdog
-    const moved = Math.hypot(bot.x - (bs.lastX || bot.x), bot.y - (bs.lastY || bot.y));
-    if(moved < 10){
-      bs.stuckT = (bs.stuckT || 0) + dt;
-      if(bs.stuckT > 0.28){
-        const recoverDir = (bot.x < W / 2) ? 1 : -1;
-        dir = recoverDir;
-        jumpEdge = true;
-        bs.jumpHoldTimer = HOLD_LIFT_T;
-        bs.intent = { type: 'unstuck', timer: 0.42, dir: recoverDir, downHeld: false };
-        bs.stuckT = 0;
+      // Platform Gap Traversal:
+      if(dir !== 0 && bot.grounded){
+        const feetX = bot.x + bot.w/2 + dir * 65;
+        const hasGround = SOLIDS.some(s => feetX >= s.x && feetX <= s.x + s.w && Math.abs(s.y - (bot.y + bot.h)) < 22);
+        if(!hasGround){
+          if(isIt){
+            // Hunter leaps across gap only if target is not far below!
+            if(dy <= 45){
+              jumpEdge = true;
+              bs.jumpHoldTimer = HOLD_LIFT_T;
+            }
+            // If target is below (dy > 45), walk off the ledge to fall down!
+          } else {
+            // Runner leaps across gap if safe
+            const hunterBelow = (hy > bot.y + 60);
+            if(!hunterBelow || threatDist < 180){
+              jumpEdge = true;
+              bs.jumpHoldTimer = HOLD_LIFT_T;
+            }
+          }
+        }
       }
-    } else {
-      bs.stuckT = 0;
-      bs.lastX = bot.x;
-      bs.lastY = bot.y;
+
+      // Double Jump Execution (Evaluated at the apex of flight, not spammed every frame)
+      if(!bot.grounded && bot.airJumps > 0 && !bs.hasDblJumped && bot.vy >= -90 && bot.vy <= 120){
+        const needClimb = (isIt && dy < -45) || (!isIt && hy >= bot.y - 40 && dist < 220);
+        if(needClimb){
+          const dJumpProb = (diff === 'EASY') ? 0.35 : ((diff === 'MEDIUM') ? 0.75 : 0.98);
+          if(Math.random() < dJumpProb){
+            jumpEdge = true;
+            bs.jumpHoldTimer = HOLD_LIFT_T;
+            bs.hasDblJumped = true;
+          }
+        }
+      }
+
+      // Sustained jump holding for maximum variable jump height
+      if(bs.jumpHoldTimer > 0 && bot.vy < 0){
+        jumpHeld = true;
+      }
+
+      // Robust Unstuck Watchdog (Inverts direction, drops if on pink, never locks to center)
+      const moved = Math.hypot(bot.x - (bs.lastX || bot.x), bot.y - (bs.lastY || bot.y));
+      if(moved < 8){
+        bs.stuckT = (bs.stuckT || 0) + dt;
+        if(bs.stuckT > 0.24){
+          let recoverDir = bs.lastRecoverDir ? -bs.lastRecoverDir : (dir !== 0 ? -dir : (dx !== 0 ? Math.sign(dx) : (Math.random() < 0.5 ? 1 : -1)));
+          bs.lastRecoverDir = recoverDir;
+          dir = recoverDir;
+
+          if((bot.gp && bot.gp.t === 'drop') || !!zoneAtFeet(bot, 'drop')){
+            downHeld = true;
+            bs.intent = { type: 'unstuckDrop', timer: 0.32, dir: recoverDir, downHeld: true };
+          } else {
+            jumpEdge = true;
+            bs.jumpHoldTimer = HOLD_LIFT_T;
+            bs.intent = { type: 'unstuckJump', timer: 0.36, dir: recoverDir, downHeld: false };
+          }
+          bs.stuckT = 0;
+        }
+      } else {
+        bs.stuckT = 0;
+        bs.lastX = bot.x;
+        bs.lastY = bot.y;
+      }
+
+      if(bs.popupT > 0) bs.popupT -= dt;
+
+      return {
+        dir: clamp(dir, -1, 1),
+        jumpEdge: !!jumpEdge,
+        jumpHeld: !!jumpHeld,
+        downHeld: !!downHeld
+      };
+    } catch(err) {
+      return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
     }
-
-    if(bs.popupT > 0) bs.popupT -= dt;
-
-    return {
-      dir: clamp(dir, -1, 1),
-      jumpEdge: !!jumpEdge,
-      jumpHeld: !!jumpHeld,
-      downHeld: !!downHeld
-    };
   }
 };
 window.addEventListener('beforeunload', () => saveBotBrain());
