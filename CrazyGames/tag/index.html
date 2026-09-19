@@ -281,7 +281,7 @@ function inputDown(x,y,id){
 
   const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
   const isPlaying = (match && (match.state === 'playing' || match.state === 'countdown'));
-  const isSplitLocal = (!isOnline && match && screen === 'game' && isPlaying && match.players && match.players.length === 2 && isTouch);
+  const isSplitLocal = (!isOnline && match && screen === 'game' && isPlaying && match.players && match.players.length === 2 && isTouch && !match.isVsBot);
 
   // Allow HUD top bar buttons (Pause, Mute, Help) to receive clicks
   if(y <= 55){
@@ -422,7 +422,7 @@ function inputDown(x,y,id){
 function inputMove(x,y,id){
   const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
   const isPlaying = (match && (match.state === 'playing' || match.state === 'countdown'));
-  const isSplitLocal = (!isOnline && match && screen === 'game' && isPlaying && match.players && match.players.length === 2 && isTouch);
+  const isSplitLocal = (!isOnline && match && screen === 'game' && isPlaying && match.players && match.players.length === 2 && isTouch && !match.isVsBot);
   if(isSplitLocal){
     const b = calcLocalBounds();
     // P1 Joystick
@@ -829,7 +829,8 @@ const TEAMS = [
 ];
 
 const TIMES=[60,120,180];
-const settings={map:0,doubleJump:true,collision:false,timeIdx:0,teams:false};
+const BOT_DIFFICULTIES=['EASY','MEDIUM','HARD','NIGHTMARE'];
+const settings={map:0,doubleJump:true,collision:false,timeIdx:0,teams:false,vsBot:true,botDifficulty:'MEDIUM'};
 Object.defineProperty(settings,'time',{get(){return TIMES[this.timeIdx];}});
 
 const SLOTS=[
@@ -842,6 +843,414 @@ const SLOTS=[
   {label:'P7 (NET)',pad:6,map:{L:['KeyA'],R:'KeyD',U:['KeyW','Space'],D:'KeyS'}},
   {label:'P8 (NET)',pad:7,map:{L:['KeyA'],R:'KeyD',U:['KeyW','Space'],D:'KeyS'}}
 ];
+
+/* ================= MACHINE LEARNING BOT BRAIN & ADAPTIVE PLATFORMING AI ================= */
+const BRAIN_STORAGE_KEY = 'TAG_BOT_BRAIN_V1';
+
+function defaultBotBrain(){
+  return {
+    version: 1,
+    brainLevel: 1,
+    xp: 0,
+    matchesTrained: 0,
+    stats: {
+      humanWins: 0,
+      botWins: 0,
+      tagsByHuman: 0,
+      tagsByBot: 0,
+      jukesObserved: 0,
+      jukesExecuted: 0,
+      counterJukesSucceeded: 0,
+      totalPlayTimeSec: 0
+    },
+    hunterModel: {
+      leadTime: 0.28,
+      leadSamples: 0,
+      jumpDistMean: 170,
+      jumpDistSamples: 0,
+      speedPadAffinity: 0.65,
+      cutoffAggression: 0.55,
+      doubleJumpAggression: 0.70
+    },
+    runnerModel: {
+      crossoverFreq: 0.45,
+      reverseJumpFreq: 0.35,
+      pinkDropFreq: 0.50,
+      wallBounceFreq: 0.30,
+      jukeDistMean: 190,
+      samplesCount: 0
+    },
+    adaptation: {
+      humanJukeTendency: 0.35,
+      antiOvershootDamping: 0.60,
+      speedPadLure: 0.50
+    }
+  };
+}
+
+function loadBotBrain(){
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(BRAIN_STORAGE_KEY) : null;
+    if(raw){
+      const data = JSON.parse(raw);
+      if(data && data.version === 1){
+        const base = defaultBotBrain();
+        return {
+          ...base,
+          ...data,
+          stats: { ...base.stats, ...(data.stats || {}) },
+          hunterModel: { ...base.hunterModel, ...(data.hunterModel || {}) },
+          runnerModel: { ...base.runnerModel, ...(data.runnerModel || {}) },
+          adaptation: { ...base.adaptation, ...(data.adaptation || {}) }
+        };
+      }
+    }
+  } catch(e){}
+  return defaultBotBrain();
+}
+
+let botBrain = loadBotBrain();
+
+function saveBotBrain(){
+  try {
+    if(typeof localStorage !== 'undefined') localStorage.setItem(BRAIN_STORAGE_KEY, JSON.stringify(botBrain));
+  } catch(e){}
+}
+
+function resetBotBrain(){
+  try {
+    if(typeof localStorage !== 'undefined') localStorage.removeItem(BRAIN_STORAGE_KEY);
+  } catch(e){}
+  botBrain = defaultBotBrain();
+  toast('🧠 BOT BRAIN RESET TO LEVEL 1');
+  sfx('back');
+}
+
+function cycleBotDifficulty(d){
+  const cur = BOT_DIFFICULTIES.indexOf(settings.botDifficulty);
+  const next = (cur + d + BOT_DIFFICULTIES.length) % BOT_DIFFICULTIES.length;
+  settings.botDifficulty = BOT_DIFFICULTIES[next];
+  toast('BOT: ' + settings.botDifficulty + (settings.botDifficulty === 'NIGHTMARE' ? ' (ADAPTIVE ML)' : ''));
+  sfx('ui');
+}
+
+const TagBrain = {
+  get brain(){ return botBrain; },
+
+  addXP(amount, reason){
+    botBrain.xp += amount;
+    const oldLvl = botBrain.brainLevel;
+    botBrain.brainLevel = Math.min(50, Math.floor(Math.sqrt(botBrain.xp / 70)) + 1);
+    if(botBrain.brainLevel > oldLvl){
+      toast('🧠 BOT BRAIN LEVELED UP TO LVL ' + botBrain.brainLevel + '!');
+      sfx('win');
+    }
+    saveBotBrain();
+  },
+
+  // Observes human playstyle in real-time during match
+  observe(dt, match){
+    if(!match || match.state !== 'playing' || !match.isVsBot) return;
+    const human = match.players[0];
+    const bot = match.players[1];
+    if(!human || !bot) return;
+
+    botBrain.stats.totalPlayTimeSec += dt;
+    const humanIsIt = (match.it === 0);
+    const dx = bot.x - human.x;
+    const dy = bot.y - human.y;
+    const dist = Math.hypot(dx, dy);
+
+    if(humanIsIt){
+      // 1. Observe Human as Hunter:
+      if(Math.abs(bot.vx) > 80 && dist < 420 && dist > 80){
+        const closingSpeed = -(dx * human.vx + dy * human.vy) / (dist || 1);
+        if(closingSpeed > 80){
+          const observedLead = clamp(dist / (Math.abs(human.vx) + 240), 0.1, 0.65);
+          botBrain.hunterModel.leadTime = botBrain.hunterModel.leadTime * 0.985 + observedLead * 0.015;
+          botBrain.hunterModel.leadSamples++;
+        }
+      }
+      if(human.jbuf > 0 && dist < 280){
+        botBrain.hunterModel.jumpDistMean = botBrain.hunterModel.jumpDistMean * 0.97 + dist * 0.03;
+        botBrain.hunterModel.jumpDistSamples++;
+      }
+      if(human.padOn){
+        botBrain.hunterModel.speedPadAffinity = Math.min(1.0, botBrain.hunterModel.speedPadAffinity + 0.005);
+      }
+    } else {
+      // 2. Observe Human as Runner:
+      const bs = bot.botState;
+      if(bs){
+        // A. Crossover Juke: Human rapidly reverses direction in front of charging hunter
+        if(dist < 260 && Math.abs(bs.prevHumanVx) > 180 && Math.abs(human.vx) > 180){
+          if(Math.sign(bs.prevHumanVx) !== Math.sign(human.vx)){
+            botBrain.runnerModel.crossoverFreq = Math.min(0.95, botBrain.runnerModel.crossoverFreq + 0.04);
+            botBrain.adaptation.humanJukeTendency = Math.min(0.95, botBrain.adaptation.humanJukeTendency + 0.04);
+            botBrain.stats.jukesObserved++;
+            this.addXP(30, 'Learned Crossover Juke');
+          }
+        }
+        // B. Reverse Jump / Leap-Over Juke:
+        if(dist < 200 && human.vy < -280 && !human.grounded && bs.prevHumanGrounded && Math.abs(dx) < 130){
+          botBrain.runnerModel.reverseJumpFreq = Math.min(0.95, botBrain.runnerModel.reverseJumpFreq + 0.04);
+          botBrain.stats.jukesObserved++;
+          this.addXP(30, 'Learned Leap-Over Juke');
+        }
+        // C. Pink Platform Drop Evasion:
+        if(dist < 240 && human.dropT > 0 && Math.abs(dy) < 60){
+          botBrain.runnerModel.pinkDropFreq = Math.min(0.95, botBrain.runnerModel.pinkDropFreq + 0.04);
+          botBrain.stats.jukesObserved++;
+          this.addXP(30, 'Learned Pink Drop Juke');
+        }
+
+        bs.prevHumanVx = human.vx;
+        bs.prevHumanGrounded = human.grounded;
+      }
+    }
+  },
+
+  onTag(newItIdx, oldItIdx){
+    if(!match || !match.isVsBot) return;
+    if(newItIdx === 1){
+      botBrain.stats.tagsByHuman++;
+      this.addXP(15, 'Match training');
+    } else if(newItIdx === 0){
+      botBrain.stats.tagsByBot++;
+      this.addXP(45, 'Bot tagged human');
+    }
+    saveBotBrain();
+  },
+
+  onMatchEnd(result){
+    if(!match || !match.isVsBot) return;
+    botBrain.matchesTrained++;
+    const loser = (result && result.loser != null) ? result.loser : match.it;
+    if(loser === 0){
+      botBrain.stats.botWins++;
+      this.addXP(120, 'Bot victory');
+    } else {
+      botBrain.stats.humanWins++;
+      this.addXP(60, 'Match completion');
+    }
+    saveBotBrain();
+  },
+
+  // Main Platforming & Behavioral Cloning Policy Engine
+  getBotAction(bot, dt){
+    if(!match || !match.players || match.players.length < 2){
+      return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
+    }
+    const human = match.players[0];
+    const isIt = (match.it === match.players.indexOf(bot));
+    const diff = bot.botDifficulty || settings.botDifficulty || 'MEDIUM';
+    const bs = bot.botState || {};
+
+    // Record human trajectory history for reaction latency simulation
+    if(!bs.actionQueue) bs.actionQueue = [];
+    bs.actionQueue.push({
+      t: tGlobal,
+      hx: human.x, hy: human.y,
+      hvx: human.vx, hvy: human.vy,
+      hGrounded: human.grounded
+    });
+    while(bs.actionQueue.length > 30 && tGlobal - bs.actionQueue[0].t > 0.45){
+      bs.actionQueue.shift();
+    }
+
+    // Reaction latency per difficulty tier
+    const latency = (diff === 'EASY') ? 0.20 : ((diff === 'MEDIUM') ? 0.10 : ((diff === 'HARD') ? 0.03 : 0.0));
+    let targetSnapshot = null;
+    for(let i = bs.actionQueue.length - 1; i >= 0; i--){
+      if((tGlobal - bs.actionQueue[i].t) >= latency){
+        targetSnapshot = bs.actionQueue[i];
+        break;
+      }
+    }
+    if(!targetSnapshot) targetSnapshot = bs.actionQueue[bs.actionQueue.length - 1];
+    const hx = targetSnapshot.hx, hy = targetSnapshot.hy;
+    const hvx = targetSnapshot.hvx, hvy = targetSnapshot.hvy;
+
+    // Prediction lead time based on difficulty and behavioral cloning
+    const lead = (diff === 'EASY') ? 0.0 : ((diff === 'MEDIUM') ? 0.14 : ((diff === 'HARD') ? 0.30 : botBrain.hunterModel.leadTime));
+    const aimX = clamp(hx + hvx * lead, WALL + 30, W - WALL - 30);
+    const aimY = clamp(hy + hvy * lead, WALL + 30, H - WALL - 30);
+
+    const dx = aimX - (bot.x + bot.w / 2);
+    const dy = aimY - (bot.y + bot.h / 2);
+    const dist = Math.hypot(dx, dy);
+
+    let dir = 0;
+    let jumpEdge = false, jumpHeld = false, downHeld = false;
+
+    if(isIt){
+      /* ================= HUNTER CHASE MODE ================= */
+      dir = dx > 20 ? 1 : (dx < -20 ? -1 : 0);
+
+      // Speed pad route intercept
+      if(diff !== 'EASY' && botBrain.hunterModel.speedPadAffinity > 0.4){
+        for(const s of SOLIDS){
+          if(s.t === 'speed' && Math.abs(s.y - (bot.y + bot.h)) < 30){
+            if((dir > 0 && s.x > bot.x && s.x < bot.x + 350) || (dir < 0 && s.x + s.w < bot.x && s.x + s.w > bot.x - 350)){
+              dir = (s.x > bot.x) ? 1 : -1;
+              break;
+            }
+          }
+        }
+      }
+
+      // Counter-Juke Anticipation (Hard / Nightmare)
+      if(diff !== 'EASY' && dist < botBrain.runnerModel.jukeDistMean && Math.abs(hvx) > 100){
+        const humanRunningOpposite = (Math.sign(hvx) !== dir && dir !== 0);
+        if(humanRunningOpposite){
+          const readProb = (diff === 'NIGHTMARE') ? 0.90 : 0.65;
+          if(Math.random() < readProb){
+            dir = -dir; // counter the human's reversal!
+            if(bs.popupT <= 0){
+              bs.popupMsg = '🎯 READ JUKE!';
+              bs.popupT = 0.65;
+              botBrain.stats.counterJukesSucceeded++;
+            }
+          }
+        }
+      }
+
+      // Upward chase: Target is higher than bot
+      if(dy < -45){
+        if(bot.grounded){
+          jumpEdge = true; jumpHeld = true;
+        } else if(bot.vy >= -120 && bot.airJumps > 0){
+          const dJumpProb = (diff === 'EASY') ? 0.25 : ((diff === 'MEDIUM') ? 0.65 : 0.95);
+          if(Math.random() < dJumpProb){ jumpEdge = true; jumpHeld = true; }
+        } else if(bot.sideT > 0 && diff !== 'EASY'){
+          jumpEdge = true; jumpHeld = true; // parkour wall jump!
+        }
+      }
+
+      // Downward chase: Target is below bot on pink platform
+      if(dy > 55){
+        const onPink = (bot.gp && bot.gp.t === 'drop') || !!zoneAtFeet(bot, 'drop');
+        if(onPink && (diff !== 'EASY' || Math.random() < 0.4)){
+          downHeld = true;
+        }
+      }
+
+      // Tag lunge: Close-range tag attempt
+      if(dist < 185 && Math.abs(dy) < 85){
+        if(hy < bot.y - 12 || !human.grounded){
+          if(bot.grounded || (bot.airJumps > 0 && bot.vy > -80)){
+            jumpEdge = true; jumpHeld = true;
+          }
+        }
+      }
+
+    } else {
+      /* ================= RUNNER FLEE & JUKE MODE ================= */
+      const threatDist = Math.hypot(bot.x - hx, bot.y - hy);
+      dir = bot.x > hx ? 1 : -1;
+
+      // Wall trap prevention & wall kick escape
+      if(bot.x < WALL + 180 && dir === -1){
+        if(hx < WALL + 460){
+          if(bot.grounded){ jumpEdge = true; jumpHeld = true; }
+          else if(bot.sideT > 0 && diff !== 'EASY'){ jumpEdge = true; jumpHeld = true; dir = 1; }
+        }
+      } else if(bot.x > W - WALL - 220 && dir === 1){
+        if(hx > W - WALL - 500){
+          if(bot.grounded){ jumpEdge = true; jumpHeld = true; }
+          else if(bot.sideT > 0 && diff !== 'EASY'){ jumpEdge = true; jumpHeld = true; dir = -1; }
+        }
+      }
+
+      // Behavioral Cloning Jukes when threatened (<220px)
+      if(threatDist < 220 && diff !== 'EASY'){
+        const onPink = (bot.gp && bot.gp.t === 'drop') || !!zoneAtFeet(bot, 'drop');
+
+        // 1. Pink platform drop juke
+        if(onPink && Math.abs(bot.y - hy) < 50 && Math.random() < botBrain.runnerModel.pinkDropFreq){
+          downHeld = true;
+          if(bs.popupT <= 0){ bs.popupMsg = '⚡ PINK DROP!'; bs.popupT = 0.7; }
+          botBrain.stats.jukesExecuted++;
+        }
+        // 2. Leap-Over / Reverse Jump juke
+        else if(threatDist < 170 && Math.abs(bot.y - hy) < 60 && bot.grounded && Math.random() < botBrain.runnerModel.reverseJumpFreq){
+          jumpEdge = true; jumpHeld = true;
+          dir = -dir;
+          if(bs.popupT <= 0){ bs.popupMsg = '⚡ LEAP-OVER!'; bs.popupT = 0.7; }
+          botBrain.stats.jukesExecuted++;
+        }
+        // 3. Crossover direction reversal juke
+        else if(Math.abs(hvx) > 280 && Math.random() < botBrain.runnerModel.crossoverFreq){
+          dir = -dir;
+          if(bs.popupT <= 0){ bs.popupMsg = '⚡ CROSSOVER!'; bs.popupT = 0.7; }
+          botBrain.stats.jukesExecuted++;
+        }
+      }
+
+      // Elevation safety: climb to stay higher than hunter
+      if(hy >= bot.y && threatDist < 380){
+        for(const s of SOLIDS){
+          if(s.y < bot.y && s.y > bot.y - 280 && Math.abs(s.x + s.w/2 - bot.x) < 300){
+            if(bot.grounded){ jumpEdge = true; jumpHeld = true; }
+            break;
+          }
+        }
+      }
+    }
+
+    // Platform Obstacle Clearance (jumps over solid walls and blocks)
+    if(dir !== 0 && bot.grounded){
+      const checkX = (dir > 0) ? (bot.x + bot.w + 10) : (bot.x - 10);
+      const obsAhead = SOLIDS.some(s => s.t !== 'drop' && !s.dy && checkX >= s.x && checkX <= s.x + s.w && bot.y + bot.h > s.y + 10 && bot.y < s.y + s.h);
+      if(obsAhead){
+        jumpEdge = true; jumpHeld = true;
+      }
+    }
+
+    // Platform Gap Detection (leaps across gaps when heading towards target/threat)
+    if(dir !== 0 && bot.grounded){
+      const feetX = bot.x + bot.w/2 + dir * 65;
+      const hasGround = SOLIDS.some(s => feetX >= s.x && feetX <= s.x + s.w && Math.abs(s.y - (bot.y + bot.h)) < 18);
+      if(!hasGround && dy <= 70){
+        jumpEdge = true; jumpHeld = true;
+      }
+    }
+
+    // Double Jump Follow-Through
+    if(!bot.grounded && bot.airJumps > 0 && bot.vy >= -80 && (dy < -60 || dist < 160)){
+      const dJumpProb = (diff === 'EASY') ? 0.20 : ((diff === 'MEDIUM') ? 0.60 : 0.95);
+      if(Math.random() < dJumpProb){
+        jumpEdge = true; jumpHeld = true;
+      }
+    }
+
+    // Unstuck Watchdog
+    const moved = Math.hypot(bot.x - (bs.lastX || bot.x), bot.y - (bs.lastY || bot.y));
+    if(moved < 12){
+      bs.stuckT = (bs.stuckT || 0) + dt;
+      if(bs.stuckT > 0.32){
+        jumpEdge = true; jumpHeld = true;
+        if(bot.airJumps > 0 && !bot.grounded) jumpEdge = true;
+        dir = -dir;
+        bs.stuckT = 0;
+      }
+    } else {
+      bs.stuckT = 0;
+      bs.lastX = bot.x;
+      bs.lastY = bot.y;
+    }
+
+    if(bs.popupT > 0) bs.popupT -= dt;
+
+    return {
+      dir: clamp(dir, -1, 1),
+      jumpEdge: !!jumpEdge,
+      jumpHeld: !!jumpHeld,
+      downHeld: !!downHeld
+    };
+  }
+};
+window.addEventListener('beforeunload', () => saveBotBrain());
 
 function getPlayerColor(p, pList){
   if(!p) return '#ffffff';
@@ -1060,6 +1469,10 @@ function rowEdit(d){
     return;
   }
   switch(menu.row){
+    case 0:
+      if(settings.vsBot){ cycleBotDifficulty(d); }
+      else { cycleSlot(0, d); }
+      break;
     case 1:settings.map=(settings.map+d+MAPS.length)%MAPS.length;buildLevel();sfx('ui');break;
     case 2:settings.timeIdx=(settings.timeIdx+d+TIMES.length)%TIMES.length;sfx('ui');break;
     case 3:menu.rule=(menu.rule+d+2)%2;sfx('ui');break;
@@ -1068,6 +1481,10 @@ function rowEdit(d){
 }
 function rowEnter(){
   if(menu.row===0){
+    if(settings.vsBot){
+      cycleBotDifficulty(1);
+      return;
+    }
     if(typeof NET!=='undefined' && NET && NET.role!==null){
       // in online mode, row 0 is online roster status
       if(NET.isHost && activeSlots().length<2){
@@ -1103,6 +1520,10 @@ function rowEnter(){
       startMatch();
       return;
     }
+    if(settings.vsBot){
+      if(menu.slotColor[0] < 0) menu.slotColor[0] = 0;
+      if(menu.slotColor[1] < 0) menu.slotColor[1] = 2;
+    }
     if(activeSlots().length<2){
       menu.mode='slots';
       menu.row=0;
@@ -1125,6 +1546,12 @@ function rowEnter(){
 }
 function menuConfirm(){
   if(menu.mode==='slots'){
+    if(settings.vsBot){
+      if(menu.slotColor[0] < 0) menu.slotColor[0] = 0;
+      if(menu.slotColor[1] < 0) menu.slotColor[1] = 2;
+      menu.mode='rows';menu.row=4;sfx('ok');
+      return;
+    }
     if(activeSlots().length<2){toast('CHOOSE AT LEAST 2 PLAYERS!');sfx('back');}
     else{menu.mode='rows';menu.row=1;sfx('ok');}
   }else rowEnter();
@@ -1171,15 +1598,28 @@ function makePlayer(i,slot,colIdx){
   const s=SLOTS[slot] || SLOTS[0];
   const x=Math.round(WALL+(W-2*WALL)*((i+0.5)/N))-23;
   const team = (menu.slotTeam && menu.slotTeam[slot] != null) ? menu.slotTeam[slot] : (slot % 2);
+  const isBot = !!(settings.vsBot && i > 0);
   return {x:x,y:H-WALL-46,w:46,h:46,vx:0,vy:0,grounded:true,gp:SOLIDS[1],lastGp:SOLIDS[1],
     face:i%2===0?1:-1,airJumps:settings.doubleJump?1:0,wallJumps:0,coyote:0,jbuf:0,holdT:0,dropT:0,sideT:0,wallSide:0,
     sx:1,sy:1,landT:0,tagT:0,padOn:false,blinkT:rand(1.5,4),blink:0,seed:i*3.7,
-    slot:slot,colIdx:colIdx,team:team,trail:[]};
+    slot:slot,colIdx:colIdx,team:team,trail:[],
+    isBot:isBot,botDifficulty:settings.botDifficulty,
+    botState:{
+      stuckT:0,lastX:x,lastY:H-WALL-46,
+      actionQueue:[],
+      popupMsg:null,popupT:0,
+      prevHumanVx:0,prevHumanGrounded:true
+    }
+  };
 }
 function startMatch(){
   if(typeof NET!=='undefined' && NET && NET.role!==null && !NET.isHost){
     toast('HOST RESTARTS THE MATCH');
     return;
+  }
+  if(settings.vsBot){
+    if(menu.slotColor[0] < 0) menu.slotColor[0] = 0;
+    if(menu.slotColor[1] < 0) menu.slotColor[1] = 2;
   }
   const act=activeSlots();
   if(act.length<2){
@@ -1206,7 +1646,7 @@ function startMatch(){
   const players=act.map((slot,i)=>makePlayer(i,slot,menu.slotColor[slot]));
   const itTeam = settings.teams ? players[it].team : null;
   const isOnlineMatch = (typeof NET !== 'undefined' && NET && NET.role !== null);
-  const isSplitLocalTouch = (isTouch && !isOnlineMatch && act.length === 2);
+  const isSplitLocalTouch = (isTouch && !isOnlineMatch && act.length === 2 && !settings.vsBot);
   const initState = isSplitLocalTouch ? 'tutorial' : 'countdown';
   if(isSplitLocalTouch){
     LOCAL_TOUCH.showTutorial = true;
@@ -1216,7 +1656,7 @@ function startMatch(){
     LOCAL_TOUCH.showTutorial = false;
   }
   match={state:initState,cd:3,cdT:0,timer:settings.time,lastTick:settings.time,it:it,itTeam:itTeam,
-    teamItTime:[0,0,0,0],cooldown:0,
+    teamItTime:[0,0,0,0],cooldown:0,isVsBot:!!settings.vsBot,
     goFlash:0,freeze:0,shake:0,flash:0,fade:0.6,tagPop:null,resultT:0,
     tags:players.map(()=>0),hintT:7,players:players,result:null,pausedFrom:null,pauseSel:0,
     mapToast:MAPS[settings.map].name,mapToastT:2.5};
@@ -1235,6 +1675,7 @@ function quitToMenu(){
     netBroadcastReliable({t:'to_menu'});
   }
   GESTURE_SPLIT.showTutorial = false;
+  saveBotBrain();
   match=null;screen='menu';sfx('back');
 }
 
@@ -1350,7 +1791,7 @@ function inputFor(p){
     jumpEdge=jumpEdge||pd.jumpE;jumpHeld=jumpHeld||pd.jumpHeld;downHeld=downHeld||pd.dropHeld;
   }
   const isOnlineMatch = (typeof NET !== 'undefined' && NET && NET.role !== null);
-  const isSplitLocal = (isTouch && !isOnlineMatch && match && match.players && match.players.length === 2);
+  const isSplitLocal = (isTouch && !isOnlineMatch && match && match.players && match.players.length === 2 && !match.isVsBot);
   if(!isSplitLocal && p.slot === (typeof NET !== 'undefined' && NET && NET.mySlot >= 0 ? NET.mySlot : 0)){
     if(TOUCH.left) dir = -1;
     if(TOUCH.right) dir = 1;
@@ -1375,7 +1816,10 @@ function physUpdate(p,dt,allow){
   const wasG=p.grounded;
   if(wasG)p.coyote=0.11;else p.coyote-=dt;
   let dir=0,jumpP=false,jumpHeld=false,downHeld=false;
-  if(allow){const inp=inputFor(p);dir=inp.dir;jumpP=inp.jumpEdge;jumpHeld=inp.jumpHeld;downHeld=inp.downHeld;}
+  if(allow){
+    const inp = p.isBot ? TagBrain.getBotAction(p, dt) : inputFor(p);
+    dir=inp.dir;jumpP=inp.jumpEdge;jumpHeld=inp.jumpHeld;downHeld=inp.downHeld;
+  }
   const onSpeed=p.grounded&&!!zoneAtFeet(p,'speed');
   if(onSpeed&&!p.padOn)sfx('pad');
   p.padOn=onSpeed;
@@ -1681,6 +2125,9 @@ function applyTag(newItIdx, popX, popY){
   oldIt.tagT = 0.7; newIt.tagT = 0.7;
   sfx('tag');
   tagBurst(match.tagPop.x, match.tagPop.y, getPlayerColor(oldIt), getPlayerColor(newIt));
+  if(match.isVsBot){
+    TagBrain.onTag(newItIdx, P.indexOf(oldIt));
+  }
 }
 
 function checkTag(){
@@ -1763,6 +2210,9 @@ function endMatch(){
   match.resultT=0;
   confetti();
   sfx('win');
+  if(match.isVsBot){
+    TagBrain.onMatchEnd(match.result);
+  }
   if(typeof NET!=='undefined' && NET && NET.isHost && NET.midgameJoiner){
     netToast('New player joined — returning to lobby!');
   }
@@ -1944,6 +2394,9 @@ function updateGame(dt){
     } else {
       physUpdate(p, dt, inPlay);
     }
+  }
+  if(inPlay && match.isVsBot){
+    TagBrain.observe(dt, match);
   }
   // Tag before bump — skins kissing counts before bodies push apart.
   checkTag();
@@ -2359,7 +2812,17 @@ function drawPlayers(){
       moving:Math.abs(p.vx)>60,grounded:p.grounded,seed:p.seed
     });
     const teamBadge = settings.teams ? ((p.team === 0 ? ' [RED]' : (p.team === 1 ? ' [BLUE]' : ' [GRN]'))) : '';
-    ptxt('P'+(p.slot+1)+teamBadge,p.x+p.w/2,p.y-12,FN(11,900),col);
+    if(p.isBot){
+      ptxt('🤖 BOT Lv.'+TagBrain.brain.brainLevel+' ['+(p.botDifficulty||settings.botDifficulty)+']',p.x+p.w/2,p.y-12,FN(10.5,900),'#00d2d3');
+      if(p.botState && p.botState.popupT > 0 && p.botState.popupMsg){
+        const popAlpha = clamp(p.botState.popupT * 1.5, 0, 1);
+        g.save(); g.globalAlpha = popAlpha;
+        ptxt(p.botState.popupMsg, p.x + p.w/2, p.y - 28, FN(10, 900), '#feca57');
+        g.restore();
+      }
+    } else {
+      ptxt('P'+(p.slot+1)+teamBadge,p.x+p.w/2,p.y-12,FN(11,900),col);
+    }
     // Proximity voice speaking indicator
     if(typeof isPlayerSpeaking==='function' && isPlayerSpeaking(p.slot!=null?p.slot:i)){
       const spkY=p.y-26, spkX=p.x+p.w/2;
@@ -2428,6 +2891,20 @@ function slotCardRects(){
   const isShortH = (CH < 640);
   const isPhone2P = (isTouch && !isOnline && (CW < 950 || CH < 600));
   const r = [];
+
+  if(settings.vsBot && !isOnline){
+    // 1P vs Bot: 2 large, prominent, comfortable cards centered (Human & ML Bot)
+    const maxRowW = Math.min(CW - 24, 540);
+    const gap = Math.floor(clamp(CW * 0.03, 12, 24));
+    const cw = Math.floor((maxRowW - gap) / 2);
+    const chh = Math.floor(clamp(CH * (isPortrait ? 0.16 : 0.20), 80, 115));
+    const totalW = 2 * cw + gap;
+    const x0 = Math.floor(CW / 2 - totalW / 2);
+    const y = Math.floor(clamp(CH * 0.22, 86, 170));
+    r.push({ x: x0, y: y, w: cw, h: chh });
+    r.push({ x: x0 + cw + gap, y: y, w: cw, h: chh });
+    return r;
+  }
 
   if(isPhone2P){
     // Mobile Phone Local: 2 large, prominent, easy-to-tap cards centered
@@ -2546,13 +3023,36 @@ function drawMenu(){
   ptxt(settings.teams ? (isNarrowW ? '👥 ON' : '👥 TEAMS') : (isNarrowW ? '👥 OFF' : '👥 SOLO'), tbx + tbw/2, soundY + tbh/2 + 1, FN(isNarrowW ? 10.5 : 12, 900), settings.teams ? '#ffffff' : '#2c3e50');
   zone(tbx, soundY, tbw, tbh, { fn: toggleTeams });
 
+  // 1P vs Bot Mode Toggle button (next to Teams button)
+  const vbw = isNarrowW ? 78 : 110;
+  const vbh = si;
+  const vbx = tbx - vbw - 8;
+  rr(g, vbx, soundY, vbw, vbh, 9);
+  g.fillStyle = settings.vsBot ? 'rgba(0, 210, 211, 0.95)' : 'rgba(255,255,255,0.85)';
+  g.fill(); g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
+  ptxt(settings.vsBot ? (isNarrowW ? '🤖 BOT' : '🤖 1P VS BOT') : (isNarrowW ? '👥 2-4P' : '👥 LOCAL 2-4P'), vbx + vbw/2, soundY + vbh/2 + 1, FN(isNarrowW ? 10.5 : 12, 900), settings.vsBot ? '#0b1320' : '#2c3e50');
+  zone(vbx, soundY, vbw, vbh, { fn: () => {
+    settings.vsBot = !settings.vsBot;
+    if(settings.vsBot){
+      menu.slotColor[0] = 0;
+      menu.slotColor[1] = 2;
+      menu.slotColor[2] = -1;
+      menu.slotColor[3] = -1;
+      toast('1 PLAYER VS ML BOT ENABLED');
+      sfx('ok');
+    } else {
+      toast('LOCAL 2-4 PLAYER MODE');
+      sfx('back');
+    }
+  }});
+
   // Header navigation bar / buttons
   let headerBottom = 50;
   if(isOnline){
     // Online room header bar
     const rh = Math.floor(clamp(CH * 0.065, 34, 42));
     const ry = 10;
-    const maxBarW = Math.min(520, tbx - 14);
+    const maxBarW = Math.min(520, (settings.vsBot ? vbx : tbx) - 14);
     const rx = 12;
     rr(g, rx, ry, maxBarW, rh, 8);
     g.fillStyle = 'rgba(14,20,32,0.94)'; g.fill();
@@ -2920,9 +3420,18 @@ function drawMenu(){
       const cx = r.x + r.w/2, cy = r.y + r.h/2;
       const glyphR = clamp(Math.min(r.w * 0.18, r.h * 0.22), 12, 26);
 
-      if(isAct){
+      if(settings.vsBot && i === 1){
+        // Bot Card (Player 2)
+        const diffCol = (settings.botDifficulty === 'NIGHTMARE' ? '#ff4757' : (settings.botDifficulty === 'HARD' ? '#ffa502' : (settings.botDifficulty === 'MEDIUM' ? '#2ed573' : '#70a1ff')));
+        ptxt('🤖 ML BOT', cx, cy - 8, FN(Math.min(15, r.w * 0.11), 900), '#ffffff');
+        ptxt('‹ ⚙️ ' + settings.botDifficulty + ' ›', cx, cy + glyphR * 0.72, FN(Math.min(12, r.w * 0.095), 900), diffCol);
+        txt('‹ LVL ' + botBrain.brainLevel + ' ›', cx, r.y + r.h - Math.max(10, r.h * 0.14), FN(Math.min(12, r.w * 0.09), 800), 'rgba(255,255,255,0.85)');
+
+        zone(r.x-4, r.y-4, r.w*0.5, r.h+8, { fn: () => cycleBotDifficulty(-1) });
+        zone(r.x+r.w*0.5, r.y-4, r.w*0.5+4, r.h+8, { fn: () => cycleBotDifficulty(1) });
+      } else if(isAct){
         const isPad = !!PAD[i];
-        const label = isPhone2P ? ('PLAYER ' + (i + 1)) : (isPad ? '⦾ PAD' : SLOTS[i].label);
+        const label = settings.vsBot ? 'YOU (P1)' : (isPhone2P ? ('PLAYER ' + (i + 1)) : (isPad ? '⦾ PAD' : SLOTS[i].label));
         g.save(); g.globalAlpha = 0.62;
         padGlyph(cx, cy - glyphR * 0.7, glyphR, true);
         g.restore();
@@ -2935,23 +3444,57 @@ function drawMenu(){
         } else {
           txt('◀   ▶', cx, r.y + r.h - Math.max(10, r.h * 0.14), FN(Math.min(16, r.w * 0.12), 900), 'rgba(255,255,255,0.85)');
         }
+
+        zone(r.x-4, r.y-4, r.w*0.4+4, r.h+8, { fn: () => {
+          if(settings.teams && isAct) cycleTeam(i, -1);
+          else cycleSlot(i, -1);
+        }});
+        zone(r.x+r.w*0.6, r.y-4, r.w*0.4+4, r.h+8, { fn: () => {
+          if(settings.teams && isAct) cycleTeam(i, 1);
+          else cycleSlot(i, 1);
+        }});
       } else {
         ptxt(SLOTS[i].label, cx, cy - 4, FN(Math.min(20, r.w * 0.14), 900), '#cfe9c9');
         txt('◀   ▶', cx, r.y + r.h - Math.max(10, r.h * 0.14), FN(Math.min(16, r.w * 0.12), 900), 'rgba(255,255,255,0.7)');
-      }
 
-      zone(r.x-4, r.y-4, r.w*0.4+4, r.h+8, { fn: () => {
-        if(settings.teams && isAct) cycleTeam(i, -1);
-        else cycleSlot(i, -1);
-      }});
-      zone(r.x+r.w*0.6, r.y-4, r.w*0.4+4, r.h+8, { fn: () => {
-        if(settings.teams && isAct) cycleTeam(i, 1);
-        else cycleSlot(i, 1);
-      }});
+        zone(r.x-4, r.y-4, r.w*0.4+4, r.h+8, { fn: () => {
+          if(settings.teams && isAct) cycleTeam(i, -1);
+          else cycleSlot(i, -1);
+        }});
+        zone(r.x+r.w*0.6, r.y-4, r.w*0.4+4, r.h+8, { fn: () => {
+          if(settings.teams && isAct) cycleTeam(i, 1);
+          else cycleSlot(i, 1);
+        }});
+      }
     }
 
     for(let i=0; i<rects.length; i++){
       if(rects[i].y + rects[i].h > maxCardBottom) maxCardBottom = rects[i].y + rects[i].h;
+    }
+
+    // Live Brain Stats Banner (Only in vsBot mode)
+    if(settings.vsBot){
+      const bw = Math.min(CW - 24, 520);
+      const bh = Math.floor(clamp(CH * 0.055, 30, 38));
+      const bx = Math.floor(CW/2 - bw/2);
+      const by = maxCardBottom + 8;
+      rr(g, bx, by, bw, bh, 8);
+      g.fillStyle = 'rgba(11, 20, 36, 0.94)'; g.fill();
+      g.lineWidth = 1.8; g.strokeStyle = '#00d2d3'; g.stroke();
+
+      const statsStr = '🧠 BRAIN LVL ' + botBrain.brainLevel + '  •  ' + botBrain.matchesTrained + ' RUNS  •  ' + botBrain.stats.jukesObserved + ' JUKES';
+      ptxt(statsStr, bx + bw * 0.40, by + bh/2 + 1, FN(clamp(bw * 0.024, 10, 12), 900), '#00d2d3');
+
+      // Reset Brain button
+      const rw = Math.floor(clamp(bw * 0.18, 56, 74)), rh = bh - 8;
+      const rx = bx + bw - rw - 5, ry = by + 4;
+      rr(g, rx, ry, rw, rh, 5);
+      g.fillStyle = 'rgba(192, 57, 43, 0.88)'; g.fill();
+      g.lineWidth = 1.2; g.strokeStyle = '#e74c3c'; g.stroke();
+      ptxt('RESET', rx + rw/2, ry + rh/2 + 1, FN(10, 900), '#ffffff');
+      zone(rx, ry, rw, rh, { fn: () => resetBotBrain() });
+
+      maxCardBottom = by + bh;
     }
 
     const footerH = Math.max(22, Math.floor(CH * 0.045));
@@ -2963,8 +3506,8 @@ function drawMenu(){
     const baseFs = clamp(step * 0.42, 11, 20);
 
     for(let i=0; i<ROWS.length; i++){
-      if(isPhone2P && i === 0) continue; // Skip "CHANGE PLAYERS" row on mobile phone 2P since cards are already prominent
-      const y = ry0 + (isPhone2P ? (i - 0.2) : i) * step;
+      if(isPhone2P && i === 0 && !settings.vsBot) continue; // Skip "CHANGE PLAYERS" row on mobile phone 2P only if PVP
+      const y = ry0 + (isPhone2P && !settings.vsBot ? (i - 0.2) : i) * step;
       const hl = (menu.mode === 'rows' && menu.row === i);
       const sc = hl ? 1.06 : 1;
       g.save();
@@ -2972,12 +3515,19 @@ function drawMenu(){
       let s = '';
       let rowCol = hl ? '#ffffff' : '#c8d8e8';
 
-      if(i === 0) s = 'CHANGE PLAYERS  ' + activeSlots().length + 'P';
+      if(i === 0){
+        if(settings.vsBot){
+          s = 'DIFFICULTY:  ‹  ' + settings.botDifficulty + '  ›';
+          rowCol = (settings.botDifficulty === 'NIGHTMARE' ? '#ff4757' : (settings.botDifficulty === 'HARD' ? '#ffa502' : (settings.botDifficulty === 'MEDIUM' ? '#2ed573' : '#70a1ff')));
+        } else {
+          s = 'CHANGE PLAYERS  ' + activeSlots().length + 'P';
+        }
+      }
       else if(i === 1) s = 'MAP:  ‹  ' + (settings.map + 1) + '. ' + MAPS[settings.map].name + '  ›';
       else if(i === 2) s = 'TIMER:  ‹  ' + settings.time + 's  ›';
       else if(i === 3) s = '‹  ' + RULE_NAMES[menu.rule] + ': ' + (ruleValue() ? 'ON' : 'OFF') + '  ›';
       else {
-        s = 'START MATCH';
+        s = settings.vsBot ? 'START MATCH (VS BOT)' : 'START MATCH';
         rowCol = '#ffffff';
       }
 
@@ -3005,7 +3555,10 @@ function drawMenu(){
           else { sfx('go'); startMatch(); }
           return;
         }
-        if(i === 0){ cycleSlot(0, 1); }
+        if(i === 0){
+          if(settings.vsBot) cycleBotDifficulty(1);
+          else cycleSlot(0, 1);
+        }
         else if(i === 3){
           menu.mode = 'rows';
           menu.row = 3;
@@ -3125,7 +3678,7 @@ function drawTouchButtons(){
   if(!match) return;
   
   const isOnline=(typeof NET!=='undefined' && NET && NET.role!==null);
-  const isSplitLocal=(!isOnline && match.players.length===2);
+  const isSplitLocal=(!isOnline && match.players.length===2 && !match.isVsBot);
   const isTablet=Math.min(CW,CH)>=550 || (CW/CH<1.7 && Math.min(CW,CH)>=480);
   
   if(!isSplitLocal){
@@ -3674,13 +4227,26 @@ function drawResult(){
     const loser=match.result.loser != null ? match.result.loser : match.it;
     const winners=P.map((p,i)=>i).filter(i=>i!==loser);
     const wcol=PALETTE[(P[winners[0]] && P[winners[0]].colIdx) || 0].c;
-    ptxt(winners.length===1?('PLAYER '+(winners[0]+1)+' WINS!'):(winners.map(w=>'P'+(w+1)).join(' + ')+' WIN!'),CW/2,py+ph*0.12,FT(Math.min(38,CW*0.055)),wcol);
-    ptxt('PLAYER '+(loser+1)+' WAS IT - LOSES!   (MAP '+(settings.map+1)+': '+MAPS[settings.map].name+')',CW/2,py+ph*0.24,FN(Math.min(14,CW*0.028),800),'#ffffff');
+    if(match.isVsBot){
+      const humanWon = (loser === 1);
+      const title = humanWon ? '🎉 YOU DEFEATED THE BOT!' : '🤖 THE BOT DEFEATED YOU!';
+      const subtitle = humanWon ? 'SUPERIOR MOVEMENT & JUKES! (BRAIN ADAPTING...)' : 'THE BOT IS LEARNING YOUR HABITS...';
+      ptxt(title, CW/2, py + ph * 0.12, FT(Math.min(36, CW * 0.055)), humanWon ? '#2ecc71' : '#e74c3c');
+      ptxt(subtitle, CW/2, py + ph * 0.24, FN(Math.min(13.5, CW * 0.028), 800), '#ffffff');
+    } else {
+      ptxt(winners.length===1?('PLAYER '+(winners[0]+1)+' WINS!'):(winners.map(w=>'P'+(w+1)).join(' + ')+' WIN!'),CW/2,py+ph*0.12,FT(Math.min(38,CW*0.055)),wcol);
+      ptxt('PLAYER '+(loser+1)+' WAS IT - LOSES!   (MAP '+(settings.map+1)+': '+MAPS[settings.map].name+')',CW/2,py+ph*0.24,FN(Math.min(14,CW*0.028),800),'#ffffff');
+    }
     const psz=Math.min(60,ph*0.17);
     drawChar(g,CW/2-psz*2.4,py+ph*0.45-Math.abs(Math.sin(tGlobal*5))*10,psz,getPlayerColor(P[winners[0]]),{face:'happy',fdir:1,grounded:true,seed:2});
     if(P[loser]) drawChar(g,CW/2+psz*1.4,py+ph*0.48,psz,getPlayerColor(P[loser]),{face:'sad',fdir:-1,tilt:-0.06,grounded:true,seed:5});
   }
-  txt('TAGS - '+P.map((p,i)=>'P'+(i+1)+': '+match.tags[i]).join('  •  '),CW/2,py+ph*0.66,FN(13,900),'#cfe9d6');
+  if(match.isVsBot){
+    txt('TAGS — YOU: ' + match.tags[0] + '  •  🤖 BOT: ' + match.tags[1], CW/2, py + ph * 0.63, FN(13, 900), '#cfe9d6');
+    txt('🧠 BOT BRAIN: LVL ' + TagBrain.brain.brainLevel + '  •  ' + TagBrain.brain.matchesTrained + ' MATCHES TRAINED  •  ' + TagBrain.brain.stats.jukesObserved + ' JUKES LEARNED', CW/2, py + ph * 0.70, FN(11.5, 800), '#00d2d3');
+  } else {
+    txt('TAGS - '+P.map((p,i)=>'P'+(i+1)+': '+match.tags[i]).join('  •  '),CW/2,py+ph*0.66,FN(13,900),'#cfe9d6');
+  }
   const b3=Math.min(180,(pw-60)/3);
   const sx0=CW/2-(b3*3+28)/2;
   const btnH=Math.min(44, ph*0.125);
