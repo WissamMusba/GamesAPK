@@ -1172,23 +1172,26 @@ const TagBrain = {
               let bestDist = Infinity;
               for(const s of SOLIDS){
                 if(s.wall || s.dy) continue;
-                if(s.y < bot.y - 35 && s.y >= effectiveTargetY - 30 && (bot.y - s.y) <= 380){
+                if(s.y < bot.y - 35 && s.y >= effectiveTargetY - 40 && (bot.y - s.y) <= 380){
                   if(wallAhead){
                     if(wallAhead.x > bot.x && s.x > wallAhead.x + wallAhead.w) continue;
                     if(wallAhead.x < bot.x && s.x + s.w < wallAhead.x) continue;
                   }
-                  const stepMidX = s.x + s.w / 2;
-                  let d = Math.abs(s.y - effectiveTargetY) * 1.2 + Math.abs(stepMidX - bot.x);
-                  if(s.t === 'drop') d -= 160;
-                  if(d < bestDist){
-                    bestDist = d;
-                    bestStep = s;
+                  const sMidX = s.x + s.w / 2;
+                  const edgeDist = Math.max(0, s.x > bot.x ? s.x - (bot.x + bot.w) : bot.x - (s.x + s.w));
+                  if(edgeDist <= 320){
+                    const distToHx = Math.abs(sMidX - hx);
+                    let score = distToHx + Math.abs(s.y - effectiveTargetY) * 1.5;
+                    if(s.t === 'drop') score -= 180;
+                    if(score < bestDist){
+                      bestDist = score;
+                      bestStep = s;
+                    }
                   }
                 }
               }
               if(bestStep){
-                const stepCloser = SOLIDS.find(s => !s.wall && !s.dy && s.y < bot.y - 35 && s.y > bestStep.y + 35 && (bot.y - s.y) <= 220 && Math.abs((s.x + s.w/2) - bot.x) < 260);
-                climbTargetPlat = stepCloser || bestStep;
+                climbTargetPlat = bestStep;
                 bs.stepTarget = climbTargetPlat;
               }
             }
@@ -1395,13 +1398,18 @@ const TagBrain = {
             }
           }
 
-          // Elevation safety: climb to stay higher than hunter
-          if(hy >= bot.y && threatDist < 360 && bot.grounded && bs.intent.timer <= 0){
+          // Elevation safety & Full Arena Utilization: Runner climbs off the bottom floor & maintains high ground
+          const onBottomFloor = (bot.y > 1050);
+          if((onBottomFloor || hy >= bot.y - 40 || threatDist < 380) && bot.grounded && bs.intent.timer <= 0){
             for(const s of SOLIDS){
-              if(s.y < bot.y && s.y > bot.y - 280 && Math.abs(s.x + s.w/2 - bot.x) < 280){
-                jumpEdge = true;
-                bs.jumpHoldTimer = HOLD_LIFT_T;
-                break;
+              if(!s.wall && !s.dy && s.y < bot.y - 35 && s.y > bot.y - 320 && Math.abs(s.x + s.w/2 - bot.x) < 320){
+                const platDir = (s.x + s.w/2 > bot.x) ? 1 : -1;
+                if(!onBottomFloor || Math.sign(platDir) !== Math.sign(hx - bot.x) || threatDist > 160){
+                  dir = platDir;
+                  jumpEdge = true;
+                  bs.jumpHoldTimer = HOLD_LIFT_T;
+                  break;
+                }
               }
             }
           }
@@ -1441,12 +1449,14 @@ const TagBrain = {
         }
       }
 
-      // Double Jump Execution (Apex of flight; gated by proximity to target or climbing need)
-      if(!bot.grounded && bot.airJumps > 0 && !bs.hasDblJumped && bot.vy >= -120 && bot.vy <= 160){
-        const nearTarget = (Math.abs(dx) < 280);
-        const needClimb = (isIt && dy < -45 && nearTarget) || (!isIt && hy >= bot.y - 40 && dist < 220);
+      // Double Jump Execution: Scales higher platforms AND safely glides across horizontal gaps
+      if(!bot.grounded && bot.airJumps > 0 && !bs.hasDblJumped && bot.vy >= -100 && bot.vy <= 160){
+        const feetX = bot.x + bot.w/2;
+        const groundBelow = SOLIDS.some(s => feetX >= s.x - 10 && feetX <= s.x + s.w + 10 && s.y >= bot.y + bot.h && s.y < bot.y + bot.h + 120);
+        const crossingGap = !groundBelow && Math.abs(bot.vx) > 75;
+        const needClimb = (isIt && (dy < -45 || crossingGap)) || (!isIt && (hy >= bot.y - 50 || bot.y > 1050 || crossingGap));
         if(needClimb){
-          const dJumpProb = (diff === 'EASY') ? 0.35 : ((diff === 'MEDIUM') ? 0.75 : 0.98);
+          const dJumpProb = (diff === 'EASY') ? 0.60 : 0.98;
           if(Math.random() < dJumpProb){
             jumpEdge = true;
             bs.jumpHoldTimer = HOLD_LIFT_T;
@@ -1458,6 +1468,36 @@ const TagBrain = {
       // Sustained jump holding for maximum variable jump height
       if(bs.jumpHoldTimer > 0 && bot.vy < 0){
         jumpHeld = true;
+      }
+
+      // 2-Second Anti-Loop Tactic Shifter:
+      if(bot.grounded){
+        if(Math.abs(bot.y - (bs.loopLevelY || bot.y)) < 35 && Math.abs(bot.x - (bs.loopLevelX || bot.x)) < 180){
+          bs.loopTimer = (bs.loopTimer || 0) + dt;
+        } else {
+          bs.loopTimer = 0;
+          bs.loopLevelY = bot.y;
+          bs.loopLevelX = bot.x;
+        }
+
+        if(bs.loopTimer >= 2.0){
+          bs.loopTimer = 0;
+          // Bot has been in the same area / loop for 2 seconds: force a tactic shift!
+          const escapeStep = SOLIDS.find(s => !s.wall && !s.dy && s.y < bot.y - 35 && s.y > bot.y - 360 && Math.abs((s.x + s.w/2) - bot.x) < 360);
+          if(escapeStep){
+            dir = (escapeStep.x + escapeStep.w/2 > bot.x) ? 1 : -1;
+            jumpEdge = true;
+            bs.jumpHoldTimer = HOLD_LIFT_T;
+          } else {
+            dir = (dx !== 0) ? -Math.sign(dx) : (dir !== 0 ? -dir : 1);
+            jumpEdge = true;
+            bs.jumpHoldTimer = HOLD_LIFT_T;
+          }
+          if(bs.popupT <= 0){
+            bs.popupMsg = '⚡ SHIFT TACTICS!';
+            bs.popupT = 0.80;
+          }
+        }
       }
 
       // Hunter never retreats; simple jump assist if touching a wall while running
