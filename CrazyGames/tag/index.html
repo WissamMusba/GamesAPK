@@ -1106,195 +1106,82 @@ const TagBrain = {
       let dir = 0;
       let jumpEdge = false, jumpHeld = false, downHeld = false;
 
-      // Decrement active intent timer (only runner uses evasive intents; hunter is 100% focused on chase)
-      if(bs.intent.timer > 0 && (!isIt || bs.intent.type === 'counterJuke')){
+      // Decrement active intent timer
+      if(bs.intent.timer > 0){
         bs.intent.timer -= dt;
         dir = bs.intent.dir;
         if(bs.intent.downHeld) downHeld = true;
       }
 
-      if(bs.intent.timer <= 0 || (isIt && bs.intent.type !== 'counterJuke')){
-        // Detect if a tall solid barrier or wall blocks the direct horizontal path:
-        const wallAhead = SOLIDS.find(s => s.t !== 'drop' && !s.dy && (s.h > 60 || s.y < bot.y - 80) &&
-          ((s.x >= bot.x && s.x <= hx) || (s.x + s.w <= bot.x && s.x + s.w >= hx)) &&
-          bot.y + bot.h > s.y + 10 && bot.y < s.y + s.h
-        );
-
-        const targetAbove = (dy < -45) || !!wallAhead;
-        const targetBelow = (dy > 45) && !wallAhead;
+      if(bs.intent.timer <= 0){
+        const targetAbove = (dy < -45);
+        const targetBelow = (dy > 45);
 
         if(isIt){
           /* ================= HUNTER CHASE MODE ================= */
-          if(Math.abs(dy) < 55 && !wallAhead){
-            // 1. Target is on roughly same elevation with NO tall wall blocking: direct chase
-            dir = dx > 8 ? 1 : (dx < -8 ? -1 : 0);
+          if(Math.abs(dy) < 55){
+            // 1. Target is on roughly same elevation: direct chase with small deadzone
+            dir = dx > 15 ? 1 : (dx < -15 ? -1 : 0);
           } else if(targetBelow){
             // 2. Target is BELOW bot:
-            const curP = bot.gp || SOLIDS.find(s => bot.x + bot.w > s.x && bot.x < s.x + s.w && Math.abs(s.y - (bot.y + bot.h)) < 24);
             const onPink = (bot.gp && bot.gp.t === 'drop') || !!zoneAtFeet(bot, 'drop');
-            const fullyOnPink = onPink && curP && curP.t === 'drop' && (bot.x + 6 >= curP.x) && (bot.x + bot.w - 6 <= curP.x + curP.w);
-
-            if(fullyOnPink){
+            if(onPink){
               downHeld = true;
               dir = dx > 12 ? 1 : (dx < -12 ? -1 : 0);
-            } else if(onPink && curP && curP.t === 'drop'){
-              downHeld = true;
-              const pinkMidX = curP.x + curP.w / 2;
-              dir = (pinkMidX > bot.x + bot.w/2 + 6) ? 1 : ((pinkMidX < bot.x + bot.w/2 - 6) ? -1 : 0);
-            } else if(curP && curP.t !== 'drop'){
-              const attachedPink = SOLIDS.find(d => d.t === 'drop' && Math.abs(d.y - curP.y) <= 8 && 
-                ((Math.abs(d.x + d.w - curP.x) <= 10) || (Math.abs(d.x - (curP.x + curP.w)) <= 10))
-              );
-
-              if(attachedPink){
-                const pinkMidX = attachedPink.x + attachedPink.w / 2;
-                dir = (pinkMidX > bot.x + bot.w/2) ? 1 : -1;
-                downHeld = true;
-              } else {
-                const distLeft = bot.x - curP.x;
-                const distRight = (curP.x + curP.w) - (bot.x + bot.w);
-                dir = (distLeft < distRight) ? -1 : 1;
-              }
+              bs.intent = { type: 'dropThrough', timer: 0.22, dir: dir, downHeld: true };
             } else {
-              dir = dx > 10 ? 1 : (dx < -10 ? -1 : 0);
+              // On solid platform: CANNOT drop through, MUST run to edge to drop down!
+              const curP = bot.gp || SOLIDS.find(s => bot.x + bot.w > s.x && bot.x < s.x + s.w && Math.abs(s.y - (bot.y + bot.h)) < 24);
+              if(curP){
+                if(hx < curP.x){
+                  dir = -1;
+                } else if(hx > curP.x + curP.w){
+                  dir = 1;
+                } else {
+                  // Target is directly underneath: run towards the closer platform edge!
+                  const distLeft = bot.x - curP.x;
+                  const distRight = (curP.x + curP.w) - bot.x;
+                  dir = (distLeft < distRight) ? -1 : 1;
+                }
+              } else {
+                dir = dx > 10 ? 1 : (dx < -10 ? -1 : (Math.random() < 0.5 ? 1 : -1));
+              }
             }
           } else if(targetAbove){
-            // 3. Target is ABOVE bot (or wall blocks horizontal line): Intelligent Platform Climbing & Ceiling Clearance
-            const effectiveTargetY = wallAhead ? (wallAhead.y - 20) : hy;
-            const effectiveDy = wallAhead ? (effectiveTargetY - (bot.y + bot.h/2)) : dy;
-
-            const targetPlat = SOLIDS.find(s => !s.wall && (hx + human.w/2 >= s.x && hx + human.w/2 <= s.x + s.w) && Math.abs(s.y - (hy + human.h)) < 28);
-            
-            if(bot.grounded) bs.stepTarget = null;
-            let climbTargetPlat = bs.stepTarget || targetPlat;
-            if(!bs.stepTarget && effectiveDy < -140){
-              let bestStep = null;
-              let bestDist = Infinity;
-              for(const s of SOLIDS){
-                if(s.wall || s.dy) continue;
-                if(s.y < bot.y - 35 && s.y >= effectiveTargetY - 40 && (bot.y - s.y) <= 380){
-                  if(wallAhead){
-                    if(wallAhead.x > bot.x && s.x > wallAhead.x + wallAhead.w) continue;
-                    if(wallAhead.x < bot.x && s.x + s.w < wallAhead.x) continue;
-                  }
-                  const sMidX = s.x + s.w / 2;
-                  const edgeDist = Math.max(0, s.x > bot.x ? s.x - (bot.x + bot.w) : bot.x - (s.x + s.w));
-                  if(edgeDist <= 320){
-                    const distToHx = Math.abs(sMidX - hx);
-                    let score = distToHx + Math.abs(s.y - effectiveTargetY) * 1.5;
-                    if(s.t === 'drop') score -= 180;
-                    if(score < bestDist){
-                      bestDist = score;
-                      bestStep = s;
-                    }
-                  }
-                }
-              }
-              if(bestStep){
-                climbTargetPlat = bestStep;
-                bs.stepTarget = climbTargetPlat;
-              }
-            }
-
-            const targetLevelY = climbTargetPlat ? climbTargetPlat.y : effectiveTargetY;
-            const ceilingSeed = SOLIDS.find(s => s.t !== 'drop' && !s.dy && !s.wall && 
-              (bot.x + bot.w > s.x + 4 && bot.x < s.x + s.w - 4) && 
-              s.y < bot.y && s.y >= targetLevelY - 14
-            );
-
-            if(ceilingSeed && (!climbTargetPlat || ceilingSeed !== climbTargetPlat)){
-              // Merge all contiguous solid/speed segments at this height to prevent seam ping-pong
-              let minX = ceilingSeed.x, maxX = ceilingSeed.x + ceilingSeed.w;
-              let expanded = true;
-              while(expanded){
-                expanded = false;
-                for(const other of SOLIDS){
-                  if(other.wall || other.dy || other.t === 'drop') continue;
-                  if(Math.abs(other.y - ceilingSeed.y) <= 12){
-                    if(other.x <= maxX + 10 && other.x + other.w >= minX - 10){
-                      if(other.x < minX){ minX = other.x; expanded = true; }
-                      if(other.x + other.w > maxX){ maxX = other.x + other.w; expanded = true; }
-                    }
-                  }
-                }
-              }
-
-              const pinkNearby = SOLIDS.find(p => p.t === 'drop' && Math.abs(p.y - ceilingSeed.y) <= 12 && 
-                p.x >= minX - 24 && p.x + p.w <= maxX + 24
-              );
-
-              if(pinkNearby){
-                dir = (pinkNearby.x + pinkNearby.w/2 > bot.x) ? 1 : -1;
+            // 3. Target is ABOVE bot:
+            // Check if there is a solid ceiling directly overhead blocking a vertical jump
+            const ceiling = SOLIDS.find(s => s.t !== 'drop' && !s.dy && (bot.x + bot.w > s.x + 8 && bot.x < s.x + s.w - 8) && s.y < bot.y && s.y > bot.y - 280);
+            if(ceiling){
+              // Solid platform overhead! Must clear it horizontally before jumping!
+              if(Math.abs(dx) > 30){
+                dir = dx > 0 ? 1 : -1;
               } else {
-                const spanMidX = (minX + maxX) / 2;
-                const preferRight = (hx > spanMidX);
-                dir = preferRight ? 1 : -1;
-              }
-              jumpEdge = false;
-            } else if(climbTargetPlat){
-              const inClimbZone = (bot.x + bot.w >= climbTargetPlat.x - 220 && bot.x <= climbTargetPlat.x + climbTargetPlat.w + 220);
-
-              if(climbTargetPlat.t === 'drop'){
-                const stepMidX = climbTargetPlat.x + climbTargetPlat.w / 2;
-                if(bot.y + bot.h > climbTargetPlat.y){
-                  dir = (stepMidX > bot.x + bot.w/2 + 10) ? 1 : ((stepMidX < bot.x + bot.w/2 - 10) ? -1 : 0);
-                } else {
-                  dir = (hx > bot.x) ? 1 : -1;
-                }
-                if(inClimbZone && (bot.grounded || bot.coyote > 0)){
-                  jumpEdge = true;
-                  bs.jumpHoldTimer = HOLD_LIFT_T;
-                }
-              } else {
-                const adjacentPink = SOLIDS.find(p => p.t === 'drop' && Math.abs(p.y - climbTargetPlat.y) <= 8 && 
-                  ((p.x <= climbTargetPlat.x + climbTargetPlat.w + 10 && p.x + p.w >= climbTargetPlat.x - 10))
-                );
-
-                const lipLeft = climbTargetPlat.x - 30;
-                const lipRight = climbTargetPlat.x + climbTargetPlat.w + 30;
-                const isUnderClimb = (bot.x + bot.w > climbTargetPlat.x + 6 && bot.x < climbTargetPlat.x + climbTargetPlat.w - 6);
-
-                if(isUnderClimb){
-                  if(adjacentPink){
-                    dir = (adjacentPink.x + adjacentPink.w/2 > bot.x) ? 1 : -1;
-                  } else {
-                    const toLeft = bot.x - lipLeft;
-                    const toRight = lipRight - bot.x;
-                    dir = (toRight < toLeft) ? 1 : -1;
-                  }
-                  jumpEdge = false;
-                } else {
-                  if(inClimbZone){
-                    if(bot.grounded || bot.coyote > 0){
-                      jumpEdge = true;
-                      bs.jumpHoldTimer = HOLD_LIFT_T;
-                    } else if(bot.sideT > 0){
-                      jumpEdge = true;
-                      bs.jumpHoldTimer = HOLD_LIFT_T;
-                    }
-                  } else {
-                    dir = (dx > 0) ? 1 : -1;
-                  }
-
-                  if(bot.y + bot.h <= climbTargetPlat.y + 16){
-                    dir = (hx > bot.x) ? 1 : -1;
-                  } else if(inClimbZone){
-                    if(bot.x < climbTargetPlat.x) dir = (bot.x < lipLeft - 10) ? 1 : ((bot.x > lipLeft + 12) ? -1 : 0);
-                    else if(bot.x > climbTargetPlat.x + climbTargetPlat.w) dir = (bot.x > lipRight + 10) ? -1 : ((bot.x < lipRight - 12) ? 1 : 0);
-                    else dir = dx > 0 ? 1 : -1;
-                  } else {
-                    dir = dx > 0 ? 1 : -1;
-                  }
-                }
+                const toLeft = bot.x - (ceiling.x - 32);
+                const toRight = (ceiling.x + ceiling.w + 32) - bot.x;
+                dir = (toLeft < toRight) ? -1 : 1;
               }
             } else {
+              // Clear overhead: direct steer towards target and jump
               dir = dx > 15 ? 1 : (dx < -15 ? -1 : (hx >= bot.x ? 1 : -1));
-              if(Math.abs(dx) < 220 && (bot.grounded || bot.coyote > 0)){
+              if(bot.grounded){
                 jumpEdge = true;
                 bs.jumpHoldTimer = HOLD_LIFT_T;
               } else if(bot.sideT > 0 && diff !== 'EASY'){
+                // Parkour wall jump
                 jumpEdge = true;
                 bs.jumpHoldTimer = HOLD_LIFT_T;
+              }
+            }
+
+            // Intermediate Stepping Stone Climb: if target is high above, steer towards intermediate platforms
+            if(dy < -90 && bot.grounded){
+              const stepPlat = SOLIDS.find(s => s.y < bot.y - 40 && s.y > bot.y - 280 && Math.abs(s.x + s.w/2 - bot.x) < 380);
+              if(stepPlat){
+                dir = (stepPlat.x + stepPlat.w/2 > bot.x) ? 1 : -1;
+                if(Math.abs(stepPlat.x + stepPlat.w/2 - bot.x) < 180){
+                  jumpEdge = true;
+                  bs.jumpHoldTimer = HOLD_LIFT_T;
+                }
               }
             }
           }
@@ -1398,18 +1285,13 @@ const TagBrain = {
             }
           }
 
-          // Elevation safety & Full Arena Utilization: Runner climbs off the bottom floor & maintains high ground
-          const onBottomFloor = (bot.y > 1050);
-          if((onBottomFloor || hy >= bot.y - 40 || threatDist < 380) && bot.grounded && bs.intent.timer <= 0){
+          // Elevation safety: climb to stay higher than hunter
+          if(hy >= bot.y && threatDist < 360 && bot.grounded && bs.intent.timer <= 0){
             for(const s of SOLIDS){
-              if(!s.wall && !s.dy && s.y < bot.y - 35 && s.y > bot.y - 320 && Math.abs(s.x + s.w/2 - bot.x) < 320){
-                const platDir = (s.x + s.w/2 > bot.x) ? 1 : -1;
-                if(!onBottomFloor || Math.sign(platDir) !== Math.sign(hx - bot.x) || threatDist > 160){
-                  dir = platDir;
-                  jumpEdge = true;
-                  bs.jumpHoldTimer = HOLD_LIFT_T;
-                  break;
-                }
+              if(s.y < bot.y && s.y > bot.y - 280 && Math.abs(s.x + s.w/2 - bot.x) < 280){
+                jumpEdge = true;
+                bs.jumpHoldTimer = HOLD_LIFT_T;
+                break;
               }
             }
           }
@@ -1449,14 +1331,11 @@ const TagBrain = {
         }
       }
 
-      // Double Jump Execution: Scales higher platforms AND safely glides across horizontal gaps
-      if(!bot.grounded && bot.airJumps > 0 && !bs.hasDblJumped && bot.vy >= -100 && bot.vy <= 160){
-        const feetX = bot.x + bot.w/2;
-        const groundBelow = SOLIDS.some(s => feetX >= s.x - 10 && feetX <= s.x + s.w + 10 && s.y >= bot.y + bot.h && s.y < bot.y + bot.h + 120);
-        const crossingGap = !groundBelow && Math.abs(bot.vx) > 75;
-        const needClimb = (isIt && (dy < -45 || crossingGap)) || (!isIt && (hy >= bot.y - 50 || bot.y > 1050 || crossingGap));
+      // Double Jump Execution (Evaluated at the apex of flight, not spammed every frame)
+      if(!bot.grounded && bot.airJumps > 0 && !bs.hasDblJumped && bot.vy >= -90 && bot.vy <= 120){
+        const needClimb = (isIt && dy < -45) || (!isIt && hy >= bot.y - 40 && dist < 220);
         if(needClimb){
-          const dJumpProb = (diff === 'EASY') ? 0.60 : 0.98;
+          const dJumpProb = (diff === 'EASY') ? 0.35 : ((diff === 'MEDIUM') ? 0.75 : 0.98);
           if(Math.random() < dJumpProb){
             jumpEdge = true;
             bs.jumpHoldTimer = HOLD_LIFT_T;
@@ -1470,50 +1349,29 @@ const TagBrain = {
         jumpHeld = true;
       }
 
-      // 2-Second Anti-Loop Tactic Shifter:
-      if(bot.grounded){
-        if(Math.abs(bot.y - (bs.loopLevelY || bot.y)) < 35 && Math.abs(bot.x - (bs.loopLevelX || bot.x)) < 180){
-          bs.loopTimer = (bs.loopTimer || 0) + dt;
-        } else {
-          bs.loopTimer = 0;
-          bs.loopLevelY = bot.y;
-          bs.loopLevelX = bot.x;
-        }
+      // Robust Unstuck Watchdog (Inverts direction, drops if on pink, never locks to center)
+      const moved = Math.hypot(bot.x - (bs.lastX || bot.x), bot.y - (bs.lastY || bot.y));
+      if(moved < 8){
+        bs.stuckT = (bs.stuckT || 0) + dt;
+        if(bs.stuckT > 0.24){
+          let recoverDir = bs.lastRecoverDir ? -bs.lastRecoverDir : (dir !== 0 ? -dir : (dx !== 0 ? Math.sign(dx) : (Math.random() < 0.5 ? 1 : -1)));
+          bs.lastRecoverDir = recoverDir;
+          dir = recoverDir;
 
-        if(bs.loopTimer >= 2.0){
-          bs.loopTimer = 0;
-          // Bot has been in the same area / loop for 2 seconds: force a tactic shift!
-          const escapeStep = SOLIDS.find(s => !s.wall && !s.dy && s.y < bot.y - 35 && s.y > bot.y - 360 && Math.abs((s.x + s.w/2) - bot.x) < 360);
-          if(escapeStep){
-            dir = (escapeStep.x + escapeStep.w/2 > bot.x) ? 1 : -1;
-            jumpEdge = true;
-            bs.jumpHoldTimer = HOLD_LIFT_T;
+          if((bot.gp && bot.gp.t === 'drop') || !!zoneAtFeet(bot, 'drop')){
+            downHeld = true;
+            bs.intent = { type: 'unstuckDrop', timer: 0.32, dir: recoverDir, downHeld: true };
           } else {
-            dir = (dx !== 0) ? -Math.sign(dx) : (dir !== 0 ? -dir : 1);
             jumpEdge = true;
             bs.jumpHoldTimer = HOLD_LIFT_T;
+            bs.intent = { type: 'unstuckJump', timer: 0.36, dir: recoverDir, downHeld: false };
           }
-          if(bs.popupT <= 0){
-            bs.popupMsg = '⚡ SHIFT TACTICS!';
-            bs.popupT = 0.80;
-          }
+          bs.stuckT = 0;
         }
-      }
-
-      // Hunter never retreats; simple jump assist if touching a wall while running
-      if(isIt && dir !== 0 && bot.grounded){
-        const checkWall = (dir > 0) ? (bot.x + bot.w + 6) : (bot.x - 6);
-        const hittingWall = SOLIDS.some(s => s.t !== 'drop' && !s.dy && checkWall >= s.x && checkWall <= s.x + s.w && bot.y + bot.h > s.y + 12 && bot.y < s.y + s.h);
-        if(hittingWall && Math.abs(bot.vx) < 40){
-          bs.wallStuckT = (bs.wallStuckT || 0) + dt;
-          if(bs.wallStuckT > 0.35){
-            jumpEdge = true;
-            bs.jumpHoldTimer = HOLD_LIFT_T;
-            bs.wallStuckT = 0;
-          }
-        } else {
-          bs.wallStuckT = 0;
-        }
+      } else {
+        bs.stuckT = 0;
+        bs.lastX = bot.x;
+        bs.lastY = bot.y;
       }
 
       if(bs.popupT > 0) bs.popupT -= dt;
