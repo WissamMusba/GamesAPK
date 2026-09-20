@@ -1045,10 +1045,12 @@ const RULE_NAMES=['DOUBLE JUMP'];
 function toast(m){menu.toast=m;menu.toastT=2.2;}
 
 function setMenuTab(tab){
+  if(tab !== 'solo' && tab !== '2p') tab = '2p';
   menu.tab = tab;
   if(tab === 'solo'){
     menu.botOn = true;
     menu.slotColor = [0, 1, -1, -1, -1, -1, -1, -1];
+    settings.teams = false;
   } else if(tab === '2p'){
     menu.botOn = false;
     if(menu.slotColor[0] < 0) menu.slotColor[0] = 0;
@@ -1078,6 +1080,11 @@ function cycleTeam(i, d){
   }
 }
 function toggleTeams(){
+  if(menu.tab === 'solo'){
+    toast('TEAMS REQUIRE 2-4 PLAYERS');
+    sfx('back');
+    return;
+  }
   if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){
     toast('HOST TOGGLES TEAM MODE');
     sfx('back');
@@ -1243,6 +1250,7 @@ function makePlayer(i,slot,colIdx){
     slot:slot,colIdx:colIdx,team:team,trail:[]};
 }
 function startMatch(){
+  if(menu.tab === 'solo') settings.teams = false;
   if(typeof NET!=='undefined' && NET && NET.role!==null && !NET.isHost){
     toast('HOST RESTARTS THE MATCH');
     return;
@@ -3207,6 +3215,8 @@ function drawMenu(){
 
   // 4. Center Stage Content (1P SOLO & 2-4 PLAYERS)
   const isSolo = (menu.tab === 'solo');
+  if(isSolo) settings.teams = false;
+
 
   // Determine active slots
   let actSlots = [0];
