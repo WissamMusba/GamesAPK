@@ -3552,10 +3552,20 @@ function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
     if(settings.teams) cycleTeam(slotIdx, 1); else cycleSlot(slotIdx, 1);
   }});
 
-  // Color Name in Middle
-  const curCol = (menu.slotColor[slotIdx] >= 0) ? menu.slotColor[slotIdx] : slotIdx;
-  const colName = (PALETTE[curCol % PALETTE.length] || PALETTE[0]).name;
+  // Color / Team Name in Middle
+  let colName = '';
+  if(settings.teams){
+    const tIdx = (menu.slotTeam && menu.slotTeam[slotIdx] != null) ? (menu.slotTeam[slotIdx] % TEAMS.length) : (slotIdx % 2);
+    const teamDef = TEAMS[tIdx] || TEAMS[0];
+    colName = teamDef ? teamDef.name : 'TEAM';
+  } else {
+    const curCol = (menu.slotColor[slotIdx] >= 0) ? menu.slotColor[slotIdx] : slotIdx;
+    colName = (PALETTE[curCol % PALETTE.length] || PALETTE[0]).name;
+  }
   ptxt(colName, centerX, barY + barH/2 + 1, FN(clamp(cardW * 0.068, 8.5, 10.5), 900), '#ffffff');
+  zone(barX + 20, barY, barW - 40, barH, { fn: () => {
+    if(settings.teams) cycleTeam(slotIdx, 1); else cycleSlot(slotIdx, 1);
+  }});
 }
 
 /* Helper to render "+ ADD PLAYER" card */
