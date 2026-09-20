@@ -109,7 +109,10 @@ window.addEventListener('load',grabFocus);grabFocus();
 /* ================= input ================= */
 const keys=new Set(),pressed=new Set();
 const GAMEKEYS=new Set([
-  'ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyW','KeyA','KeyS','KeyD',
+  'ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space',
+  'KeyW','KeyA','KeyS','KeyD',
+  'KeyI','KeyJ','KeyK','KeyL',
+  'KeyT','KeyF','KeyG','KeyH',
   'Enter','NumpadEnter','KeyM','KeyP','KeyN','KeyB','Digit1','Digit2','Digit3','Digit4',
   'Digit5','Digit6','Digit7','Digit8','Digit9','Digit0'
 ]);
@@ -832,6 +835,48 @@ const TIMES=[60,120,180];
 const settings={map:0,doubleJump:true,collision:false,timeIdx:1,teams:false};
 Object.defineProperty(settings,'time',{get(){return TIMES[this.timeIdx];}});
 
+/* ================= LOCAL CONTROLS SCHEMES ================= */
+const LOCAL_CTRL_SCHEMES = [
+  { id: 'wasd', label: 'WASD', map: { L: ['KeyA','KeyQ'], R: 'KeyD', U: ['KeyW','Space'], D: 'KeyS' } },
+  { id: 'arrows', label: 'ARROWS', map: { L: 'ArrowLeft', R: 'ArrowRight', U: ['ArrowUp','Numpad0'], D: 'ArrowDown' } },
+  { id: 'ijkl', label: 'IJKL', map: { L: 'KeyJ', R: 'KeyL', U: 'KeyI', D: 'KeyK' } },
+  { id: 'tfgh', label: 'TFGH', map: { L: 'KeyF', R: 'KeyH', U: 'KeyT', D: 'KeyG' } },
+  { id: 'controller', label: 'CONTROLLER', map: {} }
+];
+
+function cycleSlotCtrl(slot, d){
+  if(!menu.slotCtrl) menu.slotCtrl = [0, 1, 2, 3];
+  const total = LOCAL_CTRL_SCHEMES.length;
+  let cur = menu.slotCtrl[slot] != null ? menu.slotCtrl[slot] : slot;
+  
+  // Find keyboard schemes already taken by other active players
+  const taken = new Set();
+  const act = (typeof activeSlots === 'function') ? activeSlots() : [0, 1];
+  for(const other of act){
+    if(other !== slot){
+      const otherIdx = menu.slotCtrl[other];
+      if(otherIdx != null){
+        const s = LOCAL_CTRL_SCHEMES[((otherIdx % total) + total) % total];
+        if(s && s.id !== 'controller'){
+          taken.add(s.id);
+        }
+      }
+    }
+  }
+
+  // Cycle to next available scheme, skipping taken keyboard schemes
+  for(let step = 1; step <= total; step++){
+    const nextIdx = ((cur + d * step) % total + total) % total;
+    const candidate = LOCAL_CTRL_SCHEMES[nextIdx];
+    if(!candidate) continue;
+    if(!taken.has(candidate.id) || candidate.id === 'controller'){
+      menu.slotCtrl[slot] = nextIdx;
+      break;
+    }
+  }
+  sfx('ui');
+}
+
 const SLOTS=[
   {label:'WASD',pad:0,map:{L:['KeyA','KeyQ'],R:'KeyD',U:['KeyW','Space'],D:'KeyS'}},
   {label:'↑←↓→',pad:1,map:{L:'ArrowLeft',R:'ArrowRight',U:'ArrowUp',D:'ArrowDown'}},
@@ -994,7 +1039,7 @@ let currentThemeIdx=0;
 
 /* ================= menu ================= */
 let screen='menu',tGlobal=0;
-const menu={tab:'2p',mode:'rows',slotColor:[0,1,-1,-1,-1,-1,-1,-1],slotTeam:[0,1,0,1,0,1,0,1],row:4,rule:0,toast:null,toastT:0,botOn:false,mapModal:false};
+const menu={tab:'2p',mode:'rows',slotColor:[0,1,-1,-1,-1,-1,-1,-1],slotTeam:[0,1,0,1,0,1,0,1],slotCtrl:[0,1,2,3],row:4,rule:0,toast:null,toastT:0,botOn:false,mapModal:false};
 const ROWS=['CHANGE PLAYERS','MAP','TIMER','RULES','START'];
 const RULE_NAMES=['DOUBLE JUMP'];
 function toast(m){menu.toast=m;menu.toastT=2.2;}
@@ -1720,19 +1765,55 @@ function demoNodes(){
   return r;
 }
 function inputFor(p){
-  if(isBotSlot(p))return botInputFor(p);
-  /* Offline: each slot has its dedicated keyboard scheme and pad (P1: WASD, P2: Arrows, P3: IJKL, P4: TFGH) */
-  const s=SLOTS[p.slot],m=s.map,pd=PAD[s.pad];
-  const hasL=Array.isArray(m.L),hasR=Array.isArray(m.R);
-  let dir=(hasR?(m.R.some(k=>keys.has(k))?1:0):(keys.has(m.R)?1:0))
-         -(hasL?(m.L.some(k=>keys.has(k))?1:0):(keys.has(m.L)?1:0));
-  const hasU=Array.isArray(m.U),hasD=Array.isArray(m.D);
-  let jumpEdge=hasU?(m.U.some(k=>pressed.has(k))):(pressed.has(m.U));
-  let jumpHeld=hasU?(m.U.some(k=>keys.has(k))):(keys.has(m.U));
-  let downHeld=hasD?(m.D.some(k=>keys.has(k))):(keys.has(m.D));
-  if(pd){
-    dir+=(pd.right?1:0)-(pd.left?1:0);
-    jumpEdge=jumpEdge||pd.jumpE;jumpHeld=jumpHeld||pd.jumpHeld;downHeld=downHeld||pd.dropHeld;
+  if(isBotSlot(p)) return botInputFor(p);
+  
+  const schemeIdx = (menu.slotCtrl && menu.slotCtrl[p.slot] != null) ? menu.slotCtrl[p.slot] : p.slot;
+  const s = LOCAL_CTRL_SCHEMES[((schemeIdx % LOCAL_CTRL_SCHEMES.length) + LOCAL_CTRL_SCHEMES.length) % LOCAL_CTRL_SCHEMES.length] || LOCAL_CTRL_SCHEMES[0];
+  const m = s.map || {};
+  
+  let dir = 0, jumpEdge = false, jumpHeld = false, downHeld = false;
+
+  // Keyboard mapping
+  if(m.L || m.R || m.U || m.D){
+    const hasL = Array.isArray(m.L), hasR = Array.isArray(m.R);
+    dir += (hasR ? (m.R.some(k => keys.has(k)) ? 1 : 0) : (keys.has(m.R) ? 1 : 0))
+         - (hasL ? (m.L.some(k => keys.has(k)) ? 1 : 0) : (keys.has(m.L) ? 1 : 0));
+    const hasU = Array.isArray(m.U), hasD = Array.isArray(m.D);
+    jumpEdge = jumpEdge || (hasU ? m.U.some(k => pressed.has(k)) : pressed.has(m.U));
+    jumpHeld = jumpHeld || (hasU ? m.U.some(k => keys.has(k)) : keys.has(m.U));
+    downHeld = downHeld || (hasD ? m.D.some(k => keys.has(k)) : keys.has(m.D));
+  }
+
+  // Controller mapping
+  if(s.id === 'controller'){
+    let ctrlOrder = 0;
+    if(menu && menu.slotCtrl){
+      for(let sIdx = 0; sIdx < p.slot; sIdx++){
+        const eIdx = menu.slotCtrl[sIdx];
+        const eScheme = LOCAL_CTRL_SCHEMES[((eIdx % LOCAL_CTRL_SCHEMES.length) + LOCAL_CTRL_SCHEMES.length) % LOCAL_CTRL_SCHEMES.length];
+        if(eScheme && eScheme.id === 'controller') ctrlOrder++;
+      }
+    }
+    let connectedCount = 0;
+    let pd = null;
+    for(let pi = 0; pi < 4; pi++){
+      if(PAD[pi] && PAD[pi].connected){
+        if(connectedCount === ctrlOrder){
+          pd = PAD[pi];
+          break;
+        }
+        connectedCount++;
+      }
+    }
+    if(!pd && PAD[p.slot] && PAD[p.slot].connected) pd = PAD[p.slot];
+    if(!pd && PAD[0] && PAD[0].connected) pd = PAD[0];
+
+    if(pd && pd.connected){
+      dir += (pd.right ? 1 : 0) - (pd.left ? 1 : 0);
+      jumpEdge = jumpEdge || pd.jumpE;
+      jumpHeld = jumpHeld || pd.jumpHeld;
+      downHeld = downHeld || pd.dropHeld;
+    }
   }
   const isOnlineMatch = (typeof NET !== 'undefined' && NET && NET.role !== null);
   const isSplitLocal = (isTouch && !isOnlineMatch && match && match.players && match.players.length === 2);
@@ -3008,6 +3089,8 @@ function drawMapModal(){
 
 /* ================= MODERN RESPONSIVE ARENA MENU ================= */
 function drawMenu(){
+  if(menu.tab !== 'solo' && menu.tab !== '2p') menu.tab = '2p';
+
   // CrazyGames banner request guard
   try{
     if(!drawMenu._bannersAt || Date.now() - drawMenu._bannersAt > 1500){
@@ -3042,11 +3125,11 @@ function drawMenu(){
   const isMobile = (CW < 700 || CH < 500);
 
   // 2. Header Bar
-  const headY = 10;
-  const headH = clamp(CH * 0.08, isShortH ? 32 : 38, 48);
+  const headY = 8;
+  const headH = clamp(CH * 0.08, isShortH ? 30 : 36, 46);
 
   // Sound & Theme buttons on top-right
-  const si = Math.floor(clamp(headH * 0.88, 30, 40));
+  const si = Math.floor(clamp(headH * 0.88, 28, 38));
   const soundX = CW - si - 12;
   rr(g, soundX, headY, si, si, 8);
   g.fillStyle = 'rgba(255,255,255,0.85)'; g.fill(); g.lineWidth = 2; g.strokeStyle = INK; g.stroke();
@@ -3072,24 +3155,23 @@ function drawMenu(){
   zone(themeX, headY, si, si, { fn: () => { cycleTheme(); } });
 
   // Game Logo (Left)
-  const logoFs = clamp(headH * 0.85, 24, 44);
-  const logoW = g.measureText ? 100 : 80;
-  ptxt('TAG!', 14 + logoW * 0.35, headY + headH * 0.52, FT(logoFs), '#ffffff');
+  const logoFs = clamp(headH * 0.82, 22, 42);
+  const logoW = 76;
+  ptxt('TAG!', 14 + logoW * 0.4, headY + headH * 0.52, FT(logoFs), '#ffffff');
 
-  // Mode Navigation Tabs (Pills in Center)
+  // Mode Navigation Tabs (Pills in Center) - 2P Party first, 1P Solo second, Online hidden for now
   const modeTabs = [
-    { id: 'solo', label: '🤖 1P SOLO', short: '🤖 1P' },
-    { id: '2p', label: '👥 2 PLAYERS', short: '👥 2P' },
-    { id: 'online', label: '🌐 ONLINE', short: '🌐 NET' }
+    { id: '2p', label: '👥 2-4P PARTY', short: '👥 2-4P' },
+    { id: 'solo', label: '🤖 1P SOLO', short: '🤖 1P' }
   ];
-  const tabW = clamp((themeX - 14 - logoW - 20) / 3, isNarrowW ? 64 : 96, 136);
+  const tabW = clamp((themeX - 14 - logoW - 20) / modeTabs.length, isNarrowW ? 78 : 110, 160);
   const tabH = clamp(headH * 0.84, 28, 36);
-  const tabsTotalW = tabW * modeTabs.length + (modeTabs.length - 1) * 6;
+  const tabsTotalW = tabW * modeTabs.length + (modeTabs.length - 1) * 8;
   const tabsX = Math.max(14 + logoW + 8, Math.floor(CW / 2 - tabsTotalW / 2));
 
   for(let t = 0; t < modeTabs.length; t++){
     const tab = modeTabs[t];
-    const tx = tabsX + t * (tabW + 6);
+    const tx = tabsX + t * (tabW + 8);
     const ty = headY + (headH - tabH) / 2;
     const isAct = (menu.tab === tab.id);
 
@@ -3108,128 +3190,111 @@ function drawMenu(){
   }
 
   // 3. Layout vertical budgeting
-  const headerBottom = headY + headH + 8;
-  const startBtnH = clamp(CH * 0.082, 38, 48);
+  const headerBottom = headY + headH + 6;
+  const startBtnH = clamp(CH * 0.080, 36, 46);
   const startBtnW = Math.min(CW - 28, 340);
-  const startBtnY = CH - startBtnH - (isShortH ? 6 : 14);
+  const startBtnY = CH - startBtnH - (isShortH ? 6 : 12);
 
   // Settings strip directly above start button
-  const stripH = isNarrowW ? 74 : clamp(CH * 0.075, 36, 44);
+  const stripH = isNarrowW ? 70 : clamp(CH * 0.075, 36, 42);
   const stripW = Math.min(CW - 24, 880);
   const stripX = Math.floor(CW/2 - stripW/2);
-  const stripY = startBtnY - stripH - (isShortH ? 6 : 10);
+  const stripY = startBtnY - stripH - (isShortH ? 5 : 8);
 
-  // Center Stage Area (Between header and settings strip)
+  // Center Stage Area
   const stageY = headerBottom;
-  const stageH = Math.max(110, stripY - stageY - 8);
+  const stageH = Math.max(110, stripY - stageY - 6);
 
-  // 4. Center Stage Content
-  if(menu.tab === 'online'){
-    // --- ONLINE MATCHMAKING BOX ---
-    const obW = Math.min(CW - 28, 520);
-    const obH = Math.min(stageH, 200);
-    const obX = Math.floor(CW/2 - obW/2);
-    const obY = Math.floor(stageY + (stageH - obH)/2);
+  // 4. Center Stage Content (1P SOLO & 2-4 PLAYERS)
+  const isSolo = (menu.tab === 'solo');
 
-    rr(g, obX, obY, obW, obH, 14);
-    g.fillStyle = 'rgba(18,24,38,0.92)'; g.fill();
-    g.lineWidth = 2.5; g.strokeStyle = '#2ecc71'; g.stroke();
-
-    ptxt('🌐 ONLINE MULTIPLAYER (TEST BUILD)', obX + obW/2, obY + 28, FT(clamp(obW * 0.038, 14, 18)), '#2ecc71');
-
-    const btnSubW = Math.floor((obW - 40) / 2);
-    const btnSubH = clamp(obH * 0.26, 32, 42);
-    const btnSubY = obY + obH - btnSubH - 20;
-
-    // Join Room button
-    rr(g, obX + 16, btnSubY, btnSubW, btnSubH, 8);
-    g.fillStyle = '#2ed573'; g.fill(); g.lineWidth = 2; g.strokeStyle = INK; g.stroke();
-    ptxt('🔗 JOIN ROOM', obX + 16 + btnSubW/2, btnSubY + btnSubH/2 + 1, FN(12.5, 900), '#ffffff');
-    zone(obX + 16, btnSubY, btnSubW, btnSubH, { fn: () => netJoinAction() });
-
-    // Host Room button
-    rr(g, obX + obW - btnSubW - 16, btnSubY, btnSubW, btnSubH, 8);
-    g.fillStyle = '#ffa502'; g.fill(); g.lineWidth = 2; g.strokeStyle = INK; g.stroke();
-    ptxt('👑 HOST ROOM', obX + obW - btnSubW/2 - 16, btnSubY + btnSubH/2 + 1, FN(12.5, 900), '#ffffff');
-    zone(obX + obW - btnSubW - 16, btnSubY, btnSubW, btnSubH, { fn: () => netHostAction() });
-
-    ptxt('Play peer-to-peer with up to 8 players across browsers!', obX + obW/2, obY + obH/2 + 4, FN(clamp(obW * 0.026, 10, 12), 800), 'rgba(255,255,255,0.7)');
-
+  // Determine active slots
+  let actSlots = [0];
+  if(isSolo){
+    actSlots = [0, 1]; // P1 Human, P2 BOT
   } else {
-    // --- PLAYER CARDS GRID (1P SOLO & 2 PLAYERS) ---
-    const isSolo = (menu.tab === 'solo');
-    let numCards = 2;
-    if(!isSolo && CW >= 720){
-      if(menu.slotColor[3] >= 0) numCards = 4;
-      else if(menu.slotColor[2] >= 0) numCards = 3;
+    if(menu.slotColor[0] < 0) menu.slotColor[0] = 0;
+    if(menu.slotColor[1] < 0) menu.slotColor[1] = 1;
+    actSlots = [0, 1];
+    if(menu.slotColor[2] >= 0) actSlots.push(2);
+    if(menu.slotColor[3] >= 0) actSlots.push(3);
+  }
+
+  // Top sub-header in stage: Player count pills if in 2-4P mode
+  let stageTopPad = 0;
+  if(!isSolo){
+    stageTopPad = clamp(stageH * 0.12, 22, 28);
+    const pillY = stageY + 2;
+    const countOpts = [2, 3, 4];
+    const pw = clamp(CW * 0.18, 62, 90);
+    const ph = stageTopPad - 4;
+    const totalPillsW = countOpts.length * pw + (countOpts.length - 1) * 6;
+    const pillsStartX = Math.floor(CW / 2 - totalPillsW / 2);
+
+    ptxt('LOCAL PLAYERS:', pillsStartX - 54, pillY + ph/2 + 1, FN(10.5, 900), 'rgba(255,255,255,0.65)', 'right');
+
+    for(let k = 0; k < countOpts.length; k++){
+      const numP = countOpts[k];
+      const px = pillsStartX + k * (pw + 6);
+      const isCurCount = (actSlots.length === numP);
+      rr(g, px, pillY, pw, ph, 6);
+      g.fillStyle = isCurCount ? '#2ed573' : 'rgba(255,255,255,0.12)';
+      g.fill();
+      g.lineWidth = isCurCount ? 2 : 1;
+      g.strokeStyle = isCurCount ? '#ffffff' : 'rgba(255,255,255,0.25)';
+      g.stroke();
+      ptxt(numP + ' PLAYERS', px + pw/2, pillY + ph/2 + 1, FN(10, 900), isCurCount ? '#ffffff' : '#cbd5e1');
+
+      zone(px, pillY, pw, ph, { fn: () => {
+        if(numP === 2){ menu.slotColor[2] = -1; menu.slotColor[3] = -1; sfx('ui'); }
+        else if(numP === 3){ menu.slotColor[2] = 2; menu.slotColor[3] = -1; sfx('ok'); }
+        else if(numP === 4){ menu.slotColor[2] = 2; menu.slotColor[3] = 3; sfx('ok'); }
+      }});
+    }
+  }
+
+  const cardsAreaY = stageY + stageTopPad;
+  const cardsAreaH = stageH - stageTopPad;
+
+  // Check if 4 cards should wrap to 2x2 grid on small mobile
+  const use2x2 = (!isSolo && actSlots.length === 4 && CW < 680);
+  const showAddCard = (!isSolo && actSlots.length < 4 && CW >= 580 && !use2x2);
+  const totalItems = actSlots.length + (showAddCard ? 1 : 0);
+
+  const cardGap = clamp(CW * 0.016, 6, 14);
+  const maxGridW = Math.min(CW - 20, 920);
+
+  if(use2x2){
+    // 2x2 grid on small phones for 4 players
+    const cW = Math.floor((maxGridW - cardGap) / 2);
+    const cH = Math.floor((cardsAreaH - cardGap) / 2);
+    for(let idx = 0; idx < 4; idx++){
+      const colIdx = idx % 2;
+      const rowIdx = Math.floor(idx / 2);
+      const cx = Math.floor(CW / 2 - maxGridW / 2) + colIdx * (cW + cardGap);
+      const cy = cardsAreaY + rowIdx * (cH + cardGap);
+      drawPlayerCard(cx, cy, cW, cH, actSlots[idx], false, true);
+    }
+  } else {
+    // Single horizontal row
+    const cardW = Math.floor(clamp((maxGridW - (totalItems - 1) * cardGap) / totalItems, 110, 205));
+    const cardH = Math.floor(clamp(cardsAreaH * 0.94, isShortH ? 110 : 135, 215));
+    const totalRowW = totalItems * cardW + (totalItems - 1) * cardGap;
+    const startX = Math.floor(CW / 2 - totalRowW / 2);
+    const cardY = Math.floor(cardsAreaY + (cardsAreaH - cardH) / 2);
+
+    for(let k = 0; k < actSlots.length; k++){
+      const slot = actSlots[k];
+      const cx = startX + k * (cardW + cardGap);
+      const isBot = (isSolo && slot === 1);
+      drawPlayerCard(cx, cardY, cardW, cardH, slot, isBot, !isSolo && slot >= 2);
     }
 
-    const cardGap = clamp(CW * 0.02, 8, 16);
-    const maxTotalCardsW = Math.min(CW - 24, 880);
-    const cardW = Math.floor(clamp((maxTotalCardsW - (numCards - 1) * cardGap) / numCards, 130, 210));
-    const cardH = Math.floor(clamp(stageH * 0.94, isShortH ? 115 : 140, 220));
-    const totalCardsW = numCards * cardW + (numCards - 1) * cardGap;
-    const cardsStartX = Math.floor(CW / 2 - totalCardsW / 2);
-    const cardY = Math.floor(stageY + (stageH - cardH) / 2);
-
-    for(let i = 0; i < numCards; i++){
-      const cx = cardsStartX + i * (cardW + cardGap);
-      const isBot = (isSolo && i === 1);
-      const col = getSlotColor(i, menu.slotColor, menu.slotTeam);
-
-      // Card Container
-      rr(g, cx - 2, cardY - 2, cardW + 4, cardH + 4, 14);
-      g.fillStyle = '#ffffff'; g.fill(); g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
-      rr(g, cx, cardY, cardW, cardH, 12);
-      g.fillStyle = 'rgba(16, 22, 34, 0.90)'; g.fill();
-      g.lineWidth = 2; g.strokeStyle = isBot ? '#ff4757' : col; g.stroke();
-
-      const centerX = cx + cardW / 2;
-
-      // Card Header
-      const headTitleH = clamp(cardH * 0.16, 16, 26);
-      const pTitle = isBot ? '🤖 BOT' : ('PLAYER ' + (i + 1));
-      ptxt(pTitle, centerX, cardY + headTitleH * 0.65, FT(clamp(cardW * 0.082, 11, 14)), isBot ? '#ff6b81' : col);
-
-      // Avatar
-      const avY = cardY + cardH * 0.44;
-      const charSz = clamp(cardH * 0.28, 22, 44);
-      drawChar(g, centerX, avY, charSz, col, { face: isBot ? 'cool' : 'happy', grounded: true, seed: i * 3 });
-
-      // Control Tag
-      const tagH = clamp(cardH * 0.12, 14, 20);
-      const tagY = cardY + cardH * 0.65;
-      const ctrlStr = isBot ? 'SMART AI' : (isTouch ? 'TOUCH CONTROLS' : SLOTS[i].label);
-      rr(g, centerX - cardW * 0.40, tagY, cardW * 0.80, tagH, 5);
-      g.fillStyle = 'rgba(255,255,255,0.08)'; g.fill();
-      ptxt(ctrlStr, centerX, tagY + tagH/2 + 1, FN(clamp(cardW * 0.065, 8.5, 10.5), 800), 'rgba(255,255,255,0.75)');
-
-      // Color Cycler Bar
-      const barH = clamp(cardH * 0.15, 18, 26);
-      const barY = cardY + cardH - barH - 8;
-      const barW = cardW - 16;
-      const barX = cx + 8;
-      rr(g, barX, barY, barW, barH, 6);
-      g.fillStyle = 'rgba(0,0,0,0.5)'; g.fill();
-      g.lineWidth = 1.2; g.strokeStyle = 'rgba(255,255,255,0.2)'; g.stroke();
-
-      // Left Arrow
-      const arrowSz = barH;
-      ptxt('‹', barX + arrowSz * 0.4, barY + barH/2 + 1, FT(13), '#ffffff');
-      zone(barX, barY, arrowSz * 0.8, barH, { fn: () => {
-        if(settings.teams) cycleTeam(i, -1); else cycleSlot(i, -1);
-      }});
-
-      // Right Arrow
-      ptxt('›', barX + barW - arrowSz * 0.4, barY + barH/2 + 1, FT(13), '#ffffff');
-      zone(barX + barW - arrowSz * 0.8, barY, arrowSz * 0.8, barH, { fn: () => {
-        if(settings.teams) cycleTeam(i, 1); else cycleSlot(i, 1);
-      }});
-
-      // Color Name in Middle
-      const curCol = (menu.slotColor[i] >= 0) ? menu.slotColor[i] : i;
-      const colName = (PALETTE[curCol % PALETTE.length] || PALETTE[0]).name;
-      ptxt(colName, centerX, barY + barH/2 + 1, FN(clamp(cardW * 0.068, 9, 11), 900), '#ffffff');
+    // Draw "+ ADD PLAYER" card if slots available
+    if(showAddCard){
+      const nextSlot = actSlots.length;
+      const addX = startX + actSlots.length * (cardW + cardGap);
+      drawAddPlayerCard(addX, cardY, cardW, cardH, nextSlot);
     }
   }
 
@@ -3242,37 +3307,37 @@ function drawMenu(){
     // Statically stacked for narrow mobile phones
     const rowH1 = Math.floor(stripH / 2);
     // Row 1: Map Selector
-    const mapY = stripY + 4;
+    const mapY = stripY + 3;
     const arrowW = 32;
     // Left Arrow
-    rr(g, stripX + 6, mapY, arrowW, rowH1 - 8, 6);
+    rr(g, stripX + 6, mapY, arrowW, rowH1 - 6, 6);
     g.fillStyle = 'rgba(255,255,255,0.12)'; g.fill();
-    ptxt('‹', stripX + 6 + arrowW/2, mapY + (rowH1 - 8)/2 + 1, FT(15), '#ffffff');
-    zone(stripX + 6, mapY, arrowW, rowH1 - 8, { fn: () => {
+    ptxt('‹', stripX + 6 + arrowW/2, mapY + (rowH1 - 6)/2 + 1, FT(15), '#ffffff');
+    zone(stripX + 6, mapY, arrowW, rowH1 - 6, { fn: () => {
       settings.map = (settings.map - 1 + MAPS.length) % MAPS.length; buildLevel(); sfx('ui');
     }});
 
     // Right Arrow
-    rr(g, stripX + stripW - arrowW - 6, mapY, arrowW, rowH1 - 8, 6);
+    rr(g, stripX + stripW - arrowW - 6, mapY, arrowW, rowH1 - 6, 6);
     g.fillStyle = 'rgba(255,255,255,0.12)'; g.fill();
-    ptxt('›', stripX + stripW - arrowW/2 - 6, mapY + (rowH1 - 8)/2 + 1, FT(15), '#ffffff');
-    zone(stripX + stripW - arrowW - 6, mapY, arrowW, rowH1 - 8, { fn: () => {
+    ptxt('›', stripX + stripW - arrowW/2 - 6, mapY + (rowH1 - 6)/2 + 1, FT(15), '#ffffff');
+    zone(stripX + stripW - arrowW - 6, mapY, arrowW, rowH1 - 6, { fn: () => {
       settings.map = (settings.map + 1) % MAPS.length; buildLevel(); sfx('ui');
     }});
 
     // Middle Map Name (Opens Modal!)
     const mapMidW = stripW - arrowW * 2 - 24;
     const mapMidX = stripX + arrowW + 12;
-    rr(g, mapMidX, mapY, mapMidW, rowH1 - 8, 6);
+    rr(g, mapMidX, mapY, mapMidW, rowH1 - 6, 6);
     g.fillStyle = 'rgba(255,255,255,0.18)'; g.fill();
     const mapLabel = '🗺️ ' + (settings.map + 1) + '. ' + MAPS[settings.map].name + ' ▾';
-    ptxt(mapLabel, mapMidX + mapMidW/2, mapY + (rowH1 - 8)/2 + 1, FN(11, 900), '#ffd166');
-    zone(mapMidX, mapY, mapMidW, rowH1 - 8, { fn: () => { menu.mapModal = true; sfx('ok'); } });
+    ptxt(mapLabel, mapMidX + mapMidW/2, mapY + (rowH1 - 6)/2 + 1, FN(11, 900), '#ffd166');
+    zone(mapMidX, mapY, mapMidW, rowH1 - 6, { fn: () => { menu.mapModal = true; sfx('ok'); } });
 
     // Row 2: Chips (2x Jump, 120s Timer, Teams)
-    const chipsY = stripY + rowH1 + 2;
+    const chipsY = stripY + rowH1 + 1;
     const chipW = Math.floor((stripW - 24) / 3);
-    const chipH = rowH1 - 8;
+    const chipH = rowH1 - 6;
 
     // Chip 1: Double Jump
     rr(g, stripX + 6, chipsY, chipW, chipH, 6);
@@ -3296,8 +3361,8 @@ function drawMenu(){
 
   } else {
     // Single sleek horizontal dock for desktop & tablets
-    const itemH = stripH - 12;
-    const itemY = stripY + 6;
+    const itemH = stripH - 10;
+    const itemY = stripY + 5;
 
     // Map Selector Box (Left half)
     const mapBoxW = clamp(stripW * 0.48, 220, 360);
@@ -3363,8 +3428,8 @@ function drawMenu(){
   g.fillStyle = 'rgba(46, 204, 113, ' + pulse + ')'; g.fill();
   g.lineWidth = 2; g.strokeStyle = '#ffffff'; g.stroke();
 
-  const startLabel = isTouch ? '▶ START MATCH' : '▶ START MATCH  (SPACE)';
-  ptxt(startLabel, CW/2, startBtnY + startBtnH/2 + 1, FT(clamp(startBtnH * 0.44, 15, 20)), '#ffffff');
+  const startLabel = isTouch ? '▶ START MATCH' : '▶ START MATCH  (SPACE / ENTER)';
+  ptxt(startLabel, CW/2, startBtnY + startBtnH/2 + 1, FT(clamp(startBtnH * 0.44, 14, 19)), '#ffffff');
   zone(startBtnX - 2, startBtnY - 2, startBtnW + 4, startBtnH + 4, { fn: () => {
     if(activeSlots().length < 2){
       menu.slotColor[0] = 0; menu.slotColor[1] = 1;
@@ -3386,6 +3451,131 @@ function drawMenu(){
 
   // 8. Map Modal (draws on top if open)
   drawMapModal();
+}
+
+/* Helper to render an individual Player Card with interactive controls */
+function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
+  const col = getSlotColor(slotIdx, menu.slotColor, menu.slotTeam);
+  const centerX = cx + cardW / 2;
+
+  rr(g, cx - 2, cardY - 2, cardW + 4, cardH + 4, 14);
+  g.fillStyle = '#ffffff'; g.fill(); g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
+  rr(g, cx, cardY, cardW, cardH, 12);
+  g.fillStyle = 'rgba(16, 22, 34, 0.90)'; g.fill();
+  g.lineWidth = 2; g.strokeStyle = isBot ? '#ff4757' : col; g.stroke();
+
+  // Header Title
+  const headTitleH = clamp(cardH * 0.16, 16, 24);
+  const pTitle = isBot ? '🤖 BOT' : ('PLAYER ' + (slotIdx + 1));
+  ptxt(pTitle, centerX, cardY + headTitleH * 0.62, FT(clamp(cardW * 0.082, 10.5, 13.5)), isBot ? '#ff6b81' : col);
+
+  // Remove Button (✕) on P3 / P4 cards
+  if(canRemove){
+    const rxSz = clamp(cardW * 0.12, 18, 22);
+    const rxX = cx + cardW - rxSz - 4, rxY = cardY + 4;
+    rr(g, rxX, rxY, rxSz, rxSz, 6);
+    g.fillStyle = 'rgba(231, 76, 60, 0.85)'; g.fill();
+    g.lineWidth = 1.2; g.strokeStyle = INK; g.stroke();
+    ptxt('✕', rxX + rxSz/2, rxY + rxSz/2 + 1, FN(10.5, 900), '#ffffff');
+    zone(rxX, rxY, rxSz, rxSz, { fn: () => {
+      menu.slotColor[slotIdx] = -1;
+      if(slotIdx === 2) menu.slotColor[3] = -1;
+      sfx('back');
+    }});
+  }
+
+  // Avatar in middle
+  const avY = cardY + cardH * 0.42;
+  const charSz = clamp(cardH * 0.28, 20, 42);
+  drawChar(g, centerX, avY, charSz, col, { face: isBot ? 'cool' : 'happy', grounded: true, seed: slotIdx * 3 });
+
+  // Control Selector Bar (WASD / Arrows / IJKL / TFGH / Gamepads)
+  const ctrlH = clamp(cardH * 0.14, 18, 24);
+  const ctrlY = cardY + cardH * 0.63;
+  const ctrlW = cardW - 14;
+  const ctrlX = cx + 7;
+
+  rr(g, ctrlX, ctrlY, ctrlW, ctrlH, 6);
+  g.fillStyle = 'rgba(255, 255, 255, 0.09)'; g.fill();
+  g.lineWidth = 1; g.strokeStyle = isBot ? 'rgba(255,255,255,0.15)' : 'rgba(255, 255, 255, 0.28)'; g.stroke();
+
+  if(isBot){
+    ptxt('SMART AI', centerX, ctrlY + ctrlH/2 + 1, FN(clamp(cardW * 0.068, 8.5, 10.5), 800), 'rgba(255,255,255,0.75)');
+  } else {
+    // Left arrow
+    ptxt('‹', ctrlX + 8, ctrlY + ctrlH/2 + 1, FT(11), '#ffffff');
+    zone(ctrlX, ctrlY, 22, ctrlH, { fn: () => cycleSlotCtrl(slotIdx, -1) });
+
+    // Right arrow
+    ptxt('›', ctrlX + ctrlW - 8, ctrlY + ctrlH/2 + 1, FT(11), '#ffffff');
+    zone(ctrlX + ctrlW - 22, ctrlY, 22, ctrlH, { fn: () => cycleSlotCtrl(slotIdx, 1) });
+
+    // Control Label
+    const curCtrlIdx = (menu.slotCtrl && menu.slotCtrl[slotIdx] != null) ? menu.slotCtrl[slotIdx] : slotIdx;
+    const curCtrl = LOCAL_CTRL_SCHEMES[((curCtrlIdx % LOCAL_CTRL_SCHEMES.length) + LOCAL_CTRL_SCHEMES.length) % LOCAL_CTRL_SCHEMES.length];
+    const ctrlLabel = curCtrl ? curCtrl.label : 'WASD';
+    const ctrlFs = clamp(cardW * 0.065, 8.5, 10.5);
+    ptxt(ctrlLabel, centerX, ctrlY + ctrlH/2 + 1, FN(ctrlFs, 900), '#ffd166');
+    zone(ctrlX + 22, ctrlY, ctrlW - 44, ctrlH, { fn: () => cycleSlotCtrl(slotIdx, 1) });
+  }
+
+  // Color Cycler Bar
+  const barH = clamp(cardH * 0.14, 18, 24);
+  const barY = cardY + cardH - barH - 7;
+  const barW = cardW - 14;
+  const barX = cx + 7;
+
+  rr(g, barX, barY, barW, barH, 6);
+  g.fillStyle = 'rgba(0,0,0,0.5)'; g.fill();
+  g.lineWidth = 1; g.strokeStyle = 'rgba(255,255,255,0.2)'; g.stroke();
+
+  // Left Arrow
+  const arrowSz = barH;
+  ptxt('‹', barX + 8, barY + barH/2 + 1, FT(12), '#ffffff');
+  zone(barX, barY, 20, barH, { fn: () => {
+    if(settings.teams) cycleTeam(slotIdx, -1); else cycleSlot(slotIdx, -1);
+  }});
+
+  // Right Arrow
+  ptxt('›', barX + barW - 8, barY + barH/2 + 1, FT(12), '#ffffff');
+  zone(barX + barW - 20, barY, 20, barH, { fn: () => {
+    if(settings.teams) cycleTeam(slotIdx, 1); else cycleSlot(slotIdx, 1);
+  }});
+
+  // Color Name in Middle
+  const curCol = (menu.slotColor[slotIdx] >= 0) ? menu.slotColor[slotIdx] : slotIdx;
+  const colName = (PALETTE[curCol % PALETTE.length] || PALETTE[0]).name;
+  ptxt(colName, centerX, barY + barH/2 + 1, FN(clamp(cardW * 0.068, 8.5, 10.5), 900), '#ffffff');
+}
+
+/* Helper to render "+ ADD PLAYER" card */
+function drawAddPlayerCard(cx, cardY, cardW, cardH, nextSlot){
+  const centerX = cx + cardW / 2;
+  const centerY = cardY + cardH / 2;
+
+  // Dashed style box
+  rr(g, cx, cardY, cardW, cardH, 12);
+  g.fillStyle = 'rgba(255, 255, 255, 0.04)'; g.fill();
+  g.lineWidth = 2;
+  g.setLineDash ? g.setLineDash([6, 5]) : null;
+  g.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+  g.stroke();
+  g.setLineDash ? g.setLineDash([]) : null;
+
+  // Plus Circle
+  const plusR = clamp(cardW * 0.16, 18, 26);
+  g.beginPath(); g.arc(centerX, centerY - 10, plusR, 0, TAU);
+  g.fillStyle = 'rgba(46, 204, 113, 0.85)'; g.fill();
+  g.lineWidth = 2; g.strokeStyle = '#ffffff'; g.stroke();
+  ptxt('+', centerX, centerY - 8, FT(Math.round(plusR * 1.3)), '#ffffff');
+
+  ptxt('+ ADD P' + (nextSlot + 1), centerX, centerY + plusR + 10, FN(clamp(cardW * 0.08, 11, 13), 900), '#2ecc71');
+  ptxt('(CLICK TO JOIN)', centerX, centerY + plusR + 24, FN(clamp(cardW * 0.058, 8.5, 10), 800), 'rgba(255,255,255,0.5)');
+
+  zone(cx, cardY, cardW, cardH, { fn: () => {
+    menu.slotColor[nextSlot] = nextSlot;
+    sfx('ok');
+  }});
 }
 /* ================= HUD / pause / result ================= */
 function tri(x,y,r,dir){
