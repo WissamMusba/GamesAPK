@@ -1352,13 +1352,14 @@ function isBotSlot(p){
     return p.slot===1;
   }catch(e){return false;}
 }
-function botSolidBetween(ax,ay,bx,by){
-  // sample line head->target, blocked by solid/speed/boost (NOT pink drop)
+function botSolidBetween(ax,ay,bx,by,ignorePlat){
+  // sample line head->target, blocked by solid/speed/boost (NOT pink drop,
+  // NOT the platform passed as ignorePlat - kills slope self-hits)
   for(let i=1;i<7;i++){
     const t=i/7,px=ax+(bx-ax)*t,py=ay+(by-ay)*t;
     const pt={x:px-2,y:py-2,w:4,h:4};
     for(const s of SOLIDS){
-      if(s.t==='drop')continue;
+      if(s.t==='drop'||s===ignorePlat)continue;
       if(hitRect(pt,s))return s;
     }
   }
@@ -1390,7 +1391,7 @@ function botWallAhead(p,dir){
 }
 function botInputFor(p){
   let S=BOT.st[p.slot];
-  if(!S){S=BOT.st[p.slot]={dir:0,jumpQ:false,jumpHoldT:0,decideT:0,px:p.x,py:p.y,stuckT:0,unstuckT:0,unstuckDir:0,bonks:0,bonkT:0,airT:0,dropHold:0,descLockT:0,descDir:0,airT2:0,exitX:0,hasExit:false,exitLockT:0,exitDir:0,climbPlat:null,climbOut:0,climbT:0};}
+  if(!S){S=BOT.st[p.slot]={dir:0,jumpQ:false,jumpHoldT:0,decideT:0,px:p.x,py:p.y,stuckT:0,unstuckT:0,unstuckDir:0,bonks:0,bonkT:0,airT:0,dropHold:0,descLockT:0,descDir:0,airT2:0,exitX:0,hasExit:false,exitLockT:0,exitDir:0,exitGp:null,climbPlat:null,climbOut:0,climbT:0,bannedSide:0,banT:0,banTierY:0};}
   const dt=Math.min(0.033,1/60);
   const cx=p.x+p.w/2,cy=p.y+p.h/2;
   // target: chase if IT, flee from IT if not
@@ -1409,6 +1410,11 @@ function botInputFor(p){
 
   S.decideT-=dt;S.bonkT-=dt;
   if(S.bonkT<=0)S.bonks=0;
+  // Exit-side blacklist: expires on timer or on real elevation gain
+  if(S.banT>0){
+    S.banT-=dt;
+    if(S.banT<=0||p.y<S.banTierY-45){S.bannedSide=0;S.banT=0;}
+  }
   // stuck tracking: moved <14px in 0.45s while target far?
   const moved=Math.hypot(p.x-S.px,p.y-S.py);
   const far=Math.hypot(dx,dy)>90;
@@ -1434,60 +1440,95 @@ function botInputFor(p){
   if(S.decideT<=0){
     S.decideT=BOT.think;
     let want=0;
-    if(isIt){want=Math.abs(dx)>10?Math.sign(dx):0;}
-    else{
+    if(isIt){
+      const absDx=Math.abs(dx),absDy=Math.abs(dy);
+      // Close-quarters tag range: track delta directly, no momentum lag
+      if(absDx<28&&absDy<36){
+        want=Math.sign(dx)||0;
+      }
+      // Deadband sprint hold: keep momentum, stops mid-floor zigzag
+      else if(absDx<45&&Math.abs(p.vx)>60){
+        want=Math.sign(p.vx);
+      }else{
+        want=absDx>12?Math.sign(dx):(S.dir||1);
+      }
+    }else{
       // flee: run from IT, avoid wall-hug
       want=Math.abs(dx)>24?-Math.sign(dx):(S.dir||1);
       if(p.x<WALL+110&&want<0)want=1;
       if(p.x+p.w>W-WALL-110&&want>0)want=-1;
     }
-    // UP: blocked by solid above -> detour to nearest edge of standing platform.
-    // Use bot-relative edge (fastest exit) + 34px clearance so body fully clears.
+    // UP: blocked by solid above -> persistent exit lock on this platform.
+    // Pick once (target-relative = minimal total path, no bot-tie flips),
+    // hold 0.8s while grounded on the same slab. Wall bail flips it.
     let detour=0;
     const aboveBy=cy-ty; // >0 means target above
     S.hasExit=false;
     if(S.exitLockT>0){S.exitLockT-=BOT.think;}
-    if(aboveBy>60&&Math.abs(dx)<300){
-      const blocked=botSolidBetween(cx,p.y,tx,ty);
+    // wall bail: pinned on perimeter while locked -> force opposite
+    if(S.exitLockT>0&&S.exitDir&&p.grounded){
+      if((S.exitDir<0&&p.x<=WALL+10)||(S.exitDir>0&&p.x+p.w>=W-WALL-10)){
+        const flip=-S.exitDir;
+        S.exitLockT=0.3;S.exitDir=flip;S.exitGp=p.gp||null;S.hasExit=true;
+        detour=flip;want=flip;S.dir=flip;
+      }
+    }
+    if(aboveBy>50&&Math.abs(dx)<380){
+      // Ceiling router: go around the slab that's actually overhead
+      // (blocked), not the floor under our feet. Self-hit excluded so
+      // slopes never read as ceilings. Floor (wall=1) may detour too.
+      const blocked=botSolidBetween(cx,p.y-10,tx,ty,p.gp);
       const gp=p.grounded?p.gp:null;
-      if(blocked&&gp&&!gp.wall){
-        // Locked exit: pick side once, hold it so mid-platform ties can't
-        // flip dir every think (the zig-zag). Re-pick only when lock expires.
-        if(S.exitLockT>0&&S.exitDir){
+      if(blocked&&!blocked.wall&&p.grounded&&gp){
+        // Juke invalidation: player crossed well to the other side
+        if(S.exitLockT>0&&S.exitX&&Math.sign(dx)!==Math.sign(S.exitX-cx)&&Math.abs(dx)>120){
+          S.exitLockT=0;S.exitDir=0;S.exitGp=null;S.hasExit=false;
+        }
+        // hold existing lock while on the same platform
+        if(S.exitLockT>0&&S.exitDir&&S.exitGp===gp){
           detour=S.exitDir;want=detour;
           S.dropHold=0;S.descLockT=0;S.descDir=0;
           S.hasExit=true;
         }else{
-          const edgeL=gp.x,edgeR=gp.x+gp.w;
-          const goLeft=(Math.abs(cx-edgeL)<Math.abs(cx-edgeR));
-          let exitX=goLeft?(edgeL-34):(edgeR+34);
-        // lane check: air above chosen exit must be clear, else try other side
-        if(botSolidBetween(exitX,p.y-20,exitX,Math.min(ty,p.y-300))){exitX=goLeft?(edgeR+34):(edgeL-34);}
-        detour=Math.abs(exitX-cx)>14?Math.sign(exitX-cx):(goLeft?-1:1);
-        want=detour;
-        S.dropHold=0;S.descLockT=0;S.descDir=0;
-        S.exitX=exitX;S.hasExit=true;
-        // Lane ceiling: nearest non-drop slab directly above the exit lane
-        // (not the diagonal hit, which can be an unrelated strip).
-        let laneCeil=null,laneGap=1e9;
-        const yTop=Math.min(ty,p.y-400);
-        for(const s of SOLIDS){
-          if(s.t==='drop')continue;
-          let top=s.y;
-          if(s.dy)top=s.y+(clamp(exitX,s.x,s.x+s.w)-s.x)*(s.dy/s.w);
-          if(exitX>=s.x-6&&exitX<=s.x+s.w+6&&top<p.y&&top>=yTop){
-            const gap=p.y-(top+s.h);
-            if(gap<laneGap){laneGap=gap;laneCeil=s;}
+          // Bot-relative clearing past the ceiling slab (stable vs strafing),
+          // overridden by a blacklisted side that already bonked us
+          const clearL=blocked.x-45,clearR=blocked.x+blocked.w+45;
+          const wallL=(blocked.x<=WALL+30),wallR=(blocked.x+blocked.w>=W-WALL-30);
+          let exitX=(Math.abs(cx-clearL)<Math.abs(cx-clearR))?clearL:clearR;
+          if(S.bannedSide===-1)exitX=clearR;
+          else if(S.bannedSide===1)exitX=clearL;
+          if(wallL)exitX=clearR;
+          if(wallR)exitX=clearL;
+          // Verify open air above chosen exit, else take the other side
+          if(botSolidBetween(exitX,p.y-20,exitX,Math.min(ty,p.y-280),p.gp)){
+            exitX=(exitX===clearL)?clearR:clearL;
           }
+          detour=Math.sign(exitX-cx)||1;
+          want=detour;
+          S.dropHold=0;S.descLockT=0;S.descDir=0;
+          S.exitX=exitX;S.hasExit=true;
+          // Lane ceiling above the exit (never the diagonal hit)
+          let laneCeil=null,laneGap=1e9;
+          const yTop=Math.min(ty,p.y-400);
+          for(const s of SOLIDS){
+            if(s.t==='drop'||s===p.gp)continue;
+            let top=s.y;
+            if(s.dy)top=s.y+(clamp(exitX,s.x,s.x+s.w)-s.x)*(s.dy/s.w);
+            if(exitX>=s.x-6&&exitX<=s.x+s.w+6&&top<p.y&&top>=yTop){
+              const gap=p.y-(top+s.h);
+              if(gap<laneGap){laneGap=gap;laneCeil=s;}
+            }
+          }
+          S.climbPlat=laneCeil||blocked;S.climbOut=detour;
+          S.exitLockT=0.8;S.exitDir=detour;S.exitGp=gp;
         }
-        S.climbPlat=laneCeil||blocked;S.climbOut=detour;
-        S.exitLockT=0.4;S.exitDir=detour;
-        }
+      }else if(!p.grounded||!gp||gp.wall){
+        S.exitLockT=0;S.exitDir=0;S.exitGp=null;S.hasExit=false;
       }
-    }
+    }else{S.exitLockT=0;S.exitDir=0;S.exitGp=null;}
     // BUG1: stale walk-off lock must die the moment target is above,
     // else it overwrites climb steering + suppresses the jump below.
-    if(aboveBy>60){S.descLockT=0;S.descDir=0;}
+    if(aboveBy>50){S.descLockT=0;S.descDir=0;}
     // DOWN hysteresis: keep committed walk-off direction briefly
     if(S.descLockT>0){S.descLockT-=BOT.think;if(S.descDir)want=S.descDir;}
     S.dir=want;
@@ -1497,25 +1538,19 @@ function botInputFor(p){
     if(p.grounded){
       S.airT2=0;S.climbT=0;
       if(isIt||true){
-        // FIX 1: edge-triggered first leap. When detouring under a ceiling,
-        // jump as soon as we reach the exit (even though head still blocked),
-        // not only when path is clear. Velocity gate stops hops in place.
+        // Edge launch: purely positional (floor included - its edges are
+        // the walls, exit proximity covers the run-up). No velocity gate.
         let edgeJump=false;
-        if(S.hasExit&&aboveBy>60){
-          const distExit=Math.abs(cx-S.exitX);
-          if(distExit<40&&Math.abs(p.vx)>100)edgeJump=true;
-          // fallback: shelf lip autonomous - near gp edge + target above = jump
-          if(!edgeJump&&p.gp&&!p.gp.wall){
-            const dEdge=Math.min(Math.abs(cx-p.gp.x),Math.abs(cx-(p.gp.x+p.gp.w)));
-            if(dEdge<36&&aboveBy>60&&aboveBy<320)edgeJump=true;
-          }
+        if(aboveBy>50&&p.gp){
+          const dEdge=Math.min(Math.abs(cx-p.gp.x),Math.abs(cx-(p.gp.x+p.gp.w)));
+          if(dEdge<42)edgeJump=true;
         }
+        if(!edgeJump&&S.hasExit&&aboveBy>50&&Math.abs(cx-S.exitX)<48)edgeJump=true;
         if(edgeJump){S.jumpQ=true;}
         else if(aboveBy>70&&Math.abs(dx)<260&&!headBlocked){S.jumpQ=true;}
         else if(botWallAhead(p,want)){S.jumpQ=true;}
         else if(Math.abs(p.vx)<60&&want!==0&&far){S.jumpQ=true;}
         else if(!botGroundAhead(p,want)&&far){S.jumpQ=true;} // gap: jump across
-        else if(Math.random()<0.02&&far){S.jumpQ=true;} // tiny hop jitter
       }
       // DOWN: target clearly below -> pink drop wins, else score 3 fall-lines.
       // Locked while committed so pink/brown seams can't flip dir every think.
@@ -1584,12 +1619,13 @@ function botInputFor(p){
           else S.jumpQ=false;
         }else S.jumpQ=false;
       }
-      else if(p.airJumps>0&&aboveBy>60){
-        // Relaxed climb: vertical head-clear only (no diagonal LOS that the
-        // corner blocks), wider vy band, 0.12s airTime guard vs double-tap.
-        const apexOrFalling=(p.vy>-250&&p.vy<180);
-        const headClear=!botSolidBetween(cx,p.y-6,cx,p.y-90);
-        if(apexOrFalling&&headClear&&S.airT2>0.12){
+      else if(p.airJumps>0&&aboveBy>50){
+        // Climb: immediate headroom only (far slabs must not veto),
+        // broad apex band, 0.10s guard. Inward turn still gated by lip
+        // probe so we don't steer into the corner while rising.
+        const apexWindow=(p.vy>-220&&p.vy<180);
+        const headClear=!botSolidBetween(cx,p.y-4,cx,p.y-50,p.gp);
+        if(apexWindow&&headClear&&S.airT2>0.10){
           const inDir=Math.sign(dx)||S.dir;
           if(p.vy<0&&botWallAhead(p,inDir)&&!onOuterWall){
             S.jumpQ=true;S.jumpHoldT=0.14; // jump straight, keep outward dir
@@ -1598,9 +1634,34 @@ function botInputFor(p){
       }
       else if(belowGapAir>60){S.jumpQ=false;}
       S.wantDown=false;
-      // shaft channeling: committed freefall -> fall straight unless target
-      // is far sideways (then keep steering to the lane). Clears stale lock.
-      if(belowGapAir>60&&p.vy>100){S.descLockT=0;S.descDir=0;if(Math.abs(dx)<180)S.dir=0;}
+      // Falling: steer onto the slab below (player clamped inside it),
+      // 36/14 hysteresis. Only slabs below the feet count, so the one we
+      // just walked off can't pull us back. Open shaft = fall straight.
+      if(p.vy>80&&belowGapAir>40){
+        S.descLockT=0;S.descDir=0;
+        let landingSlab=null,closestDist=1e9;
+        for(const s of SOLIDS){
+          if(s.t==='drop')continue;
+          if(s.y>=p.y+p.h+15&&s.y<=ty+60){
+            if(cx>=s.x-40&&cx<=s.x+s.w+40){
+              const dist=s.y-(p.y+p.h);
+              if(dist<closestDist){closestDist=dist;landingSlab=s;}
+            }
+          }
+        }
+        if(landingSlab&&closestDist<180){
+          const safeX=clamp(tx,landingSlab.x+26,landingSlab.x+landingSlab.w-26);
+          const offX=safeX-cx;
+          if(Math.abs(offX)>36)S.dir=Math.sign(offX);
+          else if(Math.abs(offX)<14)S.dir=0;
+        }else if(Math.abs(dx)<60){
+          S.dir=0;
+        }
+      }
+      // Rising: curl inward once the outward hold is done
+      else if(p.vy<0&&aboveBy>40&&p.vy>-250){
+        if(!S.climbPlat&&Math.abs(dx)>20)S.dir=Math.sign(dx);
+      }
     }
   }
   // bonk detect: was rising, now stopped, under a solid
@@ -1609,13 +1670,16 @@ function botInputFor(p){
     const hp={x:p.x+6,y:p.y-14,w:p.w-12,h:12};
     for(const s of SOLIDS){if(s.t==='drop')continue;if(hitRect(hp,s)){S.bonks++;S.bonkT=1.0;break;}}
     if(S.bonks>=2){
-      // force detour next think (bot-relative nearest edge)
+      // Genuine ceiling hit while climbing: blacklist the tried side and
+      // force the opposite flank for 1.5s (or until elevation is gained)
       S.decideT=0;S.bonks=0;
-      const gp=p.gp||p.lastGp;
-      if(gp&&!gp.wall){
-        const goLeft=(Math.abs(cx-gp.x)<Math.abs(cx-(gp.x+gp.w)));
-        S.dir=goLeft?-1:1;S.unstuckT=0.5;S.unstuckDir=S.dir;
+      let side=S.exitDir;
+      if(!side){
+        const gp=p.gp||p.lastGp;
+        side=gp?(Math.abs(cx-gp.x)<Math.abs(cx-(gp.x+gp.w))?-1:1):1;
       }
+      S.bannedSide=side;S.banT=1.5;S.banTierY=p.y;
+      S.dir=-side;S.unstuckT=0.5;S.unstuckDir=S.dir;
     }
   }
   S.wasVy=p.vy;
