@@ -1365,7 +1365,7 @@ const BOT={st:{},think:0.09};
 function botReset(){BOT.st={};}
 function isBotSlot(p){
   try{
-    
+    if(typeof DEMO!=='undefined'&&DEMO.active)return false;
     if(typeof NET!=='undefined'&&NET&&NET.role!==null)return false;
     if(!menu.botOn)return false;
     if(!match||!match.players||match.players.length!==2)return false;
@@ -1410,188 +1410,307 @@ function botWallAhead(p,dir){
   }
   return false;
 }
-/* ================= EMPIRICAL MAP 0 NAVIGATION GRAPH ================= */
-const MAP0_GRAPH = {"nextHop":[[-1,17,17,17,18,5,17,17,17,18,17,11,17,5,17,17,17,17,18,5,17,17,17,17,18,17],[0,-1,17,17,4,4,17,17,17,17,17,4,17,17,17,17,17,17,4,17,17,17,17,17,4,17],[17,17,-1,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17],[8,8,16,-1,16,16,7,7,8,8,21,16,7,16,7,23,16,8,16,16,7,21,16,23,16,25],[18,1,1,1,-1,18,8,8,8,18,8,18,8,18,8,18,1,1,18,18,8,8,18,8,18,8],[0,4,13,13,4,-1,13,13,13,9,13,18,13,13,13,13,13,13,18,13,13,13,13,13,24,13],[2,2,2,3,16,16,-1,20,16,16,21,16,20,16,20,20,16,2,16,16,20,21,16,21,16,20],[14,14,14,3,14,14,6,-1,14,14,14,14,12,14,14,14,14,14,14,14,20,14,14,14,14,25],[17,17,16,6,16,16,6,14,-1,9,21,16,6,16,14,15,16,17,16,16,6,21,16,21,16,21],[22,22,22,15,22,22,15,15,22,-1,15,22,15,22,15,15,22,22,22,22,15,15,22,15,22,15],[15,23,14,14,14,15,23,14,23,15,-1,14,14,15,14,15,14,23,14,15,14,14,15,23,15,25],[0,18,5,18,18,5,18,18,18,18,18,-1,18,5,18,5,18,18,18,5,18,18,5,18,18,18],[20,20,20,20,20,20,20,7,20,20,10,20,-1,20,7,7,20,20,20,20,20,7,20,7,20,20],[5,19,19,19,5,5,19,19,19,9,19,5,19,-1,19,19,19,19,5,19,19,19,22,22,5,19],[21,21,21,7,21,21,7,7,21,21,21,21,7,21,-1,15,21,21,21,21,7,21,21,21,21,21],[22,23,23,23,22,22,23,23,23,22,23,22,23,22,23,-1,23,23,22,22,23,23,22,23,22,23],[17,17,2,6,4,4,6,21,8,8,21,4,6,19,21,22,-1,17,4,19,6,21,22,23,4,21],[1,1,16,3,1,19,8,8,8,8,8,1,8,19,8,22,16,-1,1,19,8,8,22,23,1,8],[11,4,5,4,4,5,4,4,4,9,4,11,4,5,4,5,4,4,-1,5,4,4,5,4,24,4],[13,1,2,8,4,13,8,8,8,22,8,13,8,13,8,15,8,8,13,-1,8,8,22,22,24,8],[6,6,6,6,6,6,6,7,6,6,7,6,12,6,7,7,6,6,6,6,-1,7,6,7,6,25],[2,2,2,14,16,16,14,14,23,23,10,16,14,16,14,23,16,2,16,16,14,-1,23,23,16,25],[13,19,19,19,4,13,19,19,19,9,19,13,19,13,19,15,19,19,13,19,19,19,-1,23,13,19],[22,8,6,6,8,22,6,21,8,8,21,8,6,22,21,15,8,8,8,22,6,21,22,-1,22,21],[5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,-1,5],[7,7,7,7,7,23,7,7,23,23,7,7,7,23,7,23,7,7,7,23,7,7,23,23,7,-1]],"edges":{"15->22":{"act":"double","lx":1177,"tx":942,"djd":0.31},"0->5":{"act":"fall","lx":272,"tx":300,"djd":0},"6->16":{"act":"jump","lx":1595,"tx":1297,"djd":0},"5->13":{"act":"walk","lx":448,"tx":475,"djd":0},"13->19":{"act":"walk","lx":648,"tx":681,"djd":0},"19->1":{"act":"double","lx":805,"tx":994,"djd":0.35},"11->5":{"act":"fall","lx":208,"tx":392,"djd":0},"16->2":{"act":"jump","lx":1177,"tx":1383,"djd":0},"23->22":{"act":"double","lx":1335,"tx":923,"djd":0.3},"22->19":{"act":"double","lx":935,"tx":775,"djd":0.25},"19->4":{"act":"jump","lx":805,"tx":672,"djd":0},"23->6":{"act":"double","lx":1450,"tx":1825,"djd":0.25},"6->20":{"act":"walk","lx":1968,"tx":1995,"djd":0},"14->21":{"act":"walk","lx":1752,"tx":1673,"djd":0},"8->17":{"act":"double","lx":1177,"tx":1107,"djd":0.2},"20->7":{"act":"drop","lx":2035,"tx":1992,"djd":0},"17->8":{"act":"fall","lx":1072,"tx":1175,"djd":0},"1->4":{"act":"fall","lx":872,"tx":655,"djd":0},"16->22":{"act":"drop","lx":1125,"tx":855,"djd":0},"19->24":{"act":"drop","lx":715,"tx":303,"djd":0},"20->6":{"act":"walk","lx":1992,"tx":1952,"djd":0},"4->11":{"act":"jump","lx":435,"tx":166,"djd":0},"14->7":{"act":"walk","lx":1928,"tx":1955,"djd":0},"7->6":{"act":"jump","lx":2019,"tx":1845,"djd":0},"4->5":{"act":"fall","lx":432,"tx":410,"djd":0},"13->9":{"act":"fall","lx":472,"tx":558,"djd":0},"6->2":{"act":"jump","lx":1705,"tx":1441,"djd":0},"12->7":{"act":"fall","lx":2192,"tx":1959,"djd":0},"7->14":{"act":"walk","lx":1952,"tx":1863,"djd":0},"3->23":{"act":"fall","lx":1692,"tx":1449,"djd":0},"16->21":{"act":"fall","lx":1348,"tx":1595,"djd":0},"17->3":{"act":"jump","lx":1259,"tx":1748,"djd":0},"5->0":{"act":"double","lx":365,"tx":278,"djd":0.2},"21->10":{"act":"drop","lx":1639,"tx":1856,"djd":0},"7->10":{"act":"fall","lx":1952,"tx":1991,"djd":0},"25->7":{"act":"double","lx":2200,"tx":1955,"djd":0.45},"16->8":{"act":"drop","lx":1179,"tx":1368,"djd":0},"8->14":{"act":"jump","lx":1405,"tx":1755,"djd":0},"19->22":{"act":"drop","lx":740,"tx":907,"djd":0},"19->2":{"act":"double","lx":805,"tx":1434,"djd":0.55},"18->11":{"act":"jump","lx":315,"tx":122,"djd":0},"11->0":{"act":"jump","lx":122,"tx":434,"djd":0},"8->9":{"act":"fall","lx":992,"tx":603,"djd":0},"17->19":{"act":"drop","lx":1175,"tx":793,"djd":0},"19->13":{"act":"walk","lx":672,"tx":609,"djd":0},"7->20":{"act":"jump","lx":2017,"tx":2017,"djd":0},"3->21":{"act":"fall","lx":1692,"tx":1595,"djd":0},"2->17":{"act":"walk","lx":1352,"tx":1306,"djd":0},"17->1":{"act":"walk","lx":1072,"tx":1037,"djd":0},"11->18":{"act":"fall","lx":208,"tx":296,"djd":0},"13->5":{"act":"walk","lx":472,"tx":429,"djd":0},"5->9":{"act":"fall","lx":448,"tx":340,"djd":0},"5->24":{"act":"fall","lx":272,"tx":153,"djd":0},"5->18":{"act":"double","lx":337,"tx":337,"djd":0.18},"16->6":{"act":"jump","lx":1345,"tx":1595,"djd":0},"5->4":{"act":"jump","lx":337,"tx":483,"djd":0},"22->13":{"act":"jump","lx":914,"tx":563,"djd":0},"8->15":{"act":"fall","lx":992,"tx":1140,"djd":0},"22->4":{"act":"double","lx":903,"tx":518,"djd":0.2},"4->18":{"act":"walk","lx":432,"tx":373,"djd":0},"1->0":{"act":"jump","lx":914,"tx":625,"djd":0},"8->6":{"act":"jump","lx":1259,"tx":1613,"djd":0},"21->16":{"act":"jump","lx":1595,"tx":1308,"djd":0},"9->15":{"act":"fall","lx":628,"tx":879,"djd":0},"16->23":{"act":"drop","lx":1288,"tx":1541,"djd":0},"4->1":{"act":"jump","lx":678,"tx":894,"djd":0},"1->22":{"act":"fall","lx":872,"tx":928,"djd":0},"8->16":{"act":"jump","lx":1177,"tx":1177,"djd":0},"0->17":{"act":"jump","lx":549,"tx":1086,"djd":0},"21->14":{"act":"walk","lx":1728,"tx":1755,"djd":0},"7->12":{"act":"jump","lx":2009,"tx":2253,"djd":0},"7->25":{"act":"fall","lx":2128,"tx":2198,"djd":0},"19->15":{"act":"drop","lx":719,"tx":1053,"djd":0},"15->23":{"act":"double","lx":1179,"tx":1342,"djd":0.18},"4->17":{"act":"double","lx":737,"tx":1136,"djd":0.3},"18->4":{"act":"walk","lx":408,"tx":435,"djd":0},"3->8":{"act":"fall","lx":1692,"tx":1359,"djd":0},"10->23":{"act":"jump","lx":1914,"tx":1536,"djd":0},"3->7":{"act":"fall","lx":2128,"tx":1996,"djd":0},"6->3":{"act":"jump","lx":1646,"tx":1808,"djd":0},"12->10":{"act":"fall","lx":2192,"tx":2145,"djd":0},"19->8":{"act":"jump","lx":768,"tx":995,"djd":0},"14->15":{"act":"fall","lx":1752,"tx":1324,"djd":0},"17->22":{"act":"drop","lx":1175,"tx":855,"djd":0},"16->17":{"act":"jump","lx":1177,"tx":1177,"djd":0},"17->16":{"act":"drop","lx":1306,"tx":1073,"djd":0},"16->4":{"act":"jump","lx":1055,"tx":708,"djd":0},"13->15":{"act":"fall","lx":648,"tx":1024,"djd":0},"22->15":{"act":"fall","lx":1068,"tx":940,"djd":0},"18->5":{"act":"drop","lx":318,"tx":409,"djd":0},"10->14":{"act":"double","lx":1884,"tx":1797,"djd":0.25},"18->24":{"act":"drop","lx":385,"tx":140,"djd":0},"17->23":{"act":"drop","lx":1179,"tx":1476,"djd":0},"0->18":{"act":"fall","lx":272,"tx":288,"djd":0},"6->21":{"act":"fall","lx":1592,"tx":1599,"djd":0},"22->9":{"act":"drop","lx":855,"tx":563,"djd":0},"15->13":{"act":"double","lx":1117,"tx":641,"djd":0.2},"23->15":{"act":"drop","lx":1415,"tx":1149,"djd":0},"23->8":{"act":"jump","lx":1468,"tx":1243,"djd":0},"21->23":{"act":"drop","lx":1635,"tx":1470,"djd":0},"7->3":{"act":"double","lx":2022,"tx":2005,"djd":0.2},"18->9":{"act":"drop","lx":294,"tx":319,"djd":0},"3->25":{"act":"fall","lx":2128,"tx":2206,"djd":0},"21->2":{"act":"double","lx":1595,"tx":1424,"djd":0.35},"0->11":{"act":"fall","lx":272,"tx":113,"djd":0},"12->20":{"act":"fall","lx":2192,"tx":1995,"djd":0},"8->21":{"act":"jump","lx":1405,"tx":1674,"djd":0},"20->25":{"act":"drop","lx":2039,"tx":2226,"djd":0},"16->19":{"act":"drop","lx":1055,"tx":803,"djd":0},"20->12":{"act":"jump","lx":2060,"tx":2219,"djd":0},"22->23":{"act":"jump","lx":1065,"tx":1482,"djd":0},"23->21":{"act":"jump","lx":1496,"tx":1675,"djd":0},"15->21":{"act":"double","lx":1200,"tx":1642,"djd":0.25},"10->15":{"act":"fall","lx":1772,"tx":1478,"djd":0},"3->16":{"act":"jump","lx":1718,"tx":1069,"djd":0},"5->11":{"act":"double","lx":374,"tx":120,"djd":0.2},"13->22":{"act":"fall","lx":648,"tx":855,"djd":0},"6->23":{"act":"fall","lx":1592,"tx":1442,"djd":0},"9->22":{"act":"jump","lx":615,"tx":882,"djd":0},"4->8":{"act":"fall","lx":808,"tx":1057,"djd":0},"8->23":{"act":"fall","lx":1408,"tx":1437,"djd":0},"13->24":{"act":"fall","lx":472,"tx":303,"djd":0},"24->5":{"act":"double","lx":178,"tx":416,"djd":0.35},"1->17":{"act":"walk","lx":1048,"tx":1075,"djd":0},"10->25":{"act":"fall","lx":2148,"tx":2194,"djd":0},"21->8":{"act":"double","lx":1607,"tx":1176,"djd":0.2},"21->25":{"act":"drop","lx":1639,"tx":2075,"djd":0},"4->24":{"act":"fall","lx":432,"tx":148,"djd":0},"25->23":{"act":"double","lx":2075,"tx":1478,"djd":0.32},"8->10":{"act":"jump","lx":1405,"tx":1830,"djd":0}}};
-
-function getPlatformNode(p){
-  const nodes = (typeof demoNodes === 'function') ? demoNodes() : [];
-  if(!nodes || !nodes.length) return -1;
-  if(p.grounded && p.gp && !p.gp.wall){
-    const idx = nodes.indexOf(p.gp);
-    if(idx >= 0) return idx;
-  }
-  const feetY = p.y + p.h;
-  if(feetY >= 1240){
-    const cx = p.x + p.w / 2;
-    if(cx < 570) return 24;
-    if(cx > 1830) return 25;
-    return 15;
-  }
-  let bestIdx = -1, bestDist = 1e9;
-  const cx = p.x + p.w / 2;
-  for(let i = 0; i < nodes.length; i++){
-    const s = nodes[i];
-    const dx = Math.max(0, s.x - (p.x + p.w), p.x - (s.x + s.w));
-    const dy = Math.abs(feetY - s.y);
-    const d = dx * dx + dy * dy;
-    if(d < bestDist){ bestDist = d; bestIdx = i; }
-  }
-  return bestIdx;
-}
-
 function botInputFor(p){
-  let S = BOT.st[p.slot];
-  if(!S){
-    S = BOT.st[p.slot] = {
-      dir: 0, jumpQ: false, jumpHoldT: 0, decideT: 0,
-      px: p.x, py: p.y, stuckT: 0, unstuckT: 0, unstuckDir: 0,
-      currHop: -1, hopPhase: 'run', djTimer: 0, djDone: false,
-      wantDown: false
-    };
-  }
-  const dt = Math.min(0.033, 1/60);
-  const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
+  let S=BOT.st[p.slot];
+  if(!S){S=BOT.st[p.slot]={dir:0,jumpQ:false,jumpHoldT:0,decideT:0,px:p.x,py:p.y,stuckT:0,unstuckT:0,unstuckDir:0,bonks:0,bonkT:0,airT:0,dropHold:0,descLockT:0,descDir:0,airT2:0,exitX:0,hasExit:false,exitLockT:0,exitDir:0,exitGp:null,climbPlat:null,climbOut:0,climbT:0,bannedSide:0,banT:0,banTierY:0};}
+  const dt=Math.min(0.033,1/60);
+  const cx=p.x+p.w/2,cy=p.y+p.h/2;
+  // target: chase if IT, flee from IT if not
+  let target=null;
+  try{
+    const itP=match.players[match.it];
+    if(itP===p){
+      let best=1e12;
+      for(const o of match.players){if(o===p)continue;const d=(o.x-p.x)*(o.x-p.x)+(o.y-p.y)*(o.y-p.y);if(d<best){best=d;target=o;}}
+    }else target=itP;
+  }catch(e){}
+  if(!target)return{dir:0,jumpEdge:false,jumpHeld:false,downHeld:false};
+  const tx=target.x+target.w/2,ty=target.y+target.h/2;
+  const dx=tx-cx,dy=ty-cy;
+  const isIt=(match.players[match.it]===p);
 
-  let target = null;
-  try {
-    const itP = match.players[match.it];
-    if(itP === p){
-      let best = 1e12;
-      for(const o of match.players){
-        if(o === p) continue;
-        const d = (o.x - p.x) * (o.x - p.x) + (o.y - p.y) * (o.y - p.y);
-        if(d < best){ best = d; target = o; }
+  S.decideT-=dt;S.bonkT-=dt;
+  if(S.bonkT<=0)S.bonks=0;
+  // Exit-side blacklist: expires on timer or on real elevation gain
+  if(S.banT>0){
+    S.banT-=dt;
+    if(S.banT<=0||p.y<S.banTierY-45){S.bannedSide=0;S.banT=0;}
+  }
+  // stuck tracking: moved <14px in 0.45s while target far?
+  const moved=Math.hypot(p.x-S.px,p.y-S.py);
+  const far=Math.hypot(dx,dy)>90;
+  if(far&&moved<14){S.stuckT+=dt;}else{S.stuckT=0;S.px=p.x;S.py=p.y;}
+  if(moved>=14){S.px=p.x;S.py=p.y;}
+  if(S.stuckT>0.45&&S.unstuckT<=0){
+    S.unstuckT=0.7;S.unstuckDir=(S.dir!==0?-S.dir:(Math.random()<0.5?-1:1));
+    S.stuckT=0;S.bonks=0;
+  }
+  if(S.unstuckT>0){
+    S.unstuckT-=dt;
+    // spam jumps while unstuck (with hold for full height)
+    S.airT-=dt;
+    let j=false;
+    if(p.grounded||p.airJumps>0||(p.wallJumps<2&&p.sideT>0)){if(S.airT<=0){j=true;S.airT=0.28;S.jumpHoldT=0.12;}}
+    let uh=!!j||S.jumpHoldT>0;
+    if(S.jumpHoldT>0)S.jumpHoldT-=dt;
+    const r={dir:S.unstuckDir,jumpEdge:j,jumpHeld:uh,downHeld:false};
+    if(S.unstuckT<=0)S.decideT=0;
+    return r;
+  }
+
+  if(S.decideT<=0){
+    S.decideT=BOT.think;
+    let want=0;
+    if(isIt){
+      const absDx=Math.abs(dx),absDy=Math.abs(dy);
+      // Close-quarters tag range: track delta directly, no momentum lag
+      if(absDx<28&&absDy<36){
+        want=Math.sign(dx)||0;
       }
-    } else {
-      target = itP;
+      // Deadband sprint hold: keep momentum, stops mid-floor zigzag
+      else if(absDx<45&&Math.abs(p.vx)>60){
+        want=Math.sign(p.vx);
+      }else{
+        want=absDx>12?Math.sign(dx):(S.dir||1);
+      }
+    }else{
+      // flee: run from IT, avoid wall-hug
+      want=Math.abs(dx)>24?-Math.sign(dx):(S.dir||1);
+      if(p.x<WALL+110&&want<0)want=1;
+      if(p.x+p.w>W-WALL-110&&want>0)want=-1;
     }
-  } catch(e){}
-  if(!target) return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
-
-  const isIt = (match.players[match.it] === p);
-  const tx = target.x + target.w / 2, ty = target.y + target.h / 2;
-  const dx = tx - cx, dy = ty - cy;
-
-  // Stuck watchdog
-  const moved = Math.hypot(p.x - S.px, p.y - S.py);
-  if(Math.hypot(dx, dy) > 80 && moved < 10){ S.stuckT += dt; } else { S.stuckT = 0; }
-  S.px = p.x; S.py = p.y;
-
-  if(S.stuckT > 0.55 && S.unstuckT <= 0){
-    S.unstuckT = 0.45;
-    S.unstuckDir = (S.dir !== 0 ? -S.dir : (Math.random() < 0.5 ? -1 : 1));
-    S.stuckT = 0;
-    S.currHop = -1;
-  }
-  if(S.unstuckT > 0){
-    S.unstuckT -= dt;
-    const canJ = p.grounded || p.airJumps > 0;
-    if(canJ){ S.jumpQ = true; S.jumpHoldT = 0.12; }
-    let uh = !!S.jumpQ || S.jumpHoldT > 0;
-    if(S.jumpHoldT > 0) S.jumpHoldT -= dt;
-    return { dir: S.unstuckDir, jumpEdge: !!S.jumpQ, jumpHeld: uh, downHeld: false };
-  }
-
-  // --- MAP 0 GRAPH NAVIGATION ---
-  if((settings.map % MAPS.length === 0) && typeof MAP0_GRAPH !== 'undefined' && MAP0_GRAPH.nextHop){
-    const botNode = getPlatformNode(p);
-    let tgtNode = getPlatformNode(target);
-
-    if(!isIt && tgtNode >= 0){
-      const nodes = demoNodes();
-      let maxDist = -1, bestFlee = tgtNode;
-      for(let i = 0; i < nodes.length; i++){
-        const d = Math.hypot((nodes[i].x + nodes[i].w / 2) - tx, nodes[i].y - ty);
-        if(d > maxDist){ maxDist = d; bestFlee = i; }
-      }
-      if(Math.hypot(dx, dy) < 420){
-        tgtNode = bestFlee;
+    // UP: blocked by solid above -> persistent exit lock on this platform.
+    // Pick once (target-relative = minimal total path, no bot-tie flips),
+    // hold 0.8s while grounded on the same slab. Wall bail flips it.
+    let detour=0;
+    const aboveBy=cy-ty; // >0 means target above
+    S.hasExit=false;
+    if(S.exitLockT>0){S.exitLockT-=BOT.think;}
+    // wall bail: pinned on perimeter while locked -> force opposite
+    if(S.exitLockT>0&&S.exitDir&&p.grounded){
+      if((S.exitDir<0&&p.x<=WALL+10)||(S.exitDir>0&&p.x+p.w>=W-WALL-10)){
+        const flip=-S.exitDir;
+        S.exitLockT=0.3;S.exitDir=flip;S.exitGp=p.gp||null;S.hasExit=true;
+        detour=flip;want=flip;S.dir=flip;
       }
     }
-
-    if(botNode >= 0 && botNode === tgtNode){
-      S.currHop = -1;
-      let want = isIt ? (Math.sign(dx) || 0) : (-Math.sign(dx) || 1);
-      if(!isIt){
-        if(p.x < WALL + 70 && want < 0) want = 1;
-        if(p.x + p.w > W - WALL - 70 && want > 0) want = -1;
-      }
-      S.dir = want;
-      S.wantDown = false;
-      if(dy < -30 && (p.grounded || p.airJumps > 0)){
-        S.jumpQ = true;
-        S.jumpHoldT = 0.12;
-      }
-    } else if(botNode >= 0 && tgtNode >= 0){
-      const nextHop = MAP0_GRAPH.nextHop[botNode][tgtNode];
-      if(nextHop >= 0 && nextHop !== botNode){
-        const edgeKey = botNode + '->' + nextHop;
-        const edge = MAP0_GRAPH.edges[edgeKey];
-        if(edge){
-          if(S.currHop !== nextHop){
-            S.currHop = nextHop;
-            S.hopPhase = 'run';
-            S.djTimer = edge.djd || 0.28;
-            S.djDone = false;
+    if(aboveBy>50&&Math.abs(dx)<380){
+      // Ceiling router: go around the slab that's actually overhead
+      // (blocked), not the floor under our feet. Self-hit excluded so
+      // slopes never read as ceilings. Floor (wall=1) may detour too.
+      const blocked=botSolidBetween(cx,p.y-10,tx,ty,p.gp);
+      const gp=p.grounded?p.gp:null;
+      if(blocked&&!blocked.wall&&p.grounded&&gp){
+        // Juke invalidation: player crossed well to the other side
+        if(S.exitLockT>0&&S.exitX&&Math.sign(dx)!==Math.sign(S.exitX-cx)&&Math.abs(dx)>120){
+          S.exitLockT=0;S.exitDir=0;S.exitGp=null;S.hasExit=false;
+        }
+        // hold existing lock while on the same platform
+        if(S.exitLockT>0&&S.exitDir&&S.exitGp===gp){
+          detour=S.exitDir;want=detour;
+          S.dropHold=0;S.descLockT=0;S.descDir=0;
+          S.hasExit=true;
+        }else{
+          // Bot-relative clearing past the ceiling slab (stable vs strafing),
+          // overridden by a blacklisted side that already bonked us
+          const clearL=blocked.x-45,clearR=blocked.x+blocked.w+45;
+          const wallL=(blocked.x<=WALL+30),wallR=(blocked.x+blocked.w>=W-WALL-30);
+          let exitX=(Math.abs(cx-clearL)<Math.abs(cx-clearR))?clearL:clearR;
+          if(S.bannedSide===-1)exitX=clearR;
+          else if(S.bannedSide===1)exitX=clearL;
+          if(wallL)exitX=clearR;
+          if(wallR)exitX=clearL;
+          // Verify open air above chosen exit, else take the other side
+          if(botSolidBetween(exitX,p.y-20,exitX,Math.min(ty,p.y-280),p.gp)){
+            exitX=(exitX===clearL)?clearR:clearL;
           }
-
-          if(p.grounded){
-            S.djDone = false;
-            S.djTimer = edge.djd || 0.28;
-            const dLx = edge.lx - cx;
-            const toDest = (edge.tx - edge.lx);
-            const inLaunchRange = Math.abs(dLx) <= 32 || (toDest > 0 && cx >= edge.lx - 10) || (toDest < 0 && cx <= edge.lx + 10);
-
-            if(!inLaunchRange){
-              S.dir = Math.sign(dLx);
-              S.wantDown = false;
-            } else {
-              if(edge.act === 'jump' || edge.act === 'double'){
-                S.jumpQ = true;
-                S.jumpHoldT = 0.12;
-                S.hopPhase = 'air';
-                S.dir = Math.sign(edge.tx - cx) || Math.sign(dLx) || 1;
-                S.wantDown = false;
-              } else if(edge.act === 'drop'){
-                S.wantDown = true;
-                S.hopPhase = 'drop';
-                S.dir = Math.sign(edge.tx - cx);
-              } else {
-                S.dir = Math.sign(edge.tx - cx) || 1;
-                S.wantDown = false;
-                S.hopPhase = 'air';
-              }
+          detour=Math.sign(exitX-cx)||1;
+          want=detour;
+          S.dropHold=0;S.descLockT=0;S.descDir=0;
+          S.exitX=exitX;S.hasExit=true;
+          // Lane ceiling above the exit (never the diagonal hit)
+          let laneCeil=null,laneGap=1e9;
+          const yTop=Math.min(ty,p.y-400);
+          for(const s of SOLIDS){
+            if(s.t==='drop'||s===p.gp)continue;
+            let top=s.y;
+            if(s.dy)top=s.y+(clamp(exitX,s.x,s.x+s.w)-s.x)*(s.dy/s.w);
+            if(exitX>=s.x-6&&exitX<=s.x+s.w+6&&top<p.y&&top>=yTop){
+              const gap=p.y-(top+s.h);
+              if(gap<laneGap){laneGap=gap;laneCeil=s;}
             }
-          } else {
-            S.wantDown = (edge.act === 'drop');
-            const dTx = edge.tx - cx;
-            if(Math.abs(dTx) > 16) S.dir = Math.sign(dTx); else S.dir = 0;
-
-            if(edge.act === 'double' && !S.djDone && p.airJumps > 0){
-              if(S.djTimer > 0) S.djTimer -= dt;
-              if(S.djTimer <= 0 || p.vy > -80){
-                S.jumpQ = true;
-                S.jumpHoldT = 0.12;
-                S.djDone = true;
-              }
+          }
+          S.climbPlat=laneCeil||blocked;S.climbOut=detour;
+          S.exitLockT=0.8;S.exitDir=detour;S.exitGp=gp;
+        }
+      }else if(!p.grounded||!gp||gp.wall){
+        S.exitLockT=0;S.exitDir=0;S.exitGp=null;S.hasExit=false;
+      }
+    }else{S.exitLockT=0;S.exitDir=0;S.exitGp=null;}
+    // BUG1: stale walk-off lock must die the moment target is above,
+    // else it overwrites climb steering + suppresses the jump below.
+    if(aboveBy>50){S.descLockT=0;S.descDir=0;}
+    // DOWN hysteresis: keep committed walk-off direction briefly
+    if(S.descLockT>0){S.descLockT-=BOT.think;if(S.descDir)want=S.descDir;}
+    S.dir=want;
+    // jump decisions
+    S.jumpQ=false;S.dropHold=Math.max(0,(S.dropHold||0)-BOT.think);
+    const headBlocked=botSolidBetween(cx,p.y-4,tx,Math.min(ty,p.y-60));
+    if(p.grounded){
+      S.airT2=0;S.climbT=0;
+      if(isIt||true){
+        // Edge launch: purely positional (floor included - its edges are
+        // the walls, exit proximity covers the run-up). No velocity gate.
+        let edgeJump=false;
+        if(aboveBy>50&&p.gp){
+          const dEdge=Math.min(Math.abs(cx-p.gp.x),Math.abs(cx-(p.gp.x+p.gp.w)));
+          if(dEdge<42)edgeJump=true;
+        }
+        if(!edgeJump&&S.hasExit&&aboveBy>50&&Math.abs(cx-S.exitX)<48)edgeJump=true;
+        if(edgeJump){S.jumpQ=true;}
+        else if(aboveBy>70&&Math.abs(dx)<260&&!headBlocked){S.jumpQ=true;}
+        else if(botWallAhead(p,want)){S.jumpQ=true;}
+        else if(Math.abs(p.vx)<60&&want!==0&&far){S.jumpQ=true;}
+        else if(!botGroundAhead(p,want)&&far){S.jumpQ=true;} // gap: jump across
+      }
+      // DOWN: target clearly below -> pink drop wins, else score 3 fall-lines.
+      // Locked while committed so pink/brown seams can't flip dir every think.
+      let down=false;
+      const belowGap=ty-(p.y+p.h);
+      const sameTier=Math.abs(belowGap)<60&&Math.abs(dx)<200;
+      if(belowGap>60&&!sameTier){
+        const onPink=zoneAtFeet(p,'drop');
+        if(S.descLockT>0&&S.descDir){
+          // committed: hold lane, only pink state updates
+          want=S.descDir;S.dir=want;
+          down=!!onPink;
+          if(!down)S.jumpQ=false;
+        }
+        else if(onPink&&(Math.abs(dx)<220||belowGap<300)){
+          down=true;
+          S.descLockT=0.25;S.descDir=S.dir||want||Math.sign(dx)||1;
+          want=S.descDir;S.dir=want;
+        }
+        else if(p.gp&&!p.gp.wall){
+          const scoreLane=(lx)=>{
+            let hits=0;
+            // count slabs between bot and target tier on this vertical
+            const y0=p.y+p.h+10,y1=ty;
+            for(let k=1;k<=5;k++){
+              const sy=y0+(y1-y0)*k/5;
+              const pt={x:lx-3,y:sy-3,w:6,h:6};
+              for(const s of SOLIDS){if(s.t==='drop')continue;if(hitRect(pt,s)){hits++;break;}}
+            }
+            return hits*200+Math.abs(lx-cx);
+          };
+          const cC=scoreLane(cx),cL=scoreLane(cx-150),cR=scoreLane(cx+150);
+          let wdir;
+          // default nearest edge, overridden by clearest lane
+          const dL0=Math.abs(cx-p.gp.x),dR0=Math.abs(cx-(p.gp.x+p.gp.w));
+          wdir=dL0<dR0?-1:1;
+          if(cL<cC&&cL<=cR)wdir=-1;else if(cR<cC&&cR<cL)wdir=1;
+          // clear-air flank check: if chosen side fall-line to target is empty, keep it
+          want=wdir;S.dir=wdir;S.descLockT=0.35;S.descDir=wdir;
+          S.jumpQ=false; // walk off cleanly, don't hop
+        }
+      }
+      S.wantDown=down;
+      if(S.jumpQ)S.jumpHoldT=0.12;
+      if(S.descLockT>0&&!down){S.jumpQ=false;}
+    }else{
+      // AIR: gated wall-jumps + relaxed apex chaining + outward-hold anti-clip.
+      const belowGapAir=ty-(p.y+p.h);
+      const onOuterWall=(p.x<=WALL+16||p.x+p.w>=W-WALL-16);
+      const isClimbing=(ty<p.y-40);
+      S.airT2=(S.airT2||0)+BOT.think;
+      // Outward hold: rising past an overhang, keep pushing out until feet
+      // clear the slab top, else we turn in early and clip the corner.
+      if(S.climbPlat&&p.vy<0&&(p.y+p.h)>S.climbPlat.y){
+        if(!onOuterWall){S.dir=S.climbOut||S.dir;S.climbT=0.15;}
+      }else if(S.climbT>0){
+        S.climbT-=BOT.think;
+        if(p.vy<0&&!onOuterWall&&S.climbOut)S.dir=S.climbOut;
+        if(S.climbT<=0||(p.y+p.h)<(S.climbPlat?S.climbPlat.y:1e9))S.climbPlat=null;
+      }
+      if(p.sideT>0&&p.wallJumps<2){
+        // NEVER kick off interior slab lips while trying to fall past them.
+        // Outer walls OK, interior only when climbing.
+        if(onOuterWall||isClimbing){
+          if(belowGapAir<=60){S.jumpQ=true;S.jumpHoldT=0.14;}
+          else S.jumpQ=false;
+        }else S.jumpQ=false;
+      }
+      else if(p.airJumps>0&&aboveBy>50){
+        // Climb: immediate headroom only (far slabs must not veto),
+        // broad apex band, 0.10s guard. Inward turn still gated by lip
+        // probe so we don't steer into the corner while rising.
+        const apexWindow=(p.vy>-220&&p.vy<180);
+        const headClear=!botSolidBetween(cx,p.y-4,cx,p.y-50,p.gp);
+        if(apexWindow&&headClear&&S.airT2>0.10){
+          const inDir=Math.sign(dx)||S.dir;
+          if(p.vy<0&&botWallAhead(p,inDir)&&!onOuterWall){
+            S.jumpQ=true;S.jumpHoldT=0.14; // jump straight, keep outward dir
+          }else{S.jumpQ=true;S.jumpHoldT=0.14;S.dir=inDir;}
+        }
+      }
+      else if(belowGapAir>60){S.jumpQ=false;}
+      S.wantDown=false;
+      // Falling: steer onto the slab below (player clamped inside it),
+      // 36/14 hysteresis. Only slabs below the feet count, so the one we
+      // just walked off can't pull us back. Open shaft = fall straight.
+      if(p.vy>80&&belowGapAir>40){
+        S.descLockT=0;S.descDir=0;
+        let landingSlab=null,closestDist=1e9;
+        for(const s of SOLIDS){
+          if(s.t==='drop')continue;
+          if(s.y>=p.y+p.h+15&&s.y<=ty+60){
+            if(cx>=s.x-40&&cx<=s.x+s.w+40){
+              const dist=s.y-(p.y+p.h);
+              if(dist<closestDist){closestDist=dist;landingSlab=s;}
             }
           }
         }
+        if(landingSlab&&closestDist<180){
+          const safeX=clamp(tx,landingSlab.x+26,landingSlab.x+landingSlab.w-26);
+          const offX=safeX-cx;
+          if(Math.abs(offX)>36)S.dir=Math.sign(offX);
+          else if(Math.abs(offX)<14)S.dir=0;
+        }else if(Math.abs(dx)<60){
+          S.dir=0;
+        }
+      }
+      // Rising: curl inward once the outward hold is done
+      else if(p.vy<0&&aboveBy>40&&p.vy>-250){
+        if(!S.climbPlat&&Math.abs(dx)>20)S.dir=Math.sign(dx);
       }
     }
-  } else {
-    let want = isIt ? (Math.sign(dx) || 0) : (-Math.sign(dx) || 1);
-    S.dir = want;
-    if(dy < -40 && (p.grounded || p.airJumps > 0)){ S.jumpQ = true; S.jumpHoldT = 0.12; }
-    S.wantDown = (dy > 60 && zoneAtFeet(p, 'drop'));
   }
-
-  const j = S.jumpQ; S.jumpQ = false;
-  if(j) S.jumpHoldT = 0.12;
-  let hold = !!j;
-  if(S.jumpHoldT > 0){ S.jumpHoldT -= dt; hold = true; }
-  return { dir: clamp(S.dir || 0, -1, 1), jumpEdge: !!j, jumpHeld: hold, downHeld: !!S.wantDown };
+  // bonk detect: was rising, now stopped, under a solid
+  if(p.vy>=0&&S.wasVy!==undefined&&S.wasVy<-350&&!p.grounded){
+    // check ceiling right above head
+    const hp={x:p.x+6,y:p.y-14,w:p.w-12,h:12};
+    for(const s of SOLIDS){if(s.t==='drop')continue;if(hitRect(hp,s)){S.bonks++;S.bonkT=1.0;break;}}
+    if(S.bonks>=2){
+      // Genuine ceiling hit while climbing: blacklist the tried side and
+      // force the opposite flank for 1.5s (or until elevation is gained)
+      S.decideT=0;S.bonks=0;
+      let side=S.exitDir;
+      if(!side){
+        const gp=p.gp||p.lastGp;
+        side=gp?(Math.abs(cx-gp.x)<Math.abs(cx-(gp.x+gp.w))?-1:1):1;
+      }
+      S.bannedSide=side;S.banT=1.5;S.banTierY=p.y;
+      S.dir=-side;S.unstuckT=0.5;S.unstuckDir=S.dir;
+    }
+  }
+  S.wasVy=p.vy;
+  const j=S.jumpQ;S.jumpQ=false;
+  if(j)S.jumpHoldT=0.12;
+  let hold=!!j;
+  if(S.jumpHoldT>0){S.jumpHoldT-=dt;hold=true;}
+  return{dir:clamp(S.dir||0,-1,1),jumpEdge:!!j,jumpHeld:hold,downHeld:!!S.wantDown};
 }
+
 /* ================= PLATFORM NODES GEOMETRY HELPER ================= */
 function demoNodes(){
   const r=[];
