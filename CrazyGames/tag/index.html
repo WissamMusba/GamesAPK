@@ -1697,8 +1697,14 @@ function botInputFor(p){
 const DEMO={active:false,map:0,nodes:[],cases:[],warm:null,phase:'idle',ci:0,rep:0,
   t:0,par:10,holdT:0,started:false,fails:0,trace:[],traceN:0,results:[],
   sent:0,part:1,done:0,okN:0};
-const DEMO_REPS=3,DEMO_TRACE_EVERY=3;
-function demoNodes(){const r=[];for(const s of SOLIDS){if(!s.wall)r.push(s);}return r;}
+const DEMO_REPS=2,DEMO_TRACE_EVERY=3;
+function demoNodes(){
+  const r=[];
+  for(const s of SOLIDS){
+    if(!s.wall && !(s.w < 60 && s.h > s.w * 1.5)) r.push(s);
+  }
+  return r;
+}
 function demoSlabTop(s,x){
   const px=clamp(x,s.x,s.x+s.w);
   return s.y+((s.dy||0)?(px-s.x)*(s.dy/s.w):0);
@@ -1733,7 +1739,21 @@ function demoBuildCases(){
   if(best<0)best=(low+1)%N;
   DEMO.warm={from:low,to:best};
   const pairs=[];
-  for(let a=0;a<N;a++)for(let b=0;b<N;b++){if(a!==b)pairs.push([a,b]);}
+  for(let a=0;a<N;a++){
+    for(let b=0;b<N;b++){
+      if(a===b)continue;
+      const A=DEMO.nodes[a], B=DEMO.nodes[b];
+      const acx = A.x + A.w/2, bcx = B.x + B.w/2;
+      const dx = Math.abs(acx - bcx);
+      const dy = A.y - B.y; // positive if B is above A
+      // Filter plausible pairs:
+      // If jumping up: max vertical rise 520px, horizontal reach 750px
+      if(dy > 0 && (dy > 520 || dx > 750)) continue;
+      // If dropping down or level: horizontal reach 850px
+      if(dy <= 0 && dx > 850) continue;
+      pairs.push([a,b]);
+    }
+  }
   for(let i=pairs.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;const t=pairs[i];pairs[i]=pairs[j];pairs[j]=t;}
   DEMO.cases=pairs;
 }
@@ -1812,6 +1832,19 @@ function demoStart(){
   menu.slotColor=[0,1,-1,-1,-1,-1,-1,-1];
   DEMO.results=[];DEMO.sent=0;DEMO.part=1;DEMO.done=0;DEMO.okN=0;
   DEMO.phase='warm';DEMO.ci=0;DEMO.rep=0;
+  try{
+    const savedRaw = localStorage.getItem('tag_demo_prog_v1');
+    if(savedRaw){
+      const saved = JSON.parse(savedRaw);
+      if(saved && saved.map === DEMO.map && Number.isInteger(saved.ci) && saved.ci < DEMO.cases.length){
+        DEMO.ci = saved.ci;
+        DEMO.done = saved.done || saved.ci;
+        DEMO.okN = saved.okN || 0;
+        DEMO.part = saved.part || 1;
+        DEMO.phase = saved.phase || 'full';
+      }
+    }
+  }catch(e){}
   startMatch();
   match.state='playing';match.cooldown=0;match.it=0;
   demoPlace();
