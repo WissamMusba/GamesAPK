@@ -3326,16 +3326,21 @@ function drawOnlineComingSoonModal(){
   zone(cbX, cbY, cbSz, cbSz, { fn: () => { menu.onlineModal = false; sfx('back'); } });
 
   // Header Title
-  ptxt('🌐 PRIVATE MULTIPLAYER', modalX + modalW / 2, modalY + 36, FT(clamp(modalW * 0.052, 16, 21)), '#ffffff');
+  ptxt('🌐 PRIVATE MULTIPLAYER', modalX + modalW / 2, modalY + 32, FT(clamp(modalW * 0.052, 16, 21)), '#ffffff');
 
   // Glowing Badge
-  const badgeW = 140, badgeH = 24;
-  pill(modalX + modalW / 2 - badgeW / 2, modalY + 54, badgeW, badgeH, 'rgba(46, 204, 113, 0.22)', '#2ecc71');
-  ptxt('🚀 COMING SOON', modalX + modalW / 2, modalY + 67, FN(11, 900), '#2ecc71');
+  const badgeW = 140, badgeH = 22;
+  pill(modalX + modalW / 2 - badgeW / 2, modalY + 48, badgeW, badgeH, 'rgba(46, 204, 113, 0.22)', '#2ecc71');
+  ptxt('🚀 COMING SOON', modalX + modalW / 2, modalY + 59, FN(10.5, 900), '#2ecc71');
+
+  // Tentative Release Date Note Pill
+  const dateW = Math.min(modalW - 48, 250), dateH = 22;
+  pill(modalX + modalW / 2 - dateW / 2, modalY + 74, dateW, dateH, 'rgba(255, 209, 102, 0.16)', 'rgba(255, 209, 102, 0.6)');
+  txt('📅 Target: ~Sept 31 (Tentative)', modalX + modalW / 2, modalY + 85, FN(10, 900), '#ffd166');
 
   // Bullet items card
-  const boxY = modalY + 90;
-  const boxH = modalH - 160;
+  const boxY = modalY + 102;
+  const boxH = modalH - 172;
   rr(g, modalX + 16, boxY, modalW - 32, boxH, 10);
   g.fillStyle = 'rgba(255, 255, 255, 0.05)'; g.fill();
   g.lineWidth = 1; g.strokeStyle = 'rgba(255, 255, 255, 0.15)'; g.stroke();
@@ -3344,7 +3349,7 @@ function drawOnlineComingSoonModal(){
     '🔒 Private Room Codes (e.g. "TAG4")',
     '📱 Cross-Platform (Phones, Tablets & PC)',
     '⚔️ 2-4 Player Tag & 2v2 Team Battles',
-    '⚡ Direct Peer-to-Peer Connection'
+    '⚡ Direct Low-Latency Netplay'
   ];
   const itemH = boxH / lines.length;
   for(let i = 0; i < lines.length; i++){
@@ -3418,42 +3423,9 @@ function drawMenu(){
   const isNarrowW = (CW < 560);
   const isMobile = (CW < 700 || CH < 500);
 
-  // 1b. Top Announcement Banner: "COMING SOON: ONLINE PRIVATE MULTIPLAYER"
-  // "it shld make sure that the first thing that they see is coming soon(even on phone it shld fit in nice)"
-  const banH = isShortH ? 20 : 24;
-  const banW = clamp(CW - 24, isNarrowW ? 280 : 360, 560);
-  const banX = Math.floor(CW / 2 - banW / 2);
-  const banY = 3;
-
-  rr(g, banX, banY, banW, banH, banH / 2);
-  g.fillStyle = 'rgba(15, 23, 42, 0.94)'; g.fill();
-  g.lineWidth = 1.5;
-  g.strokeStyle = 'rgba(46, 204, 113, ' + (0.4 + Math.sin(tGlobal * 5) * 0.2) + ')';
-  g.stroke();
-
-  // The very first item on the banner is the glowing "COMING SOON" pill badge!
-  const soonBadgeW = isNarrowW ? 84 : 98;
-  const soonBadgeH = banH - 6;
-  const soonBadgeX = banX + 3;
-  const soonBadgeY = banY + 3;
-  rr(g, soonBadgeX, soonBadgeY, soonBadgeW, soonBadgeH, soonBadgeH / 2);
-  g.fillStyle = 'rgba(46, 204, 113, 0.25)'; g.fill();
-  g.lineWidth = 1; g.strokeStyle = '#2ecc71'; g.stroke();
-  ptxt('🚀 COMING SOON', soonBadgeX + soonBadgeW / 2, soonBadgeY + soonBadgeH / 2 + 1, FN(isNarrowW ? 8 : 9, 900), '#2ecc71');
-
-  // Text inside the banner next to the badge
-  const banTextX = soonBadgeX + soonBadgeW + 8;
-  const banText = isNarrowW
-    ? '🌐 Online Multiplayer ➔'
-    : '🌐 Online Private Multiplayer • Room Codes & Cross-Play ➔';
-  const banFs = clamp(banH * 0.44, 9, 11.5);
-  ptxt(banText, banTextX, banY + banH / 2 + 1, FN(banFs, 800), '#e2e8f0', 'left');
-
-  zone(banX, banY, banW, banH, { fn: () => { menu.onlineModal = true; sfx('ok'); } });
-
-  // 2. Header Bar (positioned below the banner)
-  const headY = banY + banH + (isShortH ? 3 : 6);
-  const headH = clamp(CH * 0.075, isShortH ? 28 : 34, 42);
+  // 2. Header Bar
+  const headY = isShortH ? 6 : 10;
+  const headH = clamp(CH * 0.08, isShortH ? 30 : 36, 46);
 
   // Sound & Theme buttons on top-right
   const si = Math.floor(clamp(headH * 0.88, 28, 38));
@@ -3510,8 +3482,12 @@ function drawMenu(){
     g.stroke();
 
     const tLabel = isNarrowW ? tab.short : tab.label;
-    const tFs = clamp(tabW * 0.095, 10, 13);
-    ptxt(tLabel, tx + tabW/2, ty + tabH/2 + 1, FN(tFs, 900), isAct ? INK : '#cbd5e1');
+    const tFs = clamp(tabW * 0.095, 11, 13.5);
+    if(isAct){
+      txt(tLabel, tx + tabW/2, ty + tabH/2 + 1, FN(tFs, 900), '#0f172a');
+    } else {
+      txt(tLabel, tx + tabW/2, ty + tabH/2 + 1, FN(tFs, 800), '#cbd5e1');
+    }
 
     if(tab.badge){
       const bW = 32, bH = 15;
@@ -3519,7 +3495,7 @@ function drawMenu(){
       rr(g, bX, bY, bW, bH, 4);
       g.fillStyle = '#ff4757'; g.fill();
       g.lineWidth = 1; g.strokeStyle = '#ffffff'; g.stroke();
-      ptxt(tab.badge, bX + bW/2, bY + bH/2 + 1, FN(8.5, 900), '#ffffff');
+      txt(tab.badge, bX + bW/2, bY + bH/2 + 1, FN(8.5, 900), '#ffffff');
     }
 
     zone(tx, ty, tabW, tabH, { fn: () => setMenuTab(tab.id) });
@@ -3570,7 +3546,7 @@ function drawMenu(){
   if(isTeams){
     stageTopPad = clamp(stageH * 0.14, 22, 28);
     const pillY = stageY + 2;
-    ptxt('⚔️ NEW GAMEMODE: 2v2 TEAM TAG (RED TEAM VS BLUE TEAM)', CW / 2, pillY + stageTopPad/2 + 1, FN(clamp(CW * 0.026, 11, 13), 900), '#ffd166', 'center');
+    ptxt('⚔️ NEW GAMEMODE: 2v2 TEAM TAG (RED TEAM VS BLUE TEAM)', CW / 2, pillY + stageTopPad/2 + 1, FN(clamp(CW * 0.026, 11, 13.5), 900), '#ffd166', 'center');
   } else if(!isSolo){
     stageTopPad = clamp(stageH * 0.12, 22, 28);
     const pillY = stageY + 2;
@@ -3580,7 +3556,7 @@ function drawMenu(){
     const totalPillsW = countOpts.length * pw + (countOpts.length - 1) * 6;
     const pillsStartX = Math.floor(CW / 2 - totalPillsW / 2);
 
-    ptxt('LOCAL PLAYERS:', pillsStartX - 54, pillY + ph/2 + 1, FN(10.5, 900), 'rgba(255,255,255,0.65)', 'right');
+    txt('LOCAL PLAYERS:', pillsStartX - 54, pillY + ph/2 + 1, FN(10.5, 900), 'rgba(255,255,255,0.75)', 'right');
 
     for(let k = 0; k < countOpts.length; k++){
       const numP = countOpts[k];
@@ -3592,7 +3568,7 @@ function drawMenu(){
       g.lineWidth = isCurCount ? 2 : 1;
       g.strokeStyle = isCurCount ? '#ffffff' : 'rgba(255,255,255,0.25)';
       g.stroke();
-      ptxt(numP + ' PLAYERS', px + pw/2, pillY + ph/2 + 1, FN(10, 900), isCurCount ? '#ffffff' : '#cbd5e1');
+      txt(numP + ' PLAYERS', px + pw/2, pillY + ph/2 + 1, FN(10.5, 900), isCurCount ? '#ffffff' : '#cbd5e1');
 
       zone(px, pillY, pw, ph, { fn: () => {
         if(numP === 2){ menu.slotColor[2] = -1; menu.slotColor[3] = -1; sfx('ui'); }
@@ -3647,6 +3623,74 @@ function drawMenu(){
     }
   }
 
+  // 4b. Online Multiplayer Coming Soon Sticker (Right Side of Screen)
+  // "make it like a sticker on the right side of the screen coming soon in big letters
+  //  and when they press it they get more info but in small it stays online multiplayer
+  //  and add a note like prolly will release on 31 Sept tenative or smt like that"
+  const isWideScreen = (CW >= 880);
+  const isMediumScreen = (CW >= 680 && CW < 880);
+  let stickW, stickH, stickX, stickY;
+  if(isWideScreen){
+    stickW = 186; stickH = 88;
+    stickX = CW - stickW - 20;
+    stickY = headY + headH + 18;
+  } else if(isMediumScreen){
+    stickW = 152; stickH = 76;
+    stickX = CW - stickW - 14;
+    stickY = headY + headH + 12;
+  } else {
+    stickW = clamp(CW * 0.40, 130, 160);
+    stickH = clamp(CH * 0.13, 58, 72);
+    stickX = CW - stickW - 10;
+    stickY = headY + headH + 6;
+  }
+
+  g.save();
+  const scx = stickX + stickW / 2;
+  const scy = stickY + stickH / 2;
+  g.translate(scx, scy);
+  g.rotate(-0.06); // ~-3.5 degrees sticker tilt
+  g.translate(-stickW / 2, -stickH / 2);
+
+  // Soft drop shadow
+  rr(g, 3, 5, stickW, stickH, 12);
+  g.fillStyle = 'rgba(0, 0, 0, 0.45)'; g.fill();
+
+  // Die-cut white vinyl border (clean sticker edge!)
+  rr(g, -3, -3, stickW + 6, stickH + 6, 14);
+  g.fillStyle = '#ffffff'; g.fill();
+  g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
+
+  // Sticker inner body
+  rr(g, 0, 0, stickW, stickH, 11);
+  g.fillStyle = '#161329'; g.fill();
+
+  // Glowing border pulse
+  const stickerPulse = 0.55 + 0.35 * Math.sin(tGlobal * 5);
+  g.lineWidth = 2;
+  g.strokeStyle = 'rgba(46, 204, 113, ' + stickerPulse + ')';
+  g.stroke();
+
+  // 1. "COMING SOON" in BIG LETTERS
+  const bigFs = clamp(stickH * 0.28, 14, 19);
+  ptxt('🚀 COMING SOON', stickW / 2, stickH * 0.28, FT(bigFs), '#ffd166');
+
+  // 2. "online multiplayer" in small
+  const smallFs = clamp(stickH * 0.16, 9.5, 12);
+  txt('🌐 Online Multiplayer', stickW / 2, stickH * 0.54, FN(smallFs, 800), '#e2e8f0');
+
+  // 3. Note: "Target: ~Sept 31 (Tentative)"
+  const notePillW = stickW - 16;
+  const notePillH = Math.floor(stickH * 0.25);
+  const notePillY = stickH - notePillH - 6;
+  pill(8, notePillY, notePillW, notePillH, 'rgba(46, 204, 113, 0.20)', 'rgba(46, 204, 113, 0.6)');
+  txt('📅 Target: ~Sept 31 (Tentative)', stickW / 2, notePillY + notePillH / 2 + 1, FN(clamp(notePillH * 0.52, 8.5, 10.5), 900), '#2ecc71');
+
+  g.restore();
+
+  // Click zone for the sticker to open more info modal
+  zone(stickX - 6, stickY - 6, stickW + 12, stickH + 12, { fn: () => { menu.onlineModal = true; sfx('ok'); } });
+
   // 5. Settings Strip
   rr(g, stripX, stripY, stripW, stripH, 12);
   g.fillStyle = 'rgba(14, 18, 28, 0.94)'; g.fill();
@@ -3677,7 +3721,7 @@ function drawMenu(){
     const mapMidX = stripX + arrowW + 12;
     rr(g, mapMidX, mapY, mapMidW, rowH1 - 6, 6);
     g.fillStyle = settings.randomMap ? 'rgba(255, 209, 102, 0.25)' : 'rgba(255,255,255,0.18)'; g.fill();
-    ptxt(mapLabelText, mapMidX + mapMidW/2, mapY + (rowH1 - 6)/2 + 1, FN(11, 900), settings.randomMap ? '#ffd166' : '#ffffff');
+    txt(mapLabelText, mapMidX + mapMidW/2, mapY + (rowH1 - 6)/2 + 1, FN(11.5, 900), settings.randomMap ? '#ffd166' : '#ffffff');
     zone(mapMidX, mapY, mapMidW, rowH1 - 6, { fn: () => { menu.mapModal = true; sfx('ok'); } });
 
     // Row 2: Chips (2x Jump, 120s Timer, and NEW GAMEMODE: Teams)
@@ -3688,13 +3732,13 @@ function drawMenu(){
     // Chip 1: Double Jump
     rr(g, stripX + 6, chipsY, chipW, chipH, 6);
     g.fillStyle = settings.doubleJump ? '#2ed573' : 'rgba(255,255,255,0.12)'; g.fill();
-    ptxt('2x JUMP', stripX + 6 + chipW/2, chipsY + chipH/2 + 1, FN(10.5, 900), settings.doubleJump ? '#ffffff' : '#94a3b8');
+    txt('2x JUMP', stripX + 6 + chipW/2, chipsY + chipH/2 + 1, FN(10.5, 900), settings.doubleJump ? '#ffffff' : '#94a3b8');
     zone(stripX + 6, chipsY, chipW, chipH, { fn: () => { settings.doubleJump = !settings.doubleJump; sfx('ui'); } });
 
     // Chip 2: Timer
     rr(g, stripX + 12 + chipW, chipsY, chipW, chipH, 6);
     g.fillStyle = 'rgba(255,255,255,0.12)'; g.fill();
-    ptxt('⏱️ ' + settings.time + 's', stripX + 12 + chipW * 1.5, chipsY + chipH/2 + 1, FN(10.5, 900), '#ffd166');
+    txt('⏱️ ' + settings.time + 's', stripX + 12 + chipW * 1.5, chipsY + chipH/2 + 1, FN(10.5, 900), '#ffd166');
     zone(stripX + 12 + chipW, chipsY, chipW, chipH, { fn: () => {
       settings.timeIdx = (settings.timeIdx + 1) % TIMES.length; sfx('ui');
     }});
@@ -3705,18 +3749,18 @@ function drawMenu(){
     if(settings.teams){
       g.fillStyle = '#f39c12'; g.fill();
       g.lineWidth = 1.5; g.strokeStyle = '#ffffff'; g.stroke();
-      ptxt('⚔️ 2v2 (ON)', chip3X + chipW/2, chipsY + chipH/2 + 1, FN(10, 900), '#141414');
+      txt('⚔️ 2v2 (ON)', chip3X + chipW/2, chipsY + chipH/2 + 1, FN(10.5, 900), '#0f172a');
     } else {
       g.fillStyle = 'rgba(243, 156, 18, 0.18)'; g.fill();
       g.lineWidth = 1.5; g.strokeStyle = 'rgba(243, 156, 18, 0.55)'; g.stroke();
-      ptxt('⚔️ 2v2 TEAMS', chip3X + chipW/2, chipsY + chipH/2 + 1, FN(9.5, 900), '#ffd166');
+      txt('⚔️ 2v2 TEAMS', chip3X + chipW/2, chipsY + chipH/2 + 1, FN(10, 900), '#ffd166');
       // NEW badge on corner
       const nbW = 28, nbH = 13;
       const nbX = chip3X + chipW - nbW - 2, nbY = chipsY - 4;
       rr(g, nbX, nbY, nbW, nbH, 3);
       g.fillStyle = '#ff4757'; g.fill();
       g.lineWidth = 1; g.strokeStyle = '#ffffff'; g.stroke();
-      ptxt('NEW', nbX + nbW/2, nbY + nbH/2 + 1, FN(7.5, 900), '#ffffff');
+      txt('NEW', nbX + nbW/2, nbY + nbH/2 + 1, FN(7.5, 900), '#ffffff');
     }
     zone(chip3X, chipsY, chipW, chipH, { fn: () => toggleTeams() });
 
@@ -3746,7 +3790,7 @@ function drawMenu(){
     const mapMidX = stripX + 6 + arrowW + 4;
     rr(g, mapMidX, itemY, mapMidW, itemH, 6);
     g.fillStyle = settings.randomMap ? 'rgba(255, 209, 102, 0.25)' : 'rgba(255,255,255,0.18)'; g.fill();
-    ptxt(mapLabelText, mapMidX + mapMidW/2, itemY + itemH/2 + 1, FN(clamp(mapBoxW * 0.038, 10.5, 12), 900), settings.randomMap ? '#ffd166' : '#ffffff');
+    txt(mapLabelText, mapMidX + mapMidW/2, itemY + itemH/2 + 1, FN(clamp(mapBoxW * 0.040, 11, 13), 900), settings.randomMap ? '#ffd166' : '#ffffff');
     zone(mapMidX, itemY, mapMidW, itemH, { fn: () => { menu.mapModal = true; sfx('ok'); } });
 
     // Right side: 3 Modifier Chips
@@ -3757,13 +3801,13 @@ function drawMenu(){
     // Chip 1: Double Jump
     rr(g, chipsX, itemY, chipW, itemH, 6);
     g.fillStyle = settings.doubleJump ? '#2ed573' : 'rgba(255,255,255,0.12)'; g.fill();
-    ptxt('2x JUMP', chipsX + chipW/2, itemY + itemH/2 + 1, FN(11, 900), settings.doubleJump ? '#ffffff' : '#94a3b8');
+    txt('2x JUMP', chipsX + chipW/2, itemY + itemH/2 + 1, FN(11.5, 900), settings.doubleJump ? '#ffffff' : '#94a3b8');
     zone(chipsX, itemY, chipW, itemH, { fn: () => { settings.doubleJump = !settings.doubleJump; sfx('ui'); } });
 
     // Chip 2: Timer
     rr(g, chipsX + chipW + 6, itemY, chipW, itemH, 6);
     g.fillStyle = 'rgba(255,255,255,0.12)'; g.fill();
-    ptxt('⏱️ ' + settings.time + 's', chipsX + chipW + 6 + chipW/2, itemY + itemH/2 + 1, FN(11, 900), '#ffd166');
+    txt('⏱️ ' + settings.time + 's', chipsX + chipW + 6 + chipW/2, itemY + itemH/2 + 1, FN(11.5, 900), '#ffd166');
     zone(chipsX + chipW + 6, itemY, chipW, itemH, { fn: () => {
       settings.timeIdx = (settings.timeIdx + 1) % TIMES.length; sfx('ui');
     }});
@@ -3774,18 +3818,18 @@ function drawMenu(){
     if(settings.teams){
       g.fillStyle = '#f39c12'; g.fill();
       g.lineWidth = 2; g.strokeStyle = '#ffffff'; g.stroke();
-      ptxt('⚔️ 2v2 TEAMS (ON)', chip3X + chipW/2, itemY + itemH/2 + 1, FN(11, 900), '#141414');
+      txt('⚔️ 2v2 TEAMS (ON)', chip3X + chipW/2, itemY + itemH/2 + 1, FN(11.5, 900), '#0f172a');
     } else {
       g.fillStyle = 'rgba(243, 156, 18, 0.18)'; g.fill();
       g.lineWidth = 1.5; g.strokeStyle = 'rgba(243, 156, 18, 0.55)'; g.stroke();
-      ptxt('⚔️ 2v2 TEAMS', chip3X + chipW/2, itemY + itemH/2 + 1, FN(11, 900), '#ffd166');
+      txt('⚔️ 2v2 TEAMS', chip3X + chipW/2, itemY + itemH/2 + 1, FN(11.5, 900), '#ffd166');
       // NEW badge on corner
       const nbW = 32, nbH = 14;
       const nbX = chip3X + chipW - nbW - 2, nbY = itemY - 5;
       rr(g, nbX, nbY, nbW, nbH, 4);
       g.fillStyle = '#ff4757'; g.fill();
       g.lineWidth = 1; g.strokeStyle = '#ffffff'; g.stroke();
-      ptxt('NEW', nbX + nbW/2, nbY + nbH/2 + 1, FN(8.5, 900), '#ffffff');
+      txt('NEW', nbX + nbW/2, nbY + nbH/2 + 1, FN(8.5, 900), '#ffffff');
     }
     zone(chip3X, itemY, chipW, itemH, { fn: () => toggleTeams() });
   }
@@ -3801,7 +3845,11 @@ function drawMenu(){
 
   let startLabel = isTouch ? '▶ START MATCH' : '▶ START MATCH  (SPACE / ENTER)';
   if(isTeams) startLabel = isTouch ? '⚔️ START 2v2 TEAMS' : '⚔️ START 2v2 TEAMS (SPACE / ENTER)';
-  ptxt(startLabel, CW/2, startBtnY + startBtnH/2 + 1, FT(clamp(startBtnH * 0.44, 14, 19)), isTeams ? '#141414' : '#ffffff');
+  if(isTeams){
+    txt(startLabel, CW/2, startBtnY + startBtnH/2 + 1, FT(clamp(startBtnH * 0.46, 15, 20)), '#0f172a');
+  } else {
+    ptxt(startLabel, CW/2, startBtnY + startBtnH/2 + 1, FT(clamp(startBtnH * 0.46, 15, 20)), '#ffffff');
+  }
   zone(startBtnX - 2, startBtnY - 2, startBtnW + 4, startBtnH + 4, { fn: () => {
     if(activeSlots().length < 2){
       menu.slotColor[0] = 0; menu.slotColor[1] = 1;
