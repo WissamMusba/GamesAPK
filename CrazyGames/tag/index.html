@@ -1596,18 +1596,18 @@ function botInputFor(p,dt){
       }
     }else{
       // flee: run from IT with predictive intercept calculation
-      const predT = isEasy ? 0.10 : 0.32;
+      const predT = 0.32;
       const predTx = tx + clamp((target.vx || 0) * predT, -220, 220);
       const predDx = predTx - cx;
       want = Math.abs(predDx) > 20 ? -Math.sign(predDx) : (Math.abs(dx) > 20 ? -Math.sign(dx) : (S.dir || 1));
       
-      // 1. Pink platform bait & pop-up juke (drop beneath and pop up behind hunter! Hard mode only)
+      // 1. Pink platform bait & pop-up juke (drop beneath and pop up behind hunter!)
       const dropPlat=botFullyOnDrop(p);
       const onPink=!!dropPlat;
       const hunterClosing=Math.sign(target.vx||0)===-Math.sign(dx)||Math.abs(target.vx||0)>90;
       const hunterNearBehind=Math.abs(dy)<60&&Math.abs(dx)>60&&Math.abs(dx)<230&&hunterClosing;
       
-      if(!isEasy && onPink&&hunterNearBehind&&S.pinkJukeCooldown<=0&&S.pinkJukePhase===0){
+      if(onPink&&hunterNearBehind&&S.pinkJukeCooldown<=0&&S.pinkJukePhase===0){
         S.pinkJukePhase=1;
         S.pinkJukeT=0.28;
         S.pinkJukePlat=dropPlat;
@@ -1868,8 +1868,7 @@ function botInputFor(p,dt){
         // CHASE: Sweet-spot apex chaining (-130 < vy < 110) yields max vertical rise (~420px total)
         const apexWindow=(p.vy>-130&&p.vy<110);
         const headClear=!botSolidBetween(cx,p.y-4,cx,p.y-100,p.gp);
-        const minAirDelay = isEasy ? 0.16 : 0.10;
-        if(isIt&&aboveBy>50&&apexWindow&&headClear&&S.airT2>minAirDelay){
+        if(isIt&&aboveBy>50&&apexWindow&&headClear&&S.airT2>0.10){
           const inDir=Math.sign(dx)||S.dir;
           if(p.vy<0&&botWallAhead(p,inDir)&&!onOuterWall){
             S.jumpQ=true;S.jumpHoldT=0.14;
@@ -1910,7 +1909,7 @@ function botInputFor(p,dt){
             // FLEE: PREDICTIVE LANDING AVOIDANCE!
             // Calculate where hunter will be when bot lands:
             const timeToLand = Math.max(0.08, (landingSlab.y - (p.y + p.h)) / Math.max(p.vy, 150));
-            const predWindow = isEasy ? 0.10 : 0.35;
+            const predWindow = 0.35;
             const predHunterX = tx + clamp((target.vx || 0) * (timeToLand + predWindow), -260, 260);
 
             // Steer towards the side of the platform furthest from where hunter will be:
@@ -1921,7 +1920,7 @@ function botInputFor(p,dt){
             const safeX = (dLeft > dRight) ? leftX : rightX;
 
             // If hunter is intercepting this exact landing spot and bot has an air jump, double-jump away!
-            const hunterInterceptDanger = !isEasy && p.airJumps > 0 && Math.abs(predHunterX - cx) < 70 && Math.abs(ty - landingSlab.y) < 90;
+            const hunterInterceptDanger = p.airJumps > 0 && Math.abs(predHunterX - cx) < 70 && Math.abs(ty - landingSlab.y) < 90;
             if(hunterInterceptDanger && S.airT2 > 0.12){
               S.jumpQ = true;
               S.jumpHoldT = 0.14;
@@ -1948,8 +1947,8 @@ function botInputFor(p,dt){
       else if(isIt&&p.vy<0&&aboveBy>40&&p.vy>-250){
         if(!S.climbPlat&&Math.abs(dx)>20)S.dir=Math.sign(dx);
       }
-      // FLEE AIR STALL / REVERSE FEINT (Hard mode only):
-      if(!isEasy && !isIt && S.pinkJukePhase===0){
+      // FLEE AIR STALL / REVERSE FEINT:
+      if(!isIt&&S.pinkJukePhase===0){
         const hunterCloseAir=Math.abs(dx)<180&&Math.abs(dy)<120;
         const hunterFast=Math.abs(target.vx||0)>180;
         if(hunterCloseAir&&hunterFast&&S.airBrakeCooldown<=0&&S.airBrakeT<=0){
@@ -1990,8 +1989,7 @@ function botInputFor(p,dt){
   if(j)S.jumpHoldT=0.12;
   let hold=!!j;
   if(S.jumpHoldT>0){S.jumpHoldT-=stepDt;hold=true;}
-  const speedMult = isEasy ? 0.90 : 1.0;
-  return{dir:clamp((S.dir||0) * speedMult,-1,1),jumpEdge:!!j,jumpHeld:hold,downHeld:!!S.wantDown};
+  return{dir:clamp(S.dir||0,-1,1),jumpEdge:!!j,jumpHeld:hold,downHeld:!!S.wantDown};
 }
 
 /* ================= PLATFORM NODES GEOMETRY HELPER ================= */
