@@ -837,7 +837,7 @@ const TEAMS = [
 ];
 
 const TIMES=[60,120,180];
-const settings={map:0,doubleJump:true,collision:false,timeIdx:1,teams:false};
+const settings={map:0,randomMap:false,doubleJump:true,collision:false,timeIdx:1,teams:false};
 Object.defineProperty(settings,'time',{get(){return TIMES[this.timeIdx];}});
 
 /* ================= LOCAL CONTROLS SCHEMES ================= */
@@ -1044,20 +1044,32 @@ let currentThemeIdx=0;
 
 /* ================= menu ================= */
 let screen='menu',tGlobal=0;
-const menu={tab:'2p',mode:'rows',slotColor:[0,1,-1,-1,-1,-1,-1,-1],slotTeam:[0,1,0,1,0,1,0,1],slotCtrl:[0,1,2,3],row:4,rule:0,toast:null,toastT:0,botOn:false,mapModal:false};
+const menu={tab:'2p',mode:'rows',slotColor:[0,1,-1,-1,-1,-1,-1,-1],slotTeam:[0,1,0,1,0,1,0,1],slotCtrl:[0,1,2,3],row:4,rule:0,toast:null,toastT:0,botOn:false,mapModal:false,onlineModal:false};
 const ROWS=['CHANGE PLAYERS','MAP','TIMER','RULES','START'];
 const RULE_NAMES=['DOUBLE JUMP'];
 function toast(m){menu.toast=m;menu.toastT=2.2;}
 
 function setMenuTab(tab){
-  if(tab !== 'solo' && tab !== '2p') tab = '2p';
+  if(tab === 'online'){
+    menu.onlineModal = true;
+    sfx('ui');
+    return;
+  }
+  if(tab !== 'solo' && tab !== '2p' && tab !== 'teams') tab = '2p';
   menu.tab = tab;
   if(tab === 'solo'){
     menu.botOn = true;
-    menu.slotColor = [0, 1, -1, -1, -1, -1, -1, -1];
     settings.teams = false;
+    menu.slotColor = [0, 1, -1, -1, -1, -1, -1, -1];
+  } else if(tab === 'teams'){
+    menu.botOn = false;
+    settings.teams = true;
+    menu.slotColor = [0, 1, 2, 3, -1, -1, -1, -1];
+    menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+    toast('⚔️ TEAMS MODE: 2v2 TEAM TAG');
   } else if(tab === '2p'){
     menu.botOn = false;
+    settings.teams = false;
     if(menu.slotColor[0] < 0) menu.slotColor[0] = 0;
     if(menu.slotColor[1] < 0) menu.slotColor[1] = 1;
   }
@@ -1217,8 +1229,13 @@ function updateMenu(dt){
     }
   }
 
-  // Escape closes map modal
+  // Escape closes modals
   if(pressed.has('Escape')){
+    if(menu.onlineModal){
+      menu.onlineModal = false;
+      sfx('back');
+      return;
+    }
     if(menu.mapModal){
       menu.mapModal = false;
       sfx('back');
@@ -1256,6 +1273,10 @@ function makePlayer(i,slot,colIdx){
 }
 function startMatch(){
   if(menu.tab === 'solo') settings.teams = false;
+  else if(menu.tab === 'teams') settings.teams = true;
+  if(settings.randomMap){
+    settings.map = Math.floor(rand(MAPS.length));
+  }
   if(typeof NET!=='undefined' && NET && NET.role!==null && !NET.isHost){
     toast('HOST RESTARTS THE MATCH');
     return;
@@ -1298,7 +1319,7 @@ function startMatch(){
     teamItTime:[0,0,0,0],cooldown:0,
     goFlash:0,freeze:0,shake:0,flash:0,fade:0.6,tagPop:null,resultT:0,
     tags:players.map(()=>0),hintT:7,players:players,result:null,pausedFrom:null,pauseSel:0,
-    mapToast:MAPS[settings.map].name,mapToastT:2.5};
+    mapToast:(settings.randomMap?('🎲 RANDOM: '+MAPS[settings.map].name):MAPS[settings.map].name),mapToastT:2.5};
   try{botReset();}catch(e){}
   screen='game';
   if(!isSplitLocalTouch) sfx('count');
@@ -3217,16 +3238,37 @@ function drawMapModal(){
 
   const gridPad = 12;
   const availGridW = modalW - gridPad * 2;
-  const availGridH = modalH - headH - gridPad - 8;
-  const cellW = (availGridW - (cols - 1) * 8) / cols;
+  const randBtnH = clamp(modalH * 0.080, 26, 34);
+  const randBtnW = Math.min(availGridW, 380);
+  const randBtnX = Math.floor(modalX + modalW / 2 - randBtnW / 2);
+  const randBtnY = modalY + headH + 2;
+
+  const isRand = !!settings.randomMap;
+  rr(g, randBtnX, randBtnY, randBtnW, randBtnH, 8);
+  g.fillStyle = isRand ? 'rgba(255, 209, 102, 0.28)' : 'rgba(255, 255, 255, 0.08)';
+  g.fill();
+  g.lineWidth = isRand ? 2.5 : 1.5;
+  g.strokeStyle = isRand ? '#ffd166' : 'rgba(255, 255, 255, 0.25)';
+  g.stroke();
+
+  ptxt(isRand ? '🎲 RANDOM ARENA  ✓' : '🎲 RANDOM ARENA  (Surprise map every match)', randBtnX + randBtnW / 2, randBtnY + randBtnH / 2 + 1, FN(clamp(randBtnW * 0.038, 10.5, 13), 900), isRand ? '#ffd166' : '#ffffff');
+  zone(randBtnX, randBtnY, randBtnW, randBtnH, { fn: () => {
+    settings.randomMap = true;
+    menu.mapModal = false;
+    toast('🎲 RANDOM ARENAS: ON');
+    sfx('ok');
+  }});
+
+  const gridTopY = randBtnY + randBtnH + 6;
+  const availGridH = modalH - (gridTopY - modalY) - gridPad;
   const cellH = (availGridH - (rows - 1) * 8) / rows;
 
   for(let m = 0; m < 10; m++){
     const c = m % cols;
     const r = Math.floor(m / cols);
     const cx = modalX + gridPad + c * (cellW + 8);
-    const cy = modalY + headH + r * (cellH + 8);
-    const isSel = (m === settings.map);
+    const cy = gridTopY + r * (cellH + 8);
+    const isSel = (!settings.randomMap && m === settings.map);
 
     rr(g, cx, cy, cellW, cellH, 8);
     g.fillStyle = isSel ? 'rgba(46, 204, 113, 0.22)' : 'rgba(255,255,255,0.06)';
@@ -3253,12 +3295,94 @@ function drawMapModal(){
     ptxt(shortName, cx + cellW / 2, cy + cellH - labelH / 2, FN(fs, 900), isSel ? '#2ecc71' : '#f1f2f6');
 
     zone(cx, cy, cellW, cellH, { fn: () => {
+      settings.randomMap = false;
       settings.map = m;
       buildLevel();
       menu.mapModal = false;
       sfx('ok');
     }});
   }
+}
+
+/* ================= ONLINE MULTIPLAYER COMING SOON MODAL ================= */
+function drawOnlineComingSoonModal(){
+  if(!menu.onlineModal) return;
+
+  g.fillStyle = 'rgba(6, 9, 16, 0.88)';
+  g.fillRect(0, 0, CW, CH);
+  zone(0, 0, CW, CH, { fn: () => { menu.onlineModal = false; sfx('back'); } });
+
+  const modalW = Math.min(CW - 24, 460);
+  const modalH = Math.min(CH - 24, 340);
+  const modalX = Math.floor(CW / 2 - modalW / 2);
+  const modalY = Math.floor(CH / 2 - modalH / 2);
+
+  rr(g, modalX - 3, modalY - 3, modalW + 6, modalH + 6, 18);
+  g.fillStyle = '#ffffff'; g.fill(); g.lineWidth = 3; g.strokeStyle = INK; g.stroke();
+  rr(g, modalX, modalY, modalW, modalH, 16);
+  g.fillStyle = '#121826'; g.fill(); g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
+  zone(modalX, modalY, modalW, modalH, { fn: () => {} });
+
+  // Close Button
+  const cbSz = 30;
+  const cbX = modalX + modalW - cbSz - 12, cbY = modalY + 12;
+  rr(g, cbX, cbY, cbSz, cbSz, 8);
+  g.fillStyle = '#e74c3c'; g.fill(); g.lineWidth = 2; g.strokeStyle = INK; g.stroke();
+  ptxt('✕', cbX + cbSz / 2, cbY + cbSz / 2 + 1, FN(13, 900), '#ffffff');
+  zone(cbX, cbY, cbSz, cbSz, { fn: () => { menu.onlineModal = false; sfx('back'); } });
+
+  // Header Title
+  ptxt('🌐 PRIVATE MULTIPLAYER', modalX + modalW / 2, modalY + 36, FT(clamp(modalW * 0.052, 16, 21)), '#ffffff');
+
+  // Glowing Badge
+  const badgeW = 140, badgeH = 24;
+  pill(modalX + modalW / 2 - badgeW / 2, modalY + 54, badgeW, badgeH, 'rgba(46, 204, 113, 0.22)', '#2ecc71');
+  ptxt('🚀 COMING SOON', modalX + modalW / 2, modalY + 67, FN(11, 900), '#2ecc71');
+
+  // Bullet items card
+  const boxY = modalY + 90;
+  const boxH = modalH - 160;
+  rr(g, modalX + 16, boxY, modalW - 32, boxH, 10);
+  g.fillStyle = 'rgba(255, 255, 255, 0.05)'; g.fill();
+  g.lineWidth = 1; g.strokeStyle = 'rgba(255, 255, 255, 0.15)'; g.stroke();
+
+  const lines = [
+    '🔒 Private Room Codes (e.g. "TAG4")',
+    '📱 Cross-Platform (Phones, Tablets & PC)',
+    '⚔️ 2-4 Player Tag & 2v2 Team Battles',
+    '⚡ Direct Peer-to-Peer Connection'
+  ];
+  const itemH = boxH / lines.length;
+  for(let i = 0; i < lines.length; i++){
+    ptxt(lines[i], modalX + 28, boxY + (i + 0.5) * itemH + 1, FN(clamp(modalW * 0.033, 10.5, 12.5), 800), '#e2e8f0', 'left');
+  }
+
+  // Action Button
+  const btnW = Math.min(modalW - 40, 220), btnH = 38;
+  const btnX = Math.floor(modalX + modalW / 2 - btnW / 2), btnY = modalY + modalH - btnH - 16;
+  rr(g, btnX - 2, btnY - 2, btnW + 4, btnH + 4, 12);
+  g.fillStyle = '#ffffff'; g.fill(); g.lineWidth = 2; g.strokeStyle = INK; g.stroke();
+  rr(g, btnX, btnY, btnW, btnH, 10);
+  g.fillStyle = '#2ecc71'; g.fill(); g.lineWidth = 1.5; g.strokeStyle = '#ffffff'; g.stroke();
+  ptxt('GOT IT!', btnX + btnW / 2, btnY + btnH / 2 + 1, FT(14), '#ffffff');
+  zone(btnX - 2, btnY - 2, btnW + 4, btnH + 4, { fn: () => { menu.onlineModal = false; sfx('ok'); } });
+}
+
+function cycleMap(d){
+  if(settings.randomMap){
+    settings.randomMap = false;
+    settings.map = (d > 0) ? 0 : (MAPS.length - 1);
+  } else {
+    if(d > 0 && settings.map === MAPS.length - 1){
+      settings.randomMap = true;
+    } else if(d < 0 && settings.map === 0){
+      settings.randomMap = true;
+    } else {
+      settings.map = (settings.map + d + MAPS.length) % MAPS.length;
+    }
+  }
+  buildLevel();
+  sfx('ui');
 }
 
 /* ================= MODERN RESPONSIVE ARENA MENU ================= */
@@ -3335,19 +3459,21 @@ function drawMenu(){
   const logoW = 76;
   ptxt('TAG!', 14 + logoW * 0.4, headY + headH * 0.52, FT(logoFs), '#ffffff');
 
-  // Mode Navigation Tabs (Pills in Center) - 2P Party first, 1P Solo second, Online hidden for now
+  // Mode Navigation Tabs (Pills in Center)
   const modeTabs = [
-    { id: '2p', label: '👥 2-4P PARTY', short: '👥 2-4P' },
-    { id: 'solo', label: '🤖 1P SOLO', short: '🤖 1P' }
+    { id: '2p', label: '👥 2-4P PARTY', short: '👥 PARTY' },
+    { id: 'teams', label: '⚔️ TEAMS (2v2)', short: '⚔️ TEAMS' },
+    { id: 'solo', label: '🤖 1P SOLO', short: '🤖 SOLO' },
+    { id: 'online', label: '🌐 ONLINE', short: '🌐 ONLINE', badge: 'SOON' }
   ];
-  const tabW = clamp((themeX - 14 - logoW - 20) / modeTabs.length, isNarrowW ? 78 : 110, 160);
+  const tabW = clamp((themeX - 14 - logoW - 20) / modeTabs.length, isNarrowW ? 62 : 95, 140);
   const tabH = clamp(headH * 0.84, 28, 36);
-  const tabsTotalW = tabW * modeTabs.length + (modeTabs.length - 1) * 8;
+  const tabsTotalW = tabW * modeTabs.length + (modeTabs.length - 1) * 6;
   const tabsX = Math.max(14 + logoW + 8, Math.floor(CW / 2 - tabsTotalW / 2));
 
   for(let t = 0; t < modeTabs.length; t++){
     const tab = modeTabs[t];
-    const tx = tabsX + t * (tabW + 8);
+    const tx = tabsX + t * (tabW + 6);
     const ty = headY + (headH - tabH) / 2;
     const isAct = (menu.tab === tab.id);
 
@@ -3359,8 +3485,17 @@ function drawMenu(){
     g.stroke();
 
     const tLabel = isNarrowW ? tab.short : tab.label;
-    const tFs = clamp(tabW * 0.11, 10.5, 13);
+    const tFs = clamp(tabW * 0.105, 9.5, 12);
     ptxt(tLabel, tx + tabW/2, ty + tabH/2 + 1, FN(tFs, 900), isAct ? INK : '#cbd5e1');
+
+    if(tab.badge){
+      const bW = 28, bH = 14;
+      const bX = tx + tabW - bW - 2, bY = ty - 4;
+      rr(g, bX, bY, bW, bH, 4);
+      g.fillStyle = '#2ecc71'; g.fill();
+      g.lineWidth = 1; g.strokeStyle = '#ffffff'; g.stroke();
+      ptxt(tab.badge, bX + bW/2, bY + bH/2 + 1, FN(8.5, 900), '#ffffff');
+    }
 
     zone(tx, ty, tabW, tabH, { fn: () => setMenuTab(tab.id) });
   }
@@ -3382,15 +3517,22 @@ function drawMenu(){
   const stageY = headerBottom;
   const stageH = Math.max(70, stripY - stageY - (isShortH ? 4 : 6));
 
-  // 4. Center Stage Content (1P SOLO & 2-4 PLAYERS)
+  // 4. Center Stage Content (1P SOLO, 2-4 PLAYERS & TEAMS)
   const isSolo = (menu.tab === 'solo');
+  const isTeams = (menu.tab === 'teams' || settings.teams);
   if(isSolo) settings.teams = false;
-
+  else if(isTeams) settings.teams = true;
 
   // Determine active slots
   let actSlots = [0];
   if(isSolo){
     actSlots = [0, 1]; // P1 Human, P2 BOT
+  } else if(isTeams){
+    if(menu.slotColor[0] < 0) menu.slotColor[0] = 0;
+    if(menu.slotColor[1] < 0) menu.slotColor[1] = 1;
+    if(menu.slotColor[2] < 0) menu.slotColor[2] = 2;
+    if(menu.slotColor[3] < 0) menu.slotColor[3] = 3;
+    actSlots = [0, 1, 2, 3];
   } else {
     if(menu.slotColor[0] < 0) menu.slotColor[0] = 0;
     if(menu.slotColor[1] < 0) menu.slotColor[1] = 1;
@@ -3399,9 +3541,13 @@ function drawMenu(){
     if(menu.slotColor[3] >= 0) actSlots.push(3);
   }
 
-  // Top sub-header in stage: Player count pills if in 2-4P mode
+  // Top sub-header in stage: Player count pills or Team Tag header
   let stageTopPad = 0;
-  if(!isSolo){
+  if(isTeams){
+    stageTopPad = clamp(stageH * 0.14, 22, 28);
+    const pillY = stageY + 2;
+    ptxt('⚔️ 2v2 TEAM TAG  (RED TEAM VS BLUE TEAM)', CW / 2, pillY + stageTopPad/2 + 1, FN(clamp(CW * 0.026, 11, 13), 900), '#ffd166', 'center');
+  } else if(!isSolo){
     stageTopPad = clamp(stageH * 0.12, 22, 28);
     const pillY = stageY + 2;
     const countOpts = [2, 3, 4];
@@ -3437,7 +3583,7 @@ function drawMenu(){
 
   // Check if 4 cards should wrap to 2x2 grid on small mobile
   const use2x2 = (!isSolo && actSlots.length === 4 && CW < 680);
-  const showAddCard = (!isSolo && actSlots.length < 4 && CW >= 580 && !use2x2);
+  const showAddCard = (!isSolo && !isTeams && actSlots.length < 4 && CW >= 580 && !use2x2);
   const totalItems = actSlots.length + (showAddCard ? 1 : 0);
 
   const cardGap = clamp(CW * 0.016, 6, 14);
@@ -3466,7 +3612,7 @@ function drawMenu(){
       const slot = actSlots[k];
       const cx = startX + k * (cardW + cardGap);
       const isBot = (isSolo && slot === 1);
-      drawPlayerCard(cx, cardY, cardW, cardH, slot, isBot, !isSolo && slot >= 2);
+      drawPlayerCard(cx, cardY, cardW, cardH, slot, isBot, !isSolo && !isTeams && slot >= 2);
     }
 
     // Draw "+ ADD PLAYER" card if slots available
@@ -3482,6 +3628,8 @@ function drawMenu(){
   g.fillStyle = 'rgba(14, 18, 28, 0.94)'; g.fill();
   g.lineWidth = 2; g.strokeStyle = 'rgba(255,255,255,0.18)'; g.stroke();
 
+  const mapLabelText = settings.randomMap ? '🎲 RANDOM ARENA ▾' : ('🗺️ ' + (settings.map + 1) + '. ' + MAPS[settings.map].name + ' ▾');
+
   if(isNarrowW){
     // Statically stacked for narrow mobile phones
     const rowH1 = Math.floor(stripH / 2);
@@ -3492,25 +3640,20 @@ function drawMenu(){
     rr(g, stripX + 6, mapY, arrowW, rowH1 - 6, 6);
     g.fillStyle = 'rgba(255,255,255,0.12)'; g.fill();
     ptxt('‹', stripX + 6 + arrowW/2, mapY + (rowH1 - 6)/2 + 1, FT(15), '#ffffff');
-    zone(stripX + 6, mapY, arrowW, rowH1 - 6, { fn: () => {
-      settings.map = (settings.map - 1 + MAPS.length) % MAPS.length; buildLevel(); sfx('ui');
-    }});
+    zone(stripX + 6, mapY, arrowW, rowH1 - 6, { fn: () => cycleMap(-1) });
 
     // Right Arrow
     rr(g, stripX + stripW - arrowW - 6, mapY, arrowW, rowH1 - 6, 6);
     g.fillStyle = 'rgba(255,255,255,0.12)'; g.fill();
     ptxt('›', stripX + stripW - arrowW/2 - 6, mapY + (rowH1 - 6)/2 + 1, FT(15), '#ffffff');
-    zone(stripX + stripW - arrowW - 6, mapY, arrowW, rowH1 - 6, { fn: () => {
-      settings.map = (settings.map + 1) % MAPS.length; buildLevel(); sfx('ui');
-    }});
+    zone(stripX + stripW - arrowW - 6, mapY, arrowW, rowH1 - 6, { fn: () => cycleMap(1) });
 
     // Middle Map Name (Opens Modal!)
     const mapMidW = stripW - arrowW * 2 - 24;
     const mapMidX = stripX + arrowW + 12;
     rr(g, mapMidX, mapY, mapMidW, rowH1 - 6, 6);
-    g.fillStyle = 'rgba(255,255,255,0.18)'; g.fill();
-    const mapLabel = '🗺️ ' + (settings.map + 1) + '. ' + MAPS[settings.map].name + ' ▾';
-    ptxt(mapLabel, mapMidX + mapMidW/2, mapY + (rowH1 - 6)/2 + 1, FN(11, 900), '#ffd166');
+    g.fillStyle = settings.randomMap ? 'rgba(255, 209, 102, 0.25)' : 'rgba(255,255,255,0.18)'; g.fill();
+    ptxt(mapLabelText, mapMidX + mapMidW/2, mapY + (rowH1 - 6)/2 + 1, FN(11, 900), settings.randomMap ? '#ffd166' : '#ffffff');
     zone(mapMidX, mapY, mapMidW, rowH1 - 6, { fn: () => { menu.mapModal = true; sfx('ok'); } });
 
     // Row 2: Chips (2x Jump, 120s Timer, Teams)
@@ -3535,7 +3678,7 @@ function drawMenu(){
     // Chip 3: Teams
     rr(g, stripX + 18 + chipW * 2, chipsY, chipW, chipH, 6);
     g.fillStyle = settings.teams ? '#2ed573' : 'rgba(255,255,255,0.12)'; g.fill();
-    ptxt(settings.teams ? '👥 TEAMS' : '👥 SOLO', stripX + 18 + chipW * 2.5, chipsY + chipH/2 + 1, FN(10.5, 900), settings.teams ? '#ffffff' : '#94a3b8');
+    ptxt(settings.teams ? '⚔️ TEAMS' : '👥 SOLO', stripX + 18 + chipW * 2.5, chipsY + chipH/2 + 1, FN(10.5, 900), settings.teams ? '#ffffff' : '#94a3b8');
     zone(stripX + 18 + chipW * 2, chipsY, chipW, chipH, { fn: () => { toggleTeams(); } });
 
   } else {
@@ -3551,25 +3694,20 @@ function drawMenu(){
     rr(g, stripX + 6, itemY, arrowW, itemH, 6);
     g.fillStyle = 'rgba(255,255,255,0.12)'; g.fill();
     ptxt('‹', stripX + 6 + arrowW/2, itemY + itemH/2 + 1, FT(15), '#ffffff');
-    zone(stripX + 6, itemY, arrowW, itemH, { fn: () => {
-      settings.map = (settings.map - 1 + MAPS.length) % MAPS.length; buildLevel(); sfx('ui');
-    }});
+    zone(stripX + 6, itemY, arrowW, itemH, { fn: () => cycleMap(-1) });
 
     // Right Arrow
     rr(g, stripX + 6 + mapBoxW - arrowW, itemY, arrowW, itemH, 6);
     g.fillStyle = 'rgba(255,255,255,0.12)'; g.fill();
     ptxt('›', stripX + 6 + mapBoxW - arrowW/2, itemY + itemH/2 + 1, FT(15), '#ffffff');
-    zone(stripX + 6 + mapBoxW - arrowW, itemY, arrowW, itemH, { fn: () => {
-      settings.map = (settings.map + 1) % MAPS.length; buildLevel(); sfx('ui');
-    }});
+    zone(stripX + 6 + mapBoxW - arrowW, itemY, arrowW, itemH, { fn: () => cycleMap(1) });
 
     // Middle Map Name (Opens Modal!)
     const mapMidW = mapBoxW - arrowW * 2 - 8;
     const mapMidX = stripX + 6 + arrowW + 4;
     rr(g, mapMidX, itemY, mapMidW, itemH, 6);
-    g.fillStyle = 'rgba(255,255,255,0.18)'; g.fill();
-    const mapLabel = '🗺️ ' + (settings.map + 1) + '. ' + MAPS[settings.map].name + ' ▾';
-    ptxt(mapLabel, mapMidX + mapMidW/2, itemY + itemH/2 + 1, FN(clamp(mapBoxW * 0.038, 10.5, 12), 900), '#ffd166');
+    g.fillStyle = settings.randomMap ? 'rgba(255, 209, 102, 0.25)' : 'rgba(255,255,255,0.18)'; g.fill();
+    ptxt(mapLabelText, mapMidX + mapMidW/2, itemY + itemH/2 + 1, FN(clamp(mapBoxW * 0.038, 10.5, 12), 900), settings.randomMap ? '#ffd166' : '#ffffff');
     zone(mapMidX, itemY, mapMidW, itemH, { fn: () => { menu.mapModal = true; sfx('ok'); } });
 
     // Right side: 3 Modifier Chips
@@ -3594,7 +3732,7 @@ function drawMenu(){
     // Chip 3: Teams
     rr(g, chipsX + chipW * 2 + 12, itemY, chipW, itemH, 6);
     g.fillStyle = settings.teams ? '#2ed573' : 'rgba(255,255,255,0.12)'; g.fill();
-    ptxt(settings.teams ? '👥 TEAMS' : '👥 SOLO', chipsX + chipW * 2 + 12 + chipW/2, itemY + itemH/2 + 1, FN(11, 900), settings.teams ? '#ffffff' : '#94a3b8');
+    ptxt(settings.teams ? '⚔️ TEAMS' : '👥 SOLO', chipsX + chipW * 2 + 12 + chipW/2, itemY + itemH/2 + 1, FN(11, 900), settings.teams ? '#ffffff' : '#94a3b8');
     zone(chipsX + chipW * 2 + 12, itemY, chipW, itemH, { fn: () => { toggleTeams(); } });
   }
 
@@ -3604,11 +3742,12 @@ function drawMenu(){
   rr(g, startBtnX - 2, startBtnY - 2, startBtnW + 4, startBtnH + 4, 14);
   g.fillStyle = '#ffffff'; g.fill(); g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
   rr(g, startBtnX, startBtnY, startBtnW, startBtnH, 12);
-  g.fillStyle = 'rgba(46, 204, 113, ' + pulse + ')'; g.fill();
+  g.fillStyle = isTeams ? ('rgba(241, 196, 15, ' + pulse + ')') : ('rgba(46, 204, 113, ' + pulse + ')'); g.fill();
   g.lineWidth = 2; g.strokeStyle = '#ffffff'; g.stroke();
 
-  const startLabel = isTouch ? '▶ START MATCH' : '▶ START MATCH  (SPACE / ENTER)';
-  ptxt(startLabel, CW/2, startBtnY + startBtnH/2 + 1, FT(clamp(startBtnH * 0.44, 14, 19)), '#ffffff');
+  let startLabel = isTouch ? '▶ START MATCH' : '▶ START MATCH  (SPACE / ENTER)';
+  if(isTeams) startLabel = isTouch ? '⚔️ START TEAMS MATCH' : '⚔️ START TEAMS (SPACE / ENTER)';
+  ptxt(startLabel, CW/2, startBtnY + startBtnH/2 + 1, FT(clamp(startBtnH * 0.44, 14, 19)), isTeams ? '#141414' : '#ffffff');
   zone(startBtnX - 2, startBtnY - 2, startBtnW + 4, startBtnH + 4, { fn: () => {
     if(activeSlots().length < 2){
       menu.slotColor[0] = 0; menu.slotColor[1] = 1;
@@ -3628,8 +3767,9 @@ function drawMenu(){
     g.restore();
   }
 
-  // 8. Map Modal (draws on top if open)
+  // 8. Modals (draw on top if open)
   drawMapModal();
+  drawOnlineComingSoonModal();
 }
 
 /* Helper to render an individual Player Card with interactive controls */
