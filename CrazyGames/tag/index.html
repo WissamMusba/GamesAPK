@@ -1479,22 +1479,7 @@ function botInputFor(p){
   let S=BOT.st[p.slot];
   if(!S){S=BOT.st[p.slot]={dir:0,jumpQ:false,jumpHoldT:0,decideT:0,px:p.x,py:p.y,stuckT:0,unstuckT:0,unstuckDir:0,bonks:0,bonkT:0,airT:0,dropHold:0,descLockT:0,descDir:0,airT2:0,exitX:0,hasExit:false,exitLockT:0,exitDir:0,exitGp:null,climbPlat:null,climbOut:0,climbT:0,bannedSide:0,banT:0,banTierY:0,loopAnchorX:p.x,loopAnchorY:p.y,loopT:0,escapeT:0,escapeDir:0,escapeDrop:false,dropNoJumpT:0};}
   const dt=Math.min(0.033,1/60);
-  const cx=p.x+p.w/2,cy=p.y+p.h/2;
-  // target: chase if IT, flee from IT if not
-  let target=null;
-  try{
-    const itP=match.players[match.it];
-    if(itP===p){
-      let best=1e12;
-      for(const o of match.players){if(o===p)continue;const d=(o.x-p.x)*(o.x-p.x)+(o.y-p.y)*(o.y-p.y);if(d<best){best=d;target=o;}}
-    }else target=itP;
-  }catch(e){}
-  if(!target)return{dir:0,jumpEdge:false,jumpHeld:false,downHeld:false};
-  const tx=target.x+target.w/2,ty=target.y+target.h/2;
-  const dx=tx-cx,dy=ty-cy;
-  const isIt=(match.players[match.it]===p);
-
-  if(S.dropNoJumpT>0)S.dropNoJumpT-=dt;
+    if(S.dropNoJumpT>0)S.dropNoJumpT-=dt;
   if(S.escapeT>0)S.escapeT-=dt;
   if(S.flipWindowT===undefined){S.flipWindowT=0;S.flipCount=0;S.lastFlipDir=0;S.bestDist=1e9;S.noProgressT=0;}
   
@@ -1516,7 +1501,7 @@ function botInputFor(p){
   }
 
   // Track target distance progress: if no closer to target for 1.8s, force breakthrough!
-  const curDist=Math.hypot(dx,dy);
+  const curDist=target?Math.hypot(target.x-p.x,target.y-p.y):0;
   if(curDist<S.bestDist-25){
     S.bestDist=curDist;
     S.noProgressT=0;
@@ -1531,19 +1516,20 @@ function botInputFor(p){
     if(onDrop){S.escapeDrop=true;S.escapeDir=0;S.dropNoJumpT=0.9;}
     else{S.escapeDrop=false;S.escapeDir=(S.dir!==0?-S.dir:(Math.random()<0.5?-1:1));}
   }
-
-  if(S.escapeT>0){
-    if(S.escapeDrop){
-      return {dir:0,jumpEdge:false,jumpHeld:false,downHeld:true};
-    } else {
-      const wallAhead=botWallAhead(p,S.escapeDir);
-      const isJumpable=wallAhead&&(wallAhead.y>p.y-170);
-      let j=false;
-      if(p.grounded&&(isJumpable||!botGroundAhead(p,S.escapeDir))){j=true;}
-      if(p.sideT>0&&p.wallJumps<2){j=true;}
-      return {dir:S.escapeDir,jumpEdge:j,jumpHeld:j,downHeld:false};
-    }
-  }
+const cx=p.x+p.w/2,cy=p.y+p.h/2;
+  // target: chase if IT, flee from IT if not
+  let target=null;
+  try{
+    const itP=match.players[match.it];
+    if(itP===p){
+      let best=1e12;
+      for(const o of match.players){if(o===p)continue;const d=(o.x-p.x)*(o.x-p.x)+(o.y-p.y)*(o.y-p.y);if(d<best){best=d;target=o;}}
+    }else target=itP;
+  }catch(e){}
+  if(!target)return{dir:0,jumpEdge:false,jumpHeld:false,downHeld:false};
+  const tx=target.x+target.w/2,ty=target.y+target.h/2;
+  const dx=tx-cx,dy=ty-cy;
+  const isIt=(match.players[match.it]===p);
 
   S.decideT-=dt;S.bonkT-=dt;
   if(S.bonkT<=0)S.bonks=0;
