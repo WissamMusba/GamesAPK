@@ -1456,15 +1456,24 @@ function botGroundAhead(p,dir){
   return false;
 }
 function botWallAhead(p,dir,dist){
-  if(!dir)return false;
+  if(!dir)return null;
   const d=dist||44;
   const wx=dir>0?(p.x+p.w):(p.x-d);
   const probe={x:wx, y:p.y+6, w:d, h:p.h-12};
   for(const s of SOLIDS){
     if(s.t==='drop')continue;
-    if(hitRect(probe,s))return true;
+    if(hitRect(probe,s))return s;
   }
-  return false;
+  return null;
+}
+function botCeilAbove(p,dist){
+  const d=dist||48;
+  const probe={x:p.x+4, y:p.y-d, w:p.w-8, h:d};
+  for(const s of SOLIDS){
+    if(s===p.gp)continue;
+    if(hitRect(probe,s))return s;
+  }
+  return null;
 }
 function botInputFor(p){
   let S=BOT.st[p.slot];
@@ -1624,7 +1633,15 @@ function botInputFor(p){
     const headBlocked=botSolidBetween(cx,p.y-4,tx,Math.min(ty,p.y-60));
     if(p.grounded){
       S.airT2=0;S.climbT=0;
-      if(isIt){
+      const wallAhead=botWallAhead(p,want);
+      const ceilAbove=botCeilAbove(p,48);
+      const isJumpableWall=wallAhead&&(wallAhead.y>p.y-170)&&!ceilAbove;
+      const isDropEscape=wallAhead&&!isJumpableWall&&(p.gp&&p.gp.t==='drop');
+
+      if(isDropEscape){
+        // Trapped by giant unjumpable wall/pillar on drop platform: drop down to escape!
+        S.jumpQ=false;
+      } else if(isIt){
         // CHASE: Edge launch and climb toward prey above
         let edgeJump=false;
         if(aboveBy>50&&p.gp){
@@ -1634,18 +1651,23 @@ function botInputFor(p){
         if(!edgeJump&&S.hasExit&&aboveBy>50&&Math.abs(cx-S.exitX)<48)edgeJump=true;
         if(edgeJump){S.jumpQ=true;}
         else if(aboveBy>70&&Math.abs(dx)<260&&!headBlocked){S.jumpQ=true;}
-        else if(botWallAhead(p,want)){S.descLockT=0;S.descDir=0;S.jumpQ=true;}
-        else if(Math.abs(p.vx)<60&&want!==0&&far){S.jumpQ=true;}
+        else if(isJumpableWall){S.descLockT=0;S.descDir=0;S.jumpQ=true;}
+        else if(wallAhead&&!isJumpableWall){
+          // Unjumpable barrier: do NOT jump into it, turn around!
+          S.jumpQ=false;
+          want=-want;S.dir=want;
+        }
+        else if(Math.abs(p.vx)<60&&want!==0&&far&&!ceilAbove){S.jumpQ=true;}
         else if(!botGroundAhead(p,want)&&far){S.jumpQ=true;} // gap: jump across
       } else {
         // FLEE: Do NOT jump up into hunter above; jump only over obstacles & gaps
-        if(botWallAhead(p,want)){S.jumpQ=true;}
+        if(isJumpableWall){S.jumpQ=true;}
         else if(!botGroundAhead(p,want)&&far){S.jumpQ=true;}
-        else if(Math.abs(p.vx)<60&&want!==0&&far){S.jumpQ=true;}
+        else if(Math.abs(p.vx)<60&&want!==0&&far&&!ceilAbove){S.jumpQ=true;}
       }
       // DOWN: target clearly below -> pink drop wins, else score 3 fall-lines.
       // Locked while committed so pink/brown seams can't flip dir every think.
-      let down=false;
+      let down=isDropEscape||false;
       const belowGap=ty-(p.y+p.h);
       const sameTier=Math.abs(belowGap)<60&&Math.abs(dx)<200;
       if(isIt&&belowGap>60&&!sameTier){
