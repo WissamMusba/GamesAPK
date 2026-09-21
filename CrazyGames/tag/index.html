@@ -1481,14 +1481,39 @@ function botInputFor(p){
   const dt=Math.min(0.033,1/60);
     if(S.dropNoJumpT>0)S.dropNoJumpT-=dt;
   if(S.escapeT>0)S.escapeT-=dt;
-  if(S.loopAnchorX===undefined){S.loopAnchorX=p.x;S.loopAnchorY=p.y;S.loopT=0;}
-  const loopDist=Math.hypot(p.x-S.loopAnchorX,p.y-S.loopAnchorY);
-  if(loopDist<110){S.loopT+=dt;}else{S.loopAnchorX=p.x;S.loopAnchorY=p.y;S.loopT=0;}
-  if(S.loopT>0.75){
-    S.loopT=0;S.escapeT=1.0;
+  if(S.flipWindowT===undefined){S.flipWindowT=0;S.flipCount=0;S.lastFlipDir=0;S.bestDist=1e9;S.noProgressT=0;}
+  
+  // Track direction flips to kill zig-zag pacing instantly
+  if(S.dir!==0&&S.lastFlipDir!==0&&S.dir===-S.lastFlipDir){
+    S.flipCount++;
+    S.lastFlipDir=S.dir;
+  } else if(S.dir!==0){
+    S.lastFlipDir=S.dir;
+  }
+  S.flipWindowT+=dt;
+  if(S.flipWindowT>0.8){
+    if(S.flipCount>=3){
+      // Zig-zag detected: lock direction for 1s to break pacing!
+      S.escapeT=1.0;S.escapeDir=S.dir||1;
+      S.exitLockT=0;S.descLockT=0;S.climbPlat=null;S.hasExit=false;
+    }
+    S.flipCount=0;S.flipWindowT=0;
+  }
+
+  // Track target distance progress: if no closer to target for 1.8s, force breakthrough!
+  const curDist=target?Math.hypot(target.x-p.x,target.y-p.y):0;
+  if(curDist<S.bestDist-25){
+    S.bestDist=curDist;
+    S.noProgressT=0;
+  }else{
+    S.noProgressT+=dt;
+  }
+  if(S.noProgressT>1.8){
+    S.noProgressT=0;S.bestDist=1e9;
+    S.escapeT=1.2;
     S.exitLockT=0;S.descLockT=0;S.climbPlat=null;S.hasExit=false;
     const onDrop=(p.gp&&p.gp.t==='drop')||!!zoneAtFeet(p,'drop');
-    if(onDrop){S.escapeDrop=true;S.escapeDir=0;S.dropNoJumpT=0.85;}
+    if(onDrop){S.escapeDrop=true;S.escapeDir=0;S.dropNoJumpT=0.9;}
     else{S.escapeDrop=false;S.escapeDir=(S.dir!==0?-S.dir:(Math.random()<0.5?-1:1));}
   }
 const cx=p.x+p.w/2,cy=p.y+p.h/2;
@@ -1571,15 +1596,15 @@ const cx=p.x+p.w/2,cy=p.y+p.h/2;
         detour=flip;want=flip;S.dir=flip;
       }
     }
-    if(isIt&&aboveBy>50&&Math.abs(dx)<380){
+    if(isIt&&aboveBy>50){
       // Ceiling router: go around the slab that's actually overhead
       // (blocked), not the floor under our feet. Self-hit excluded so
       // slopes never read as ceilings. Floor (wall=1) may detour too.
       const blocked=botSolidBetween(cx,p.y-10,tx,ty,p.gp);
       const gp=p.grounded?p.gp:null;
       if(blocked&&!blocked.wall&&p.grounded&&gp){
-        // Juke invalidation: player crossed well to the other side
-        if(S.exitLockT>0&&S.exitX&&Math.sign(dx)!==Math.sign(S.exitX-cx)&&Math.abs(dx)>120){
+        // Real juke invalidation: only cancel if target crossed sides of the bot
+        if(S.exitLockT>0&&S.targetSideAtLock&&Math.sign(dx)!==S.targetSideAtLock&&Math.abs(dx)>80){
           S.exitLockT=0;S.exitDir=0;S.exitGp=null;S.hasExit=false;
         }
         // hold existing lock while on the same platform
@@ -1618,7 +1643,7 @@ const cx=p.x+p.w/2,cy=p.y+p.h/2;
             }
           }
           S.climbPlat=laneCeil||blocked;S.climbOut=detour;
-          S.exitLockT=0.8;S.exitDir=detour;S.exitGp=gp;
+          S.exitLockT=0.8;S.exitDir=detour;S.exitGp=gp;S.targetSideAtLock=Math.sign(dx);
         }
       }else if(!p.grounded){
         // AIRBORNE: preserve exit lock across the jump so momentum & direction hold
@@ -1630,7 +1655,7 @@ const cx=p.x+p.w/2,cy=p.y+p.h/2;
         S.exitLockT=0;S.exitDir=0;S.exitGp=null;S.hasExit=false;
       }
     }else{
-      if(aboveBy<20||Math.abs(dx)>=400){
+      if(aboveBy<20){
         S.exitLockT=0;S.exitDir=0;S.exitGp=null;S.hasExit=false;
       }
     }
