@@ -1547,7 +1547,7 @@ function botInputFor(p){
         detour=flip;want=flip;S.dir=flip;
       }
     }
-    if(aboveBy>50&&Math.abs(dx)<380){
+    if(isIt&&aboveBy>50&&Math.abs(dx)<380){
       // Ceiling router: go around the slab that's actually overhead
       // (blocked), not the floor under our feet. Self-hit excluded so
       // slopes never read as ceilings. Floor (wall=1) may detour too.
@@ -1611,9 +1611,8 @@ function botInputFor(p){
     const headBlocked=botSolidBetween(cx,p.y-4,tx,Math.min(ty,p.y-60));
     if(p.grounded){
       S.airT2=0;S.climbT=0;
-      if(isIt||true){
-        // Edge launch: purely positional (floor included - its edges are
-        // the walls, exit proximity covers the run-up). No velocity gate.
+      if(isIt){
+        // CHASE: Edge launch and climb toward prey above
         let edgeJump=false;
         if(aboveBy>50&&p.gp){
           const dEdge=Math.min(Math.abs(cx-p.gp.x),Math.abs(cx-(p.gp.x+p.gp.w)));
@@ -1625,13 +1624,18 @@ function botInputFor(p){
         else if(botWallAhead(p,want)){S.jumpQ=true;}
         else if(Math.abs(p.vx)<60&&want!==0&&far){S.jumpQ=true;}
         else if(!botGroundAhead(p,want)&&far){S.jumpQ=true;} // gap: jump across
+      } else {
+        // FLEE: Do NOT jump up into hunter above; jump only over obstacles & gaps
+        if(botWallAhead(p,want)){S.jumpQ=true;}
+        else if(!botGroundAhead(p,want)&&far){S.jumpQ=true;}
+        else if(Math.abs(p.vx)<60&&want!==0&&far){S.jumpQ=true;}
       }
       // DOWN: target clearly below -> pink drop wins, else score 3 fall-lines.
       // Locked while committed so pink/brown seams can't flip dir every think.
       let down=false;
       const belowGap=ty-(p.y+p.h);
       const sameTier=Math.abs(belowGap)<60&&Math.abs(dx)<200;
-      if(belowGap>60&&!sameTier){
+      if(isIt&&belowGap>60&&!sameTier){
         const onPink=zoneAtFeet(p,'drop');
         if(S.descLockT>0&&S.descDir){
           // committed: hold lane, only pink state updates
@@ -1693,7 +1697,7 @@ function botInputFor(p){
           else S.jumpQ=false;
         }else S.jumpQ=false;
       }
-      else if(p.airJumps>0&&aboveBy>50){
+      else if(isIt&&p.airJumps>0&&aboveBy>50){
         // Climb: immediate headroom only (far slabs must not veto),
         // broad apex band, 0.10s guard. Inward turn still gated by lip
         // probe so we don't steer into the corner while rising.
@@ -1733,7 +1737,7 @@ function botInputFor(p){
         }
       }
       // Rising: curl inward once the outward hold is done
-      else if(p.vy<0&&aboveBy>40&&p.vy>-250){
+      else if(isIt&&p.vy<0&&aboveBy>40&&p.vy>-250){
         if(!S.climbPlat&&Math.abs(dx)>20)S.dir=Math.sign(dx);
       }
     }
