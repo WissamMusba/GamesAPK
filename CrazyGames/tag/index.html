@@ -1039,7 +1039,7 @@ let currentThemeIdx=0;
 
 /* ================= menu ================= */
 let screen='menu',tGlobal=0;
-const menu={tab:'2p',mode:'rows',slotColor:[0,1,-1,-1,-1,-1,-1,-1],slotTeam:[0,1,0,1,0,1,0,1],slotCtrl:[0,1,2,3],row:4,rule:0,toast:null,toastT:0,botOn:false,mapModal:false};
+const menu={tab:'2p',mode:'rows',slotColor:[0,1,-1,-1,-1,-1,-1,-1],slotTeam:[0,1,0,1,0,1,0,1],slotCtrl:[0,1,2,3],row:4,rule:0,toast:null,toastT:0,botOn:true,botVsBot:true,mapModal:false};
 const ROWS=['CHANGE PLAYERS','MAP','TIMER','RULES','START'];
 const RULE_NAMES=['DOUBLE JUMP'];
 function toast(m){menu.toast=m;menu.toastT=2.2;}
@@ -1052,7 +1052,6 @@ function setMenuTab(tab){
     menu.slotColor = [0, 1, -1, -1, -1, -1, -1, -1];
     settings.teams = false;
   } else if(tab === '2p'){
-    menu.botOn = false;
     if(menu.slotColor[0] < 0) menu.slotColor[0] = 0;
     if(menu.slotColor[1] < 0) menu.slotColor[1] = 1;
   }
@@ -1196,9 +1195,10 @@ function menuConfirm(){
 function updateMenu(dt){
   if(anyPressed(['KeyM'])){muted=!muted;applyEffectiveMute();}
   if(anyPressed(['KeyB'])){
-    menu.botOn=!menu.botOn;
+    if(!menu.botOn){menu.botOn=true;menu.botVsBot=true;toast('BOTS: BOT VS BOT');}
+    else if(menu.botVsBot){menu.botVsBot=false;toast('BOTS: P1 VS BOT');}
+    else{menu.botOn=false;toast('BOTS: OFF (2 PLAYERS)');}
     sfx('ui');
-    toast(menu.botOn?'BOT: ON':'BOT: OFF');
   }
   menu.toastT-=dt;
 
@@ -1431,6 +1431,7 @@ function isBotSlot(p){
     if(!menu.botOn)return false;
     if(!match||!match.players||match.players.length!==2)return false;
     if(activeSlots().length!==2)return false;
+    if(menu.botVsBot) return p.slot===0 || p.slot===1;
     return p.slot===1;
   }catch(e){return false;}
 }
@@ -2499,6 +2500,10 @@ function updateGame(dt){
   if(anyPressed(['KeyN']))selectMapQuick(settings.map+1);
   if(anyPressed(['KeyB']))cycleTheme();
   if(anyPressed(['KeyV']))voiceToggleMic();
+  if(anyPressed(['KeyZ'])){
+    menu.botVsBot = !menu.botVsBot;
+    toast(menu.botVsBot ? 'BOT VS BOT (SPECTATE)' : 'P1 HUMAN VS BOT');
+  }
   
   /* Number keys 1-9, 0 to switch to any map instantly */
   for(let k=1;k<=9;k++)if(pressed.has('Digit'+k))selectMapQuick(k-1);
@@ -4169,12 +4174,19 @@ function drawHUD(){
     const y = 10 + i * pillGap;
     g.save(); g.globalAlpha = isIt ? 1 : 0.75;
     const teamBadge = settings.teams ? ((p.team === 0 ? '🔴 ' : (p.team === 1 ? '🔵 ' : '🟢 '))) : '';
-    const label = teamBadge + 'P' + (p.slot + 1) + (isIt ? ' IT' : '');
-    pill(10, y, isIt ? 124 : 92, pillH, isIt ? 'rgba(255,210,63,0.92)' : 'rgba(0,0,0,0.3)', isIt ? INK : 'rgba(0,0,0,0.5)');
+    const botTag = isBotSlot(p) ? ' [BOT]' : '';
+    const label = teamBadge + 'P' + (p.slot + 1) + botTag + (isIt ? ' IT' : '');
+    const pillW = botTag ? (isIt ? 142 : 110) : (isIt ? 124 : 92);
+    pill(10, y, pillW, pillH, isIt ? 'rgba(255,210,63,0.92)' : 'rgba(0,0,0,0.3)', isIt ? INK : 'rgba(0,0,0,0.5)');
     g.fillStyle = getPlayerColor(p);
     rr(g, 14, y + (pillH - 16) / 2, 16, 16, 4); g.fill(); g.lineWidth = 1.8; g.strokeStyle = INK; g.stroke();
     txt(label, 36, y + pillH / 2 + 1, FN(P.length > 4 ? 10 : 11, 900), isIt ? '#3a2c00' : '#ffffff', 'left');
     g.restore();
+  }
+  
+  if(menu.botOn && menu.botVsBot && P.length === 2 && match.state === 'playing'){
+    pill(CW/2 - 110, 52, 220, 22, 'rgba(0,0,0,0.7)', 'rgba(255,234,121,0.6)');
+    txt('🤖 BOT VS BOT (Press Z to play P1)', CW/2, 64, FN(10, 800), '#ffea79', 'center');
   }
   
   /* In-game control bar: Pause, Sound, Fullscreen, Next Map, Voice */
