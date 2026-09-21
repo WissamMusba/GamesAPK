@@ -1478,7 +1478,7 @@ function botCeilAbove(p,dist){
 }
 function botInputFor(p,dt){
   let S=BOT.st[p.slot];
-  if(!S){S=BOT.st[p.slot]={dir:0,jumpQ:false,jumpHoldT:0,decideT:0,px:p.x,py:p.y,stuckT:0,unstuckT:0,unstuckDir:0,bonks:0,bonkT:0,airT:0,dropHold:0,descLockT:0,descDir:0,airT2:0,exitX:0,hasExit:false,exitLockT:0,exitDir:0,exitGp:null,climbPlat:null,climbOut:0,climbT:0,bannedSide:0,banT:0,banTierY:0,dropNoJumpT:0};}
+  if(!S){S=BOT.st[p.slot]={dir:0,jumpQ:false,jumpHoldT:0,decideT:0,px:p.x,py:p.y,stuckT:0,unstuckT:0,unstuckDir:0,bonks:0,bonkT:0,airT:0,dropHold:0,descLockT:0,descDir:0,airT2:0,exitX:0,hasExit:false,exitLockT:0,exitDir:0,exitGp:null,climbPlat:null,climbOut:0,climbT:0,bannedSide:0,banT:0,banTierY:0,dropNoJumpT:0,pinkJukePhase:0,pinkJukeT:0,pinkJukeCooldown:0,pinkJukePlat:null,pinkJukeDir:0,airBrakeT:0,airBrakeCooldown:0};}
   const stepDt=(typeof dt==='number'&&dt>0)?Math.min(0.05,dt):Math.min(0.033,1/60);
   const cx=p.x+p.w/2,cy=p.y+p.h/2;
   // target: chase if IT, flee from IT if not
@@ -1496,6 +1496,8 @@ function botInputFor(p,dt){
   const isIt=(match.players[match.it]===p);
 
   if(S.dropNoJumpT>0)S.dropNoJumpT-=stepDt;
+  if(S.pinkJukeCooldown>0)S.pinkJukeCooldown-=stepDt;
+  if(S.airBrakeCooldown>0)S.airBrakeCooldown-=stepDt;
 
   S.decideT-=stepDt;S.bonkT-=stepDt;
   if(S.bonkT<=0)S.bonks=0;
@@ -1546,17 +1548,51 @@ function botInputFor(p,dt){
       // flee: run from IT
       want=Math.abs(dx)>24?-Math.sign(dx):(S.dir||1);
       
-      // Corner check: perimeter wall with hunter approaching directly
-      const hunterClosing=Math.abs(dx)<320&&Math.abs(dy)<180;
-      const cornerL=(p.x<=WALL+130&&dx>0);
-      const cornerR=(p.x+p.w>=W-WALL-130&&dx<0);
-      if((cornerL||cornerR)&&hunterClosing){
-        // EMERGENCY CORNER JUKE: Wall-jump overhead to flank over approaching hunter!
-        isCornerJuke=true;
-        want=p.grounded?(cornerL?-1:1):(cornerL?1:-1);
+      // 1. Pink platform bait & pop-up juke (drop beneath and pop up behind hunter!)
+      const onPink=(p.gp&&p.gp.t==='drop')||zoneAtFeet(p,'drop');
+      const hunterClosing=Math.sign(target.vx||0)===-Math.sign(dx)||Math.abs(target.vx||0)>90;
+      const hunterNearBehind=Math.abs(dy)<60&&Math.abs(dx)>60&&Math.abs(dx)<230&&hunterClosing;
+      
+      if(onPink&&hunterNearBehind&&S.pinkJukeCooldown<=0&&S.pinkJukePhase===0){
+        S.pinkJukePhase=1;
+        S.pinkJukeT=0.28;
+        S.pinkJukePlat=p.gp||onPink;
+        S.pinkJukeDir=want;
+      }else if(S.pinkJukePhase===1){
+        // Phase 1: Dropping beneath pink floor
+        S.pinkJukeT-=stepDt;
+        want=S.pinkJukeDir;
+        // Check if hunter overshoots past the bot or runs directly overhead:
+        const hunterPassed=(Math.sign(dx)===S.pinkJukeDir&&Math.abs(dx)>15)||Math.abs(dx)<45;
+        if(hunterPassed||S.pinkJukeT<=0){
+          // POP BACK UP BEHIND HUNTER!
+          S.pinkJukePhase=2;
+          S.pinkJukeT=0.35;
+          S.jumpQ=true;
+          S.jumpHoldT=0.15;
+          want=-S.pinkJukeDir;
+        }
+      }else if(S.pinkJukePhase===2){
+        // Phase 2: Rising through pink floor and sprinting in reverse away from hunter
+        S.pinkJukeT-=stepDt;
+        want=-S.pinkJukeDir;
+        if(S.pinkJukeT<=0||(p.grounded&&p.y<=(S.pinkJukePlat?S.pinkJukePlat.y:p.y))){
+          S.pinkJukePhase=0;
+          S.pinkJukeCooldown=3.0;
+        }
       }else{
-        if(p.x<WALL+80&&want<0)want=1;
-        if(p.x+p.w>W-WALL-80&&want>0)want=-1;
+        // 2. Corner check: perimeter wall with hunter approaching directly
+        const hunterCornerClosing=Math.abs(dx)<320&&Math.abs(dy)<180;
+        const cornerL=(p.x<=WALL+130&&dx>0);
+        const cornerR=(p.x+p.w>=W-WALL-130&&dx<0);
+        if((cornerL||cornerR)&&hunterCornerClosing){
+          // EMERGENCY CORNER JUKE: Wall-jump overhead to flank over approaching hunter!
+          isCornerJuke=true;
+          want=p.grounded?(cornerL?-1:1):(cornerL?1:-1);
+        }else{
+          if(p.x<WALL+80&&want<0)want=1;
+          if(p.x+p.w>W-WALL-80&&want>0)want=-1;
+        }
       }
     }
     // UP: blocked by solid above -> persistent exit lock on this platform.
@@ -1676,14 +1712,21 @@ function botInputFor(p,dt){
         else if(!botGroundAhead(p,want)&&far){S.jumpQ=true;} // gap: jump across
       } else {
         // FLEE: Jump over obstacles, gaps, or perform emergency corner wall flank
-        if(isCornerJuke){S.jumpQ=true;S.jumpHoldT=0.14;}
-        else if(isJumpableWall){S.jumpQ=true;}
+        if(S.pinkJukePhase===1){
+          // Dropping beneath pink floor, do NOT jump
+          S.jumpQ=false;
+        }else if(S.pinkJukePhase===2){
+          // Pop back up through pink platform
+          S.jumpQ=true;S.jumpHoldT=0.15;
+        }else if(isCornerJuke){
+          S.jumpQ=true;S.jumpHoldT=0.14;
+        }else if(isJumpableWall){S.jumpQ=true;}
         else if(!botGroundAhead(p,want)&&far){S.jumpQ=true;}
         else if(Math.abs(p.vx)<60&&want!==0&&far&&!ceilAbove){S.jumpQ=true;}
       }
       // DOWN: target clearly below -> pink drop wins, else score 3 fall-lines.
       // Locked while committed so pink/brown seams can't flip dir every think.
-      let down=isDropEscape||false;
+      let down=isDropEscape||(S.pinkJukePhase===1)||false;
       if(isDropEscape){S.dropNoJumpT=0.85;}
       const belowGap=ty-(p.y+p.h);
       const sameTier=Math.abs(belowGap)<60&&Math.abs(dx)<200;
@@ -1805,6 +1848,19 @@ function botInputFor(p,dt){
       // Rising: curl inward once the outward hold is done
       else if(isIt&&p.vy<0&&aboveBy>40&&p.vy>-250){
         if(!S.climbPlat&&Math.abs(dx)>20)S.dir=Math.sign(dx);
+      }
+      // FLEE AIR STALL / REVERSE FEINT:
+      if(!isIt&&S.pinkJukePhase===0){
+        const hunterCloseAir=Math.abs(dx)<180&&Math.abs(dy)<120;
+        const hunterFast=Math.abs(target.vx||0)>180;
+        if(hunterCloseAir&&hunterFast&&S.airBrakeCooldown<=0&&S.airBrakeT<=0){
+          S.airBrakeT=0.18;
+          S.airBrakeCooldown=2.6;
+        }
+        if(S.airBrakeT>0){
+          S.airBrakeT-=stepDt;
+          S.dir=p.vx!==0?-Math.sign(p.vx):0;
+        }
       }
     }
   }
