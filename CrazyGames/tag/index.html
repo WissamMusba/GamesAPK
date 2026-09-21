@@ -18,8 +18,8 @@
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <link id="font-link-20" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Anton&family=Bangers&family=Black+Han+Sans&family=Luckiest+Guy&family=Righteous&family=Fredoka+One&family=Baloo+2:wght@700;800&family=Nunito:wght@800;900&family=Poppins:wght@700;800;900&family=Montserrat:wght@700;800;900&family=Titan+One&family=Chewy&family=MuseoModerno:wght@700;900&family=Comfortaa:wght@700&family=Space+Grotesk:wght@600;700&family=Orbitron:wght@700;900&family=Russo+One&family=Staatliches&display=swap" rel="stylesheet"/>
 <style>
-html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#0b0f16;font-family:'Outfit','Rubik',system-ui,sans-serif}
-canvas{position:fixed;top:0;left:0;width:100%;height:100%;display:block;outline:none;touch-action:none;
+html,body{margin:0;padding:0;width:100%;height:100%;height:100dvh;overflow:hidden;background:#0b0f16;font-family:'Outfit','Rubik',system-ui,sans-serif}
+canvas{position:fixed;top:0;left:0;width:100%;height:100%;height:100dvh;display:block;outline:none;touch-action:none;
  -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:none;-webkit-touch-callout:none}
 /* ---- netplay join modal (optional, only when manual code entry is clicked) ---- */
 #netUI{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;background:rgba(5,8,13,0.85);backdrop-filter:blur(4px);font-family:'Outfit','Rubik',system-ui,sans-serif}
@@ -81,8 +81,10 @@ const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
 
 function resize(){
   const rect = cv.getBoundingClientRect();
-  CW = Math.floor(rect.width || window.innerWidth);
-  CH = Math.floor(rect.height || window.innerHeight);
+  const vW = (window.visualViewport && window.visualViewport.width) ? window.visualViewport.width : window.innerWidth;
+  const vH = (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight;
+  CW = Math.floor(Math.min(rect.width || vW, vW));
+  CH = Math.floor(Math.min(rect.height || vH, vH));
   const maxDpr = isTouch ? 1.5 : 2;
   DPR = Math.min(maxDpr, window.devicePixelRatio || 1);
   cv.width = Math.floor(CW * DPR);
@@ -90,6 +92,9 @@ function resize(){
 }
 window.addEventListener('resize', resize);
 window.addEventListener('orientationchange', () => setTimeout(resize, 140));
+if(window.visualViewport){
+  window.visualViewport.addEventListener('resize', resize);
+}
 resize();
 cv.style.touchAction='none';
 
@@ -284,7 +289,7 @@ function inputDown(x,y,id){
 
   const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
   const isPlaying = (match && (match.state === 'playing' || match.state === 'countdown'));
-  const isSplitLocal = (!isOnline && match && screen === 'game' && isPlaying && match.players && match.players.length === 2 && isTouch);
+  const isSplitLocal = (!isOnline && match && screen === 'game' && isPlaying && match.players && match.players.length === 2 && isTouch && !menu.botOn && menu.tab !== 'solo');
 
   // Allow HUD top bar buttons (Pause, Mute, Help) to receive clicks
   if(y <= 55){
@@ -425,7 +430,7 @@ function inputDown(x,y,id){
 function inputMove(x,y,id){
   const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
   const isPlaying = (match && (match.state === 'playing' || match.state === 'countdown'));
-  const isSplitLocal = (!isOnline && match && screen === 'game' && isPlaying && match.players && match.players.length === 2 && isTouch);
+  const isSplitLocal = (!isOnline && match && screen === 'game' && isPlaying && match.players && match.players.length === 2 && isTouch && !menu.botOn && menu.tab !== 'solo');
   if(isSplitLocal){
     const b = calcLocalBounds();
     // P1 Joystick
@@ -1039,7 +1044,7 @@ let currentThemeIdx=0;
 
 /* ================= menu ================= */
 let screen='menu',tGlobal=0;
-const menu={tab:'2p',mode:'rows',slotColor:[0,1,-1,-1,-1,-1,-1,-1],slotTeam:[0,1,0,1,0,1,0,1],slotCtrl:[0,1,2,3],row:4,rule:0,toast:null,toastT:0,botOn:true,botVsBot:true,mapModal:false};
+const menu={tab:'2p',mode:'rows',slotColor:[0,1,-1,-1,-1,-1,-1,-1],slotTeam:[0,1,0,1,0,1,0,1],slotCtrl:[0,1,2,3],row:4,rule:0,toast:null,toastT:0,botOn:false,mapModal:false};
 const ROWS=['CHANGE PLAYERS','MAP','TIMER','RULES','START'];
 const RULE_NAMES=['DOUBLE JUMP'];
 function toast(m){menu.toast=m;menu.toastT=2.2;}
@@ -1052,6 +1057,7 @@ function setMenuTab(tab){
     menu.slotColor = [0, 1, -1, -1, -1, -1, -1, -1];
     settings.teams = false;
   } else if(tab === '2p'){
+    menu.botOn = false;
     if(menu.slotColor[0] < 0) menu.slotColor[0] = 0;
     if(menu.slotColor[1] < 0) menu.slotColor[1] = 1;
   }
@@ -1195,10 +1201,9 @@ function menuConfirm(){
 function updateMenu(dt){
   if(anyPressed(['KeyM'])){muted=!muted;applyEffectiveMute();}
   if(anyPressed(['KeyB'])){
-    if(!menu.botOn){menu.botOn=true;menu.botVsBot=true;toast('BOTS: BOT VS BOT');}
-    else if(menu.botVsBot){menu.botVsBot=false;toast('BOTS: P1 VS BOT');}
-    else{menu.botOn=false;toast('BOTS: OFF (2 PLAYERS)');}
+    menu.botOn=!menu.botOn;
     sfx('ui');
+    toast(menu.botOn?'BOT: ON':'BOT: OFF');
   }
   menu.toastT-=dt;
 
@@ -1280,7 +1285,7 @@ function startMatch(){
   const players=act.map((slot,i)=>makePlayer(i,slot,menu.slotColor[slot]));
   const itTeam = settings.teams ? players[it].team : null;
   const isOnlineMatch = (typeof NET !== 'undefined' && NET && NET.role !== null);
-  const isSplitLocalTouch = (isTouch && !isOnlineMatch && act.length === 2);
+  const isSplitLocalTouch = (isTouch && !isOnlineMatch && act.length === 2 && !menu.botOn && menu.tab !== 'solo');
   const initState = isSplitLocalTouch ? 'tutorial' : 'countdown';
   if(isSplitLocalTouch){
     LOCAL_TOUCH.showTutorial = true;
@@ -1431,7 +1436,6 @@ function isBotSlot(p){
     if(!menu.botOn)return false;
     if(!match||!match.players||match.players.length!==2)return false;
     if(activeSlots().length!==2)return false;
-    if(menu.botVsBot) return p.slot===0 || p.slot===1;
     return p.slot===1;
   }catch(e){return false;}
 }
@@ -1986,7 +1990,7 @@ function inputFor(p,dt){
     }
   }
   const isOnlineMatch = (typeof NET !== 'undefined' && NET && NET.role !== null);
-  const isSplitLocal = (isTouch && !isOnlineMatch && match && match.players && match.players.length === 2);
+  const isSplitLocal = (isTouch && !isOnlineMatch && match && match.players && match.players.length === 2 && !menu.botOn && menu.tab !== 'solo');
   if(!isSplitLocal && p.slot === (typeof NET !== 'undefined' && NET && NET.mySlot >= 0 ? NET.mySlot : 0)){
     if(TOUCH.left) dir = -1;
     if(TOUCH.right) dir = 1;
@@ -2500,10 +2504,6 @@ function updateGame(dt){
   if(anyPressed(['KeyN']))selectMapQuick(settings.map+1);
   if(anyPressed(['KeyB']))cycleTheme();
   if(anyPressed(['KeyV']))voiceToggleMic();
-  if(anyPressed(['KeyZ'])){
-    menu.botVsBot = !menu.botVsBot;
-    toast(menu.botVsBot ? 'BOT VS BOT (SPECTATE)' : 'P1 HUMAN VS BOT');
-  }
   
   /* Number keys 1-9, 0 to switch to any map instantly */
   for(let k=1;k<=9;k++)if(pressed.has('Digit'+k))selectMapQuick(k-1);
@@ -3273,8 +3273,10 @@ function drawMenu(){
       if(sdk && sdk.banner){
         const resp = document.getElementById('cg-banner-resp');
         const top = document.getElementById('cg-banners');
-        if(resp && resp.style.display === 'none' && !CG._bannerIds.has('cg-banner-responsive')){
+        if(!isTouch && CH >= 550 && resp && resp.style.display === 'none' && !CG._bannerIds.has('cg-banner-responsive')){
           try{ CG.requestResponsiveBanner('cg-banner-responsive'); resp.style.display = 'flex'; }catch(e){}
+        } else if((isTouch || CH < 550) && resp && resp.style.display !== 'none'){
+          resp.style.display = 'none';
         }
         if(top && top.style.display === 'none' && !CG._bannerIds.has('cg-banner-top')){
           try{ CG.requestBanner('cg-banner-top', '728x90'); top.style.display = 'block'; }catch(e){}
@@ -3364,20 +3366,21 @@ function drawMenu(){
   }
 
   // 3. Layout vertical budgeting
-  const headerBottom = headY + headH + 6;
-  const startBtnH = clamp(CH * 0.080, 36, 46);
+  const headerBottom = headY + headH + (isShortH ? 4 : 6);
+  const bottomMargin = isTouch ? Math.max(14, isShortH ? 12 : 20) : (isShortH ? 6 : 12);
+  const startBtnH = clamp(CH * 0.080, isShortH ? 32 : 36, 44);
   const startBtnW = Math.min(CW - 28, 340);
-  const startBtnY = CH - startBtnH - (isShortH ? 6 : 12);
+  const startBtnY = CH - startBtnH - bottomMargin;
 
   // Settings strip directly above start button
-  const stripH = isNarrowW ? 70 : clamp(CH * 0.075, 36, 42);
+  const stripH = isNarrowW ? (isShortH ? 56 : 64) : clamp(CH * 0.075, isShortH ? 30 : 34, 40);
   const stripW = Math.min(CW - 24, 880);
   const stripX = Math.floor(CW/2 - stripW/2);
-  const stripY = startBtnY - stripH - (isShortH ? 5 : 8);
+  const stripY = startBtnY - stripH - (isShortH ? 4 : 8);
 
   // Center Stage Area
   const stageY = headerBottom;
-  const stageH = Math.max(110, stripY - stageY - 6);
+  const stageH = Math.max(70, stripY - stageY - (isShortH ? 4 : 6));
 
   // 4. Center Stage Content (1P SOLO & 2-4 PLAYERS)
   const isSolo = (menu.tab === 'solo');
@@ -3453,8 +3456,8 @@ function drawMenu(){
     }
   } else {
     // Single horizontal row
-    const cardW = Math.floor(clamp((maxGridW - (totalItems - 1) * cardGap) / totalItems, 110, 205));
-    const cardH = Math.floor(clamp(cardsAreaH * 0.94, isShortH ? 110 : 135, 215));
+    const cardW = Math.floor(clamp((maxGridW - (totalItems - 1) * cardGap) / totalItems, 95, 205));
+    const cardH = Math.floor(clamp(cardsAreaH * 0.94, Math.min(80, cardsAreaH), 215));
     const totalRowW = totalItems * cardW + (totalItems - 1) * cardGap;
     const startX = Math.floor(CW / 2 - totalRowW / 2);
     const cardY = Math.floor(cardsAreaY + (cardsAreaH - cardH) / 2);
@@ -3832,7 +3835,7 @@ function drawTouchButtons(){
   if(!match) return;
   
   const isOnline=(typeof NET!=='undefined' && NET && NET.role!==null);
-  const isSplitLocal=(!isOnline && match.players.length===2);
+  const isSplitLocal=(!isOnline && match.players.length===2 && !menu.botOn && menu.tab !== 'solo');
   const isTablet=Math.min(CW,CH)>=550 || (CW/CH<1.7 && Math.min(CW,CH)>=480);
   
   if(!isSplitLocal){
@@ -4174,19 +4177,12 @@ function drawHUD(){
     const y = 10 + i * pillGap;
     g.save(); g.globalAlpha = isIt ? 1 : 0.75;
     const teamBadge = settings.teams ? ((p.team === 0 ? '🔴 ' : (p.team === 1 ? '🔵 ' : '🟢 '))) : '';
-    const botTag = isBotSlot(p) ? ' [BOT]' : '';
-    const label = teamBadge + 'P' + (p.slot + 1) + botTag + (isIt ? ' IT' : '');
-    const pillW = botTag ? (isIt ? 142 : 110) : (isIt ? 124 : 92);
-    pill(10, y, pillW, pillH, isIt ? 'rgba(255,210,63,0.92)' : 'rgba(0,0,0,0.3)', isIt ? INK : 'rgba(0,0,0,0.5)');
+    const label = teamBadge + 'P' + (p.slot + 1) + (isIt ? ' IT' : '');
+    pill(10, y, isIt ? 124 : 92, pillH, isIt ? 'rgba(255,210,63,0.92)' : 'rgba(0,0,0,0.3)', isIt ? INK : 'rgba(0,0,0,0.5)');
     g.fillStyle = getPlayerColor(p);
     rr(g, 14, y + (pillH - 16) / 2, 16, 16, 4); g.fill(); g.lineWidth = 1.8; g.strokeStyle = INK; g.stroke();
     txt(label, 36, y + pillH / 2 + 1, FN(P.length > 4 ? 10 : 11, 900), isIt ? '#3a2c00' : '#ffffff', 'left');
     g.restore();
-  }
-  
-  if(menu.botOn && menu.botVsBot && P.length === 2 && match.state === 'playing'){
-    pill(CW/2 - 110, 52, 220, 22, 'rgba(0,0,0,0.7)', 'rgba(255,234,121,0.6)');
-    txt('🤖 BOT VS BOT (Press Z to play P1)', CW/2, 64, FN(10, 800), '#ffea79', 'center');
   }
   
   /* In-game control bar: Pause, Sound, Fullscreen, Next Map, Voice */
@@ -4262,7 +4258,7 @@ function drawHUD(){
     g.lineWidth=2.5; g.strokeStyle=INK; g.stroke();
     ptxt(vOn ? (vMuted ? '🔇' : '🎙️') : '🎙️', xVoice+btnSize/2, 10+btnSize/2+1, FN(15,900), vOn?'#ffffff':'#1e293b');
     zone(xVoice,10,btnSize,btnSize,{fn:voiceToggleMic});
-  } else if(isTouch && match.players && match.players.length === 2){
+  } else if(isTouch && match.players && match.players.length === 2 && !menu.botOn && menu.tab !== 'solo'){
     rr(g,xVoice,10,btnSize,btnSize,9);
     g.fillStyle = 'rgba(255,255,255,0.92)';
     g.fill();
