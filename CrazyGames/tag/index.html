@@ -3529,12 +3529,6 @@ function drawMenu(){
   let actSlots = [0];
   if(isSolo){
     actSlots = [0, 1]; // P1 Human, P2 BOT
-  } else if(isTeams){
-    if(menu.slotColor[0] < 0) menu.slotColor[0] = 0;
-    if(menu.slotColor[1] < 0) menu.slotColor[1] = 1;
-    if(menu.slotColor[2] < 0) menu.slotColor[2] = 2;
-    if(menu.slotColor[3] < 0) menu.slotColor[3] = 3;
-    actSlots = [0, 1, 2, 3];
   } else {
     if(menu.slotColor[0] < 0) menu.slotColor[0] = 0;
     if(menu.slotColor[1] < 0) menu.slotColor[1] = 1;
@@ -3695,20 +3689,20 @@ function drawMenu(){
   // Click zone for the sticker to open more info modal
   zone(stickX - 6, stickY - 6, stickW + 12, stickH + 12, { fn: () => { menu.onlineModal = true; sfx('ok'); } });
 
-  // 4c. SOLO v BOT BETA Sticker (Left Side of Screen - BIGGER & With Player!)
-  // "add another sticker saying SOLO v Bot is in BETA testing TRY NOW bigger than the other sitcker and more visually appealing(add a player there)"
+  // 4c. SOLO v BOT BETA Sticker (Left Side of Screen - BIGGER & ANIMATED PLAYER!)
+  // "The player charecter give it some expression(live and slight movements like every 3 secs) and make the sticker bigger"
   let soloW, soloH, soloX, soloY;
   if(isWideScreen){
-    soloW = 214; soloH = 104;
+    soloW = 240; soloH = 118;
     soloX = 20;
-    soloY = headY + headH + 18;
+    soloY = headY + headH + 14;
   } else if(isMediumScreen){
-    soloW = 172; soloH = 88;
+    soloW = 196; soloH = 100;
     soloX = 14;
-    soloY = headY + headH + 12;
+    soloY = headY + headH + 10;
   } else {
-    soloW = clamp(CW * 0.44, 138, 175);
-    soloH = clamp(CH * 0.14, 64, 80);
+    soloW = clamp(CW * 0.48, 155, 195);
+    soloH = clamp(CH * 0.17, 74, 94);
     soloX = 10;
     soloY = headY + headH + 6;
   }
@@ -3739,32 +3733,61 @@ function drawMenu(){
   g.strokeStyle = 'rgba(255, 107, 129, ' + soloPulse + ')';
   g.stroke();
 
+  // Live expression & slight movement cycle every 3s
+  const cycleT = (tGlobal % 3.0);
+  let charFace = 'cool';
+  let charHopY = 0;
+  let charTilt = 0;
+  let charBlink = false;
+
+  if(cycleT < 0.45){
+    // Cheerful hop & happy face!
+    charFace = 'happy';
+    charHopY = -Math.sin(cycleT / 0.45 * Math.PI) * 9;
+    charTilt = Math.sin(cycleT / 0.45 * Math.PI * 2) * 0.14;
+  } else if(cycleT >= 1.5 && cycleT < 1.7){
+    // Natural blink
+    charBlink = true;
+    charFace = 'idle';
+  } else if(cycleT >= 2.1 && cycleT < 2.55){
+    // Curious energetic lean
+    charFace = 'run';
+    charTilt = Math.sin((cycleT - 2.1) / 0.45 * Math.PI) * 0.10;
+  }
+
   // Draw cute animated player character on the left side of the sticker!
-  const charSz = clamp(soloH * 0.36, 26, 36);
-  const charX = 20;
-  const charY = Math.floor(soloH * 0.32);
-  drawChar(g, charX, charY, charSz, '#ff4757', { face: 'cool', grounded: true, seed: 7 });
+  const charSz = clamp(soloH * 0.38, 32, 44);
+  const charX = 22;
+  const charY = Math.floor(soloH * 0.34 + charHopY);
+  drawChar(g, charX, charY, charSz, '#ff4757', {
+    face: charFace,
+    tilt: charTilt,
+    blink: charBlink,
+    moving: (charHopY !== 0),
+    grounded: (charHopY === 0),
+    seed: 7
+  });
 
   // Sticker text (right side of character)
-  const soloTxtX = charX + charSz + 8;
+  const soloTxtX = charX + charSz + 10;
 
   // Title: SOLO v BOT
-  txt('🤖 1P SOLO v BOT', soloTxtX, soloH * 0.22, FT(clamp(soloH * 0.16, 11.5, 15)), '#ffd166', 'left');
+  txt('🤖 1P SOLO v BOT', soloTxtX, soloH * 0.22, FT(clamp(soloH * 0.155, 12, 16)), '#ffd166', 'left');
 
   // Sub-badge: BETA TESTING
-  const betaW = soloW - soloTxtX - 10;
-  const betaH = Math.floor(soloH * 0.22);
+  const betaW = soloW - soloTxtX - 12;
+  const betaH = Math.floor(soloH * 0.21);
   pill(soloTxtX, soloH * 0.38, betaW, betaH, 'rgba(255, 71, 87, 0.22)', '#ff4757');
   txt('⚡ BETA TESTING', soloTxtX + betaW / 2, soloH * 0.38 + betaH / 2 + 1, FN(clamp(betaH * 0.52, 9, 11), 900), '#ff6b81');
 
   // Big Callout Button: TRY NOW!
-  const tryBtnW = soloW - 20;
+  const tryBtnW = soloW - 22;
   const tryBtnH = Math.floor(soloH * 0.26);
-  const tryBtnY = soloH - tryBtnH - 7;
-  rr(g, 10, tryBtnY, tryBtnW, tryBtnH, 8);
+  const tryBtnY = soloH - tryBtnH - 8;
+  rr(g, 11, tryBtnY, tryBtnW, tryBtnH, 8);
   g.fillStyle = '#2ed573'; g.fill();
   g.lineWidth = 1.5; g.strokeStyle = '#ffffff'; g.stroke();
-  txt('▶ TRY NOW !', soloW / 2, tryBtnY + tryBtnH / 2 + 1, FT(clamp(tryBtnH * 0.58, 12, 15)), '#ffffff');
+  txt('▶ TRY NOW !', soloW / 2, tryBtnY + tryBtnH / 2 + 1, FT(clamp(tryBtnH * 0.56, 12, 15)), '#ffffff');
 
   g.restore();
 
@@ -3796,11 +3819,12 @@ function drawMenu(){
     zone(stripX + 6, mapY, arrowW, rowH1 - 6, { fn: () => cycleMap(-1) });
 
     // Right Arrow
-    rr(g, stripX + stripW - arrowW - 6, mapY, arrowW, rowH1 - 6, 6);
+    const rightNarrowX = stripX + stripW - arrowW - 6;
+    rr(g, rightNarrowX, mapY, arrowW, rowH1 - 6, 6);
     g.fillStyle = 'rgba(255,255,255,0.18)'; g.fill();
     g.lineWidth = 1.5; g.strokeStyle = 'rgba(255,255,255,0.30)'; g.stroke();
-    txt('▶', stripX + stripW - arrowW/2 - 6, mapY + (rowH1 - 6)/2 + 1, FN(13, 900), '#ffffff');
-    zone(stripX + stripW - arrowW - 6, mapY, arrowW, rowH1 - 6, { fn: () => cycleMap(1) });
+    txt('▶', rightNarrowX + arrowW/2, mapY + (rowH1 - 6)/2 + 1, FN(13, 900), '#ffffff');
+    zone(rightNarrowX, mapY, arrowW, rowH1 - 6, { fn: () => cycleMap(1) });
 
     // Middle Map Name (Opens Modal!)
     const mapMidW = stripW - arrowW * 2 - 24;
@@ -3866,12 +3890,13 @@ function drawMenu(){
     txt('◀', stripX + 6 + arrowW/2, itemY + itemH/2 + 1, FN(14, 900), '#ffffff');
     zone(stripX + 6, itemY, arrowW, itemH, { fn: () => cycleMap(-1) });
 
-    // Right Arrow
-    rr(g, stripX + 6 + mapBoxW - arrowW, itemY, arrowW, itemH, 6);
+    // Right Arrow (Fixed hitbox coordinate!)
+    const rightArrowX = stripX + 6 + mapBoxW - arrowW;
+    rr(g, rightArrowX, itemY, arrowW, itemH, 6);
     g.fillStyle = 'rgba(255,255,255,0.18)'; g.fill();
     g.lineWidth = 1.5; g.strokeStyle = 'rgba(255,255,255,0.30)'; g.stroke();
-    txt('▶', stripX + 6 + mapBoxW - arrowW/2, itemY + itemH/2 + 1, FN(14, 900), '#ffffff');
-    zone(stripX + 6, itemY, arrowW, itemH, { fn: () => cycleMap(1) });
+    txt('▶', rightArrowX + arrowW/2, itemY + itemH/2 + 1, FN(14, 900), '#ffffff');
+    zone(rightArrowX, itemY, arrowW, itemH, { fn: () => cycleMap(1) });
 
     // Middle Map Name (Opens Modal!)
     const mapMidW = mapBoxW - arrowW * 2 - 8;
@@ -3932,11 +3957,12 @@ function drawMenu(){
   g.lineWidth = 2; g.strokeStyle = '#ffffff'; g.stroke();
 
   let startLabel = isTouch ? '▶ START MATCH' : '▶ START MATCH  (SPACE / ENTER)';
-  if(isTeams) startLabel = isTouch ? '⚔️ START TEAM MATCH' : '⚔️ START TEAM MATCH  (SPACE / ENTER)';
+  if(isTeams) startLabel = isTouch ? '⚔️ START TEAM MATCH' : '⚔️ START TEAM MATCH (SPACE)';
+  const labelFs = clamp(startBtnH * 0.38, 12.5, 16.5);
   if(isTeams){
-    txt(startLabel, CW/2, startBtnY + startBtnH/2 + 1, FT(clamp(startBtnH * 0.46, 15, 20)), '#0f172a');
+    txt(startLabel, CW/2, startBtnY + startBtnH/2 + 1, FT(labelFs), '#0f172a');
   } else {
-    ptxt(startLabel, CW/2, startBtnY + startBtnH/2 + 1, FT(clamp(startBtnH * 0.46, 15, 20)), '#ffffff');
+    ptxt(startLabel, CW/2, startBtnY + startBtnH/2 + 1, FT(labelFs), '#ffffff');
   }
   zone(startBtnX - 2, startBtnY - 2, startBtnW + 4, startBtnH + 4, { fn: () => {
     if(activeSlots().length < 2){
