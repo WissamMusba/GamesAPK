@@ -1596,10 +1596,20 @@ function botInputFor(p){
           S.climbPlat=laneCeil||blocked;S.climbOut=detour;
           S.exitLockT=0.8;S.exitDir=detour;S.exitGp=gp;
         }
-      }else if(!p.grounded||!gp||gp.wall){
+      }else if(!p.grounded){
+        // AIRBORNE: preserve exit lock across the jump so momentum & direction hold
+        if(S.exitLockT>0&&S.exitDir){
+          detour=S.exitDir;want=detour;S.hasExit=true;
+        }
+      }else if(p.grounded&&gp&&S.exitGp&&S.exitGp!==gp){
+        // Landed on a new platform: ceiling exit accomplished!
         S.exitLockT=0;S.exitDir=0;S.exitGp=null;S.hasExit=false;
       }
-    }else{S.exitLockT=0;S.exitDir=0;S.exitGp=null;}
+    }else{
+      if(aboveBy<20||Math.abs(dx)>=400){
+        S.exitLockT=0;S.exitDir=0;S.exitGp=null;S.hasExit=false;
+      }
+    }
     // BUG1: stale walk-off lock must die the moment target is above,
     // else it overwrites climb steering + suppresses the jump below.
     if(aboveBy>50){S.descLockT=0;S.descDir=0;}
@@ -1621,7 +1631,7 @@ function botInputFor(p){
         if(!edgeJump&&S.hasExit&&aboveBy>50&&Math.abs(cx-S.exitX)<48)edgeJump=true;
         if(edgeJump){S.jumpQ=true;}
         else if(aboveBy>70&&Math.abs(dx)<260&&!headBlocked){S.jumpQ=true;}
-        else if(botWallAhead(p,want)){S.jumpQ=true;}
+        else if(botWallAhead(p,want)){S.descLockT=0;S.descDir=0;S.jumpQ=true;}
         else if(Math.abs(p.vx)<60&&want!==0&&far){S.jumpQ=true;}
         else if(!botGroundAhead(p,want)&&far){S.jumpQ=true;} // gap: jump across
       } else {
@@ -1673,7 +1683,7 @@ function botInputFor(p){
       }
       S.wantDown=down;
       if(S.jumpQ)S.jumpHoldT=0.12;
-      if(S.descLockT>0&&!down){S.jumpQ=false;}
+      if(S.descLockT>0&&!down&&!botWallAhead(p,want)){S.jumpQ=false;}
     }else{
       // AIR: gated wall-jumps + relaxed apex chaining + outward-hold anti-clip.
       const belowGapAir=ty-(p.y+p.h);
