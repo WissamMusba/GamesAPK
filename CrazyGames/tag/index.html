@@ -1561,7 +1561,18 @@ function botInputFor(p,dt){
         detour=flip;want=flip;S.dir=flip;
       }
     }
-    if(isIt&&aboveBy>50){
+    // Two-tier routing:
+    // Mode A: Direct Greedy Search if there is an unobstructed straight path (open air or through pink platforms)
+    // Mode B: Ceiling / Obstacle Detour Router if a solid brown platform or wall is in the line of sight
+    const solidInPath = isIt ? botSolidBetween(cx, cy, tx, ty, p.gp) : null;
+    const isDirectPath = isIt && !solidInPath;
+
+    if(isDirectPath){
+      // TIER 1: DIRECT GREEDY BEELINE (clear air or through pink platforms)
+      S.exitLockT=0;S.exitDir=0;S.exitGp=null;S.hasExit=false;
+      want=Math.abs(dx)>12?Math.sign(dx):0;
+    }else if(isIt&&aboveBy>50){
+      // TIER 2: CEILING / OBSTACLE DETOUR ROUTER (solid platform in way)
       const gp=p.grounded?p.gp:null;
       // 1. Hold existing lock while on this platform to reach exitX without boundary oscillation
       if(S.exitLockT>0&&S.exitDir&&gp&&S.exitGp===gp){
@@ -1629,14 +1640,15 @@ function botInputFor(p,dt){
         // Trapped by giant unjumpable wall/pillar on drop platform: drop down to escape!
         S.jumpQ=false;
       } else if(isIt){
-        // CHASE: Edge launch and climb toward prey above
+        // CHASE: Edge launch, boost pad, direct beeline, and climb toward prey above
         let edgeJump=false;
         if(aboveBy>50&&p.gp){
           const dEdge=Math.min(Math.abs(cx-p.gp.x),Math.abs(cx-(p.gp.x+p.gp.w)));
           if(dEdge<42)edgeJump=true;
         }
         if(!edgeJump&&S.hasExit&&aboveBy>50&&Math.abs(cx-S.exitX)<52)edgeJump=true;
-        if(zoneAtFeet(p,'boost')&&aboveBy>50){edgeJump=true;}
+        if(zoneAtFeet(p,'boost')&&aboveBy>40){edgeJump=true;}
+        if(isDirectPath&&aboveBy>40&&!headBlocked){edgeJump=true;}
         if(edgeJump){S.jumpQ=true;}
         else if(aboveBy>70&&Math.abs(dx)<260&&!headBlocked){S.jumpQ=true;}
         else if(isJumpableWall){S.descLockT=0;S.descDir=0;S.jumpQ=true;}
@@ -1661,7 +1673,10 @@ function botInputFor(p,dt){
       const sameTier=Math.abs(belowGap)<60&&Math.abs(dx)<200;
       if(isIt&&belowGap>60&&!sameTier){
         const onPink=zoneAtFeet(p,'drop');
-        if(S.descLockT>0&&S.descDir){
+        if(isDirectPath&&belowGap>50&&onPink){
+          down=true;
+        }
+        else if(S.descLockT>0&&S.descDir){
           // committed: hold lane, only pink state updates
           want=S.descDir;S.dir=want;
           down=!!onPink;
