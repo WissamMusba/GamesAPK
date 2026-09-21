@@ -1050,26 +1050,14 @@ const RULE_NAMES=['DOUBLE JUMP'];
 function toast(m){menu.toast=m;menu.toastT=2.2;}
 
 function setMenuTab(tab){
-  if(tab === 'online'){
-    menu.onlineModal = true;
-    sfx('ui');
-    return;
-  }
-  if(tab !== 'solo' && tab !== '2p' && tab !== 'teams') tab = '2p';
+  if(tab !== 'solo' && tab !== '2p') tab = '2p';
   menu.tab = tab;
   if(tab === 'solo'){
     menu.botOn = true;
     settings.teams = false;
     menu.slotColor = [0, 1, -1, -1, -1, -1, -1, -1];
-  } else if(tab === 'teams'){
-    menu.botOn = false;
-    settings.teams = true;
-    menu.slotColor = [0, 1, 2, 3, -1, -1, -1, -1];
-    menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
-    toast('⚔️ TEAMS MODE: 2v2 TEAM TAG');
   } else if(tab === '2p'){
     menu.botOn = false;
-    settings.teams = false;
     if(menu.slotColor[0] < 0) menu.slotColor[0] = 0;
     if(menu.slotColor[1] < 0) menu.slotColor[1] = 1;
   }
@@ -1098,9 +1086,8 @@ function cycleTeam(i, d){
 }
 function toggleTeams(){
   if(menu.tab === 'solo'){
-    toast('TEAMS REQUIRE 2-4 PLAYERS');
-    sfx('back');
-    return;
+    menu.tab = '2p';
+    menu.botOn = false;
   }
   if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){
     toast('HOST TOGGLES TEAM MODE');
@@ -1108,8 +1095,15 @@ function toggleTeams(){
     return;
   }
   settings.teams = !settings.teams;
-  sfx('ui');
-  toast(settings.teams ? 'TEAM MODE: ON' : 'TEAM MODE: OFF (FFA)');
+  if(settings.teams){
+    menu.slotColor[0] = 0; menu.slotColor[1] = 1; menu.slotColor[2] = 2; menu.slotColor[3] = 3;
+    menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+    toast('⚔️ NEW MODE: 2v2 TEAM TAG (RED VS BLUE)');
+    sfx('ok');
+  } else {
+    toast('👥 FREE-FOR-ALL PARTY MODE');
+    sfx('ui');
+  }
   if(typeof NET !== 'undefined' && NET && NET.isHost){
     netBroadcastSettings();
     netBroadcastRoster();
@@ -3424,9 +3418,42 @@ function drawMenu(){
   const isNarrowW = (CW < 560);
   const isMobile = (CW < 700 || CH < 500);
 
-  // 2. Header Bar
-  const headY = 8;
-  const headH = clamp(CH * 0.08, isShortH ? 30 : 36, 46);
+  // 1b. Top Announcement Banner: "COMING SOON: ONLINE PRIVATE MULTIPLAYER"
+  // "it shld make sure that the first thing that they see is coming soon(even on phone it shld fit in nice)"
+  const banH = isShortH ? 20 : 24;
+  const banW = clamp(CW - 24, isNarrowW ? 280 : 360, 560);
+  const banX = Math.floor(CW / 2 - banW / 2);
+  const banY = 3;
+
+  rr(g, banX, banY, banW, banH, banH / 2);
+  g.fillStyle = 'rgba(15, 23, 42, 0.94)'; g.fill();
+  g.lineWidth = 1.5;
+  g.strokeStyle = 'rgba(46, 204, 113, ' + (0.4 + Math.sin(tGlobal * 5) * 0.2) + ')';
+  g.stroke();
+
+  // The very first item on the banner is the glowing "COMING SOON" pill badge!
+  const soonBadgeW = isNarrowW ? 84 : 98;
+  const soonBadgeH = banH - 6;
+  const soonBadgeX = banX + 3;
+  const soonBadgeY = banY + 3;
+  rr(g, soonBadgeX, soonBadgeY, soonBadgeW, soonBadgeH, soonBadgeH / 2);
+  g.fillStyle = 'rgba(46, 204, 113, 0.25)'; g.fill();
+  g.lineWidth = 1; g.strokeStyle = '#2ecc71'; g.stroke();
+  ptxt('🚀 COMING SOON', soonBadgeX + soonBadgeW / 2, soonBadgeY + soonBadgeH / 2 + 1, FN(isNarrowW ? 8 : 9, 900), '#2ecc71');
+
+  // Text inside the banner next to the badge
+  const banTextX = soonBadgeX + soonBadgeW + 8;
+  const banText = isNarrowW
+    ? '🌐 Online Multiplayer ➔'
+    : '🌐 Online Private Multiplayer • Room Codes & Cross-Play ➔';
+  const banFs = clamp(banH * 0.44, 9, 11.5);
+  ptxt(banText, banTextX, banY + banH / 2 + 1, FN(banFs, 800), '#e2e8f0', 'left');
+
+  zone(banX, banY, banW, banH, { fn: () => { menu.onlineModal = true; sfx('ok'); } });
+
+  // 2. Header Bar (positioned below the banner)
+  const headY = banY + banH + (isShortH ? 3 : 6);
+  const headH = clamp(CH * 0.075, isShortH ? 28 : 34, 42);
 
   // Sound & Theme buttons on top-right
   const si = Math.floor(clamp(headH * 0.88, 28, 38));
@@ -3459,21 +3486,19 @@ function drawMenu(){
   const logoW = 76;
   ptxt('TAG!', 14 + logoW * 0.4, headY + headH * 0.52, FT(logoFs), '#ffffff');
 
-  // Mode Navigation Tabs (Pills in Center)
+  // Mode Navigation Tabs (Pills in Center: Local Party & 1P Solo with BETA badge)
   const modeTabs = [
     { id: '2p', label: '👥 2-4P PARTY', short: '👥 PARTY' },
-    { id: 'teams', label: '⚔️ TEAMS (2v2)', short: '⚔️ TEAMS' },
-    { id: 'solo', label: '🤖 1P SOLO', short: '🤖 SOLO' },
-    { id: 'online', label: '🌐 ONLINE', short: '🌐 ONLINE', badge: 'SOON' }
+    { id: 'solo', label: '🤖 1P SOLO', short: '🤖 SOLO', badge: 'BETA' }
   ];
-  const tabW = clamp((themeX - 14 - logoW - 20) / modeTabs.length, isNarrowW ? 62 : 95, 140);
+  const tabW = clamp((themeX - 14 - logoW - 20) / modeTabs.length, isNarrowW ? 85 : 120, 160);
   const tabH = clamp(headH * 0.84, 28, 36);
-  const tabsTotalW = tabW * modeTabs.length + (modeTabs.length - 1) * 6;
+  const tabsTotalW = tabW * modeTabs.length + (modeTabs.length - 1) * 8;
   const tabsX = Math.max(14 + logoW + 8, Math.floor(CW / 2 - tabsTotalW / 2));
 
   for(let t = 0; t < modeTabs.length; t++){
     const tab = modeTabs[t];
-    const tx = tabsX + t * (tabW + 6);
+    const tx = tabsX + t * (tabW + 8);
     const ty = headY + (headH - tabH) / 2;
     const isAct = (menu.tab === tab.id);
 
@@ -3485,14 +3510,14 @@ function drawMenu(){
     g.stroke();
 
     const tLabel = isNarrowW ? tab.short : tab.label;
-    const tFs = clamp(tabW * 0.105, 9.5, 12);
+    const tFs = clamp(tabW * 0.095, 10, 13);
     ptxt(tLabel, tx + tabW/2, ty + tabH/2 + 1, FN(tFs, 900), isAct ? INK : '#cbd5e1');
 
     if(tab.badge){
-      const bW = 28, bH = 14;
-      const bX = tx + tabW - bW - 2, bY = ty - 4;
+      const bW = 32, bH = 15;
+      const bX = tx + tabW - bW - 2, bY = ty - 5;
       rr(g, bX, bY, bW, bH, 4);
-      g.fillStyle = '#2ecc71'; g.fill();
+      g.fillStyle = '#ff4757'; g.fill();
       g.lineWidth = 1; g.strokeStyle = '#ffffff'; g.stroke();
       ptxt(tab.badge, bX + bW/2, bY + bH/2 + 1, FN(8.5, 900), '#ffffff');
     }
@@ -3519,9 +3544,8 @@ function drawMenu(){
 
   // 4. Center Stage Content (1P SOLO, 2-4 PLAYERS & TEAMS)
   const isSolo = (menu.tab === 'solo');
-  const isTeams = (menu.tab === 'teams' || settings.teams);
+  const isTeams = (settings.teams && !isSolo);
   if(isSolo) settings.teams = false;
-  else if(isTeams) settings.teams = true;
 
   // Determine active slots
   let actSlots = [0];
@@ -3546,7 +3570,7 @@ function drawMenu(){
   if(isTeams){
     stageTopPad = clamp(stageH * 0.14, 22, 28);
     const pillY = stageY + 2;
-    ptxt('⚔️ 2v2 TEAM TAG  (RED TEAM VS BLUE TEAM)', CW / 2, pillY + stageTopPad/2 + 1, FN(clamp(CW * 0.026, 11, 13), 900), '#ffd166', 'center');
+    ptxt('⚔️ NEW GAMEMODE: 2v2 TEAM TAG (RED TEAM VS BLUE TEAM)', CW / 2, pillY + stageTopPad/2 + 1, FN(clamp(CW * 0.026, 11, 13), 900), '#ffd166', 'center');
   } else if(!isSolo){
     stageTopPad = clamp(stageH * 0.12, 22, 28);
     const pillY = stageY + 2;
@@ -3656,7 +3680,7 @@ function drawMenu(){
     ptxt(mapLabelText, mapMidX + mapMidW/2, mapY + (rowH1 - 6)/2 + 1, FN(11, 900), settings.randomMap ? '#ffd166' : '#ffffff');
     zone(mapMidX, mapY, mapMidW, rowH1 - 6, { fn: () => { menu.mapModal = true; sfx('ok'); } });
 
-    // Row 2: Chips (2x Jump, 120s Timer, Teams)
+    // Row 2: Chips (2x Jump, 120s Timer, and NEW GAMEMODE: Teams)
     const chipsY = stripY + rowH1 + 1;
     const chipW = Math.floor((stripW - 24) / 3);
     const chipH = rowH1 - 6;
@@ -3675,11 +3699,26 @@ function drawMenu(){
       settings.timeIdx = (settings.timeIdx + 1) % TIMES.length; sfx('ui');
     }});
 
-    // Chip 3: Teams
-    rr(g, stripX + 18 + chipW * 2, chipsY, chipW, chipH, 6);
-    g.fillStyle = settings.teams ? '#2ed573' : 'rgba(255,255,255,0.12)'; g.fill();
-    ptxt(settings.teams ? '⚔️ TEAMS' : '👥 SOLO', stripX + 18 + chipW * 2.5, chipsY + chipH/2 + 1, FN(10.5, 900), settings.teams ? '#ffffff' : '#94a3b8');
-    zone(stripX + 18 + chipW * 2, chipsY, chipW, chipH, { fn: () => { toggleTeams(); } });
+    // Chip 3: NEW GAMEMODE: 2v2 Teams
+    const chip3X = stripX + 18 + chipW * 2;
+    rr(g, chip3X, chipsY, chipW, chipH, 6);
+    if(settings.teams){
+      g.fillStyle = '#f39c12'; g.fill();
+      g.lineWidth = 1.5; g.strokeStyle = '#ffffff'; g.stroke();
+      ptxt('⚔️ 2v2 (ON)', chip3X + chipW/2, chipsY + chipH/2 + 1, FN(10, 900), '#141414');
+    } else {
+      g.fillStyle = 'rgba(243, 156, 18, 0.18)'; g.fill();
+      g.lineWidth = 1.5; g.strokeStyle = 'rgba(243, 156, 18, 0.55)'; g.stroke();
+      ptxt('⚔️ 2v2 TEAMS', chip3X + chipW/2, chipsY + chipH/2 + 1, FN(9.5, 900), '#ffd166');
+      // NEW badge on corner
+      const nbW = 28, nbH = 13;
+      const nbX = chip3X + chipW - nbW - 2, nbY = chipsY - 4;
+      rr(g, nbX, nbY, nbW, nbH, 3);
+      g.fillStyle = '#ff4757'; g.fill();
+      g.lineWidth = 1; g.strokeStyle = '#ffffff'; g.stroke();
+      ptxt('NEW', nbX + nbW/2, nbY + nbH/2 + 1, FN(7.5, 900), '#ffffff');
+    }
+    zone(chip3X, chipsY, chipW, chipH, { fn: () => toggleTeams() });
 
   } else {
     // Single sleek horizontal dock for desktop & tablets
@@ -3700,7 +3739,7 @@ function drawMenu(){
     rr(g, stripX + 6 + mapBoxW - arrowW, itemY, arrowW, itemH, 6);
     g.fillStyle = 'rgba(255,255,255,0.12)'; g.fill();
     ptxt('›', stripX + 6 + mapBoxW - arrowW/2, itemY + itemH/2 + 1, FT(15), '#ffffff');
-    zone(stripX + 6 + mapBoxW - arrowW, itemY, arrowW, itemH, { fn: () => cycleMap(1) });
+    zone(stripX + 6, itemY, arrowW, itemH, { fn: () => cycleMap(1) });
 
     // Middle Map Name (Opens Modal!)
     const mapMidW = mapBoxW - arrowW * 2 - 8;
@@ -3729,11 +3768,26 @@ function drawMenu(){
       settings.timeIdx = (settings.timeIdx + 1) % TIMES.length; sfx('ui');
     }});
 
-    // Chip 3: Teams
-    rr(g, chipsX + chipW * 2 + 12, itemY, chipW, itemH, 6);
-    g.fillStyle = settings.teams ? '#2ed573' : 'rgba(255,255,255,0.12)'; g.fill();
-    ptxt(settings.teams ? '⚔️ TEAMS' : '👥 SOLO', chipsX + chipW * 2 + 12 + chipW/2, itemY + itemH/2 + 1, FN(11, 900), settings.teams ? '#ffffff' : '#94a3b8');
-    zone(chipsX + chipW * 2 + 12, itemY, chipW, itemH, { fn: () => { toggleTeams(); } });
+    // Chip 3: NEW GAMEMODE: 2v2 Teams
+    const chip3X = chipsX + chipW * 2 + 12;
+    rr(g, chip3X, itemY, chipW, itemH, 6);
+    if(settings.teams){
+      g.fillStyle = '#f39c12'; g.fill();
+      g.lineWidth = 2; g.strokeStyle = '#ffffff'; g.stroke();
+      ptxt('⚔️ 2v2 TEAMS (ON)', chip3X + chipW/2, itemY + itemH/2 + 1, FN(11, 900), '#141414');
+    } else {
+      g.fillStyle = 'rgba(243, 156, 18, 0.18)'; g.fill();
+      g.lineWidth = 1.5; g.strokeStyle = 'rgba(243, 156, 18, 0.55)'; g.stroke();
+      ptxt('⚔️ 2v2 TEAMS', chip3X + chipW/2, itemY + itemH/2 + 1, FN(11, 900), '#ffd166');
+      // NEW badge on corner
+      const nbW = 32, nbH = 14;
+      const nbX = chip3X + chipW - nbW - 2, nbY = itemY - 5;
+      rr(g, nbX, nbY, nbW, nbH, 4);
+      g.fillStyle = '#ff4757'; g.fill();
+      g.lineWidth = 1; g.strokeStyle = '#ffffff'; g.stroke();
+      ptxt('NEW', nbX + nbW/2, nbY + nbH/2 + 1, FN(8.5, 900), '#ffffff');
+    }
+    zone(chip3X, itemY, chipW, itemH, { fn: () => toggleTeams() });
   }
 
   // 6. Giant START MATCH Button
@@ -3746,7 +3800,7 @@ function drawMenu(){
   g.lineWidth = 2; g.strokeStyle = '#ffffff'; g.stroke();
 
   let startLabel = isTouch ? '▶ START MATCH' : '▶ START MATCH  (SPACE / ENTER)';
-  if(isTeams) startLabel = isTouch ? '⚔️ START TEAMS MATCH' : '⚔️ START TEAMS (SPACE / ENTER)';
+  if(isTeams) startLabel = isTouch ? '⚔️ START 2v2 TEAMS' : '⚔️ START 2v2 TEAMS (SPACE / ENTER)';
   ptxt(startLabel, CW/2, startBtnY + startBtnH/2 + 1, FT(clamp(startBtnH * 0.44, 14, 19)), isTeams ? '#141414' : '#ffffff');
   zone(startBtnX - 2, startBtnY - 2, startBtnW + 4, startBtnH + 4, { fn: () => {
     if(activeSlots().length < 2){
