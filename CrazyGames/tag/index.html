@@ -1427,11 +1427,13 @@ function isBotSlot(p){
   }catch(e){return false;}
 }
 function botSolidBetween(ax,ay,bx,by,ignorePlat){
-  // sample line head->target, blocked by solid/speed/boost (NOT pink drop,
-  // NOT the platform passed as ignorePlat - kills slope self-hits)
-  for(let i=1;i<7;i++){
-    const t=i/7,px=ax+(bx-ax)*t,py=ay+(by-ay)*t;
-    const pt={x:px-2,y:py-2,w:4,h:4};
+  // Distance-based sampling (max 22px step) so thin walls & pillars never tunnel through
+  const dx=bx-ax, dy=by-ay;
+  const dist=Math.hypot(dx,dy);
+  const steps=Math.max(3, Math.ceil(dist/22));
+  for(let i=1; i<steps; i++){
+    const t=i/steps, px=ax+dx*t, py=ay+dy*t;
+    const pt={x:px-3, y:py-3, w:6, h:6};
     for(const s of SOLIDS){
       if(s.t==='drop'||s===ignorePlat)continue;
       if(hitRect(pt,s))return s;
@@ -1453,10 +1455,11 @@ function botGroundAhead(p,dir){
   }
   return false;
 }
-function botWallAhead(p,dir){
+function botWallAhead(p,dir,dist){
   if(!dir)return false;
-  const wx=p.x+(dir>0?p.w+14:-14);
-  const probe={x:wx-4,y:p.y+8,w:8,h:p.h-16};
+  const d=dist||44;
+  const wx=dir>0?(p.x+p.w):(p.x-d);
+  const probe={x:wx, y:p.y+6, w:d, h:p.h-12};
   for(const s of SOLIDS){
     if(s.t==='drop')continue;
     if(hitRect(probe,s))return true;
@@ -1661,11 +1664,12 @@ function botInputFor(p){
         else if(p.gp&&!p.gp.wall){
           const scoreLane=(lx)=>{
             let hits=0;
-            // count slabs between bot and target tier on this vertical
-            const y0=p.y+p.h+10,y1=ty;
-            for(let k=1;k<=5;k++){
-              const sy=y0+(y1-y0)*k/5;
-              const pt={x:lx-3,y:sy-3,w:6,h:6};
+            const y0=p.y+p.h+10, y1=ty;
+            const dyLane=Math.abs(y1-y0);
+            const kSteps=Math.max(3, Math.ceil(dyLane/24));
+            for(let k=1; k<kSteps; k++){
+              const sy=y0+(y1-y0)*k/kSteps;
+              const pt={x:lx-3, y:sy-3, w:6, h:6};
               for(const s of SOLIDS){if(s.t==='drop')continue;if(hitRect(pt,s)){hits++;break;}}
             }
             return hits*200+Math.abs(lx-cx);
@@ -1712,7 +1716,7 @@ function botInputFor(p){
         // broad apex band, 0.10s guard. Inward turn still gated by lip
         // probe so we don't steer into the corner while rising.
         const apexWindow=(p.vy>-220&&p.vy<180);
-        const headClear=!botSolidBetween(cx,p.y-4,cx,p.y-50,p.gp);
+        const headClear=!botSolidBetween(cx,p.y-4,cx,p.y-90,p.gp);
         if(apexWindow&&headClear&&S.airT2>0.10){
           const inDir=Math.sign(dx)||S.dir;
           if(p.vy<0&&botWallAhead(p,inDir)&&!onOuterWall){
