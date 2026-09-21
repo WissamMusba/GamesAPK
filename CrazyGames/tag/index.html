@@ -837,7 +837,7 @@ const TEAMS = [
 ];
 
 const TIMES=[60,120,180];
-const settings={map:0,randomMap:false,doubleJump:true,collision:false,timeIdx:1,teams:false};
+const settings={map:0,randomMap:false,doubleJump:true,collision:false,timeIdx:1,teams:false,botDifficulty:'hard'};
 Object.defineProperty(settings,'time',{get(){return TIMES[this.timeIdx];}});
 
 /* ================= LOCAL CONTROLS SCHEMES ================= */
@@ -1044,10 +1044,21 @@ let currentThemeIdx=0;
 
 /* ================= menu ================= */
 let screen='menu',tGlobal=0;
-const menu={tab:'2p',mode:'rows',slotColor:[0,1,-1,-1,-1,-1,-1,-1],slotTeam:[0,1,0,1,0,1,0,1],slotCtrl:[0,1,2,3],row:4,rule:0,toast:null,toastT:0,botOn:false,mapModal:false,onlineModal:false};
+const menu={tab:'2p',mode:'rows',slotColor:[0,1,-1,-1,-1,-1,-1,-1],slotTeam:[0,1,0,1,0,1,0,1],slotCtrl:[0,1,2,3],row:4,rule:0,toast:null,toastT:0,botOn:false,botDifficulty:'hard',mapModal:false,onlineModal:false};
 const ROWS=['CHANGE PLAYERS','MAP','TIMER','RULES','START'];
 const RULE_NAMES=['DOUBLE JUMP'];
 function toast(m){menu.toast=m;menu.toastT=2.2;}
+
+function setBotDifficulty(diff){
+  if(diff !== 'easy' && diff !== 'hard') diff = 'hard';
+  menu.botDifficulty = diff;
+  settings.botDifficulty = diff;
+  toast('BOT DIFFICULTY: ' + diff.toUpperCase() + (diff === 'hard' ? ' (DEFAULT)' : ''));
+  sfx('ok');
+}
+function toggleBotDifficulty(){
+  setBotDifficulty(menu.botDifficulty === 'easy' ? 'hard' : 'easy');
+}
 
 function setMenuTab(tab){
   if(tab !== 'solo' && tab !== '2p') tab = '2p';
@@ -1508,6 +1519,8 @@ function botCeilAbove(p,dist){
 function botInputFor(p,dt){
   let S=BOT.st[p.slot];
   if(!S){S=BOT.st[p.slot]={dir:0,jumpQ:false,jumpHoldT:0,decideT:0,px:p.x,py:p.y,stuckT:0,unstuckT:0,unstuckDir:0,bonks:0,bonkT:0,airT:0,dropHold:0,descLockT:0,descDir:0,airT2:0,exitX:0,hasExit:false,exitLockT:0,exitDir:0,exitGp:null,climbPlat:null,climbOut:0,climbT:0,bannedSide:0,banT:0,banTierY:0,dropNoJumpT:0,pinkJukePhase:0,pinkJukeT:0,pinkJukeCooldown:0,pinkJukePlat:null,pinkJukeDir:0,airBrakeT:0,airBrakeCooldown:0};}
+  const isEasy = ((menu.botDifficulty || settings.botDifficulty) === 'easy');
+  const botThinkRate = isEasy ? 0.16 : BOT.think;
   const stepDt=(typeof dt==='number'&&dt>0)?Math.min(0.05,dt):Math.min(0.033,1/60);
   const cx=p.x+p.w/2,cy=p.y+p.h/2;
   // target: chase if IT, flee from IT if not
@@ -1566,7 +1579,7 @@ function botInputFor(p,dt){
   }
 
   if(S.decideT<=0){
-    S.decideT=BOT.think;
+    S.decideT=botThinkRate;
     let want=0;
     let isCornerJuke=false;
     if(isIt){
@@ -1582,16 +1595,19 @@ function botInputFor(p,dt){
         want=absDx>12?Math.sign(dx):(S.dir||1);
       }
     }else{
-      // flee: run from IT
-      want=Math.abs(dx)>24?-Math.sign(dx):(S.dir||1);
+      // flee: run from IT with predictive intercept calculation
+      const predT = isEasy ? 0.10 : 0.32;
+      const predTx = tx + clamp((target.vx || 0) * predT, -220, 220);
+      const predDx = predTx - cx;
+      want = Math.abs(predDx) > 20 ? -Math.sign(predDx) : (Math.abs(dx) > 20 ? -Math.sign(dx) : (S.dir || 1));
       
-      // 1. Pink platform bait & pop-up juke (drop beneath and pop up behind hunter!)
+      // 1. Pink platform bait & pop-up juke (drop beneath and pop up behind hunter! Hard mode only)
       const dropPlat=botFullyOnDrop(p);
       const onPink=!!dropPlat;
       const hunterClosing=Math.sign(target.vx||0)===-Math.sign(dx)||Math.abs(target.vx||0)>90;
       const hunterNearBehind=Math.abs(dy)<60&&Math.abs(dx)>60&&Math.abs(dx)<230&&hunterClosing;
       
-      if(onPink&&hunterNearBehind&&S.pinkJukeCooldown<=0&&S.pinkJukePhase===0){
+      if(!isEasy && onPink&&hunterNearBehind&&S.pinkJukeCooldown<=0&&S.pinkJukePhase===0){
         S.pinkJukePhase=1;
         S.pinkJukeT=0.28;
         S.pinkJukePlat=dropPlat;
@@ -1646,7 +1662,7 @@ function botInputFor(p,dt){
     let detour=0;
     const aboveBy=cy-ty; // >0 means target above
     S.hasExit=false;
-    if(S.exitLockT>0){S.exitLockT-=BOT.think;}
+    if(S.exitLockT>0){S.exitLockT-=botThinkRate;}
     // wall bail: pinned on perimeter while locked -> force opposite
     if(S.exitLockT>0&&S.exitDir&&p.grounded){
       if((S.exitDir<0&&p.x<=WALL+10)||(S.exitDir>0&&p.x+p.w>=W-WALL-10)){
@@ -1725,10 +1741,10 @@ function botInputFor(p,dt){
     // else it overwrites climb steering + suppresses the jump below.
     if(aboveBy>50){S.descLockT=0;S.descDir=0;}
     // DOWN hysteresis: keep committed walk-off direction briefly
-    if(S.descLockT>0){S.descLockT-=BOT.think;if(S.descDir)want=S.descDir;}
+    if(S.descLockT>0){S.descLockT-=botThinkRate;if(S.descDir)want=S.descDir;}
     S.dir=want;
     // jump decisions
-    S.jumpQ=false;S.dropHold=Math.max(0,(S.dropHold||0)-BOT.think);
+    S.jumpQ=false;S.dropHold=Math.max(0,(S.dropHold||0)-botThinkRate);
     const headBlocked=botSolidBetween(cx,p.y-4,cx,p.y-140,p.gp);
     if(p.grounded){
       S.airT2=0;S.climbT=0;S.climbPlat=null;S.climbOut=0;
@@ -1830,13 +1846,13 @@ function botInputFor(p,dt){
       const belowGapAir=ty-(p.y+p.h);
       const onOuterWall=(p.x<=WALL+16||p.x+p.w>=W-WALL-16);
       const isClimbing=(ty<p.y-40);
-      S.airT2=(S.airT2||0)+BOT.think;
+      S.airT2=(S.airT2||0)+botThinkRate;
       // Outward hold: rising past an overhang, keep pushing out until feet
       // clear the slab top, else we turn in early and clip the corner.
       if(S.climbPlat&&p.vy<0&&(p.y+p.h)>S.climbPlat.y){
         if(!onOuterWall){S.dir=S.climbOut||S.dir;S.climbT=0.15;}
       }else if(S.climbT>0){
-        S.climbT-=BOT.think;
+        S.climbT-=botThinkRate;
         if(p.vy<0&&!onOuterWall&&S.climbOut)S.dir=S.climbOut;
         if(S.climbT<=0||(p.y+p.h)<(S.climbPlat?S.climbPlat.y:1e9))S.climbPlat=null;
       }
@@ -1852,7 +1868,8 @@ function botInputFor(p,dt){
         // CHASE: Sweet-spot apex chaining (-130 < vy < 110) yields max vertical rise (~420px total)
         const apexWindow=(p.vy>-130&&p.vy<110);
         const headClear=!botSolidBetween(cx,p.y-4,cx,p.y-100,p.gp);
-        if(isIt&&aboveBy>50&&apexWindow&&headClear&&S.airT2>0.10){
+        const minAirDelay = isEasy ? 0.16 : 0.10;
+        if(isIt&&aboveBy>50&&apexWindow&&headClear&&S.airT2>minAirDelay){
           const inDir=Math.sign(dx)||S.dir;
           if(p.vy<0&&botWallAhead(p,inDir)&&!onOuterWall){
             S.jumpQ=true;S.jumpHoldT=0.14;
@@ -1869,9 +1886,7 @@ function botInputFor(p,dt){
       }
       else if(belowGapAir>60){S.jumpQ=false;}
       S.wantDown=false;
-      // Falling: steer onto the slab below (player clamped inside it),
-      // 36/14 hysteresis. Only slabs below the feet count, so the one we
-      // just walked off can't pull us back. Open shaft = fall straight.
+      // Falling: steer onto the slab below, avoiding the player's landing and intercept path!
       if(p.vy>80&&belowGapAir>40){
         S.descLockT=0;S.descDir=0;
         let landingSlab=null,closestDist=1e9;
@@ -1885,13 +1900,45 @@ function botInputFor(p,dt){
           }
         }
         if(landingSlab&&closestDist<180){
-          const safeX=clamp(tx,landingSlab.x+26,landingSlab.x+landingSlab.w-26);
-          const offX=safeX-cx;
-          if(Math.abs(offX)>36)S.dir=Math.sign(offX);
-          else if(Math.abs(offX)<14)S.dir=0;
+          if(isIt){
+            // CHASE: steer onto slab toward target
+            const safeX=clamp(tx,landingSlab.x+26,landingSlab.x+landingSlab.w-26);
+            const offX=safeX-cx;
+            if(Math.abs(offX)>36)S.dir=Math.sign(offX);
+            else if(Math.abs(offX)<14)S.dir=0;
+          }else{
+            // FLEE: PREDICTIVE LANDING AVOIDANCE!
+            // Calculate where hunter will be when bot lands:
+            const timeToLand = Math.max(0.08, (landingSlab.y - (p.y + p.h)) / Math.max(p.vy, 150));
+            const predWindow = isEasy ? 0.10 : 0.35;
+            const predHunterX = tx + clamp((target.vx || 0) * (timeToLand + predWindow), -260, 260);
+
+            // Steer towards the side of the platform furthest from where hunter will be:
+            const leftX = landingSlab.x + 24;
+            const rightX = landingSlab.x + landingSlab.w - 24;
+            const dLeft = Math.abs(predHunterX - leftX);
+            const dRight = Math.abs(predHunterX - rightX);
+            const safeX = (dLeft > dRight) ? leftX : rightX;
+
+            // If hunter is intercepting this exact landing spot and bot has an air jump, double-jump away!
+            const hunterInterceptDanger = !isEasy && p.airJumps > 0 && Math.abs(predHunterX - cx) < 70 && Math.abs(ty - landingSlab.y) < 90;
+            if(hunterInterceptDanger && S.airT2 > 0.12){
+              S.jumpQ = true;
+              S.jumpHoldT = 0.14;
+              S.dir = (predHunterX > cx ? -1 : 1);
+            } else {
+              const offX = safeX - cx;
+              if(Math.abs(offX) > 28) S.dir = Math.sign(offX);
+              else if(Math.abs(offX) < 12) S.dir = 0;
+            }
+          }
         }else if(Math.abs(dx)<60){
           if(isIt&&aboveBy>40&&botSolidBetween(cx,p.y-10,cx,ty,p.gp)){
             S.dir=S.exitDir||(cx<W/2?1:-1);
+          }else if(!isIt){
+            // Falling straight down: drift away from hunter's predicted path
+            const predHunterDir = Math.sign((target.vx || dx) || 1);
+            S.dir = -predHunterDir;
           }else{
             S.dir=0;
           }
@@ -1901,8 +1948,8 @@ function botInputFor(p,dt){
       else if(isIt&&p.vy<0&&aboveBy>40&&p.vy>-250){
         if(!S.climbPlat&&Math.abs(dx)>20)S.dir=Math.sign(dx);
       }
-      // FLEE AIR STALL / REVERSE FEINT:
-      if(!isIt&&S.pinkJukePhase===0){
+      // FLEE AIR STALL / REVERSE FEINT (Hard mode only):
+      if(!isEasy && !isIt && S.pinkJukePhase===0){
         const hunterCloseAir=Math.abs(dx)<180&&Math.abs(dy)<120;
         const hunterFast=Math.abs(target.vx||0)>180;
         if(hunterCloseAir&&hunterFast&&S.airBrakeCooldown<=0&&S.airBrakeT<=0){
@@ -1938,12 +1985,13 @@ function botInputFor(p,dt){
     }
   }
   S.wasVy=p.vy;
-    if(S.dropNoJumpT>0)S.jumpQ=false;
-const j=S.jumpQ;S.jumpQ=false;
+  if(S.dropNoJumpT>0)S.jumpQ=false;
+  const j=S.jumpQ;S.jumpQ=false;
   if(j)S.jumpHoldT=0.12;
   let hold=!!j;
   if(S.jumpHoldT>0){S.jumpHoldT-=stepDt;hold=true;}
-  return{dir:clamp(S.dir||0,-1,1),jumpEdge:!!j,jumpHeld:hold,downHeld:!!S.wantDown};
+  const speedMult = isEasy ? 0.90 : 1.0;
+  return{dir:clamp((S.dir||0) * speedMult,-1,1),jumpEdge:!!j,jumpHeld:hold,downHeld:!!S.wantDown};
 }
 
 /* ================= PLATFORM NODES GEOMETRY HELPER ================= */
@@ -3537,14 +3585,39 @@ function drawMenu(){
     if(menu.slotColor[3] >= 0) actSlots.push(3);
   }
 
-  // Top sub-header in stage: Player count pills or Team Tag header
-  let stageTopPad = 0;
-  if(!isSolo){
-    stageTopPad = clamp(stageH * 0.13, 24, 30);
-    const pillY = stageY + 2;
+  // Top sub-header in stage: Player count pills, Team Tag header, or Bot Difficulty pills
+  const stageTopPad = clamp(stageH * 0.13, 24, 30);
+  const pillY = stageY + 2;
+  const ph = stageTopPad - 4;
+
+  if(isSolo){
+    const diffOpts = [
+      { id: 'easy', label: '⚡ EASY', col: '#2ed573' },
+      { id: 'hard', label: '🔥 HARD (DEF)', col: '#ff4757' }
+    ];
+    const pw = clamp(CW * 0.20, 78, 115);
+    const totalPillsW = diffOpts.length * pw + (diffOpts.length - 1) * 8;
+    const pillsStartX = Math.floor(CW / 2 - totalPillsW / 2);
+
+    txt('BOT DIFFICULTY:', pillsStartX - 10, pillY + ph/2 + 1, FN(clamp(CW * 0.024, 10, 11.5), 900), 'rgba(255,255,255,0.75)', 'right');
+
+    for(let k = 0; k < diffOpts.length; k++){
+      const opt = diffOpts[k];
+      const px = pillsStartX + k * (pw + 8);
+      const isCur = ((menu.botDifficulty || 'hard') === opt.id);
+      rr(g, px, pillY, pw, ph, 6);
+      g.fillStyle = isCur ? opt.col : 'rgba(255,255,255,0.12)';
+      g.fill();
+      g.lineWidth = isCur ? 2 : 1;
+      g.strokeStyle = isCur ? '#ffffff' : 'rgba(255,255,255,0.25)';
+      g.stroke();
+      txt(opt.label, px + pw/2, pillY + ph/2 + 1, FN(10.5, 900), isCur ? '#ffffff' : '#cbd5e1');
+
+      zone(px, pillY, pw, ph, { fn: () => setBotDifficulty(opt.id) });
+    }
+  } else {
     const countOpts = [2, 3, 4];
     const pw = clamp(CW * 0.16, 56, 84);
-    const ph = stageTopPad - 4;
     const totalPillsW = countOpts.length * pw + (countOpts.length - 1) * 6;
     const pillsStartX = Math.floor(CW / 2 - totalPillsW / 2);
 
@@ -4032,10 +4105,24 @@ function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
 
   rr(g, ctrlX, ctrlY, ctrlW, ctrlH, 6);
   g.fillStyle = 'rgba(255, 255, 255, 0.09)'; g.fill();
-  g.lineWidth = 1; g.strokeStyle = isBot ? 'rgba(255,255,255,0.15)' : 'rgba(255, 255, 255, 0.28)'; g.stroke();
+  g.lineWidth = 1; g.strokeStyle = isBot ? 'rgba(255,255,255,0.25)' : 'rgba(255, 255, 255, 0.28)'; g.stroke();
 
   if(isBot){
-    ptxt('SMART AI', centerX, ctrlY + ctrlH/2 + 1, FN(clamp(cardW * 0.068, 8.5, 10.5), 800), 'rgba(255,255,255,0.75)');
+    const isHard = ((menu.botDifficulty || 'hard') !== 'easy');
+    // Left arrow
+    ptxt('‹', ctrlX + 8, ctrlY + ctrlH/2 + 1, FT(11), '#ffffff');
+    zone(ctrlX, ctrlY, 22, ctrlH, { fn: () => toggleBotDifficulty() });
+
+    // Right arrow
+    ptxt('›', ctrlX + ctrlW - 8, ctrlY + ctrlH/2 + 1, FT(11), '#ffffff');
+    zone(ctrlX + ctrlW - 22, ctrlY, 22, ctrlH, { fn: () => toggleBotDifficulty() });
+
+    // Difficulty Label
+    const diffLabel = isHard ? '🔥 HARD (DEF)' : '⚡ EASY';
+    const diffCol = isHard ? '#ff6b81' : '#2ed573';
+    const ctrlFs = clamp(cardW * 0.066, 8.5, 11);
+    ptxt(diffLabel, centerX, ctrlY + ctrlH/2 + 1, FN(ctrlFs, 900), diffCol);
+    zone(ctrlX + 22, ctrlY, ctrlW - 44, ctrlH, { fn: () => toggleBotDifficulty() });
   } else {
     // Left arrow
     ptxt('‹', ctrlX + 8, ctrlY + ctrlH/2 + 1, FT(11), '#ffffff');
@@ -4533,8 +4620,8 @@ function drawHUD(){
     const y = 10 + i * pillGap;
     g.save(); g.globalAlpha = isIt ? 1 : 0.75;
     const teamBadge = settings.teams ? ((p.team === 0 ? '🔴 ' : (p.team === 1 ? '🔵 ' : '🟢 '))) : '';
-    const label = teamBadge + 'P' + (p.slot + 1) + (isIt ? ' IT' : '');
-    pill(10, y, isIt ? 124 : 92, pillH, isIt ? 'rgba(255,210,63,0.92)' : 'rgba(0,0,0,0.3)', isIt ? INK : 'rgba(0,0,0,0.5)');
+    const label = teamBadge + (isBotSlot(p) ? '🤖 BOT' : ('P' + (p.slot + 1))) + (isIt ? ' IT' : '');
+    pill(10, y, isIt ? 128 : 98, pillH, isIt ? 'rgba(255,210,63,0.92)' : 'rgba(0,0,0,0.3)', isIt ? INK : 'rgba(0,0,0,0.5)');
     g.fillStyle = getPlayerColor(p);
     rr(g, 14, y + (pillH - 16) / 2, 16, 16, 4); g.fill(); g.lineWidth = 1.8; g.strokeStyle = INK; g.stroke();
     txt(label, 36, y + pillH / 2 + 1, FN(P.length > 4 ? 10 : 11, 900), isIt ? '#3a2c00' : '#ffffff', 'left');
