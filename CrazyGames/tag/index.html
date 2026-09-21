@@ -1441,9 +1441,10 @@ function botSolidBetween(ax,ay,bx,by,ignorePlat){
   }
   return null;
 }
-function botGroundAhead(p,dir){
+function botGroundAhead(p,dir,dist){
   if(!dir)return true;
-  const ax=p.x+p.w/2+dir*80,feet=p.y+p.h;
+  const d=dist||(p.grounded&&zoneAtFeet(p,'speed')?115:80);
+  const ax=p.x+p.w/2+dir*d,feet=p.y+p.h;
   for(const s of SOLIDS){
     if(ax>=s.x-12&&ax<=s.x+s.w+12&&feet>=s.y-42&&feet<=s.y+24)return true;
     if(s.dy){ // slope: check top at ax
@@ -1528,6 +1529,7 @@ function botInputFor(p,dt){
   if(S.decideT<=0){
     S.decideT=BOT.think;
     let want=0;
+    let isCornerJuke=false;
     if(isIt){
       const absDx=Math.abs(dx),absDy=Math.abs(dy);
       // Close-quarters tag range: track delta directly, no momentum lag
@@ -1541,10 +1543,21 @@ function botInputFor(p,dt){
         want=absDx>12?Math.sign(dx):(S.dir||1);
       }
     }else{
-      // flee: run from IT, avoid wall-hug
+      // flee: run from IT
       want=Math.abs(dx)>24?-Math.sign(dx):(S.dir||1);
-      if(p.x<WALL+110&&want<0)want=1;
-      if(p.x+p.w>W-WALL-110&&want>0)want=-1;
+      
+      // Corner check: perimeter wall with hunter approaching directly
+      const hunterClosing=Math.abs(dx)<320&&Math.abs(dy)<180;
+      const cornerL=(p.x<=WALL+130&&dx>0);
+      const cornerR=(p.x+p.w>=W-WALL-130&&dx<0);
+      if((cornerL||cornerR)&&hunterClosing){
+        // EMERGENCY CORNER JUKE: Wall-jump overhead to flank over approaching hunter!
+        isCornerJuke=true;
+        want=p.grounded?(cornerL?-1:1):(cornerL?1:-1);
+      }else{
+        if(p.x<WALL+80&&want<0)want=1;
+        if(p.x+p.w>W-WALL-80&&want>0)want=-1;
+      }
     }
     // UP: blocked by solid above -> persistent exit lock on this platform.
     // Pick once (target-relative = minimal total path, no bot-tie flips),
@@ -1641,12 +1654,14 @@ function botInputFor(p,dt){
         S.jumpQ=false;
       } else if(isIt){
         // CHASE: Edge launch, boost pad, direct beeline, and climb toward prey above
+        const onSpeed=p.grounded&&!!zoneAtFeet(p,'speed');
+        const edgeMargin=onSpeed?72:42;
         let edgeJump=false;
         if(aboveBy>50&&p.gp){
           const dEdge=Math.min(Math.abs(cx-p.gp.x),Math.abs(cx-(p.gp.x+p.gp.w)));
-          if(dEdge<42)edgeJump=true;
+          if(dEdge<edgeMargin)edgeJump=true;
         }
-        if(!edgeJump&&S.hasExit&&aboveBy>50&&Math.abs(cx-S.exitX)<52)edgeJump=true;
+        if(!edgeJump&&S.hasExit&&aboveBy>50&&Math.abs(cx-S.exitX)<(onSpeed?72:52))edgeJump=true;
         if(zoneAtFeet(p,'boost')&&aboveBy>40){edgeJump=true;}
         if(isDirectPath&&aboveBy>40&&!headBlocked){edgeJump=true;}
         if(edgeJump){S.jumpQ=true;}
@@ -1660,8 +1675,9 @@ function botInputFor(p,dt){
         else if(Math.abs(p.vx)<60&&want!==0&&far&&!ceilAbove){S.jumpQ=true;}
         else if(!botGroundAhead(p,want)&&far){S.jumpQ=true;} // gap: jump across
       } else {
-        // FLEE: Do NOT jump up into hunter above; jump only over obstacles & gaps
-        if(isJumpableWall){S.jumpQ=true;}
+        // FLEE: Jump over obstacles, gaps, or perform emergency corner wall flank
+        if(isCornerJuke){S.jumpQ=true;S.jumpHoldT=0.14;}
+        else if(isJumpableWall){S.jumpQ=true;}
         else if(!botGroundAhead(p,want)&&far){S.jumpQ=true;}
         else if(Math.abs(p.vx)<60&&want!==0&&far&&!ceilAbove){S.jumpQ=true;}
       }
@@ -1730,10 +1746,9 @@ function botInputFor(p,dt){
         if(S.climbT<=0||(p.y+p.h)<(S.climbPlat?S.climbPlat.y:1e9))S.climbPlat=null;
       }
       if(p.sideT>0&&p.wallJumps<2){
-        // NEVER kick off interior slab lips while trying to fall past them.
         // Outer walls OK, interior only when climbing.
-        if(onOuterWall||isClimbing){
-          if(belowGapAir<=60){S.jumpQ=true;S.jumpHoldT=0.14;}
+        if(onOuterWall||isClimbing||!isIt){
+          if(belowGapAir<=60||!isIt){S.jumpQ=true;S.jumpHoldT=0.14;}
           else S.jumpQ=false;
         }else S.jumpQ=false;
       }
