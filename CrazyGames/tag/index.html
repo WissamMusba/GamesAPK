@@ -146,8 +146,10 @@ const TOUCH = {
 
 /* ================= mobile touch joystick & dual slider system ================= */
 const JOY = {
-  // Left horizontal joystick (snaps to center)
+  // Left horizontal joystick (floating — spawns at touch position)
   leftId: null,
+  leftStartX: 0,   // touch start anchor X
+  leftStartY: 0,   // touch start anchor Y
   leftX: 0,        // -1 (left) to +1 (right), rests at 0 (center)
   leftVisX: 0,     // smooth interpolated visual knob position
   boundsL: null,   // { x, y, w, h, cx, cy, maxTravel, r }
@@ -381,15 +383,17 @@ function inputDown(x,y,id){
     }
   }
 
-  // Check Left horizontal joystick (Solo / Online)
-  if(match && screen === 'game' && isPlaying && isTouch && JOY.boundsL){
-    const b = JOY.boundsL;
-    if(x >= b.x - 24 && x <= b.x + b.w + 24 && y >= b.y - 24 && y <= b.y + b.h + 24){
+  // Check Left horizontal joystick (Solo / Online) — FLOATING: spawns wherever you touch on left side
+  if(match && screen === 'game' && isPlaying && isTouch && JOY.boundsL && !JOY.leftId){
+    const bR = JOY.boundsR;
+    const rightEdge = bR ? (bR.x - 30) : (CW * 0.65);
+    if(x < rightEdge && y > 55){
       JOY.leftId = id;
-      const off = clamp((x - b.cx) / b.maxTravel, -1, 1);
-      JOY.leftX = off;
-      TOUCH.left = (off < -0.22);
-      TOUCH.right = (off > 0.22);
+      JOY.leftStartX = x;
+      JOY.leftStartY = y;
+      JOY.leftX = 0;
+      TOUCH.left = false;
+      TOUCH.right = false;
       return;
     }
   }
@@ -475,7 +479,7 @@ function inputMove(x,y,id){
 
   if(JOY.leftId === id && JOY.boundsL){
     const b = JOY.boundsL;
-    const off = clamp((x - b.cx) / b.maxTravel, -1, 1);
+    const off = clamp((x - JOY.leftStartX) / b.maxTravel, -1, 1);
     JOY.leftX = off;
     TOUCH.left = (off < -0.22);
     TOUCH.right = (off > 0.22);
@@ -4285,10 +4289,12 @@ function drawTouchButtons(){
     const bm = isTablet ? clamp(CH * 0.07, 24, 44) : clamp(CH * 0.06, 16, 26);
     const sm = isTablet ? clamp(CW * 0.045, 26, 48) : clamp(CW * 0.04, 18, 30);
     
-    // --- 1. Left Horizontal-Only Joystick (Snaps to Center) ---
+    // --- 1. Left Horizontal-Only Joystick (Floating — spawns at touch position) ---
     const wL = r * 3.6, hL = r * 2.1;
-    const cxL = sm + wL / 2;
-    const cyL = CH - bm - hL / 2;
+    const defCxL = sm + wL / 2;
+    const defCyL = CH - bm - hL / 2;
+    const cxL = JOY.leftId ? JOY.leftStartX : defCxL;
+    const cyL = JOY.leftId ? clamp(JOY.leftStartY, hL / 2 + 56, CH - hL / 2) : defCyL;
     const xL = cxL - wL / 2, yL = cyL - hL / 2;
     const maxTravelL = (wL - 2 * r) / 2;
     JOY.boundsL = { x: xL, y: yL, w: wL, h: hL, cx: cxL, cy: cyL, maxTravel: maxTravelL, r: r };
