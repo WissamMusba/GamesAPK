@@ -1475,10 +1475,10 @@ function botCeilAbove(p,dist){
   }
   return null;
 }
-function botInputFor(p){
+function botInputFor(p,dt){
   let S=BOT.st[p.slot];
   if(!S){S=BOT.st[p.slot]={dir:0,jumpQ:false,jumpHoldT:0,decideT:0,px:p.x,py:p.y,stuckT:0,unstuckT:0,unstuckDir:0,bonks:0,bonkT:0,airT:0,dropHold:0,descLockT:0,descDir:0,airT2:0,exitX:0,hasExit:false,exitLockT:0,exitDir:0,exitGp:null,climbPlat:null,climbOut:0,climbT:0,bannedSide:0,banT:0,banTierY:0,dropNoJumpT:0};}
-  const dt=Math.min(0.033,1/60);
+  const stepDt=(typeof dt==='number'&&dt>0)?Math.min(0.05,dt):Math.min(0.033,1/60);
   const cx=p.x+p.w/2,cy=p.y+p.h/2;
   // target: chase if IT, flee from IT if not
   let target=null;
@@ -1494,32 +1494,32 @@ function botInputFor(p){
   const dx=tx-cx,dy=ty-cy;
   const isIt=(match.players[match.it]===p);
 
-  if(S.dropNoJumpT>0)S.dropNoJumpT-=dt;
+  if(S.dropNoJumpT>0)S.dropNoJumpT-=stepDt;
 
-  S.decideT-=dt;S.bonkT-=dt;
+  S.decideT-=stepDt;S.bonkT-=stepDt;
   if(S.bonkT<=0)S.bonks=0;
   // Exit-side blacklist: expires on timer or on real elevation gain
   if(S.banT>0){
-    S.banT-=dt;
+    S.banT-=stepDt;
     if(S.banT<=0||p.y<S.banTierY-45){S.bannedSide=0;S.banT=0;}
   }
   // stuck tracking: moved <14px in 0.45s while target far?
   const moved=Math.hypot(p.x-S.px,p.y-S.py);
   const far=Math.hypot(dx,dy)>90;
-  if(far&&moved<14){S.stuckT+=dt;}else{S.stuckT=0;S.px=p.x;S.py=p.y;}
+  if(far&&moved<14){S.stuckT+=stepDt;}else{S.stuckT=0;S.px=p.x;S.py=p.y;}
   if(moved>=14){S.px=p.x;S.py=p.y;}
   if(S.stuckT>0.45&&S.unstuckT<=0){
     S.unstuckT=0.7;S.unstuckDir=(S.dir!==0?-S.dir:(Math.random()<0.5?-1:1));
     S.stuckT=0;S.bonks=0;
   }
   if(S.unstuckT>0){
-    S.unstuckT-=dt;
+    S.unstuckT-=stepDt;
     // spam jumps while unstuck (with hold for full height)
-    S.airT-=dt;
+    S.airT-=stepDt;
     let j=false;
     if(p.grounded||p.airJumps>0||(p.wallJumps<2&&p.sideT>0)){if(S.airT<=0){j=true;S.airT=0.28;S.jumpHoldT=0.12;}}
     let uh=!!j||S.jumpHoldT>0;
-    if(S.jumpHoldT>0)S.jumpHoldT-=dt;
+    if(S.jumpHoldT>0)S.jumpHoldT-=stepDt;
     const r={dir:S.unstuckDir,jumpEdge:j,jumpHeld:uh,downHeld:false};
     if(S.unstuckT<=0)S.decideT=0;
     return r;
@@ -1722,17 +1722,24 @@ function botInputFor(p){
           else S.jumpQ=false;
         }else S.jumpQ=false;
       }
-      else if(isIt&&p.airJumps>0&&aboveBy>50){
-        // Climb: immediate headroom only (far slabs must not veto),
-        // broad apex band, 0.10s guard. Inward turn still gated by lip
-        // probe so we don't steer into the corner while rising.
-        const apexWindow=(p.vy>-220&&p.vy<180);
-        const headClear=!botSolidBetween(cx,p.y-4,cx,p.y-90,p.gp);
-        if(apexWindow&&headClear&&S.airT2>0.10){
+      else if(p.airJumps>0){
+        // Double Jump Apex Chaining:
+        // CHASE: Sweet-spot apex chaining (-130 < vy < 110) yields max vertical rise (~420px total)
+        const apexWindow=(p.vy>-130&&p.vy<110);
+        const headClear=!botSolidBetween(cx,p.y-4,cx,p.y-100,p.gp);
+        if(isIt&&aboveBy>50&&apexWindow&&headClear&&S.airT2>0.10){
           const inDir=Math.sign(dx)||S.dir;
           if(p.vy<0&&botWallAhead(p,inDir)&&!onOuterWall){
-            S.jumpQ=true;S.jumpHoldT=0.14; // jump straight, keep outward dir
-          }else{S.jumpQ=true;S.jumpHoldT=0.14;S.dir=inDir;}
+            S.jumpQ=true;S.jumpHoldT=0.14;
+          }else{
+            S.jumpQ=true;S.jumpHoldT=0.14;S.dir=inDir;
+          }
+        }
+        // FLEE: Airborne, falling into gap or blocked by wall -> double jump to clear obstacle
+        else if(!isIt&&p.vy>50&&S.airT2>0.12){
+          if(!botGroundAhead(p,want)||botWallAhead(p,want)){
+            S.jumpQ=true;S.jumpHoldT=0.14;
+          }
         }
       }
       else if(belowGapAir>60){S.jumpQ=false;}
@@ -1794,7 +1801,7 @@ function botInputFor(p){
 const j=S.jumpQ;S.jumpQ=false;
   if(j)S.jumpHoldT=0.12;
   let hold=!!j;
-  if(S.jumpHoldT>0){S.jumpHoldT-=dt;hold=true;}
+  if(S.jumpHoldT>0){S.jumpHoldT-=stepDt;hold=true;}
   return{dir:clamp(S.dir||0,-1,1),jumpEdge:!!j,jumpHeld:hold,downHeld:!!S.wantDown};
 }
 
@@ -1806,8 +1813,8 @@ function demoNodes(){
   }
   return r;
 }
-function inputFor(p){
-  if(isBotSlot(p)) return botInputFor(p);
+function inputFor(p,dt){
+  if(isBotSlot(p)) return botInputFor(p,dt);
   
   const schemeIdx = (menu.slotCtrl && menu.slotCtrl[p.slot] != null) ? menu.slotCtrl[p.slot] : p.slot;
   const s = LOCAL_CTRL_SCHEMES[((schemeIdx % LOCAL_CTRL_SCHEMES.length) + LOCAL_CTRL_SCHEMES.length) % LOCAL_CTRL_SCHEMES.length] || LOCAL_CTRL_SCHEMES[0];
@@ -1885,7 +1892,7 @@ function physUpdate(p,dt,allow){
   const wasG=p.grounded;
   if(wasG)p.coyote=0.11;else p.coyote-=dt;
   let dir=0,jumpP=false,jumpHeld=false,downHeld=false;
-  if(allow){const inp=inputFor(p);dir=inp.dir;jumpP=inp.jumpEdge;jumpHeld=inp.jumpHeld;downHeld=inp.downHeld;}
+  if(allow){const inp=inputFor(p,dt);dir=inp.dir;jumpP=inp.jumpEdge;jumpHeld=inp.jumpHeld;downHeld=inp.downHeld;}
   const onSpeed=p.grounded&&!!zoneAtFeet(p,'speed');
   if(onSpeed&&!p.padOn)sfx('pad');
   p.padOn=onSpeed;
@@ -5049,7 +5056,7 @@ function sampleControls(scheme){
 
 /* Input shim: host runs local input for slot 0 (or its own slot); guest inputs are buffered */
 const _inputFor = inputFor;
-function inputForNet(p){
+function inputForNet(p,dt){
   if(NET.role !== null){
     if(NET.isHost){
       const slot = p.slot;
@@ -5076,7 +5083,7 @@ function inputForNet(p){
       return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
     }
   }
-  return _inputFor(p);
+  return _inputFor(p,dt);
 }
 inputFor = inputForNet;
 
