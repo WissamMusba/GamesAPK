@@ -1096,9 +1096,10 @@ function toggleTeams(){
   }
   settings.teams = !settings.teams;
   if(settings.teams){
-    menu.slotColor[0] = 0; menu.slotColor[1] = 1; menu.slotColor[2] = 2; menu.slotColor[3] = 3;
-    menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
-    toast('⚔️ NEW MODE: 2v2 TEAM TAG (RED VS BLUE)');
+    if(menu.slotColor[0] < 0) menu.slotColor[0] = 0;
+    if(menu.slotColor[1] < 0) menu.slotColor[1] = 1;
+    if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+    toast('⚔️ TEAM TAG MODE: ON (RED VS BLUE)');
     sfx('ok');
   } else {
     toast('👥 FREE-FOR-ALL PARTY MODE');
@@ -3245,7 +3246,7 @@ function drawMapModal(){
   g.strokeStyle = isRand ? '#ffd166' : 'rgba(255, 255, 255, 0.25)';
   g.stroke();
 
-  ptxt(isRand ? '🎲 RANDOM ARENA  ✓' : '🎲 RANDOM ARENA  (Surprise map every match)', randBtnX + randBtnW / 2, randBtnY + randBtnH / 2 + 1, FN(clamp(randBtnW * 0.038, 10.5, 13), 900), isRand ? '#ffd166' : '#ffffff');
+  txt(isRand ? '🎲 RANDOM ARENA  ✓' : '🎲 RANDOM ARENA  (Surprise map every match)', randBtnX + randBtnW / 2, randBtnY + randBtnH / 2 + 1, FN(clamp(randBtnW * 0.038, 10.5, 13), 900), isRand ? '#ffd166' : '#ffffff');
   zone(randBtnX, randBtnY, randBtnW, randBtnH, { fn: () => {
     settings.randomMap = true;
     menu.mapModal = false;
@@ -3255,7 +3256,8 @@ function drawMapModal(){
 
   const gridTopY = randBtnY + randBtnH + 6;
   const availGridH = modalH - (gridTopY - modalY) - gridPad;
-  const cellH = (availGridH - (rows - 1) * 8) / rows;
+  const cellW = Math.floor((availGridW - (cols - 1) * 8) / cols);
+  const cellH = Math.floor((availGridH - (rows - 1) * 8) / rows);
 
   for(let m = 0; m < 10; m++){
     const c = m % cols;
@@ -3281,12 +3283,12 @@ function drawMapModal(){
       const bW = 20, bH = 16;
       rr(g, cx + thumbPad + thumbW - bW - 2, cy + thumbPad + 2, bW, bH, 4);
       g.fillStyle = '#2ecc71'; g.fill(); g.lineWidth = 1; g.strokeStyle = INK; g.stroke();
-      ptxt('✓', cx + thumbPad + thumbW - bW/2 - 2, cy + thumbPad + bH/2 + 2, FN(10, 900), '#ffffff');
+      txt('✓', cx + thumbPad + thumbW - bW/2 - 2, cy + thumbPad + bH/2 + 2, FN(10, 900), '#ffffff');
     }
 
     const shortName = (m + 1) + '. ' + MAPS[m].name;
     const fs = clamp(cellW * 0.082, 9, 12);
-    ptxt(shortName, cx + cellW / 2, cy + cellH - labelH / 2, FN(fs, 900), isSel ? '#2ecc71' : '#f1f2f6');
+    txt(shortName, cx + cellW / 2, cy + cellH - labelH / 2, FN(fs, 900), isSel ? '#2ecc71' : '#f1f2f6');
 
     zone(cx, cy, cellW, cellH, { fn: () => {
       settings.randomMap = false;
@@ -3543,20 +3545,26 @@ function drawMenu(){
 
   // Top sub-header in stage: Player count pills or Team Tag header
   let stageTopPad = 0;
-  if(isTeams){
-    stageTopPad = clamp(stageH * 0.14, 22, 28);
-    const pillY = stageY + 2;
-    ptxt('⚔️ NEW GAMEMODE: 2v2 TEAM TAG (RED TEAM VS BLUE TEAM)', CW / 2, pillY + stageTopPad/2 + 1, FN(clamp(CW * 0.026, 11, 13.5), 900), '#ffd166', 'center');
-  } else if(!isSolo){
-    stageTopPad = clamp(stageH * 0.12, 22, 28);
+  if(!isSolo){
+    stageTopPad = clamp(stageH * 0.13, 24, 30);
     const pillY = stageY + 2;
     const countOpts = [2, 3, 4];
-    const pw = clamp(CW * 0.18, 62, 90);
+    const pw = clamp(CW * 0.16, 56, 84);
     const ph = stageTopPad - 4;
     const totalPillsW = countOpts.length * pw + (countOpts.length - 1) * 6;
     const pillsStartX = Math.floor(CW / 2 - totalPillsW / 2);
 
-    txt('LOCAL PLAYERS:', pillsStartX - 54, pillY + ph/2 + 1, FN(10.5, 900), 'rgba(255,255,255,0.75)', 'right');
+    if(isTeams){
+      let redCount = 0, blueCount = 0;
+      for(const s of actSlots){
+        const t = (menu.slotTeam && menu.slotTeam[s] != null) ? (menu.slotTeam[s] % 2) : (s % 2);
+        if(t === 0) redCount++; else blueCount++;
+      }
+      const ratioStr = '⚔️ ' + redCount + ' RED vs ' + blueCount + ' BLUE:';
+      txt(ratioStr, pillsStartX - 10, pillY + ph/2 + 1, FN(clamp(CW * 0.024, 10, 12), 900), '#ffd166', 'right');
+    } else {
+      txt('LOCAL PLAYERS:', pillsStartX - 10, pillY + ph/2 + 1, FN(10.5, 900), 'rgba(255,255,255,0.75)', 'right');
+    }
 
     for(let k = 0; k < countOpts.length; k++){
       const numP = countOpts[k];
@@ -3583,7 +3591,7 @@ function drawMenu(){
 
   // Check if 4 cards should wrap to 2x2 grid on small mobile
   const use2x2 = (!isSolo && actSlots.length === 4 && CW < 680);
-  const showAddCard = (!isSolo && !isTeams && actSlots.length < 4 && CW >= 580 && !use2x2);
+  const showAddCard = (!isSolo && actSlots.length < 4 && CW >= 580 && !use2x2);
   const totalItems = actSlots.length + (showAddCard ? 1 : 0);
 
   const cardGap = clamp(CW * 0.016, 6, 14);
@@ -3612,7 +3620,7 @@ function drawMenu(){
       const slot = actSlots[k];
       const cx = startX + k * (cardW + cardGap);
       const isBot = (isSolo && slot === 1);
-      drawPlayerCard(cx, cardY, cardW, cardH, slot, isBot, !isSolo && !isTeams && slot >= 2);
+      drawPlayerCard(cx, cardY, cardW, cardH, slot, isBot, !isSolo && slot >= 2);
     }
 
     // Draw "+ ADD PLAYER" card if slots available
@@ -3624,9 +3632,6 @@ function drawMenu(){
   }
 
   // 4b. Online Multiplayer Coming Soon Sticker (Right Side of Screen)
-  // "make it like a sticker on the right side of the screen coming soon in big letters
-  //  and when they press it they get more info but in small it stays online multiplayer
-  //  and add a note like prolly will release on 31 Sept tenative or smt like that"
   const isWideScreen = (CW >= 880);
   const isMediumScreen = (CW >= 680 && CW < 880);
   let stickW, stickH, stickX, stickY;
@@ -3656,7 +3661,7 @@ function drawMenu(){
   rr(g, 3, 5, stickW, stickH, 12);
   g.fillStyle = 'rgba(0, 0, 0, 0.45)'; g.fill();
 
-  // Die-cut white vinyl border (clean sticker edge!)
+  // Die-cut white vinyl border
   rr(g, -3, -3, stickW + 6, stickH + 6, 14);
   g.fillStyle = '#ffffff'; g.fill();
   g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
@@ -3685,11 +3690,90 @@ function drawMenu(){
   const notePillY = stickH - notePillH - 6;
   pill(8, notePillY, notePillW, notePillH, 'rgba(46, 204, 113, 0.20)', 'rgba(46, 204, 113, 0.6)');
   txt('📅 Target: ~Sept 31 (Tentative)', stickW / 2, notePillY + notePillH / 2 + 1, FN(clamp(notePillH * 0.52, 8.5, 10.5), 900), '#2ecc71');
-
   g.restore();
 
   // Click zone for the sticker to open more info modal
   zone(stickX - 6, stickY - 6, stickW + 12, stickH + 12, { fn: () => { menu.onlineModal = true; sfx('ok'); } });
+
+  // 4c. SOLO v BOT BETA Sticker (Left Side of Screen - BIGGER & With Player!)
+  // "add another sticker saying SOLO v Bot is in BETA testing TRY NOW bigger than the other sitcker and more visually appealing(add a player there)"
+  let soloW, soloH, soloX, soloY;
+  if(isWideScreen){
+    soloW = 214; soloH = 104;
+    soloX = 20;
+    soloY = headY + headH + 18;
+  } else if(isMediumScreen){
+    soloW = 172; soloH = 88;
+    soloX = 14;
+    soloY = headY + headH + 12;
+  } else {
+    soloW = clamp(CW * 0.44, 138, 175);
+    soloH = clamp(CH * 0.14, 64, 80);
+    soloX = 10;
+    soloY = headY + headH + 6;
+  }
+
+  g.save();
+  const solocx = soloX + soloW / 2;
+  const solocy = soloY + soloH / 2;
+  g.translate(solocx, solocy);
+  g.rotate(0.055); // ~+3.2 degrees counter-tilt towards center
+  g.translate(-soloW / 2, -soloH / 2);
+
+  // Soft drop shadow
+  rr(g, 3, 5, soloW, soloH, 14);
+  g.fillStyle = 'rgba(0, 0, 0, 0.45)'; g.fill();
+
+  // Die-cut white vinyl border
+  rr(g, -3, -3, soloW + 6, soloH + 6, 16);
+  g.fillStyle = '#ffffff'; g.fill();
+  g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
+
+  // Inner card body (deep arcade violet/indigo)
+  rr(g, 0, 0, soloW, soloH, 13);
+  g.fillStyle = '#1c1335'; g.fill();
+
+  // Animated warm glowing pulse
+  const soloPulse = 0.55 + 0.35 * Math.sin(tGlobal * 6);
+  g.lineWidth = 2;
+  g.strokeStyle = 'rgba(255, 107, 129, ' + soloPulse + ')';
+  g.stroke();
+
+  // Draw cute animated player character on the left side of the sticker!
+  const charSz = clamp(soloH * 0.36, 26, 36);
+  const charX = 20;
+  const charY = Math.floor(soloH * 0.32);
+  drawChar(g, charX, charY, charSz, '#ff4757', { face: 'cool', grounded: true, seed: 7 });
+
+  // Sticker text (right side of character)
+  const soloTxtX = charX + charSz + 8;
+
+  // Title: SOLO v BOT
+  txt('🤖 1P SOLO v BOT', soloTxtX, soloH * 0.22, FT(clamp(soloH * 0.16, 11.5, 15)), '#ffd166', 'left');
+
+  // Sub-badge: BETA TESTING
+  const betaW = soloW - soloTxtX - 10;
+  const betaH = Math.floor(soloH * 0.22);
+  pill(soloTxtX, soloH * 0.38, betaW, betaH, 'rgba(255, 71, 87, 0.22)', '#ff4757');
+  txt('⚡ BETA TESTING', soloTxtX + betaW / 2, soloH * 0.38 + betaH / 2 + 1, FN(clamp(betaH * 0.52, 9, 11), 900), '#ff6b81');
+
+  // Big Callout Button: TRY NOW!
+  const tryBtnW = soloW - 20;
+  const tryBtnH = Math.floor(soloH * 0.26);
+  const tryBtnY = soloH - tryBtnH - 7;
+  rr(g, 10, tryBtnY, tryBtnW, tryBtnH, 8);
+  g.fillStyle = '#2ed573'; g.fill();
+  g.lineWidth = 1.5; g.strokeStyle = '#ffffff'; g.stroke();
+  txt('▶ TRY NOW !', soloW / 2, tryBtnY + tryBtnH / 2 + 1, FT(clamp(tryBtnH * 0.58, 12, 15)), '#ffffff');
+
+  g.restore();
+
+  // Click zone for SOLO v BOT sticker
+  zone(soloX - 6, soloY - 6, soloW + 12, soloH + 12, { fn: () => {
+    setMenuTab('solo');
+    toast('🤖 1P SOLO vs BOT ACTIVE');
+    sfx('go');
+  }});
 
   // 5. Settings Strip
   rr(g, stripX, stripY, stripW, stripH, 12);
@@ -3703,17 +3787,19 @@ function drawMenu(){
     const rowH1 = Math.floor(stripH / 2);
     // Row 1: Map Selector
     const mapY = stripY + 3;
-    const arrowW = 32;
+    const arrowW = 34;
     // Left Arrow
     rr(g, stripX + 6, mapY, arrowW, rowH1 - 6, 6);
-    g.fillStyle = 'rgba(255,255,255,0.12)'; g.fill();
-    ptxt('‹', stripX + 6 + arrowW/2, mapY + (rowH1 - 6)/2 + 1, FT(15), '#ffffff');
+    g.fillStyle = 'rgba(255,255,255,0.18)'; g.fill();
+    g.lineWidth = 1.5; g.strokeStyle = 'rgba(255,255,255,0.30)'; g.stroke();
+    txt('◀', stripX + 6 + arrowW/2, mapY + (rowH1 - 6)/2 + 1, FN(13, 900), '#ffffff');
     zone(stripX + 6, mapY, arrowW, rowH1 - 6, { fn: () => cycleMap(-1) });
 
     // Right Arrow
     rr(g, stripX + stripW - arrowW - 6, mapY, arrowW, rowH1 - 6, 6);
-    g.fillStyle = 'rgba(255,255,255,0.12)'; g.fill();
-    ptxt('›', stripX + stripW - arrowW/2 - 6, mapY + (rowH1 - 6)/2 + 1, FT(15), '#ffffff');
+    g.fillStyle = 'rgba(255,255,255,0.18)'; g.fill();
+    g.lineWidth = 1.5; g.strokeStyle = 'rgba(255,255,255,0.30)'; g.stroke();
+    txt('▶', stripX + stripW - arrowW/2 - 6, mapY + (rowH1 - 6)/2 + 1, FN(13, 900), '#ffffff');
     zone(stripX + stripW - arrowW - 6, mapY, arrowW, rowH1 - 6, { fn: () => cycleMap(1) });
 
     // Middle Map Name (Opens Modal!)
@@ -3743,17 +3829,17 @@ function drawMenu(){
       settings.timeIdx = (settings.timeIdx + 1) % TIMES.length; sfx('ui');
     }});
 
-    // Chip 3: NEW GAMEMODE: 2v2 Teams
+    // Chip 3: NEW GAMEMODE: Teams
     const chip3X = stripX + 18 + chipW * 2;
     rr(g, chip3X, chipsY, chipW, chipH, 6);
     if(settings.teams){
       g.fillStyle = '#f39c12'; g.fill();
       g.lineWidth = 1.5; g.strokeStyle = '#ffffff'; g.stroke();
-      txt('⚔️ 2v2 (ON)', chip3X + chipW/2, chipsY + chipH/2 + 1, FN(10.5, 900), '#0f172a');
+      txt('⚔️ TEAMS (ON)', chip3X + chipW/2, chipsY + chipH/2 + 1, FN(10.5, 900), '#0f172a');
     } else {
       g.fillStyle = 'rgba(243, 156, 18, 0.18)'; g.fill();
       g.lineWidth = 1.5; g.strokeStyle = 'rgba(243, 156, 18, 0.55)'; g.stroke();
-      txt('⚔️ 2v2 TEAMS', chip3X + chipW/2, chipsY + chipH/2 + 1, FN(10, 900), '#ffd166');
+      txt('⚔️ TEAMS', chip3X + chipW/2, chipsY + chipH/2 + 1, FN(10, 900), '#ffd166');
       // NEW badge on corner
       const nbW = 28, nbH = 13;
       const nbX = chip3X + chipW - nbW - 2, nbY = chipsY - 4;
@@ -3771,18 +3857,20 @@ function drawMenu(){
 
     // Map Selector Box (Left half)
     const mapBoxW = clamp(stripW * 0.48, 220, 360);
-    const arrowW = 28;
+    const arrowW = 34;
 
     // Left Arrow
     rr(g, stripX + 6, itemY, arrowW, itemH, 6);
-    g.fillStyle = 'rgba(255,255,255,0.12)'; g.fill();
-    ptxt('‹', stripX + 6 + arrowW/2, itemY + itemH/2 + 1, FT(15), '#ffffff');
+    g.fillStyle = 'rgba(255,255,255,0.18)'; g.fill();
+    g.lineWidth = 1.5; g.strokeStyle = 'rgba(255,255,255,0.30)'; g.stroke();
+    txt('◀', stripX + 6 + arrowW/2, itemY + itemH/2 + 1, FN(14, 900), '#ffffff');
     zone(stripX + 6, itemY, arrowW, itemH, { fn: () => cycleMap(-1) });
 
     // Right Arrow
     rr(g, stripX + 6 + mapBoxW - arrowW, itemY, arrowW, itemH, 6);
-    g.fillStyle = 'rgba(255,255,255,0.12)'; g.fill();
-    ptxt('›', stripX + 6 + mapBoxW - arrowW/2, itemY + itemH/2 + 1, FT(15), '#ffffff');
+    g.fillStyle = 'rgba(255,255,255,0.18)'; g.fill();
+    g.lineWidth = 1.5; g.strokeStyle = 'rgba(255,255,255,0.30)'; g.stroke();
+    txt('▶', stripX + 6 + mapBoxW - arrowW/2, itemY + itemH/2 + 1, FN(14, 900), '#ffffff');
     zone(stripX + 6, itemY, arrowW, itemH, { fn: () => cycleMap(1) });
 
     // Middle Map Name (Opens Modal!)
@@ -3812,17 +3900,17 @@ function drawMenu(){
       settings.timeIdx = (settings.timeIdx + 1) % TIMES.length; sfx('ui');
     }});
 
-    // Chip 3: NEW GAMEMODE: 2v2 Teams
+    // Chip 3: NEW GAMEMODE: Teams
     const chip3X = chipsX + chipW * 2 + 12;
     rr(g, chip3X, itemY, chipW, itemH, 6);
     if(settings.teams){
       g.fillStyle = '#f39c12'; g.fill();
       g.lineWidth = 2; g.strokeStyle = '#ffffff'; g.stroke();
-      txt('⚔️ 2v2 TEAMS (ON)', chip3X + chipW/2, itemY + itemH/2 + 1, FN(11.5, 900), '#0f172a');
+      txt('⚔️ TEAMS (ON)', chip3X + chipW/2, itemY + itemH/2 + 1, FN(11.5, 900), '#0f172a');
     } else {
       g.fillStyle = 'rgba(243, 156, 18, 0.18)'; g.fill();
       g.lineWidth = 1.5; g.strokeStyle = 'rgba(243, 156, 18, 0.55)'; g.stroke();
-      txt('⚔️ 2v2 TEAMS', chip3X + chipW/2, itemY + itemH/2 + 1, FN(11.5, 900), '#ffd166');
+      txt('⚔️ TEAMS', chip3X + chipW/2, itemY + itemH/2 + 1, FN(11.5, 900), '#ffd166');
       // NEW badge on corner
       const nbW = 32, nbH = 14;
       const nbX = chip3X + chipW - nbW - 2, nbY = itemY - 5;
@@ -3844,7 +3932,7 @@ function drawMenu(){
   g.lineWidth = 2; g.strokeStyle = '#ffffff'; g.stroke();
 
   let startLabel = isTouch ? '▶ START MATCH' : '▶ START MATCH  (SPACE / ENTER)';
-  if(isTeams) startLabel = isTouch ? '⚔️ START 2v2 TEAMS' : '⚔️ START 2v2 TEAMS (SPACE / ENTER)';
+  if(isTeams) startLabel = isTouch ? '⚔️ START TEAM MATCH' : '⚔️ START TEAM MATCH  (SPACE / ENTER)';
   if(isTeams){
     txt(startLabel, CW/2, startBtnY + startBtnH/2 + 1, FT(clamp(startBtnH * 0.46, 15, 20)), '#0f172a');
   } else {
