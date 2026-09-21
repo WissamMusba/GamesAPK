@@ -1477,9 +1477,21 @@ function botCeilAbove(p,dist){
 }
 function botInputFor(p){
   let S=BOT.st[p.slot];
-  if(!S){S=BOT.st[p.slot]={dir:0,jumpQ:false,jumpHoldT:0,decideT:0,px:p.x,py:p.y,stuckT:0,unstuckT:0,unstuckDir:0,bonks:0,bonkT:0,airT:0,dropHold:0,descLockT:0,descDir:0,airT2:0,exitX:0,hasExit:false,exitLockT:0,exitDir:0,exitGp:null,climbPlat:null,climbOut:0,climbT:0,bannedSide:0,banT:0,banTierY:0};}
+  if(!S){S=BOT.st[p.slot]={dir:0,jumpQ:false,jumpHoldT:0,decideT:0,px:p.x,py:p.y,stuckT:0,unstuckT:0,unstuckDir:0,bonks:0,bonkT:0,airT:0,dropHold:0,descLockT:0,descDir:0,airT2:0,exitX:0,hasExit:false,exitLockT:0,exitDir:0,exitGp:null,climbPlat:null,climbOut:0,climbT:0,bannedSide:0,banT:0,banTierY:0,loopAnchorX:p.x,loopAnchorY:p.y,loopT:0,escapeT:0,escapeDir:0,escapeDrop:false,dropNoJumpT:0};}
   const dt=Math.min(0.033,1/60);
-  const cx=p.x+p.w/2,cy=p.y+p.h/2;
+    if(S.dropNoJumpT>0)S.dropNoJumpT-=dt;
+  if(S.escapeT>0)S.escapeT-=dt;
+  if(S.loopAnchorX===undefined){S.loopAnchorX=p.x;S.loopAnchorY=p.y;S.loopT=0;}
+  const loopDist=Math.hypot(p.x-S.loopAnchorX,p.y-S.loopAnchorY);
+  if(loopDist<110){S.loopT+=dt;}else{S.loopAnchorX=p.x;S.loopAnchorY=p.y;S.loopT=0;}
+  if(S.loopT>0.75){
+    S.loopT=0;S.escapeT=1.0;
+    S.exitLockT=0;S.descLockT=0;S.climbPlat=null;S.hasExit=false;
+    const onDrop=(p.gp&&p.gp.t==='drop')||!!zoneAtFeet(p,'drop');
+    if(onDrop){S.escapeDrop=true;S.escapeDir=0;S.dropNoJumpT=0.85;}
+    else{S.escapeDrop=false;S.escapeDir=(S.dir!==0?-S.dir:(Math.random()<0.5?-1:1));}
+  }
+const cx=p.x+p.w/2,cy=p.y+p.h/2;
   // target: chase if IT, flee from IT if not
   let target=null;
   try{
@@ -1668,6 +1680,7 @@ function botInputFor(p){
       // DOWN: target clearly below -> pink drop wins, else score 3 fall-lines.
       // Locked while committed so pink/brown seams can't flip dir every think.
       let down=isDropEscape||false;
+      if(isDropEscape){S.dropNoJumpT=0.85;}
       const belowGap=ty-(p.y+p.h);
       const sameTier=Math.abs(belowGap)<60&&Math.abs(dx)<200;
       if(isIt&&belowGap>60&&!sameTier){
@@ -1797,7 +1810,8 @@ function botInputFor(p){
     }
   }
   S.wasVy=p.vy;
-  const j=S.jumpQ;S.jumpQ=false;
+    if(S.dropNoJumpT>0)S.jumpQ=false;
+const j=S.jumpQ;S.jumpQ=false;
   if(j)S.jumpHoldT=0.12;
   let hold=!!j;
   if(S.jumpHoldT>0){S.jumpHoldT-=dt;hold=true;}
