@@ -1401,6 +1401,14 @@ function zoneAtFeet(p,type){
   }
   return null;
 }
+function botFullyOnDrop(p){
+  if(p.grounded&&p.gp&&p.gp.t==='drop'){
+    if(p.x+6>=p.gp.x&&p.x+p.w-6<=p.gp.x+p.gp.w)return p.gp;
+  }
+  const z=zoneAtFeet(p,'drop');
+  if(z&&p.x+6>=z.x&&p.x+p.w-6<=z.x+z.w)return z;
+  return null;
+}
 
 function landOn(p,gp,impact,wasG){
   p.grounded=true;p.gp=gp;p.lastGp=gp;p.airJumps=settings.doubleJump?1:0;p.wallJumps=0;
@@ -1506,14 +1514,21 @@ function botInputFor(p,dt){
     S.banT-=stepDt;
     if(S.banT<=0||p.y<S.banTierY-45){S.bannedSide=0;S.banT=0;}
   }
-  // stuck tracking: moved <14px in 0.45s while target far?
+  // stuck tracking: moved <14px in 0.45s while target far or blocked against wall/perimeter
   const moved=Math.hypot(p.x-S.px,p.y-S.py);
   const far=Math.hypot(dx,dy)>90;
-  if(far&&moved<14){S.stuckT+=stepDt;}else{S.stuckT=0;S.px=p.x;S.py=p.y;}
+  const wallAheadNow=botWallAhead(p,S.dir,30);
+  const nearPerimeter=(p.x<=WALL+25||p.x+p.w>=W-WALL-25);
+  const isStuckBlocked=far||wallAheadNow||nearPerimeter;
+  if(isStuckBlocked&&moved<14){S.stuckT+=stepDt;}else{S.stuckT=0;S.px=p.x;S.py=p.y;}
   if(moved>=14){S.px=p.x;S.py=p.y;}
   if(S.stuckT>0.45&&S.unstuckT<=0){
     S.unstuckT=0.7;S.unstuckDir=(S.dir!==0?-S.dir:(Math.random()<0.5?-1:1));
     S.stuckT=0;S.bonks=0;
+    S.exitLockT=0;S.exitDir=0;S.exitGp=null;S.hasExit=false;
+    S.descLockT=0;S.descDir=0;
+    S.climbPlat=null;S.climbOut=0;S.climbT=0;
+    S.pinkJukePhase=0;S.pinkJukeT=0;
   }
   if(S.unstuckT>0){
     S.unstuckT-=stepDt;
@@ -1521,6 +1536,7 @@ function botInputFor(p,dt){
     S.airT-=stepDt;
     let j=false;
     if(p.grounded||p.airJumps>0||(p.wallJumps<2&&p.sideT>0)){if(S.airT<=0){j=true;S.airT=0.28;S.jumpHoldT=0.12;}}
+    if(S.dropNoJumpT>0)j=false;
     let uh=!!j||S.jumpHoldT>0;
     if(S.jumpHoldT>0)S.jumpHoldT-=stepDt;
     const r={dir:S.unstuckDir,jumpEdge:j,jumpHeld:uh,downHeld:false};
@@ -1549,14 +1565,15 @@ function botInputFor(p,dt){
       want=Math.abs(dx)>24?-Math.sign(dx):(S.dir||1);
       
       // 1. Pink platform bait & pop-up juke (drop beneath and pop up behind hunter!)
-      const onPink=(p.gp&&p.gp.t==='drop')||zoneAtFeet(p,'drop');
+      const dropPlat=botFullyOnDrop(p);
+      const onPink=!!dropPlat;
       const hunterClosing=Math.sign(target.vx||0)===-Math.sign(dx)||Math.abs(target.vx||0)>90;
       const hunterNearBehind=Math.abs(dy)<60&&Math.abs(dx)>60&&Math.abs(dx)<230&&hunterClosing;
       
       if(onPink&&hunterNearBehind&&S.pinkJukeCooldown<=0&&S.pinkJukePhase===0){
         S.pinkJukePhase=1;
         S.pinkJukeT=0.28;
-        S.pinkJukePlat=p.gp||onPink;
+        S.pinkJukePlat=dropPlat;
         S.pinkJukeDir=want;
       }else if(S.pinkJukePhase===1){
         // Phase 1: Dropping beneath pink floor
@@ -1576,7 +1593,8 @@ function botInputFor(p,dt){
         // Phase 2: Rising through pink floor and sprinting in reverse away from hunter
         S.pinkJukeT-=stepDt;
         want=-S.pinkJukeDir;
-        if(S.pinkJukeT<=0||(p.grounded&&p.y<=(S.pinkJukePlat?S.pinkJukePlat.y:p.y))){
+        const targetPlatY=S.pinkJukePlat?S.pinkJukePlat.y:p.y;
+        if(S.pinkJukeT<=0||(p.grounded&&(p.y+p.h)<=targetPlatY+4)){
           S.pinkJukePhase=0;
           S.pinkJukeCooldown=3.0;
         }
@@ -1588,7 +1606,13 @@ function botInputFor(p,dt){
         if((cornerL||cornerR)&&hunterCornerClosing){
           // EMERGENCY CORNER JUKE: Wall-jump overhead to flank over approaching hunter!
           isCornerJuke=true;
-          want=p.grounded?(cornerL?-1:1):(cornerL?1:-1);
+          if(p.grounded){
+            want=cornerL?-1:1;
+          }else if(p.vy<-20&&p.sideT<=0){
+            want=cornerL?-1:1;
+          }else{
+            want=cornerL?1:-1;
+          }
         }else{
           if(p.x<WALL+80&&want<0)want=1;
           if(p.x+p.w>W-WALL-80&&want>0)want=-1;
@@ -1619,7 +1643,14 @@ function botInputFor(p,dt){
     if(isDirectPath){
       // TIER 1: DIRECT GREEDY BEELINE (clear air or through pink platforms)
       S.exitLockT=0;S.exitDir=0;S.exitGp=null;S.hasExit=false;
-      want=Math.abs(dx)>12?Math.sign(dx):0;
+      const absDx=Math.abs(dx),absDy=Math.abs(dy);
+      if(absDx<28&&absDy<36){
+        want=Math.sign(dx)||0;
+      }else if(absDx<45&&Math.abs(p.vx)>60){
+        want=Math.sign(p.vx);
+      }else{
+        want=absDx>12?Math.sign(dx):(S.dir||1);
+      }
     }else if(isIt&&aboveBy>50){
       // TIER 2: CEILING / OBSTACLE DETOUR ROUTER (solid platform in way)
       const gp=p.grounded?p.gp:null;
@@ -1679,11 +1710,11 @@ function botInputFor(p,dt){
     S.jumpQ=false;S.dropHold=Math.max(0,(S.dropHold||0)-BOT.think);
     const headBlocked=botSolidBetween(cx,p.y-4,cx,p.y-140,p.gp);
     if(p.grounded){
-      S.airT2=0;S.climbT=0;
+      S.airT2=0;S.climbT=0;S.climbPlat=null;S.climbOut=0;
       const wallAhead=botWallAhead(p,want);
       const ceilAbove=botCeilAbove(p,48);
       const isJumpableWall=wallAhead&&(wallAhead.y>p.y-170)&&!ceilAbove;
-      const isDropEscape=wallAhead&&!isJumpableWall&&(p.gp&&p.gp.t==='drop');
+      const isDropEscape=wallAhead&&!isJumpableWall&&!!botFullyOnDrop(p);
 
       if(isDropEscape){
         // Trapped by giant unjumpable wall/pillar on drop platform: drop down to escape!
@@ -1731,7 +1762,7 @@ function botInputFor(p,dt){
       const belowGap=ty-(p.y+p.h);
       const sameTier=Math.abs(belowGap)<60&&Math.abs(dx)<200;
       if(isIt&&belowGap>60&&!sameTier){
-        const onPink=zoneAtFeet(p,'drop');
+        const onPink=botFullyOnDrop(p);
         if(isDirectPath&&belowGap>50&&onPink){
           down=true;
         }
@@ -1879,6 +1910,9 @@ function botInputFor(p,dt){
         side=gp?(Math.abs(cx-gp.x)<Math.abs(cx-(gp.x+gp.w))?-1:1):1;
       }
       S.bannedSide=side;S.banT=1.5;S.banTierY=p.y;
+      S.exitLockT=0;S.exitDir=0;S.exitGp=null;S.hasExit=false;
+      S.descLockT=0;S.descDir=0;
+      S.climbPlat=null;S.climbOut=0;S.climbT=0;
       S.dir=-side;S.unstuckT=0.5;S.unstuckDir=S.dir;
     }
   }
