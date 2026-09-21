@@ -1470,53 +1470,16 @@ function botCeilAbove(p,dist){
   const d=dist||48;
   const probe={x:p.x+4, y:p.y-d, w:p.w-8, h:d};
   for(const s of SOLIDS){
-    if(s===p.gp)continue;
+    if(s.t==='drop'||s===p.gp)continue;
     if(hitRect(probe,s))return s;
   }
   return null;
 }
 function botInputFor(p){
   let S=BOT.st[p.slot];
-  if(!S){S=BOT.st[p.slot]={dir:0,jumpQ:false,jumpHoldT:0,decideT:0,px:p.x,py:p.y,stuckT:0,unstuckT:0,unstuckDir:0,bonks:0,bonkT:0,airT:0,dropHold:0,descLockT:0,descDir:0,airT2:0,exitX:0,hasExit:false,exitLockT:0,exitDir:0,exitGp:null,climbPlat:null,climbOut:0,climbT:0,bannedSide:0,banT:0,banTierY:0,loopAnchorX:p.x,loopAnchorY:p.y,loopT:0,escapeT:0,escapeDir:0,escapeDrop:false,dropNoJumpT:0};}
+  if(!S){S=BOT.st[p.slot]={dir:0,jumpQ:false,jumpHoldT:0,decideT:0,px:p.x,py:p.y,stuckT:0,unstuckT:0,unstuckDir:0,bonks:0,bonkT:0,airT:0,dropHold:0,descLockT:0,descDir:0,airT2:0,exitX:0,hasExit:false,exitLockT:0,exitDir:0,exitGp:null,climbPlat:null,climbOut:0,climbT:0,bannedSide:0,banT:0,banTierY:0,dropNoJumpT:0};}
   const dt=Math.min(0.033,1/60);
-    if(S.dropNoJumpT>0)S.dropNoJumpT-=dt;
-  if(S.escapeT>0)S.escapeT-=dt;
-  if(S.flipWindowT===undefined){S.flipWindowT=0;S.flipCount=0;S.lastFlipDir=0;S.bestDist=1e9;S.noProgressT=0;}
-  
-  // Track direction flips to kill zig-zag pacing instantly
-  if(S.dir!==0&&S.lastFlipDir!==0&&S.dir===-S.lastFlipDir){
-    S.flipCount++;
-    S.lastFlipDir=S.dir;
-  } else if(S.dir!==0){
-    S.lastFlipDir=S.dir;
-  }
-  S.flipWindowT+=dt;
-  if(S.flipWindowT>0.8){
-    if(S.flipCount>=3){
-      // Zig-zag detected: lock direction for 1s to break pacing!
-      S.escapeT=1.0;S.escapeDir=S.dir||1;
-      S.exitLockT=0;S.descLockT=0;S.climbPlat=null;S.hasExit=false;
-    }
-    S.flipCount=0;S.flipWindowT=0;
-  }
-
-  // Track target distance progress: if no closer to target for 1.8s, force breakthrough!
-  const curDist=target?Math.hypot(target.x-p.x,target.y-p.y):0;
-  if(curDist<S.bestDist-25){
-    S.bestDist=curDist;
-    S.noProgressT=0;
-  }else{
-    S.noProgressT+=dt;
-  }
-  if(S.noProgressT>1.8){
-    S.noProgressT=0;S.bestDist=1e9;
-    S.escapeT=1.2;
-    S.exitLockT=0;S.descLockT=0;S.climbPlat=null;S.hasExit=false;
-    const onDrop=(p.gp&&p.gp.t==='drop')||!!zoneAtFeet(p,'drop');
-    if(onDrop){S.escapeDrop=true;S.escapeDir=0;S.dropNoJumpT=0.9;}
-    else{S.escapeDrop=false;S.escapeDir=(S.dir!==0?-S.dir:(Math.random()<0.5?-1:1));}
-  }
-const cx=p.x+p.w/2,cy=p.y+p.h/2;
+  const cx=p.x+p.w/2,cy=p.y+p.h/2;
   // target: chase if IT, flee from IT if not
   let target=null;
   try{
@@ -1530,6 +1493,8 @@ const cx=p.x+p.w/2,cy=p.y+p.h/2;
   const tx=target.x+target.w/2,ty=target.y+target.h/2;
   const dx=tx-cx,dy=ty-cy;
   const isIt=(match.players[match.it]===p);
+
+  if(S.dropNoJumpT>0)S.dropNoJumpT-=dt;
 
   S.decideT-=dt;S.bonkT-=dt;
   if(S.bonkT<=0)S.bonks=0;
@@ -1597,24 +1562,21 @@ const cx=p.x+p.w/2,cy=p.y+p.h/2;
       }
     }
     if(isIt&&aboveBy>50){
-      // Ceiling router: go around the slab that's actually overhead
-      // (blocked), not the floor under our feet. Self-hit excluded so
-      // slopes never read as ceilings. Floor (wall=1) may detour too.
-      const blocked=botSolidBetween(cx,p.y-10,tx,ty,p.gp);
       const gp=p.grounded?p.gp:null;
-      if(blocked&&!blocked.wall&&p.grounded&&gp){
-        // Real juke invalidation: only cancel if target crossed sides of the bot
-        if(S.exitLockT>0&&S.targetSideAtLock&&Math.sign(dx)!==S.targetSideAtLock&&Math.abs(dx)>80){
+      // 1. Hold existing lock while on this platform to reach exitX without boundary oscillation
+      if(S.exitLockT>0&&S.exitDir&&gp&&S.exitGp===gp){
+        if(S.targetSideAtLock&&Math.sign(dx)!==S.targetSideAtLock&&Math.abs(dx)>80){
           S.exitLockT=0;S.exitDir=0;S.exitGp=null;S.hasExit=false;
-        }
-        // hold existing lock while on the same platform
-        if(S.exitLockT>0&&S.exitDir&&S.exitGp===gp){
+        }else{
           detour=S.exitDir;want=detour;
           S.dropHold=0;S.descLockT=0;S.descDir=0;
           S.hasExit=true;
-        }else{
-          // Bot-relative clearing past the ceiling slab (stable vs strafing),
-          // overridden by a blacklisted side that already bonked us
+        }
+      }
+      // 2. If not locked, check if direct path to target is blocked by solid overhead
+      if(!S.hasExit&&gp){
+        const blocked=botSolidBetween(cx,p.y-10,tx,ty,p.gp);
+        if(blocked&&!blocked.wall){
           const clearL=blocked.x-45,clearR=blocked.x+blocked.w+45;
           const wallL=(blocked.x<=WALL+30),wallR=(blocked.x+blocked.w>=W-WALL-30);
           let exitX=(Math.abs(cx-clearL)<Math.abs(cx-clearR))?clearL:clearR;
@@ -1630,20 +1592,8 @@ const cx=p.x+p.w/2,cy=p.y+p.h/2;
           want=detour;
           S.dropHold=0;S.descLockT=0;S.descDir=0;
           S.exitX=exitX;S.hasExit=true;
-          // Lane ceiling above the exit (never the diagonal hit)
-          let laneCeil=null,laneGap=1e9;
-          const yTop=Math.min(ty,p.y-400);
-          for(const s of SOLIDS){
-            if(s.t==='drop'||s===p.gp)continue;
-            let top=s.y;
-            if(s.dy)top=s.y+(clamp(exitX,s.x,s.x+s.w)-s.x)*(s.dy/s.w);
-            if(exitX>=s.x-6&&exitX<=s.x+s.w+6&&top<p.y&&top>=yTop){
-              const gap=p.y-(top+s.h);
-              if(gap<laneGap){laneGap=gap;laneCeil=s;}
-            }
-          }
-          S.climbPlat=laneCeil||blocked;S.climbOut=detour;
-          S.exitLockT=0.8;S.exitDir=detour;S.exitGp=gp;S.targetSideAtLock=Math.sign(dx);
+          S.climbPlat=blocked;S.climbOut=detour;
+          S.exitLockT=0.85;S.exitDir=detour;S.exitGp=gp;S.targetSideAtLock=Math.sign(dx);
         }
       }else if(!p.grounded){
         // AIRBORNE: preserve exit lock across the jump so momentum & direction hold
@@ -1667,7 +1617,7 @@ const cx=p.x+p.w/2,cy=p.y+p.h/2;
     S.dir=want;
     // jump decisions
     S.jumpQ=false;S.dropHold=Math.max(0,(S.dropHold||0)-BOT.think);
-    const headBlocked=botSolidBetween(cx,p.y-4,tx,Math.min(ty,p.y-60));
+    const headBlocked=botSolidBetween(cx,p.y-4,cx,p.y-140,p.gp);
     if(p.grounded){
       S.airT2=0;S.climbT=0;
       const wallAhead=botWallAhead(p,want);
@@ -1685,7 +1635,8 @@ const cx=p.x+p.w/2,cy=p.y+p.h/2;
           const dEdge=Math.min(Math.abs(cx-p.gp.x),Math.abs(cx-(p.gp.x+p.gp.w)));
           if(dEdge<42)edgeJump=true;
         }
-        if(!edgeJump&&S.hasExit&&aboveBy>50&&Math.abs(cx-S.exitX)<48)edgeJump=true;
+        if(!edgeJump&&S.hasExit&&aboveBy>50&&Math.abs(cx-S.exitX)<52)edgeJump=true;
+        if(zoneAtFeet(p,'boost')&&aboveBy>50){edgeJump=true;}
         if(edgeJump){S.jumpQ=true;}
         else if(aboveBy>70&&Math.abs(dx)<260&&!headBlocked){S.jumpQ=true;}
         else if(isJumpableWall){S.descLockT=0;S.descDir=0;S.jumpQ=true;}
@@ -1807,7 +1758,11 @@ const cx=p.x+p.w/2,cy=p.y+p.h/2;
           if(Math.abs(offX)>36)S.dir=Math.sign(offX);
           else if(Math.abs(offX)<14)S.dir=0;
         }else if(Math.abs(dx)<60){
-          S.dir=0;
+          if(isIt&&aboveBy>40&&botSolidBetween(cx,p.y-10,cx,ty,p.gp)){
+            S.dir=S.exitDir||(cx<W/2?1:-1);
+          }else{
+            S.dir=0;
+          }
         }
       }
       // Rising: curl inward once the outward hold is done
