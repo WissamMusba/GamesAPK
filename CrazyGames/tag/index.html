@@ -1487,7 +1487,7 @@ function botSolidBetween(ax,ay,bx,by,ignorePlat){
 }
 function botGroundAhead(p,dir,dist){
   if(!dir)return true;
-  const d=dist||(p.grounded&&zoneAtFeet(p,'speed')?115:80);
+  const d=dist||(p.grounded&&(zoneAtFeet(p,'speed')||Math.abs(p.vx)>380)?125:80);
   const ax=p.x+p.w/2+dir*d,feet=p.y+p.h;
   for(const s of SOLIDS){
     if(ax>=s.x-12&&ax<=s.x+s.w+12&&feet>=s.y-42&&feet<=s.y+24)return true;
@@ -1519,6 +1519,137 @@ function botCeilAbove(p,dist){
     if(hitRect(probe,s))return s;
   }
   return null;
+}
+function botGetActivePads(){
+  const speeds=[], boosts=[];
+  for(const s of SOLIDS){
+    if(s.t==='speed') speeds.push(s);
+    else if(s.t==='boost') boosts.push(s);
+  }
+  return { speeds, boosts };
+}
+function botFindSpeedPadMeta(p, target, dx, dy){
+  const { speeds, boosts } = botGetActivePads();
+  const cx = p.x + p.w / 2;
+  const feet = p.y + p.h;
+  const tx = target.x + target.w / 2;
+  const ty = target.y + target.h / 2;
+  const hunterDir = Math.sign(dx); // dx = tx - cx; >0 means hunter is to the right
+  const distHunter = Math.hypot(dx, dy);
+
+  let best = null;
+  let bestScore = -1e9;
+
+  // 1. Evaluate Speed Pads (1.55x sprint multiplier)
+  for(const s of speeds){
+    const slopeOffset = s.dy ? s.dy * 0.5 : 0;
+    const padY = s.y + slopeOffset;
+    const dyTier = Math.abs(feet - padY);
+    const maxDy = (p.grounded ? 55 : 85) + Math.abs(s.dy || 0) * 0.5;
+    if(dyTier > maxDy) continue;
+
+    let distToPad = 0;
+    let padDir = 0;
+    let entryX = cx;
+
+    if(cx < s.x){
+      padDir = 1;
+      entryX = s.x;
+      distToPad = s.x - cx;
+    }else if(cx > s.x + s.w){
+      padDir = -1;
+      entryX = s.x + s.w;
+      distToPad = cx - (s.x + s.w);
+    }else{
+      // Already on the speed pad!
+      distToPad = 0;
+      padDir = (dx >= 0) ? -1 : 1;
+      entryX = (padDir > 0) ? (s.x + s.w) : s.x;
+    }
+
+    if(distToPad > 350) continue;
+
+    // Check if path to pad entry is blocked by solid barrier
+    if(distToPad > 20 && botSolidBetween(cx, feet - 16, entryX, padY - 16, p.gp)){
+      continue;
+    }
+
+    if(distToPad === 0){
+      // On speed pad: sprint across it away from hunter!
+      const score = 2000 - distHunter;
+      if(score > bestScore){
+        bestScore = score;
+        best = { pad: s, dir: padDir, entryX: entryX, onPad: true, isBoost: false };
+      }
+      continue;
+    }
+
+    // Approaching pad entry:
+    const awayFromHunter = (padDir !== hunterDir);
+    let accessible = false;
+
+    if(awayFromHunter){
+      accessible = true;
+    }else{
+      // Pad in same direction as hunter: hunter must not be between bot and pad,
+      // and hunter must be far enough that bot reaches pad first
+      const hunterBetween = (padDir > 0 && tx > cx && tx < entryX + 30) ||
+                            (padDir < 0 && tx < cx && tx > entryX - 30);
+      const dHunterToPad = Math.hypot(tx - entryX, ty - padY);
+      const dBotToPad = distToPad;
+      if(!hunterBetween && dHunterToPad > dBotToPad + 120 && distHunter > 130){
+        accessible = true;
+      }
+    }
+
+    if(accessible){
+      const score = (awayFromHunter ? 800 : 200) - distToPad;
+      if(score > bestScore){
+        bestScore = score;
+        best = { pad: s, dir: padDir, entryX: entryX, onPad: false, isBoost: false };
+      }
+    }
+  }
+
+  // 2. If no accessible speed pad found, check Boost Pads (1.31x vertical launch)
+  if(!best){
+    for(const b of boosts){
+      const dyTier = Math.abs(feet - b.y);
+      if(dyTier > (p.grounded ? 50 : 80)) continue;
+
+      let distToPad = 0;
+      let padDir = 0;
+      let entryX = cx;
+
+      if(cx < b.x){
+        padDir = 1;
+        entryX = b.x + b.w / 2;
+        distToPad = b.x - cx;
+      }else if(cx > b.x + b.w){
+        padDir = -1;
+        entryX = b.x + b.w / 2;
+        distToPad = cx - (b.x + b.w);
+      }else{
+        distToPad = 0;
+        padDir = (dx >= 0) ? -1 : 1;
+        entryX = cx;
+      }
+
+      if(distToPad > 260) continue;
+      if(distToPad > 20 && botSolidBetween(cx, feet - 16, entryX, b.y - 16, p.gp)) continue;
+
+      const awayFromHunter = (padDir !== hunterDir);
+      if(distToPad === 0 || awayFromHunter){
+        const score = 400 - distToPad;
+        if(score > bestScore){
+          bestScore = score;
+          best = { pad: b, dir: padDir, entryX: entryX, onPad: (distToPad === 0), isBoost: true };
+        }
+      }
+    }
+  }
+
+  return best;
 }
 function botInputFor(p,dt){
   let S=BOT.st[p.slot];
@@ -1586,18 +1717,67 @@ function botInputFor(p,dt){
     S.decideT=botThinkRate;
     let want=0;
     let isCornerJuke=false;
+    let chaseWant = 0;
+    let isTargetDescending = false, isTouchdownFrame = false, touchdownX = tx, touchdownY = H - WALL;
     if(isIt){
-      const absDx=Math.abs(dx),absDy=Math.abs(dy);
-      // Close-quarters tag range: track delta directly, no momentum lag
-      if(absDx<28&&absDy<36){
-        want=Math.sign(dx)||0;
-      }
-      // Deadband sprint hold: keep momentum, stops mid-floor zigzag
-      else if(absDx<45&&Math.abs(p.vx)>60){
-        want=Math.sign(p.vx);
+      // S4 Dynamic Tag Cutoff when Hunting
+      isTargetDescending = p.grounded && (target.vy > 40);
+      if(isTargetDescending){
+        // Descending target: simulate trajectory to predict exact touchdown spot & frame
+        let simX = target.x, simY = target.y, simVx = target.vx || 0, simVy = target.vy;
+        let touchdownT = 0;
+        const simDt = 0.025;
+        for(let t = 0; t < 1.0; t += simDt){
+          simVy = Math.min(MAXFALL, simVy + G * simDt);
+          simX += simVx * simDt;
+          simY += simVy * simDt;
+          simX = clamp(simX, WALL, W - WALL - target.w);
+          const feet = simY + target.h;
+          let landed = false;
+          for(const s of SOLIDS){
+            if(s.wall && s.y !== H - WALL) continue;
+            let surfY = s.y;
+            if(s.dy){
+              const px = clamp(simX + target.w / 2, s.x, s.x + s.w);
+              surfY = s.y + (px - s.x) * (s.dy / s.w);
+            }
+            if(feet >= surfY && (feet - simVy * simDt) <= surfY + 18){
+              if(simX + target.w > s.x + 2 && simX < s.x + s.w - 2){
+                touchdownX = simX + target.w / 2;
+                touchdownY = surfY;
+                touchdownT = t + simDt;
+                landed = true;
+                break;
+              }
+            }
+          }
+          if(landed) break;
+          if(feet >= H - WALL){
+            touchdownX = simX + target.w / 2;
+            touchdownY = H - WALL;
+            touchdownT = t + simDt;
+            break;
+          }
+        }
+        isTouchdownFrame = (touchdownT <= 0.10) || ((target.y + target.h) >= touchdownY - 35);
+        chaseWant = Math.abs(touchdownX - cx) > 12 ? (Math.sign(touchdownX - cx) || 1) : 0;
+      }else if(!target.grounded || Math.abs(dx) > 100){
+        // Airborne or sprinting across gaps: calculate dynamic lead time cutoff
+        const leadT = clamp(Math.hypot(dx, dy) / IT_SPEED, 0.15, 0.40);
+        const aimX = tx + clamp((target.vx || 0) * leadT, -260, 260);
+        chaseWant = Math.sign(aimX - cx) || 1;
       }else{
-        want=absDx>12?Math.sign(dx):(S.dir||1);
+        // Grounded close-quarters chase
+        const absDx = Math.abs(dx), absDy = Math.abs(dy);
+        if(absDx < 28 && absDy < 36){
+          chaseWant = Math.sign(dx) || 0;
+        }else if(absDx < 45 && Math.abs(p.vx) > 60){
+          chaseWant = Math.sign(p.vx);
+        }else{
+          chaseWant = absDx > 12 ? Math.sign(dx) : (S.dir || 1);
+        }
       }
+      want = chaseWant;
     }else{
       // flee: run from IT with predictive intercept calculation
       const predT = 0.32;
@@ -1655,6 +1835,15 @@ function botInputFor(p,dt){
             want=cornerL?1:-1;
           }
         }else{
+          // S3 SPEED & BOOST PAD META AWARENESS:
+          // Check for accessible speed/boost pad when hunter is closing in (< 320px) or already on pad
+          const distHunter = Math.hypot(dx, dy);
+          if(distHunter < 320 || zoneAtFeet(p, 'speed') || zoneAtFeet(p, 'boost')){
+            const padMeta = botFindSpeedPadMeta(p, target, dx, dy);
+            if(padMeta){
+              want = padMeta.dir;
+            }
+          }
           if(p.x<WALL+80&&want<0)want=1;
           if(p.x+p.w>W-WALL-80&&want>0)want=-1;
         }
@@ -1684,14 +1873,7 @@ function botInputFor(p,dt){
     if(isDirectPath){
       // TIER 1: DIRECT GREEDY BEELINE (clear air or through pink platforms)
       S.exitLockT=0;S.exitDir=0;S.exitGp=null;S.hasExit=false;
-      const absDx=Math.abs(dx),absDy=Math.abs(dy);
-      if(absDx<28&&absDy<36){
-        want=Math.sign(dx)||0;
-      }else if(absDx<45&&Math.abs(p.vx)>60){
-        want=Math.sign(p.vx);
-      }else{
-        want=absDx>12?Math.sign(dx):(S.dir||1);
-      }
+      want=chaseWant;
     }else if(isIt&&aboveBy>50){
       // TIER 2: CEILING / OBSTACLE DETOUR ROUTER (solid platform in way)
       const gp=p.grounded?p.gp:null;
@@ -1752,17 +1934,30 @@ function botInputFor(p,dt){
     const headBlocked=botSolidBetween(cx,p.y-4,cx,p.y-140,p.gp);
     if(p.grounded){
       S.airT2=0;S.climbT=0;S.climbPlat=null;S.climbOut=0;
-      const wallAhead=botWallAhead(p,want);
+      const onSpeed=p.grounded&&!!zoneAtFeet(p,'speed');
+      const onBoost=p.grounded&&!!zoneAtFeet(p,'boost');
+      const fastGround=onSpeed||Math.abs(p.vx)>380;
+      const wallDist=fastGround?75:44;
+      const wallAhead=botWallAhead(p,want,wallDist);
       const ceilAbove=botCeilAbove(p,48);
       const isJumpableWall=wallAhead&&(wallAhead.y>p.y-170)&&!ceilAbove;
       const isDropEscape=wallAhead&&!isJumpableWall&&!!botFullyOnDrop(p);
+
+      // Phase 3: S1 High-Ground Zoning detection & criteria
+      const hunterBelow=ty>(p.y+p.h+70);
+      const onSolidPlatform=p.grounded&&p.gp&&!p.gp.wall&&p.gp.t!=='drop';
+      const hunterSameTier=Math.abs(ty-(p.y+p.h))<65;
+      const hunterDangerClose=Math.abs(dx)<110;
+      const isPinkJuke=(S.pinkJukePhase!==0);
+      const allowHighGroundDrop=hunterSameTier||hunterDangerClose||isPinkJuke;
+      const holdHighGround=!isIt&&hunterBelow&&onSolidPlatform&&!allowHighGroundDrop;
 
       if(isDropEscape){
         // Trapped by giant unjumpable wall/pillar on drop platform: drop down to escape!
         S.jumpQ=false;
       } else if(isIt){
-        // CHASE: Edge launch, boost pad, direct beeline, and climb toward prey above
-        const onSpeed=p.grounded&&!!zoneAtFeet(p,'speed');
+        // CHASE: Touchdown ambush, edge launch, boost pad, direct beeline, and climb toward prey above
+        const inTagRange = (Math.abs(dx) < 65 && Math.abs(dy) < 80) || (Math.abs(touchdownX - cx) < 65 && Math.abs(touchdownY - (p.y + p.h)) < 60);
         const edgeMargin=onSpeed?72:42;
         let edgeJump=false;
         if(aboveBy>50&&p.gp){
@@ -1770,9 +1965,12 @@ function botInputFor(p,dt){
           if(dEdge<edgeMargin)edgeJump=true;
         }
         if(!edgeJump&&S.hasExit&&aboveBy>50&&Math.abs(cx-S.exitX)<(onSpeed?72:52))edgeJump=true;
-        if(zoneAtFeet(p,'boost')&&aboveBy>40){edgeJump=true;}
+        if(onBoost&&aboveBy>40){edgeJump=true;}
         if(isDirectPath&&aboveBy>40&&!headBlocked){edgeJump=true;}
-        if(edgeJump){S.jumpQ=true;}
+        if(isTargetDescending && isTouchdownFrame && inTagRange && !headBlocked && !ceilAbove){
+          S.jumpQ=true;
+        }
+        else if(edgeJump){S.jumpQ=true;}
         else if(aboveBy>70&&Math.abs(dx)<260&&!headBlocked){S.jumpQ=true;}
         else if(isJumpableWall){S.descLockT=0;S.descDir=0;S.jumpQ=true;}
         else if(wallAhead&&!isJumpableWall){
@@ -1781,7 +1979,7 @@ function botInputFor(p,dt){
           want=-want;S.dir=want;
         }
         else if(Math.abs(p.vx)<60&&want!==0&&far&&!ceilAbove){S.jumpQ=true;}
-        else if(!botGroundAhead(p,want)&&far){S.jumpQ=true;} // gap: jump across
+        else if(!botGroundAhead(p,want,fastGround?125:80)&&far){S.jumpQ=true;} // gap: jump across
       } else {
         // FLEE: Jump over obstacles, gaps, perform corner wall flank, or turn around at unjumpable pillars
         if(S.pinkJukePhase===1){
@@ -1792,8 +1990,12 @@ function botInputFor(p,dt){
           S.jumpQ=true;S.jumpHoldT=0.15;
         }else if(isCornerJuke){
           S.jumpQ=true;S.jumpHoldT=0.14;
+        }else if(onBoost&&Math.hypot(dx,dy)<340&&!ceilAbove){
+          // Super-launch off blue boost pad to break hunter's pursuit!
+          S.jumpQ=true;S.jumpHoldT=0.16;
         }else if(isJumpableWall){
           S.jumpQ=true;
+          if(fastGround)S.jumpHoldT=0.15;
         }else if(wallAhead&&!isJumpableWall&&!isDropEscape){
           // Unjumpable barrier / tall pillar / ceiling-blocked wall:
           // Do NOT run face-first into it! Turn around and evade!
@@ -1805,7 +2007,56 @@ function botInputFor(p,dt){
           }else{
             S.jumpQ=false;
           }
-        }else if(!botGroundAhead(p,want)&&far){S.jumpQ=true;}
+        }else if(holdHighGround){
+          // HIGH-GROUND ZONING: prioritize staying on upper platform above hunter!
+          // Suppress accidental downward walk-offs, keep running along platform or camp near center / wall-jump corner.
+          S.jumpQ=false;
+          const platL=p.gp.x, platR=p.gp.x+p.gp.w;
+          const platCenter=platL+p.gp.w/2;
+          const hasWallL=(platL<=WALL+30)||(p.x<=WALL+35)||!!botWallAhead(p,-1,35);
+          const hasWallR=(platR>=W-WALL-30)||(p.x+p.w>=W-WALL-35)||!!botWallAhead(p,1,35);
+          const hasGroundL=botGroundAhead(p,-1,45);
+          const hasGroundR=botGroundAhead(p,1,45);
+
+          if(p.gp.w<150&&!hasWallL&&!hasWallR&&!hasGroundL&&!hasGroundR){
+            // Narrow isolated platform with drops on both sides: camp near platform center
+            const dCenter=cx-platCenter;
+            if(Math.abs(dCenter)>20){
+              want=Math.sign(platCenter-cx); S.dir=want;
+            }else{
+              want=0; S.dir=0;
+            }
+          }else if(want>0){
+            // Running right: check if approaching an open drop edge or wall-jump corner
+            const dEdgeR=platR-(p.x+p.w);
+            if(!hasWallR&&!hasGroundR&&dEdgeR<40){
+              if(dEdgeR<=10){
+                want=-1; S.dir=-1; // step back from ledge
+              }else{
+                want=0; S.dir=0; // camp safely before edge
+              }
+            }else if(hasWallR&&dEdgeR<18){
+              // Camp in wall-jump corner
+              want=0; S.dir=0;
+            }
+          }else if(want<0){
+            // Running left: check if approaching an open drop edge or wall-jump corner
+            const dEdgeL=p.x-platL;
+            if(!hasWallL&&!hasGroundL&&dEdgeL<40){
+              if(dEdgeL<=10){
+                want=1; S.dir=1; // step back from ledge
+              }else{
+                want=0; S.dir=0; // camp safely before edge
+              }
+            }else if(hasWallL&&dEdgeL<18){
+              // Camp in wall-jump corner
+              want=0; S.dir=0;
+            }
+          }
+        }else if(!botGroundAhead(p,want,fastGround?125:80)&&far){
+          S.jumpQ=true;
+          if(fastGround)S.jumpHoldT=0.16;
+        }
         else if(Math.abs(p.vx)<60&&want!==0&&far&&!ceilAbove){S.jumpQ=true;}
       }
       // DOWN: target clearly below -> pink drop wins, else score 3 fall-lines.
@@ -1854,8 +2105,15 @@ function botInputFor(p,dt){
           S.jumpQ=false; // walk off cleanly, don't hop
         }
       }
-      S.wantDown=down;
-      if(S.jumpQ)S.jumpHoldT=0.12;
+      if(holdHighGround){
+        down=false;
+        S.wantDown=false;
+        S.descLockT=0;
+        S.descDir=0;
+      }else{
+        S.wantDown=down;
+      }
+      if(S.jumpQ)S.jumpHoldT=Math.max(S.jumpHoldT||0,0.12);
       if(S.descLockT>0&&!down&&!botWallAhead(p,want)){S.jumpQ=false;}
     }else{
       // AIR: gated wall-jumps + relaxed apex chaining + outward-hold anti-clip.
@@ -2002,7 +2260,7 @@ function botInputFor(p,dt){
   S.wasVy=p.vy;
   if(S.dropNoJumpT>0)S.jumpQ=false;
   const j=S.jumpQ;S.jumpQ=false;
-  if(j)S.jumpHoldT=0.12;
+  if(j)S.jumpHoldT=Math.max(S.jumpHoldT||0,0.12);
   let hold=!!j;
   if(S.jumpHoldT>0){S.jumpHoldT-=stepDt;hold=true;}
   return{dir:clamp(S.dir||0,-1,1),jumpEdge:!!j,jumpHeld:hold,downHeld:!!S.wantDown};
