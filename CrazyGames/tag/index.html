@@ -1314,18 +1314,16 @@ function harnessCommitStagedSample(){
   return true;
 }
 
-function harnessDiscardCurrent(){
+function harnessDiscardCurrent(andRetry){
   const c = harnessCurCase();
   if(!c) return;
   const key = c.from + '->' + c.to;
   const mapKey = 'map' + HARNESS.map;
+  let discardedSomething = false;
 
   if(HARNESS.stagedSample){
     HARNESS.stagedSample = null;
-    toast('🗑️ RECORDING DISCARDED');
-    sfx('back');
-    harnessResetTrial();
-    return;
+    discardedSomething = true;
   }
 
   if(HARNESS.transitions[mapKey] && HARNESS.transitions[mapKey][key]){
@@ -1336,13 +1334,23 @@ function harnessDiscardCurrent(){
       if(HARNESS.transitions[mapKey][mirrorKey]) delete HARNESS.transitions[mapKey][mirrorKey];
     }
     harnessSaveStored();
-    toast('🗑️ SAVED POLICY REMOVED FOR THIS CASE');
-    sfx('back');
-    harnessResetTrial();
-    return;
+    discardedSomething = true;
   }
 
-  toast('Nothing to discard');
+  if(HARNESS.mode === 'playback' || andRetry){
+    HARNESS.mode = 'record';
+  }
+
+  harnessResetTrial();
+  sfx('back');
+
+  if(andRetry){
+    toast('🔄 REMOVED & RETRYING — Jump when ready!');
+  } else if(discardedSomething){
+    toast('🗑️ CASE DATA REMOVED (Back to Record Mode)');
+  } else {
+    toast('🔄 RESET (No saved data on this case)');
+  }
 }
 
 function harnessExportJSON(){
@@ -1383,7 +1391,7 @@ function harnessToggleBotTest(){
     }
     HARNESS.mode = 'playback';
     harnessResetTrial();
-    toast('🤖 BOT TEST MODE: Watch bot jump at you! [E] Restart [K] Keep [D] Discard [T] Return');
+    toast('🤖 BOT TEST MODE: Watch bot jump at you! [E] Restart [K] Keep [D] Remove [R] Remove & Retry');
     sfx('go');
   } else {
     HARNESS.mode = 'record';
@@ -1439,9 +1447,14 @@ function harnessTick(dt){
       }
     }
   }
-  // D: Discard
-  if(pressed.has('KeyD')){
-    harnessDiscardCurrent();
+  // R: Remove & Retry immediately in one button press
+  if(pressed.has('KeyR')){
+    harnessDiscardCurrent(true);
+    return;
+  }
+  // D / Delete / Backspace: Discard / Remove
+  if(pressed.has('KeyD') || pressed.has('Backspace') || pressed.has('Delete')){
+    harnessDiscardCurrent(false);
     return;
   }
   // Browse cases: [ / P / ArrowLeft for Previous
@@ -1632,17 +1645,17 @@ function harnessOverlay(){
 
   if(HARNESS.mode === 'record'){
     if(isStaged){
-      ptxt('🎯 JUMP RECORDED! [T] Test Bot On Me  |  [K] Keep & Save  |  [D] Discard', CW / 2, 78, FN(15, 900), '#2ecc71');
+      ptxt('🎯 JUMP RECORDED! [T] Test Bot  |  [K] Keep & Save  |  [D] Remove  |  [R] Remove & Retry', CW / 2, 78, FN(15, 900), '#2ecc71');
     } else {
       const timeCol = HARNESS.t > c.par * 0.75 ? '#ff4757' : '#2ed573';
       ptxt(HARNESS.started ? HARNESS.t.toFixed(1) + 's / ' + c.par.toFixed(1) + 's par' : 'PRESS WASD / ARROWS TO START JUMP', CW / 2, 78, FN(15, 800), timeCol);
     }
   } else {
-    ptxt('WATCHING BOT REPLAY YOUR JUMP! [E] Restart Bot  |  [K] Keep & Save  |  [D] Discard  |  [T] Back', CW / 2, 78, FN(15, 900), '#38ef7d');
+    ptxt('WATCHING BOT REPLAY! [K] Keep & Save  |  [D] Remove  |  [R] Remove & Retry  |  [E] Re-run Bot', CW / 2, 78, FN(15, 900), '#38ef7d');
   }
 
   // Bottom action bar
-  ptxt('[←/→ or P/N] BROWSE CASES   [T] TEST BOT   [K] KEEP / SAVE   [D] DISCARD   [E] RESTART   [1-0] MAP   [Z] EXPORT', CW / 2, CH - 22, FN(12, 800), 'rgba(255,255,255,0.92)');
+  ptxt('[T] TEST BOT   [K] KEEP & SAVE   [D] REMOVE   [R] REMOVE & RETRY   [E] RESTART   [←/→] BROWSE', CW / 2, CH - 22, FN(12, 800), 'rgba(255,255,255,0.92)');
 }
 
 function demoOverlay(){ harnessOverlay(); }
