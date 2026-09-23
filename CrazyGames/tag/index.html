@@ -1783,7 +1783,7 @@ function botInputFor(p,dt){
         else if(Math.abs(p.vx)<60&&want!==0&&far&&!ceilAbove){S.jumpQ=true;}
         else if(!botGroundAhead(p,want)&&far){S.jumpQ=true;} // gap: jump across
       } else {
-        // FLEE: Jump over obstacles, gaps, or perform emergency corner wall flank
+        // FLEE: Jump over obstacles, gaps, perform corner wall flank, or turn around at unjumpable pillars
         if(S.pinkJukePhase===1){
           // Dropping beneath pink floor, do NOT jump
           S.jumpQ=false;
@@ -1792,8 +1792,20 @@ function botInputFor(p,dt){
           S.jumpQ=true;S.jumpHoldT=0.15;
         }else if(isCornerJuke){
           S.jumpQ=true;S.jumpHoldT=0.14;
-        }else if(isJumpableWall){S.jumpQ=true;}
-        else if(!botGroundAhead(p,want)&&far){S.jumpQ=true;}
+        }else if(isJumpableWall){
+          S.jumpQ=true;
+        }else if(wallAhead&&!isJumpableWall&&!isDropEscape){
+          // Unjumpable barrier / tall pillar / ceiling-blocked wall:
+          // Do NOT run face-first into it! Turn around and evade!
+          want=-want; S.dir=want;
+          // If hunter is closing in from behind and ceiling is clear, leap over hunter!
+          const hunterAheadAfterTurn=(dx*want>0);
+          if(hunterAheadAfterTurn&&Math.abs(dx)<140&&!ceilAbove){
+            S.jumpQ=true;S.jumpHoldT=0.14;
+          }else{
+            S.jumpQ=false;
+          }
+        }else if(!botGroundAhead(p,want)&&far){S.jumpQ=true;}
         else if(Math.abs(p.vx)<60&&want!==0&&far&&!ceilAbove){S.jumpQ=true;}
       }
       // DOWN: target clearly below -> pink drop wins, else score 3 fall-lines.
