@@ -1046,7 +1046,470 @@ const THEMES=[
 
 let currentThemeIdx=0;
 
-/* ================= menu ================= */
+/* ================= PLATFORM TRAINING HARNESS & BOT MIMICRY ENGINE ================= */
+const HARNESS = {
+  active: false,
+  mode: 'record',      // 'record' | 'playback'
+  map: 0,
+  nodes: [],
+  mirrorMap: new Map(),
+  cases: [],
+  ci: 0,
+  t: 0,
+  par: 5.0,
+  holdT: 0,
+  started: false,
+  trace: [],
+  transitions: {},     // mapIdx -> { "from->to": sample }
+  playbackT: 0,
+  playbackStep: 0,
+  done: 0,
+  okN: 0
+};
+const DEMO = HARNESS; // alias for legacy hooks
+
+function harnessLoadStored(){
+  try{
+    const raw = localStorage.getItem('tag_jump_policy_v1');
+    if(raw){
+      const parsed = JSON.parse(raw);
+      if(parsed && typeof parsed === 'object') HARNESS.transitions = parsed;
+    }
+  }catch(e){}
+}
+harnessLoadStored();
+
+function harnessSaveStored(){
+  try{
+    localStorage.setItem('tag_jump_policy_v1', JSON.stringify(HARNESS.transitions));
+  }catch(e){}
+}
+
+function harnessBuildCases(mapIdx){
+  HARNESS.map = mapIdx;
+  HARNESS.nodes = [];
+  // 1. Extract valid platform surfaces
+  for(let i = 1; i < SOLIDS.length; i++){
+    const s = SOLIDS[i];
+    if(s.wall && s.y !== H - WALL) continue;
+    if(s.w < 50 && s.h > s.w * 1.5) continue;
+    HARNESS.nodes.push(s);
+  }
+
+  // 2. Identify symmetric pairs across arena midline (W = 2400)
+  HARNESS.mirrorMap.clear();
+  for(let i = 0; i < HARNESS.nodes.length; i++){
+    const a = HARNESS.nodes[i];
+    const aMid = a.x + a.w / 2;
+    for(let j = 0; j < HARNESS.nodes.length; j++){
+      const b = HARNESS.nodes[j];
+      const bMid = b.x + b.w / 2;
+      if(Math.abs(bMid - (W - aMid)) < 30 && Math.abs(b.y - a.y) < 16){
+        HARNESS.mirrorMap.set(i, j);
+        break;
+      }
+    }
+  }
+
+  // 3. Generate candidate pairs with strict pruning
+  const cases = [];
+  const visitedCanonical = new Set();
+
+  for(let i = 0; i < HARNESS.nodes.length; i++){
+    const A = HARNESS.nodes[i];
+    for(let j = 0; j < HARNESS.nodes.length; j++){
+      if(i === j) continue;
+      const B = HARNESS.nodes[j];
+
+      // Filter 1: Prune flat side-by-side
+      const isFlat = Math.abs(A.y - B.y) <= 16;
+      const gap = Math.max(0, B.x - (A.x + A.w), A.x - (B.x + B.w));
+      if(isFlat && gap < 50) continue;
+
+      // Filter 2: Prune impossible reach
+      const dy = B.y - A.y;
+      const dx = Math.abs((B.x + B.w/2) - (A.x + A.w/2));
+      const maxRise = (A.t === 'boost') ? 690 : 510;
+      if(dy < -maxRise || dx > 850) continue;
+
+      // Filter 3: Prune symmetric duplicates
+      const mI = HARNESS.mirrorMap.get(i), mJ = HARNESS.mirrorMap.get(j);
+      if(mI !== undefined && mJ !== undefined){
+        const canonicalKey = (mI < i || (mI === i && mJ < j)) ? (mI + '->' + mJ) : (i + '->' + j);
+        if(visitedCanonical.has(canonicalKey)) continue;
+        visitedCanonical.add(canonicalKey);
+      }
+
+      const parT = Math.max(2.8, 1.2 + dx / 380 + Math.abs(dy) / 280);
+      cases.push({ from: i, to: j, dx, dy, par: parT });
+    }
+  }
+  HARNESS.cases = cases;
+  HARNESS.ci = 0;
+}
+
+function harnessCurCase(){
+  if(!HARNESS.cases.length) return null;
+  return HARNESS.cases[HARNESS.ci % HARNESS.cases.length];
+}
+
+function harnessResetTrial(){
+  const c = harnessCurCase();
+  if(!c || !match || !match.players || !match.players.length) return;
+  const A = HARNESS.nodes[c.from], B = HARNESS.nodes[c.to];
+  const p0 = match.players[0];
+
+  if(HARNESS.mode === 'record'){
+    // Player 0 spawns on Platform A
+    p0.x = clamp(A.x + A.w / 2 - p0.w / 2, A.x + 8, A.x + A.w - p0.w - 8);
+    p0.y = (A.dy ? A.y + (p0.x - A.x) * (A.dy / A.w) : A.y) - p0.h - 4;
+    p0.vx = 0; p0.vy = 0; p0.airJumps = 1;
+    p0.grounded = true; p0.gp = A;
+  } else {
+    // Playback mode: Player 0 stands on Target B, Bot (P1) spawns on A
+    p0.x = clamp(B.x + B.w / 2 - p0.w / 2, B.x + 8, B.x + B.w - p0.w - 8);
+    p0.y = (B.dy ? B.y + (p0.x - B.x) * (B.dy / B.w) : B.y) - p0.h - 4;
+    p0.vx = 0; p0.vy = 0; p0.grounded = true; p0.gp = B;
+
+    if(match.players.length > 1){
+      const p1 = match.players[1];
+      p1.x = clamp(A.x + A.w / 2 - p1.w / 2, A.x + 8, A.x + A.w - p1.w - 8);
+      p1.y = (A.dy ? A.y + (p1.x - A.x) * (A.dy / A.w) : A.y) - p1.h - 4;
+      p1.vx = 0; p1.vy = 0; p1.airJumps = 1;
+      p1.grounded = true; p1.gp = A;
+    }
+  }
+
+  HARNESS.t = 0;
+  HARNESS.holdT = 0;
+  HARNESS.started = false;
+  HARNESS.trace = [];
+  HARNESS.playbackT = 0;
+  HARNESS.playbackStep = 0;
+}
+
+function harnessStart(mapIdx){
+  if(mapIdx === undefined) mapIdx = settings.map || 0;
+  settings.map = ((mapIdx % MAPS.length) + MAPS.length) % MAPS.length;
+  buildLevel();
+  HARNESS.active = true;
+  HARNESS.mode = 'record';
+  harnessBuildCases(settings.map);
+
+  menu.botOn = true;
+  menu.slotColor = [0, 1, -1, -1, -1, -1, -1, -1];
+  startMatch();
+  match.state = 'playing';
+  match.cooldown = 0;
+  match.it = 0;
+  match.timer = 9999;
+  harnessResetTrial();
+  toast('🎯 HARNESS: Jump to GLOWING platform! [E] Restart [T] Test Bot [X] Skip [Z] Save');
+}
+
+function harnessFeetOn(p, s){
+  if(!p || !s) return false;
+  const feet = p.y + p.h;
+  const sTop = s.dy ? s.y + (clamp(p.x + p.w/2, s.x, s.x + s.w) - s.x) * (s.dy / s.w) : s.y;
+  const onX = (p.x + p.w > s.x + 4) && (p.x < s.x + s.w - 4);
+  const onY = (feet >= sTop - 6) && (feet <= sTop + 24);
+  return onX && onY && (p.grounded || Math.abs(p.vy) < 80);
+}
+
+function harnessRecordSample(){
+  const c = harnessCurCase();
+  if(!c || !HARNESS.trace.length) return;
+  const key = c.from + '->' + c.to;
+  const mapKey = 'map' + HARNESS.map;
+  if(!HARNESS.transitions[mapKey]) HARNESS.transitions[mapKey] = {};
+
+  const launchStep = HARNESS.trace.find(s => s.je) || HARNESS.trace[0];
+  const djStep = HARNESS.trace.find((s, idx) => idx > 0 && s.je);
+
+  const sample = {
+    key: key,
+    from: c.from,
+    to: c.to,
+    map: HARNESS.map,
+    time: +HARNESS.t.toFixed(2),
+    launchX: launchStep ? launchStep.x : 0,
+    hasDoubleJump: !!djStep,
+    doubleJumpDelay: djStep ? +(djStep.t - (launchStep ? launchStep.t : 0)).toFixed(2) : 0,
+    trace: HARNESS.trace.map(s => ({
+      t: +s.t.toFixed(2),
+      x: s.x, y: s.y,
+      vx: s.vx, vy: s.vy,
+      d: s.d, je: s.je, jh: s.jh, dn: s.dn
+    }))
+  };
+
+  HARNESS.transitions[mapKey][key] = sample;
+
+  // Auto-mirror if bilateral symmetry exists
+  const mFrom = HARNESS.mirrorMap.get(c.from), mTo = HARNESS.mirrorMap.get(c.to);
+  if(mFrom !== undefined && mTo !== undefined){
+    const mirrorKey = mFrom + '->' + mTo;
+    const mirroredSample = {
+      key: mirrorKey,
+      from: mFrom,
+      to: mTo,
+      map: HARNESS.map,
+      time: sample.time,
+      launchX: Math.round(W - sample.launchX),
+      hasDoubleJump: sample.hasDoubleJump,
+      doubleJumpDelay: sample.doubleJumpDelay,
+      trace: sample.trace.map(s => ({
+        t: s.t,
+        x: Math.round(W - s.x - 46),
+        y: s.y,
+        vx: -s.vx,
+        vy: s.vy,
+        d: -s.d,
+        je: s.je,
+        jh: s.jh,
+        dn: s.dn
+      }))
+    };
+    HARNESS.transitions[mapKey][mirrorKey] = mirroredSample;
+  }
+
+  harnessSaveStored();
+  HARNESS.done++;
+  HARNESS.okN++;
+}
+
+function harnessExportJSON(){
+  try{
+    const mapKey = 'map' + HARNESS.map;
+    const data = {
+      game: 'tag-arena',
+      map: HARNESS.map,
+      mapName: MAPS[HARNESS.map].name,
+      transitions: HARNESS.transitions[mapKey] || {}
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'tag_jump_policy_map' + HARNESS.map + '.json';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { try{ URL.revokeObjectURL(a.href); a.remove(); }catch(e){} }, 800);
+    toast('💾 Saved policy for ' + MAPS[HARNESS.map].name);
+  }catch(e){
+    toast('Error saving JSON');
+  }
+}
+
+function harnessToggleBotTest(){
+  const c = harnessCurCase();
+  if(!c) return;
+  const key = c.from + '->' + c.to;
+  const mapKey = 'map' + HARNESS.map;
+  const hasSample = HARNESS.transitions[mapKey] && HARNESS.transitions[mapKey][key];
+
+  if(HARNESS.mode === 'record'){
+    if(!hasSample){
+      toast('⚠️ Jump successfully first to record data before testing bot!');
+      sfx('back');
+      return;
+    }
+    HARNESS.mode = 'playback';
+    harnessResetTrial();
+    toast('🤖 BOT TEST MODE: Watch bot use your recorded data! (Press T to return)');
+    sfx('go');
+  } else {
+    HARNESS.mode = 'record';
+    harnessResetTrial();
+    toast('🏃 RECORD MODE: Jump to glowing platform');
+    sfx('ui');
+  }
+}
+
+function harnessTick(dt){
+  if(!HARNESS.active || !match || screen !== 'game') return;
+  match.timer = 9999; match.lastTick = 9999;
+  if(match.state === 'paused') return;
+
+  const pl = match.players[0];
+  if(!pl) return;
+
+  // Key controls:
+  // E: Quick restart
+  if(pressed.has('KeyE')){
+    harnessResetTrial();
+    sfx('back');
+    toast('🔄 TRIAL RESTARTED (E)');
+    return;
+  }
+  // T: Toggle bot mimicry test
+  if(pressed.has('KeyT')){
+    harnessToggleBotTest();
+    return;
+  }
+  // X: Skip case
+  if(pressed.has('KeyX')){
+    HARNESS.ci = (HARNESS.ci + 1) % HARNESS.cases.length;
+    harnessResetTrial();
+    toast('⏭️ SKIPPED (X)');
+    return;
+  }
+  // Z: Save / Export
+  if(pressed.has('KeyZ')){
+    harnessExportJSON();
+    return;
+  }
+
+  // Switch map with number keys 1-9, 0
+  for(let k = 1; k <= 9; k++){
+    if(pressed.has('Digit' + k)){
+      harnessStart(k - 1);
+      return;
+    }
+  }
+  if(pressed.has('Digit0')){
+    harnessStart(9);
+    return;
+  }
+
+  const c = harnessCurCase();
+  if(!c) return;
+  const tgt = HARNESS.nodes[c.to];
+
+  if(HARNESS.mode === 'record'){
+    if(!HARNESS.started){
+      if(keys.has('KeyA') || keys.has('KeyD') || keys.has('KeyW') || keys.has('Space') ||
+         keys.has('ArrowLeft') || keys.has('ArrowRight') || keys.has('ArrowUp')){
+        HARNESS.started = true;
+      } else {
+        return;
+      }
+    }
+
+    HARNESS.t += dt;
+
+    if(harnessFeetOn(pl, tgt)){
+      HARNESS.holdT += dt;
+      if(HARNESS.holdT >= 0.25){
+        harnessRecordSample();
+        sfx('go');
+        HARNESS.ci = (HARNESS.ci + 1) % HARNESS.cases.length;
+        harnessResetTrial();
+        toast('✅ CLEAN LANDING RECORDED!');
+        return;
+      }
+    } else {
+      HARNESS.holdT = 0;
+    }
+
+    if(HARNESS.t >= c.par){
+      toast('⏰ TIME OVER PAR (' + c.par.toFixed(1) + 's) — [E] TO RETRY');
+      sfx('back');
+      harnessResetTrial();
+      return;
+    }
+  } else {
+    // Playback mode:
+    HARNESS.playbackT += dt;
+    const botP = match.players[1];
+    if(botP && harnessFeetOn(botP, tgt)){
+      HARNESS.holdT += dt;
+      if(HARNESS.holdT >= 0.5){
+        sfx('go');
+        toast('🎯 BOT REACHED YOU SUCCESSFULLY!');
+        harnessResetTrial();
+      }
+    }
+  }
+}
+
+function harnessPushTrace(p, inp){
+  if(!HARNESS.active || HARNESS.mode !== 'record' || !HARNESS.started || p.slot !== 0) return;
+  HARNESS.trace.push({
+    t: +HARNESS.t.toFixed(3),
+    x: Math.round(p.x),
+    y: Math.round(p.y),
+    vx: Math.round(p.vx),
+    vy: Math.round(p.vy),
+    d: inp.dir,
+    je: inp.jumpEdge ? 1 : 0,
+    jh: inp.jumpHeld ? 1 : 0,
+    dn: inp.downHeld ? 1 : 0,
+    g: p.grounded ? 1 : 0
+  });
+}
+
+function harnessBotPlaybackInput(p, dt){
+  const c = harnessCurCase();
+  if(!c) return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
+  const key = c.from + '->' + c.to;
+  const mapKey = 'map' + HARNESS.map;
+  const sample = HARNESS.transitions[mapKey] && HARNESS.transitions[mapKey][key];
+  if(!sample || !sample.trace || !sample.trace.length){
+    return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
+  }
+
+  const curT = HARNESS.playbackT;
+  let step = sample.trace[0];
+  for(let i = 0; i < sample.trace.length; i++){
+    if(sample.trace[i].t <= curT) step = sample.trace[i];
+    else break;
+  }
+
+  const isEdge = (step.je === 1) && (!p._lastStepJe);
+  p._lastStepJe = (step.je === 1);
+
+  return {
+    dir: step.d,
+    jumpEdge: isEdge,
+    jumpHeld: !!step.jh,
+    downHeld: !!step.dn
+  };
+}
+
+function harnessOverlay(){
+  if(!HARNESS.active || !match || screen !== 'game') return;
+  const c = harnessCurCase();
+  if(!c) return;
+  const A = HARNESS.nodes[c.from], B = HARNESS.nodes[c.to];
+
+  // Draw glowing box on target platform B
+  const bx = (B.x + B.w / 2 - cam.x) * cam.s + CW / 2;
+  const by = (B.y + (B.dy ? B.dy/2 : B.h/2) - cam.y) * cam.s + CH / 2;
+  const bw = B.w * cam.s + 18, bh = 46 * cam.s + 18;
+  const pulse = 0.6 + 0.4 * Math.sin(tGlobal * 6);
+
+  g.save();
+  g.globalAlpha = 0.4 + 0.4 * pulse;
+  g.strokeStyle = '#2ecc71';
+  g.lineWidth = 4;
+  rr(g, bx - bw / 2, by - bh / 2, bw, bh, 10);
+  g.stroke();
+  g.restore();
+
+  // Floating chevron above target
+  ptxt('▼', bx, by - bh / 2 - 20 - Math.abs(Math.sin(tGlobal * 5)) * 10, FN(22, 900), '#2ecc71');
+
+  // Top header: Map & Case status
+  const mapName = MAPS[HARNESS.map] ? MAPS[HARNESS.map].name : 'MAP ' + HARNESS.map;
+  const modeTag = HARNESS.mode === 'playback' ? '🤖 BOT TEST MODE' : '🏃 RECORDING';
+  const modeCol = HARNESS.mode === 'playback' ? '#38ef7d' : '#f5d76e';
+
+  ptxt(mapName + ' • CASE ' + (HARNESS.ci + 1) + '/' + HARNESS.cases.length + ' • ' + modeTag, CW / 2, 32, FT(20), '#ffffff');
+
+  if(HARNESS.mode === 'record'){
+    const timeCol = HARNESS.t > c.par * 0.75 ? '#ff4757' : '#2ed573';
+    ptxt(HARNESS.started ? HARNESS.t.toFixed(1) + 's / ' + c.par.toFixed(1) + 's par' : 'PRESS WASD / ARROWS TO START', CW / 2, 58, FN(15, 800), timeCol);
+  } else {
+    ptxt('WATCHING BOT REPLAY YOUR MOVES TO TARGET PLATFORM', CW / 2, 58, FN(15, 800), '#38ef7d');
+  }
+
+  // Bottom action bar
+  ptxt('[E] RESTART   [T] TEST BOT ON ME   [X] SKIP   [Z] SAVE DATA   [1-0] MAP', CW / 2, CH - 22, FN(12.5, 800), 'rgba(255,255,255,0.9)');
+}
+
+function demoOverlay(){ harnessOverlay(); }
+window.HARNESS = HARNESS;
+window.harnessStart = harnessStart;
 let screen='menu',tGlobal=0;
 const menu={tab:'2p',mode:'rows',slotColor:[0,1,-1,-1,-1,-1,-1,-1],slotTeam:[0,1,0,1,0,1,0,1],slotCtrl:[0,1,2,3],row:4,rule:0,toast:null,toastT:0,botOn:false,botDifficulty:'hard',mapModal:false,onlineModal:false};
 const ROWS=['CHANGE PLAYERS','MAP','TIMER','RULES','START'];
@@ -1462,7 +1925,10 @@ const BOT={st:{},think:0.09};
 function botReset(){BOT.st={};}
 function isBotSlot(p){
   try{
-    if(typeof DEMO!=='undefined'&&DEMO.active)return false;
+    if(typeof HARNESS !== 'undefined' && HARNESS.active){
+      if(HARNESS.mode === 'playback') return p.slot === 1;
+      return false;
+    }
     if(typeof NET!=='undefined'&&NET&&NET.role!==null)return false;
     if(!menu.botOn)return false;
     if(!match||!match.players||match.players.length!==2)return false;
@@ -2275,6 +2741,9 @@ function demoNodes(){
   return r;
 }
 function inputFor(p,dt){
+  if(typeof HARNESS !== 'undefined' && HARNESS.active && HARNESS.mode === 'playback' && p.slot === 1){
+    return harnessBotPlaybackInput(p, dt);
+  }
   if(isBotSlot(p)) return botInputFor(p,dt);
   
   const schemeIdx = (menu.slotCtrl && menu.slotCtrl[p.slot] != null) ? menu.slotCtrl[p.slot] : p.slot;
@@ -2345,6 +2814,9 @@ function inputFor(p,dt){
     }
   }
   const _demoOut={dir:clamp(dir,-1,1),jumpEdge:!!jumpEdge,jumpHeld:!!jumpHeld,downHeld:!!downHeld};
+  if(typeof HARNESS!=='undefined'&&HARNESS.active&&HARNESS.mode==='record'&&p.slot===0){
+    try{harnessPushTrace(p,_demoOut);}catch(e){}
+  }
 
   return _demoOut;
 }
@@ -2954,7 +3426,12 @@ function updateGame(dt){
 function update(dt){
   pollGamepads();
   if(screen==='menu'){updateMenu(dt);updateCam(dt);}
-  else{updateGame(dt);}
+  else{
+    updateGame(dt);
+    if(typeof HARNESS !== 'undefined' && HARNESS.active){
+      try{ harnessTick(dt); }catch(e){}
+    }
+  }
   if(typeof updateVoiceProximity==='function')updateVoiceProximity(dt);
 }
 
@@ -3886,6 +4363,20 @@ function drawMenu(){
       txt(opt.label, px + pw/2, pillY + ph/2 + 1, FN(10.5, 900), isCur ? '#ffffff' : '#cbd5e1');
 
       zone(px, pillY, pw, ph, { fn: () => setBotDifficulty(opt.id) });
+    }
+
+    // Direct button to launch training harness for the current map
+    const trainBtnX = pillsStartX + totalPillsW + 12;
+    const trainBtnW = clamp(CW * 0.22, 110, 145);
+    if(trainBtnX + trainBtnW < CW - 12){
+      rr(g, trainBtnX, pillY, trainBtnW, ph, 6);
+      g.fillStyle = 'rgba(46, 213, 115, 0.18)';
+      g.fill();
+      g.lineWidth = 1.5;
+      g.strokeStyle = '#2ed573';
+      g.stroke();
+      txt('🎯 TRAIN BOT', trainBtnX + trainBtnW / 2, pillY + ph / 2 + 1, FN(10.5, 900), '#2ed573');
+      zone(trainBtnX, pillY, trainBtnW, ph, { fn: () => harnessStart(settings.map) });
     }
   } else {
     const countOpts = [2, 3, 4];
@@ -6889,6 +7380,18 @@ try{
 }catch(e){/* normal menu boot */}
 buildLevel();
 netInitUI();
+
+/* Training harness launch: ?train (map 0) or ?train=N (map N) or ?harness=N */
+try{
+  const qp = new URLSearchParams(location.search);
+  const tq = qp.get('train') || qp.get('harness') || qp.get('demo');
+  if(tq !== null){
+    let mi = (tq === '' || tq === 'true') ? 0 : parseInt(tq, 10);
+    if(!Number.isInteger(mi)) mi = 0;
+    settings.map = ((mi % MAPS.length) + MAPS.length) % MAPS.length;
+    harnessStart(settings.map);
+  }
+}catch(e){}
 
 try{ if(!_cgBoot) _cgBoot = CG.boot(); }catch(e){}
 requestAnimationFrame(frame);
