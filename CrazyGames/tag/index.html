@@ -1059,7 +1059,11 @@ const HARNESS = {
   par: 5.0,
   holdT: 0,
   started: false,
+  startX: 0,
+  startY: 0,
+  startVx: 0,
   trace: [],
+  stagedSample: null,  // Holds completed jump waiting for user KEEP [K] or DISCARD [D]
   transitions: {},     // mapIdx -> { "from->to": sample }
   playbackT: 0,
   playbackStep: 0,
@@ -1088,7 +1092,7 @@ function harnessSaveStored(){
 function harnessBuildCases(mapIdx){
   HARNESS.map = mapIdx;
   HARNESS.nodes = [];
-  // 1. Extract valid platform surfaces
+  // 1. Extract valid platform surfaces (exclude floor wall and narrow vertical pillars)
   for(let i = 1; i < SOLIDS.length; i++){
     const s = SOLIDS[i];
     if(s.wall && s.y !== H - WALL) continue;
@@ -1111,7 +1115,8 @@ function harnessBuildCases(mapIdx){
     }
   }
 
-  // 3. Generate candidate pairs with strict pruning
+  // 3. Generate candidate pairs with STRICT SKILL PRUNING:
+  // Removes all trivial downward drops, flat walk-overs, and baby hops
   const cases = [];
   const visitedCanonical = new Set();
 
@@ -1120,19 +1125,27 @@ function harnessBuildCases(mapIdx){
     for(let j = 0; j < HARNESS.nodes.length; j++){
       if(i === j) continue;
       const B = HARNESS.nodes[j];
-
-      // Filter 1: Prune flat side-by-side
-      const isFlat = Math.abs(A.y - B.y) <= 16;
-      const gap = Math.max(0, B.x - (A.x + A.w), A.x - (B.x + B.w));
-      if(isFlat && gap < 50) continue;
-
-      // Filter 2: Prune impossible reach
       const dy = B.y - A.y;
-      const dx = Math.abs((B.x + B.w/2) - (A.x + A.w/2));
+      const gap = Math.max(0, B.x - (A.x + A.w), A.x - (B.x + B.w));
+      const dx = Math.abs((B.x + B.w / 2) - (A.x + A.w / 2));
       const maxRise = (A.t === 'boost') ? 690 : 510;
+
+      // Filter 1: Reach limits
       if(dy < -maxRise || dx > 850) continue;
 
-      // Filter 3: Prune symmetric duplicates
+      // Filter 2: Prune ALL downward drops (dy > 40) - greedy bot/gravity handles drops easily
+      if(dy > 40) continue;
+
+      // Filter 3: Prune flat/near-flat step-overs and small hops (|dy| <= 40, gap < 180)
+      if(Math.abs(dy) <= 40 && gap < 180) continue;
+
+      // Filter 4: Prune low upward hops with small gap (-75 <= dy <= 0, gap < 140)
+      if(dy <= 0 && dy >= -75 && gap < 140) continue;
+
+      // Filter 5: Overly distant horizontal reach on normal platform without speed boost
+      if(A.t !== 'speed' && A.t !== 'boost' && gap > 560) continue;
+
+      // Filter 6: Prune bilateral symmetric duplicates
       const mI = HARNESS.mirrorMap.get(i), mJ = HARNESS.mirrorMap.get(j);
       if(mI !== undefined && mJ !== undefined){
         const canonicalKey = (mI < i || (mI === i && mJ < j)) ? (mI + '->' + mJ) : (i + '->' + j);
@@ -1141,11 +1154,12 @@ function harnessBuildCases(mapIdx){
       }
 
       const parT = Math.max(2.8, 1.2 + dx / 380 + Math.abs(dy) / 280);
-      cases.push({ from: i, to: j, dx, dy, par: parT });
+      cases.push({ from: i, to: j, dx, dy, gap, par: parT });
     }
   }
   HARNESS.cases = cases;
   HARNESS.ci = 0;
+  HARNESS.stagedSample = null;
 }
 
 function harnessCurCase(){
@@ -1158,6 +1172,10 @@ function harnessResetTrial(){
   if(!c || !match || !match.players || !match.players.length) return;
   const A = HARNESS.nodes[c.from], B = HARNESS.nodes[c.to];
   const p0 = match.players[0];
+  const curKey = c.from + '->' + c.to;
+  const mapKey = 'map' + HARNESS.map;
+  const savedSample = HARNESS.transitions[mapKey] && HARNESS.transitions[mapKey][curKey];
+  const activeSample = HARNESS.stagedSample || savedSample;
 
   if(HARNESS.mode === 'record'){
     // Player 0 spawns on Platform A
@@ -1166,17 +1184,23 @@ function harnessResetTrial(){
     p0.vx = 0; p0.vy = 0; p0.airJumps = 1;
     p0.grounded = true; p0.gp = A;
   } else {
-    // Playback mode: Player 0 stands on Target B, Bot (P1) spawns on A
+    // Playback mode: Player 0 stands on Target B, Bot (P1) spawns at exact recorded launch origin on Platform A
     p0.x = clamp(B.x + B.w / 2 - p0.w / 2, B.x + 8, B.x + B.w - p0.w - 8);
     p0.y = (B.dy ? B.y + (p0.x - B.x) * (B.dy / B.w) : B.y) - p0.h - 4;
     p0.vx = 0; p0.vy = 0; p0.grounded = true; p0.gp = B;
 
     if(match.players.length > 1){
       const p1 = match.players[1];
-      p1.x = clamp(A.x + A.w / 2 - p1.w / 2, A.x + 8, A.x + A.w - p1.w - 8);
-      p1.y = (A.dy ? A.y + (p1.x - A.x) * (A.dy / A.w) : A.y) - p1.h - 4;
-      p1.vx = 0; p1.vy = 0; p1.airJumps = 1;
-      p1.grounded = true; p1.gp = A;
+      const spawnX = activeSample ? activeSample.startX : clamp(A.x + A.w / 2 - p1.w / 2, A.x + 8, A.x + A.w - p1.w - 8);
+      const spawnY = activeSample ? activeSample.startY : ((A.dy ? A.y + (spawnX - A.x) * (A.dy / A.w) : A.y) - p1.h - 4);
+      p1.x = spawnX;
+      p1.y = spawnY;
+      p1.vx = activeSample ? (activeSample.startVx || 0) : 0;
+      p1.vy = 0;
+      p1.airJumps = 1;
+      p1.grounded = true;
+      p1.gp = A;
+      p1._pbStepIdx = 0;
     }
   }
 
@@ -1204,49 +1228,56 @@ function harnessStart(mapIdx){
   match.it = 0;
   match.timer = 9999;
   harnessResetTrial();
-  toast('🎯 HARNESS: Jump to GLOWING platform! [E] Restart [T] Test Bot [X] Skip [Z] Save');
+  toast('🎯 HARNESS: Jump to glowing platform! [T] Test Bot [K] Keep [D] Discard [E] Restart');
 }
 
 function harnessFeetOn(p, s){
   if(!p || !s) return false;
   const feet = p.y + p.h;
-  const sTop = s.dy ? s.y + (clamp(p.x + p.w/2, s.x, s.x + s.w) - s.x) * (s.dy / s.w) : s.y;
+  const sTop = s.dy ? s.y + (clamp(p.x + p.w / 2, s.x, s.x + s.w) - s.x) * (s.dy / s.w) : s.y;
   const onX = (p.x + p.w > s.x + 4) && (p.x < s.x + s.w - 4);
   const onY = (feet >= sTop - 6) && (feet <= sTop + 24);
   return onX && onY && (p.grounded || Math.abs(p.vy) < 80);
 }
 
-function harnessRecordSample(){
+function harnessStageRecordedSample(){
   const c = harnessCurCase();
   if(!c || !HARNESS.trace.length) return;
   const key = c.from + '->' + c.to;
-  const mapKey = 'map' + HARNESS.map;
-  if(!HARNESS.transitions[mapKey]) HARNESS.transitions[mapKey] = {};
 
   const launchStep = HARNESS.trace.find(s => s.je) || HARNESS.trace[0];
   const djStep = HARNESS.trace.find((s, idx) => idx > 0 && s.je);
 
-  const sample = {
+  HARNESS.stagedSample = {
     key: key,
     from: c.from,
     to: c.to,
     map: HARNESS.map,
     time: +HARNESS.t.toFixed(2),
+    startX: HARNESS.startX || HARNESS.trace[0].x,
+    startY: HARNESS.startY || HARNESS.trace[0].y,
+    startVx: HARNESS.startVx || HARNESS.trace[0].vx,
     launchX: launchStep ? launchStep.x : 0,
     hasDoubleJump: !!djStep,
     doubleJumpDelay: djStep ? +(djStep.t - (launchStep ? launchStep.t : 0)).toFixed(2) : 0,
     trace: HARNESS.trace.map(s => ({
-      t: +s.t.toFixed(2),
+      t: +s.t.toFixed(3),
       x: s.x, y: s.y,
       vx: s.vx, vy: s.vy,
       d: s.d, je: s.je, jh: s.jh, dn: s.dn
     }))
   };
+}
 
-  HARNESS.transitions[mapKey][key] = sample;
+function harnessCommitStagedSample(){
+  const sample = HARNESS.stagedSample;
+  if(!sample) return false;
+  const mapKey = 'map' + HARNESS.map;
+  if(!HARNESS.transitions[mapKey]) HARNESS.transitions[mapKey] = {};
+  HARNESS.transitions[mapKey][sample.key] = sample;
 
   // Auto-mirror if bilateral symmetry exists
-  const mFrom = HARNESS.mirrorMap.get(c.from), mTo = HARNESS.mirrorMap.get(c.to);
+  const mFrom = HARNESS.mirrorMap.get(sample.from), mTo = HARNESS.mirrorMap.get(sample.to);
   if(mFrom !== undefined && mTo !== undefined){
     const mirrorKey = mFrom + '->' + mTo;
     const mirroredSample = {
@@ -1255,7 +1286,10 @@ function harnessRecordSample(){
       to: mTo,
       map: HARNESS.map,
       time: sample.time,
-      launchX: Math.round(W - sample.launchX),
+      startX: Math.round(W - sample.startX - 46),
+      startY: sample.startY,
+      startVx: -sample.startVx,
+      launchX: Math.round(W - sample.launchX - 46),
       hasDoubleJump: sample.hasDoubleJump,
       doubleJumpDelay: sample.doubleJumpDelay,
       trace: sample.trace.map(s => ({
@@ -1274,8 +1308,41 @@ function harnessRecordSample(){
   }
 
   harnessSaveStored();
+  HARNESS.stagedSample = null;
   HARNESS.done++;
   HARNESS.okN++;
+  return true;
+}
+
+function harnessDiscardCurrent(){
+  const c = harnessCurCase();
+  if(!c) return;
+  const key = c.from + '->' + c.to;
+  const mapKey = 'map' + HARNESS.map;
+
+  if(HARNESS.stagedSample){
+    HARNESS.stagedSample = null;
+    toast('🗑️ RECORDING DISCARDED');
+    sfx('back');
+    harnessResetTrial();
+    return;
+  }
+
+  if(HARNESS.transitions[mapKey] && HARNESS.transitions[mapKey][key]){
+    delete HARNESS.transitions[mapKey][key];
+    const mFrom = HARNESS.mirrorMap.get(c.from), mTo = HARNESS.mirrorMap.get(c.to);
+    if(mFrom !== undefined && mTo !== undefined){
+      const mirrorKey = mFrom + '->' + mTo;
+      if(HARNESS.transitions[mapKey][mirrorKey]) delete HARNESS.transitions[mapKey][mirrorKey];
+    }
+    harnessSaveStored();
+    toast('🗑️ SAVED POLICY REMOVED FOR THIS CASE');
+    sfx('back');
+    harnessResetTrial();
+    return;
+  }
+
+  toast('Nothing to discard');
 }
 
 function harnessExportJSON(){
@@ -1305,17 +1372,18 @@ function harnessToggleBotTest(){
   if(!c) return;
   const key = c.from + '->' + c.to;
   const mapKey = 'map' + HARNESS.map;
-  const hasSample = HARNESS.transitions[mapKey] && HARNESS.transitions[mapKey][key];
+  const savedSample = HARNESS.transitions[mapKey] && HARNESS.transitions[mapKey][key];
+  const activeSample = HARNESS.stagedSample || savedSample;
 
   if(HARNESS.mode === 'record'){
-    if(!hasSample){
-      toast('⚠️ Jump successfully first to record data before testing bot!');
+    if(!activeSample){
+      toast('⚠️ Jump successfully first (or choose a saved case) to test bot!');
       sfx('back');
       return;
     }
     HARNESS.mode = 'playback';
     harnessResetTrial();
-    toast('🤖 BOT TEST MODE: Watch bot use your recorded data! (Press T to return)');
+    toast('🤖 BOT TEST MODE: Watch bot jump at you! [E] Restart [K] Keep [D] Discard [T] Return');
     sfx('go');
   } else {
     HARNESS.mode = 'record';
@@ -1341,16 +1409,55 @@ function harnessTick(dt){
     toast('🔄 TRIAL RESTARTED (E)');
     return;
   }
-  // T: Toggle bot mimicry test
+  // T: Toggle bot test mode
   if(pressed.has('KeyT')){
     harnessToggleBotTest();
     return;
   }
-  // X: Skip case
-  if(pressed.has('KeyX')){
-    HARNESS.ci = (HARNESS.ci + 1) % HARNESS.cases.length;
+  // K or Enter: Keep / Save
+  if(pressed.has('KeyK') || pressed.has('Enter')){
+    if(HARNESS.stagedSample){
+      harnessCommitStagedSample();
+      sfx('go');
+      toast('✅ JUMP SAVED & APPROVED! Moving to next case...');
+      HARNESS.ci = (HARNESS.ci + 1) % HARNESS.cases.length;
+      HARNESS.mode = 'record';
+      harnessResetTrial();
+      return;
+    } else {
+      const c = harnessCurCase();
+      const key = c ? (c.from + '->' + c.to) : '';
+      const mapKey = 'map' + HARNESS.map;
+      if(HARNESS.transitions[mapKey] && HARNESS.transitions[mapKey][key]){
+        toast('✅ Case already saved! Moving to next case...');
+        HARNESS.ci = (HARNESS.ci + 1) % HARNESS.cases.length;
+        HARNESS.mode = 'record';
+        harnessResetTrial();
+        return;
+      } else {
+        toast('⚠️ Complete a jump first before keeping!');
+      }
+    }
+  }
+  // D: Discard
+  if(pressed.has('KeyD')){
+    harnessDiscardCurrent();
+    return;
+  }
+  // Browse cases: [ / P / ArrowLeft for Previous
+  if(pressed.has('BracketLeft') || pressed.has('KeyP') || (HARNESS.mode === 'playback' && pressed.has('ArrowLeft'))){
+    HARNESS.ci = (HARNESS.ci - 1 + HARNESS.cases.length) % HARNESS.cases.length;
+    HARNESS.stagedSample = null;
     harnessResetTrial();
-    toast('⏭️ SKIPPED (X)');
+    toast('◀ PREVIOUS CASE (' + (HARNESS.ci + 1) + '/' + HARNESS.cases.length + ')');
+    return;
+  }
+  // Browse cases: ] / N / ArrowRight for Next
+  if(pressed.has('BracketRight') || pressed.has('KeyN') || (HARNESS.mode === 'playback' && pressed.has('ArrowRight'))){
+    HARNESS.ci = (HARNESS.ci + 1) % HARNESS.cases.length;
+    HARNESS.stagedSample = null;
+    harnessResetTrial();
+    toast('▶ NEXT CASE (' + (HARNESS.ci + 1) + '/' + HARNESS.cases.length + ')');
     return;
   }
   // Z: Save / Export
@@ -1373,13 +1480,17 @@ function harnessTick(dt){
 
   const c = harnessCurCase();
   if(!c) return;
-  const tgt = HARNESS.nodes[c.to];
+  const A = HARNESS.nodes[c.from], tgt = HARNESS.nodes[c.to];
 
   if(HARNESS.mode === 'record'){
     if(!HARNESS.started){
       if(keys.has('KeyA') || keys.has('KeyD') || keys.has('KeyW') || keys.has('Space') ||
          keys.has('ArrowLeft') || keys.has('ArrowRight') || keys.has('ArrowUp')){
         HARNESS.started = true;
+        HARNESS.startX = Math.round(pl.x);
+        HARNESS.startY = Math.round(pl.y);
+        HARNESS.startVx = Math.round(pl.vx);
+        HARNESS.t = 0;
       } else {
         return;
       }
@@ -1387,21 +1498,26 @@ function harnessTick(dt){
 
     HARNESS.t += dt;
 
-    if(harnessFeetOn(pl, tgt)){
-      HARNESS.holdT += dt;
-      if(HARNESS.holdT >= 0.25){
-        harnessRecordSample();
-        sfx('go');
-        HARNESS.ci = (HARNESS.ci + 1) % HARNESS.cases.length;
-        harnessResetTrial();
-        toast('✅ CLEAN LANDING RECORDED!');
-        return;
-      }
-    } else {
-      HARNESS.holdT = 0;
+    // Check invalid landing: touched arena floor or unintended platform before target
+    if(pl.grounded && pl.gp && pl.gp !== A && pl.gp !== tgt){
+      toast('❌ TOUCHED OTHER FLOOR — [E] TO RETRY');
+      sfx('back');
+      harnessResetTrial();
+      return;
     }
 
-    if(HARNESS.t >= c.par){
+    if(harnessFeetOn(pl, tgt)){
+      HARNESS.holdT += dt;
+      if(HARNESS.holdT >= 0.20 && !HARNESS.stagedSample){
+        harnessStageRecordedSample();
+        sfx('ok');
+        toast('🎯 JUMP RECORDED! [T] Test Bot | [K] Keep & Save | [D] Discard');
+      }
+    } else {
+      if(!HARNESS.stagedSample) HARNESS.holdT = 0;
+    }
+
+    if(HARNESS.t >= c.par && !HARNESS.stagedSample){
       toast('⏰ TIME OVER PAR (' + c.par.toFixed(1) + 's) — [E] TO RETRY');
       sfx('back');
       harnessResetTrial();
@@ -1413,10 +1529,10 @@ function harnessTick(dt){
     const botP = match.players[1];
     if(botP && harnessFeetOn(botP, tgt)){
       HARNESS.holdT += dt;
-      if(HARNESS.holdT >= 0.5){
+      if(HARNESS.holdT >= 0.4){
         sfx('go');
-        toast('🎯 BOT REACHED YOU SUCCESSFULLY!');
-        harnessResetTrial();
+        toast('🎯 BOT REACHED YOU CLEANLY! [K] Keep & Save | [D] Discard | [E] Retry');
+        HARNESS.holdT = 0;
       }
     }
   }
@@ -1424,6 +1540,7 @@ function harnessTick(dt){
 
 function harnessPushTrace(p, inp){
   if(!HARNESS.active || HARNESS.mode !== 'record' || !HARNESS.started || p.slot !== 0) return;
+  if(HARNESS.stagedSample) return; // Stop recording once landed cleanly
   HARNESS.trace.push({
     t: +HARNESS.t.toFixed(3),
     x: Math.round(p.x),
@@ -1443,24 +1560,33 @@ function harnessBotPlaybackInput(p, dt){
   if(!c) return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
   const key = c.from + '->' + c.to;
   const mapKey = 'map' + HARNESS.map;
-  const sample = HARNESS.transitions[mapKey] && HARNESS.transitions[mapKey][key];
+  const sample = HARNESS.stagedSample || (HARNESS.transitions[mapKey] && HARNESS.transitions[mapKey][key]);
   if(!sample || !sample.trace || !sample.trace.length){
     return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
   }
 
   const curT = HARNESS.playbackT;
-  let step = sample.trace[0];
-  for(let i = 0; i < sample.trace.length; i++){
-    if(sample.trace[i].t <= curT) step = sample.trace[i];
-    else break;
+  if(!p._pbStepIdx) p._pbStepIdx = 0;
+
+  let jumpEdge = false;
+  let step = sample.trace[Math.min(p._pbStepIdx, sample.trace.length - 1)];
+
+  // Scan all trace samples up to current playback time so jump edges are NEVER missed
+  while(p._pbStepIdx < sample.trace.length && sample.trace[p._pbStepIdx].t <= curT){
+    const s = sample.trace[p._pbStepIdx];
+    if(s.je === 1) jumpEdge = true;
+    step = s;
+    p._pbStepIdx++;
   }
 
-  const isEdge = (step.je === 1) && (!p._lastStepJe);
-  p._lastStepJe = (step.je === 1);
+  // Trajectory stabilization: nudge ground velocity toward recorded velocity to eliminate frame rate drift
+  if(p.grounded && Math.abs(p.x - step.x) > 3){
+    p.vx += clamp((step.x - p.x) * 4, -50, 50);
+  }
 
   return {
     dir: step.d,
-    jumpEdge: isEdge,
+    jumpEdge: jumpEdge,
     jumpHeld: !!step.jh,
     downHeld: !!step.dn
   };
@@ -1474,7 +1600,7 @@ function harnessOverlay(){
 
   // Draw glowing box on target platform B
   const bx = (B.x + B.w / 2 - cam.x) * cam.s + CW / 2;
-  const by = (B.y + (B.dy ? B.dy/2 : B.h/2) - cam.y) * cam.s + CH / 2;
+  const by = (B.y + (B.dy ? B.dy / 2 : B.h / 2) - cam.y) * cam.s + CH / 2;
   const bw = B.w * cam.s + 18, bh = 46 * cam.s + 18;
   const pulse = 0.6 + 0.4 * Math.sin(tGlobal * 6);
 
@@ -1489,22 +1615,34 @@ function harnessOverlay(){
   // Floating chevron above target
   ptxt('▼', bx, by - bh / 2 - 20 - Math.abs(Math.sin(tGlobal * 5)) * 10, FN(22, 900), '#2ecc71');
 
-  // Top header: Map & Case status
+  // Case Status
+  const key = c.from + '->' + c.to;
+  const mapKey = 'map' + HARNESS.map;
+  const isSaved = !!(HARNESS.transitions[mapKey] && HARNESS.transitions[mapKey][key]);
+  const isStaged = !!HARNESS.stagedSample;
+
+  const statusText = isStaged ? '🟡 RECORDED (Ready to Test/Save)' : (isSaved ? '✅ SAVED & APPROVED' : '⭕ UNRECORDED');
+  const statusCol = isStaged ? '#f5d76e' : (isSaved ? '#2ecc71' : '#bdc3c7');
+
   const mapName = MAPS[HARNESS.map] ? MAPS[HARNESS.map].name : 'MAP ' + HARNESS.map;
   const modeTag = HARNESS.mode === 'playback' ? '🤖 BOT TEST MODE' : '🏃 RECORDING';
-  const modeCol = HARNESS.mode === 'playback' ? '#38ef7d' : '#f5d76e';
 
-  ptxt(mapName + ' • CASE ' + (HARNESS.ci + 1) + '/' + HARNESS.cases.length + ' • ' + modeTag, CW / 2, 32, FT(20), '#ffffff');
+  ptxt(mapName + ' • CASE ' + (HARNESS.ci + 1) + '/' + HARNESS.cases.length + ' • ' + modeTag, CW / 2, 30, FT(20), '#ffffff');
+  ptxt('STATUS: ' + statusText + '  |  Rise: ' + (-c.dy) + 'px  Gap: ' + c.gap + 'px', CW / 2, 54, FN(14, 800), statusCol);
 
   if(HARNESS.mode === 'record'){
-    const timeCol = HARNESS.t > c.par * 0.75 ? '#ff4757' : '#2ed573';
-    ptxt(HARNESS.started ? HARNESS.t.toFixed(1) + 's / ' + c.par.toFixed(1) + 's par' : 'PRESS WASD / ARROWS TO START', CW / 2, 58, FN(15, 800), timeCol);
+    if(isStaged){
+      ptxt('🎯 JUMP RECORDED! [T] Test Bot On Me  |  [K] Keep & Save  |  [D] Discard', CW / 2, 78, FN(15, 900), '#2ecc71');
+    } else {
+      const timeCol = HARNESS.t > c.par * 0.75 ? '#ff4757' : '#2ed573';
+      ptxt(HARNESS.started ? HARNESS.t.toFixed(1) + 's / ' + c.par.toFixed(1) + 's par' : 'PRESS WASD / ARROWS TO START JUMP', CW / 2, 78, FN(15, 800), timeCol);
+    }
   } else {
-    ptxt('WATCHING BOT REPLAY YOUR MOVES TO TARGET PLATFORM', CW / 2, 58, FN(15, 800), '#38ef7d');
+    ptxt('WATCHING BOT REPLAY YOUR JUMP! [E] Restart Bot  |  [K] Keep & Save  |  [D] Discard  |  [T] Back', CW / 2, 78, FN(15, 900), '#38ef7d');
   }
 
   // Bottom action bar
-  ptxt('[E] RESTART   [T] TEST BOT ON ME   [X] SKIP   [Z] SAVE DATA   [1-0] MAP', CW / 2, CH - 22, FN(12.5, 800), 'rgba(255,255,255,0.9)');
+  ptxt('[←/→ or P/N] BROWSE CASES   [T] TEST BOT   [K] KEEP / SAVE   [D] DISCARD   [E] RESTART   [1-0] MAP   [Z] EXPORT', CW / 2, CH - 22, FN(12, 800), 'rgba(255,255,255,0.92)');
 }
 
 function demoOverlay(){ harnessOverlay(); }
@@ -2433,7 +2571,35 @@ function botInputFor(p,dt){
         if(!edgeJump&&S.hasExit&&aboveBy>50&&Math.abs(cx-S.exitX)<(onSpeed?72:52))edgeJump=true;
         if(onBoost&&aboveBy>40){edgeJump=true;}
         if(isDirectPath&&aboveBy>40&&!headBlocked){edgeJump=true;}
-        if(isTargetDescending && isTouchdownFrame && inTagRange && !headBlocked && !ceilAbove){
+
+        // TRAINED JUMP POLICY INTEGRATION:
+        let policyJump = false;
+        if(p.gp && target.gp && typeof HARNESS !== 'undefined' && HARNESS.transitions){
+          const mapKey = 'map' + settings.map;
+          const trMap = HARNESS.transitions[mapKey];
+          if(trMap && HARNESS.nodes && HARNESS.nodes.length){
+            const fIdx = HARNESS.nodes.indexOf(p.gp);
+            const tIdx = HARNESS.nodes.indexOf(target.gp);
+            if(fIdx >= 0 && tIdx >= 0 && fIdx !== tIdx){
+              const sample = trMap[fIdx + '->' + tIdx];
+              if(sample){
+                const toLaunch = sample.launchX - cx;
+                if(Math.abs(toLaunch) < 40){
+                  policyJump = true;
+                  S._policyDjDelay = sample.hasDoubleJump ? sample.doubleJumpDelay : 0;
+                  S._policyAirT = 0;
+                } else if(Math.abs(toLaunch) < 300){
+                  want = Math.sign(toLaunch);
+                }
+              }
+            }
+          }
+        }
+
+        if(policyJump){
+          S.jumpQ=true; S.jumpHoldT=0.16;
+        }
+        else if(isTargetDescending && isTouchdownFrame && inTagRange && !headBlocked && !ceilAbove){
           S.jumpQ=true;
         }
         else if(edgeJump){S.jumpQ=true;}
@@ -2604,6 +2770,12 @@ function botInputFor(p,dt){
         }else S.jumpQ=false;
       }
       else if(p.airJumps>0){
+        if(S._policyDjDelay > 0){
+          S._policyAirT = (S._policyAirT || 0) + botThinkRate;
+          if(S._policyAirT >= S._policyDjDelay){
+            S.jumpQ=true; S.jumpHoldT=0.14; S._policyDjDelay=0;
+          }
+        }
         // Double Jump Apex Chaining:
         // CHASE: Sweet-spot apex chaining (-130 < vy < 110) yields max vertical rise (~420px total)
         const apexWindow=(p.vy>-130&&p.vy<110);
