@@ -4538,6 +4538,11 @@ function drawOnlineComingSoonModal(){
 }
 
 function cycleMap(d){
+  if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){
+    toast('HOST SELECTS THE ARENA');
+    sfx('back');
+    return;
+  }
   if(settings.randomMap){
     settings.randomMap = false;
     settings.map = (d > 0) ? 0 : (MAPS.length - 1);
@@ -4552,6 +4557,9 @@ function cycleMap(d){
   }
   buildLevel();
   sfx('ui');
+  if(typeof NET !== 'undefined' && NET && NET.isHost){
+    netBroadcastSettings();
+  }
 }
 
 
@@ -4761,98 +4769,56 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
   zone(leaveBtnX, leaveBtnY, leaveBtnW, leaveBtnH, { fn: () => { sfx('back'); netLeaveRoom(); } });
 
   // Main 3-Column Layout:
-  // Left: Waiting List / Spectators
-  // Right: People who are playing (8 Slots Roster)
-  // Center: Compact "YOU" Player Card (reduced height)
-  const contentY0 = stageY + topH + 8;
-  const contentH = stageH - topH - 12;
+  // Left: People who are playing (8 Slots Roster)
+  // Center: Compact "YOU" Player Card
+  // Right: Waiting List / Spectators
+  const contentY0 = stageY + topH + 6;
+  const contentH = stageH - topH - 10;
+
+  // Compact height for all three boxes: max 220px to prevent unneeded vertical stretch!
+  const panelH = clamp(contentH, 160, 220);
+  const panelY = Math.floor(contentY0 + (contentH - panelH) / 2);
 
   const isWide = (availW >= 640);
-  const sideW = isWide ? clamp(Math.floor(availW * 0.27), 180, 240) : Math.floor(availW * 0.48);
+  const sideW = isWide ? clamp(Math.floor(availW * 0.28), 190, 250) : Math.floor(availW * 0.48);
 
+  // Left side: PLAYING
   const leftX = startX;
   const leftW = sideW;
 
+  // Right side: WAITING LIST
   const rightW = sideW;
   const rightX = startX + availW - rightW;
 
+  // Center: YOU
   const centerStartX = leftX + leftW + 10;
   const centerW = Math.max(160, rightX - centerStartX - 10);
+  const cardW = clamp(centerW, 180, 310);
+  const cardX = Math.floor(centerStartX + centerW/2 - cardW/2);
 
-  const headH = 28;
+  const headH = 26;
 
-  // --- 1. LEFT PANEL: Waiting list / Spectator Queue ---
-  rr(g, leftX, contentY0, leftW, contentH, 10);
+  // --- 1. LEFT PANEL: People who are playing (8-slot Roster) ---
+  rr(g, leftX, panelY, leftW, panelH, 10);
   g.fillStyle = 'rgba(14, 20, 32, 0.92)'; g.fill();
   g.lineWidth = 1.5; g.strokeStyle = 'rgba(255,255,255,0.2)'; g.stroke();
 
-  rr(g, leftX, contentY0, leftW, headH, 10);
-  g.fillStyle = 'rgba(24, 32, 48, 0.96)'; g.fill();
-  const specList = NET.spectators || [];
-  ptxt('⏳ WAITING LIST (' + specList.length + ')', leftX + leftW/2, contentY0 + headH/2 + 1, FN(11, 900), '#ffd166');
-
-  if(specList.length === 0){
-    txt('No one in waiting list', leftX + leftW/2, contentY0 + contentH * 0.38, FN(10.5, 800), '#64748b');
-    txt('Share link to invite!', leftX + leftW/2, contentY0 + contentH * 0.48, FN(9.5, 800), '#475569');
-    const invW = leftW - 32, invH = 24;
-    const invX = leftX + 16, invY = contentY0 + contentH * 0.60;
-    rr(g, invX, invY, invW, invH, 6);
-    g.fillStyle = 'rgba(56, 189, 248, 0.15)'; g.fill();
-    g.lineWidth = 1; g.strokeStyle = '#38bdf8'; g.stroke();
-    txt('🔗 Invite Friend', invX + invW/2, invY + invH/2 + 1, FN(10, 900), '#38bdf8');
-    zone(invX, invY, invW, invH, { fn: () => { sfx('ui'); netCopyLink(); } });
-  } else {
-    const rowH = Math.floor(clamp((contentH - headH - 8) / Math.max(specList.length, 6), 26, 36));
-    for(let i = 0; i < Math.min(specList.length, 7); i++){
-      const spec = specList[i];
-      const ry = contentY0 + headH + 4 + i * rowH;
-      rr(g, leftX + 4, ry, leftW - 8, rowH - 2, 6);
-      g.fillStyle = 'rgba(255,255,255,0.06)'; g.fill();
-
-      // Spectator name
-      txt('👁️ ' + (spec.name || 'Guest Spec').slice(0, 10), leftX + 8, ry + rowH/2, FN(10, 800), '#ffffff', 'left');
-
-      if(NET.isHost){
-        // Admit button
-        const admW = 42, admH = rowH - 6;
-        const admX = leftX + leftW - admW - 24, admY = ry + 3;
-        rr(g, admX, admY, admW, admH, 4);
-        g.fillStyle = '#27ae60'; g.fill();
-        txt('ADMIT', admX + admW/2, admY + admH/2 + 1, FN(8, 900), '#ffffff');
-        zone(admX, admY, admW, admH, { fn: () => netAdmitSpectator(spec.peerId) });
-
-        // Kick spectator button
-        const kSz = 14;
-        const kX = leftX + leftW - kSz - 6, kY = ry + (rowH - kSz)/2;
-        rr(g, kX, kY, kSz, kSz, 3);
-        g.fillStyle = '#e74c3c'; g.fill();
-        txt('✕', kX + kSz/2, kY + kSz/2 + 1, FN(8, 900), '#ffffff');
-        zone(kX, kY, kSz, kSz, { fn: () => netKickPlayer(spec.peerId) });
-      }
-    }
-  }
-
-  // --- 2. RIGHT PANEL: People who are playing (8-slot Roster) ---
-  rr(g, rightX, contentY0, rightW, contentH, 10);
-  g.fillStyle = 'rgba(14, 20, 32, 0.92)'; g.fill();
-  g.lineWidth = 1.5; g.strokeStyle = 'rgba(255,255,255,0.2)'; g.stroke();
-
-  rr(g, rightX, contentY0, rightW, headH, 10);
+  rr(g, leftX, panelY, leftW, headH, 8);
   g.fillStyle = 'rgba(24, 32, 48, 0.96)'; g.fill();
   const act = activeSlots();
-  ptxt('🎮 PLAYING (' + act.length + '/8)', rightX + rightW/2, contentY0 + headH/2 + 1, FN(11, 900), '#2ecc71');
+  ptxt('🎮 PLAYING (' + act.length + '/8)', leftX + leftW/2, panelY + headH/2 + 1, FN(11, 900), '#2ecc71');
 
   // 8 Slot Rows
-  const rowAvailH = contentH - headH - 6;
-  const rowH = Math.floor(clamp(rowAvailH / 8, 20, 34));
+  const rowAvailH = panelH - headH - 4;
+  const rowH = Math.floor(rowAvailH / 8);
   for(let s = 0; s < 8; s++){
-    const ry = contentY0 + headH + 3 + s * rowH;
+    const ry = panelY + headH + 2 + s * rowH;
     const isConn = (s === 0 ? true : (NET.isHost ? (NET.hostInputs.has(s) || menu.slotColor[s] >= 0) : menu.slotColor[s] >= 0));
     const isMe = (s === NET.mySlot);
     const col = getSlotColor(s, menu.slotColor, menu.slotTeam);
     const isRdy = !!NET.slotsReady[s];
 
-    rr(g, rightX + 4, ry + 1, rightW - 8, rowH - 2, 6);
+    rr(g, leftX + 4, ry, leftW - 8, rowH - 2, 5);
     g.fillStyle = isMe ? 'rgba(56, 189, 248, 0.20)' : (isConn ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.25)');
     g.fill();
     if(isMe){ g.lineWidth = 1.5; g.strokeStyle = '#38bdf8'; g.stroke(); }
@@ -4860,7 +4826,7 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
     if(isConn){
       // Mini avatar swatch
       const swSz = Math.min(13, rowH - 6);
-      rr(g, rightX + 7, ry + (rowH - swSz)/2, swSz, swSz, 3);
+      rr(g, leftX + 7, ry + (rowH - swSz)/2, swSz, swSz, 3);
       g.fillStyle = col; g.fill(); g.lineWidth = 1; g.strokeStyle = INK; g.stroke();
 
       // Player name
@@ -4869,47 +4835,109 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
       if(isMe) who += ' (YOU)';
       else if(s === 0) who += ' 👑';
 
-      const maxChars = settings.teams ? 8 : 11;
+      const hasHostControls = (NET.isHost && !isMe);
+      const maxChars = hasHostControls ? 7 : (settings.teams ? 8 : 11);
       g.font = FN(Math.min(10, rowH * 0.42), 900); g.textAlign = 'left';
       g.fillStyle = isMe ? '#38bdf8' : '#ffffff';
-      g.fillText(who.slice(0, maxChars), rightX + 7 + swSz + 5, ry + rowH/2 + 3.5);
+      g.fillText(who.slice(0, maxChars), leftX + 7 + swSz + 4, ry + rowH/2 + 3.5);
 
       // Team Badge if teams active
       if(settings.teams){
         const tm = (menu.slotTeam && menu.slotTeam[s] != null) ? menu.slotTeam[s] : (s % 2);
         const tmIcon = (TEAMS[tm] ? TEAMS[tm].icon : '🔴');
-        ptxt(tmIcon, rightX + rightW - (NET.isHost && !isMe ? 36 : 24), ry + rowH/2 + 1, FN(8.5, 900), '#ffffff');
+        ptxt(tmIcon, leftX + leftW - (hasHostControls ? 56 : 24), ry + rowH/2 + 1, FN(8.5, 900), '#ffffff');
       }
 
       // Ready icon
-      ptxt(isRdy ? '✓' : '⏳', rightX + rightW - (NET.isHost && !isMe ? 22 : 12), ry + rowH/2 + 1, FN(9.5, 900), isRdy ? '#2ecc71' : '#e67e22');
+      ptxt(isRdy ? '✓' : '⏳', leftX + leftW - (hasHostControls ? 44 : 12), ry + rowH/2 + 1, FN(9.5, 900), isRdy ? '#2ecc71' : '#e67e22');
 
-      // Host controls on other players (Kick)
-      if(NET.isHost && !isMe){
+      // Host Quick Actions on other players (Swap Team, Waitlist, Kick)
+      if(hasHostControls){
+        // Quick Move to Waitlist (⏳)
+        const qSz = 13;
+        const qY = ry + (rowH - qSz)/2;
+        const wlBtnX = leftX + leftW - qSz * 2 - 8;
+        rr(g, wlBtnX, qY, qSz, qSz, 3);
+        g.fillStyle = 'rgba(56, 189, 248, 0.35)'; g.fill();
+        txt('⏳', wlBtnX + qSz/2, qY + qSz/2 + 1, FN(7.5, 900), '#38bdf8');
+        zone(wlBtnX, qY, qSz, qSz, { fn: () => netMovePlayerToWaitlist(s) });
+
+        // Quick Kick (✕)
+        const kickX = leftX + leftW - qSz - 4;
+        rr(g, kickX, qY, qSz, qSz, 3);
+        g.fillStyle = '#e74c3c'; g.fill();
+        txt('✕', kickX + qSz/2, qY + qSz/2 + 1, FN(7.5, 900), '#ffffff');
+        zone(kickX, qY, qSz, qSz, { fn: () => netKickPlayer(s) });
+
+        // Clicking the player row opens the full management dialog!
+        zone(leftX + 4, ry, leftW - 36, rowH - 2, { fn: () => {
+          NET.manageSlot = (NET.manageSlot === s ? null : s);
+          sfx('ui');
+        } });
+      }
+    } else {
+      g.font = FN(9, 800); g.textAlign = 'left'; g.fillStyle = '#64748b';
+      g.fillText('+ P' + (s+1) + ' OPEN', leftX + 10, ry + rowH/2 + 3);
+      zone(leftX + 4, ry, leftW - 8, rowH - 2, { fn: () => netCopyLink() });
+    }
+  }
+
+  // --- 2. RIGHT PANEL: Waiting list / Spectator Queue ---
+  rr(g, rightX, panelY, rightW, panelH, 10);
+  g.fillStyle = 'rgba(14, 20, 32, 0.92)'; g.fill();
+  g.lineWidth = 1.5; g.strokeStyle = 'rgba(255,255,255,0.2)'; g.stroke();
+
+  rr(g, rightX, panelY, rightW, headH, 8);
+  g.fillStyle = 'rgba(24, 32, 48, 0.96)'; g.fill();
+  const specList = NET.spectators || [];
+  ptxt('⏳ WAITING LIST (' + specList.length + ')', rightX + rightW/2, panelY + headH/2 + 1, FN(11, 900), '#ffd166');
+
+  if(specList.length === 0){
+    txt('No one in waiting list', rightX + rightW/2, panelY + panelH * 0.38, FN(10.5, 800), '#64748b');
+    txt('Share link to invite!', rightX + rightW/2, panelY + panelH * 0.50, FN(9.5, 800), '#475569');
+    const invW = rightW - 28, invH = 24;
+    const invX = rightX + 14, invY = panelY + panelH * 0.65;
+    rr(g, invX, invY, invW, invH, 6);
+    g.fillStyle = 'rgba(56, 189, 248, 0.15)'; g.fill();
+    g.lineWidth = 1; g.strokeStyle = '#38bdf8'; g.stroke();
+    txt('🔗 Invite Friend', invX + invW/2, invY + invH/2 + 1, FN(10, 900), '#38bdf8');
+    zone(invX, invY, invW, invH, { fn: () => { sfx('ui'); netCopyLink(); } });
+  } else {
+    const rowH = Math.floor(clamp((panelH - headH - 6) / Math.max(specList.length, 5), 24, 34));
+    for(let i = 0; i < Math.min(specList.length, 6); i++){
+      const spec = specList[i];
+      const ry = panelY + headH + 3 + i * rowH;
+      rr(g, rightX + 4, ry, rightW - 8, rowH - 2, 5);
+      g.fillStyle = 'rgba(255,255,255,0.06)'; g.fill();
+
+      // Spectator name
+      txt('👁️ ' + (spec.name || 'Guest Spec').slice(0, 10), rightX + 8, ry + rowH/2, FN(10, 800), '#ffffff', 'left');
+
+      if(NET.isHost){
+        // Admit button
+        const admW = 40, admH = rowH - 6;
+        const admX = rightX + rightW - admW - 22, admY = ry + 3;
+        rr(g, admX, admY, admW, admH, 4);
+        g.fillStyle = '#27ae60'; g.fill();
+        txt('ADMIT', admX + admW/2, admY + admH/2 + 1, FN(8, 900), '#ffffff');
+        zone(admX, admY, admW, admH, { fn: () => netAdmitSpectator(spec.peerId) });
+
+        // Kick spectator button
         const kSz = 13;
         const kX = rightX + rightW - kSz - 4, kY = ry + (rowH - kSz)/2;
         rr(g, kX, kY, kSz, kSz, 3);
         g.fillStyle = '#e74c3c'; g.fill();
         txt('✕', kX + kSz/2, kY + kSz/2 + 1, FN(7.5, 900), '#ffffff');
-        zone(kX, kY, kSz, kSz, { fn: () => netKickPlayer(s) });
+        zone(kX, kY, kSz, kSz, { fn: () => netKickPlayer(spec.peerId) });
       }
-    } else {
-      g.font = FN(9, 800); g.textAlign = 'left'; g.fillStyle = '#64748b';
-      g.fillText('+ P' + (s+1) + ' OPEN', rightX + 10, ry + rowH/2 + 3);
-      zone(rightX + 4, ry + 1, rightW - 8, rowH - 2, { fn: () => netCopyLink() });
     }
   }
 
   // --- 3. CENTER STAGE: Compact "YOU" Player Card ---
-  // Reduced height: fits compactly in the center without being oversized!
-  const cardW = clamp(centerW, 180, 310);
-  const cardH = clamp(Math.floor(contentH * 0.78), 160, 215);
-  const cardX = Math.floor(centerStartX + centerW/2 - cardW/2);
-  const cardY = Math.floor(contentY0 + (contentH - cardH) / 2);
-
-  rr(g, cardX - 2, cardY - 2, cardW + 4, cardH + 4, 12);
+  // Perfectly matching panelH in height!
+  rr(g, cardX - 2, panelY - 2, cardW + 4, panelH + 4, 12);
   g.fillStyle = '#ffffff'; g.fill(); g.lineWidth = 2; g.strokeStyle = INK; g.stroke();
-  rr(g, cardX, cardY, cardW, cardH, 10);
+  rr(g, cardX, panelY, cardW, panelH, 10);
   const myCol = getSlotColor(NET.mySlot, menu.slotColor, menu.slotTeam);
   g.fillStyle = 'rgba(20, 28, 44, 0.96)'; g.fill();
   g.lineWidth = 2; g.strokeStyle = myCol; g.stroke();
@@ -4918,10 +4946,10 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
   const isMeReady = (NET.mySlot >= 0 && !!NET.slotsReady[NET.mySlot]);
 
   // Header: YOU (P1 HOST) or (P2 GUEST)
-  const myRoleStr = NET.isHost ? '👑 HOST' : 'GUEST';
-  const mySlotStr = 'P' + (NET.mySlot + 1);
-  const myName = NET.slotsName[NET.mySlot] || netGetMyProfile().name;
-  ptxt('YOU: ' + myName + ' (' + mySlotStr + ' ' + myRoleStr + ')', cx, cardY + 16, FN(11, 900), '#38bdf8');
+  const myRoleStr = NET.isHost ? '👑 HOST' : (NET.isSpectator ? '👁️ SPEC' : 'GUEST');
+  const mySlotStr = (NET.mySlot >= 0) ? ('P' + (NET.mySlot + 1)) : 'SPEC';
+  const myName = (NET.mySlot >= 0 && NET.slotsName[NET.mySlot]) ? NET.slotsName[NET.mySlot] : netGetMyProfile().name;
+  ptxt('YOU: ' + myName + ' (' + mySlotStr + ' ' + myRoleStr + ')', cx, panelY + 16, FN(11, 900), '#38bdf8');
 
   const btnW = cardW - 20;
   const rdyH = 26;
@@ -4929,38 +4957,42 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
   const teamH = 24;
   const pad = 4;
 
-  const rdyY = cardY + cardH - rdyH - 8;
+  const rdyY = panelY + panelH - rdyH - 8;
   const ctrlY = rdyY - ctrlH - pad;
   const teamY = ctrlY - teamH - pad;
 
   // Mini avatar
-  const avTop = cardY + 24;
+  const avTop = panelY + 24;
   const avY = avTop + (teamY - avTop) * 0.52;
   const charSz = clamp((teamY - avTop) * 0.68, 20, 30);
-  drawChar(g, cx, avY, charSz, myCol, { face: isMeReady ? 'cool' : 'happy', grounded: true, seed: NET.mySlot * 3 });
+  drawChar(g, cx, avY, charSz, myCol, { face: isMeReady ? 'cool' : 'happy', grounded: true, seed: (NET.mySlot >= 0 ? NET.mySlot : 0) * 3 });
 
   // Team / Color Selector row
   rr(g, cx - btnW/2, teamY, btnW, teamH, 6);
   g.fillStyle = 'rgba(0,0,0,0.55)'; g.fill();
   g.lineWidth = 1.2; g.strokeStyle = 'rgba(255,255,255,0.3)'; g.stroke();
   if(settings.teams){
-    const myTeam = (menu.slotTeam && menu.slotTeam[NET.mySlot] != null) ? menu.slotTeam[NET.mySlot] : (NET.mySlot % 2);
+    const myTeam = (menu.slotTeam && NET.mySlot >= 0 && menu.slotTeam[NET.mySlot] != null) ? menu.slotTeam[NET.mySlot] : ((NET.mySlot >= 0 ? NET.mySlot : 0) % 2);
     const teamDef = TEAMS[myTeam] || TEAMS[0];
     ptxt('‹  ' + teamDef.icon + ' ' + teamDef.name + '  ›', cx, teamY + teamH/2 + 1, FN(10.5, 900), '#ffffff');
-    zone(cx - btnW/2, teamY, btnW * 0.45, teamH, { fn: () => cycleTeam(NET.mySlot, -1) });
-    zone(cx + btnW * 0.05, teamY, btnW * 0.45, teamH, { fn: () => cycleTeam(NET.mySlot, 1) });
+    if(NET.mySlot >= 0){
+      zone(cx - btnW/2, teamY, btnW * 0.45, teamH, { fn: () => cycleTeam(NET.mySlot, -1) });
+      zone(cx + btnW * 0.05, teamY, btnW * 0.45, teamH, { fn: () => cycleTeam(NET.mySlot, 1) });
+    }
   } else {
-    const curCol = (menu.slotColor[NET.mySlot] >= 0) ? menu.slotColor[NET.mySlot] : NET.mySlot;
+    const curCol = (NET.mySlot >= 0 && menu.slotColor[NET.mySlot] >= 0) ? menu.slotColor[NET.mySlot] : (NET.mySlot >= 0 ? NET.mySlot : 0);
     const colName = (PALETTE[curCol % PALETTE.length] || PALETTE[0]).name;
     ptxt('‹  🎨 ' + colName + '  ›', cx, teamY + teamH/2 + 1, FN(10.5, 900), '#ffffff');
-    zone(cx - btnW/2, teamY, btnW * 0.45, teamH, { fn: () => {
-      if(NET.isHost){ cycleSlot(NET.mySlot, -1); netBroadcastSettings(); netBroadcastRoster(); }
-      else netCycleMyColor(-1);
-    }});
-    zone(cx + btnW * 0.05, teamY, btnW * 0.45, teamH, { fn: () => {
-      if(NET.isHost){ cycleSlot(NET.mySlot, 1); netBroadcastSettings(); netBroadcastRoster(); }
-      else netCycleMyColor(1);
-    }});
+    if(NET.mySlot >= 0){
+      zone(cx - btnW/2, teamY, btnW * 0.45, teamH, { fn: () => {
+        if(NET.isHost){ cycleSlot(NET.mySlot, -1); netBroadcastSettings(); netBroadcastRoster(); }
+        else netCycleMyColor(-1);
+      }});
+      zone(cx + btnW * 0.05, teamY, btnW * 0.45, teamH, { fn: () => {
+        if(NET.isHost){ cycleSlot(NET.mySlot, 1); netBroadcastSettings(); netBroadcastRoster(); }
+        else netCycleMyColor(1);
+      }});
+    }
   }
 
   // Control Scheme row
@@ -4978,6 +5010,71 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
   g.lineWidth = 1.5; g.strokeStyle = isMeReady ? '#2ecc71' : 'rgba(255,255,255,0.3)'; g.stroke();
   ptxt(isMeReady ? 'READY ✓' : 'CLICK TO READY', cx, rdyY + rdyH/2 + 1, FN(11, 900), isMeReady ? '#ffffff' : '#ffd166');
   zone(cx - btnW/2, rdyY, btnW, rdyH, { fn: () => netToggleMyReady() });
+
+  // --- 4. HOST PLAYER MANAGEMENT MODAL ---
+  if(NET.isHost && NET.manageSlot !== null && NET.manageSlot !== undefined && NET.manageSlot > 0 && menu.slotColor[NET.manageSlot] >= 0){
+    const ms = NET.manageSlot;
+    const mpName = NET.slotsName[ms] || ('Guest ' + (ms+1));
+    const mpCol = getSlotColor(ms, menu.slotColor, menu.slotTeam);
+
+    // Dim background overlay
+    g.fillStyle = 'rgba(5, 8, 15, 0.75)';
+    g.fillRect(0, 0, CW, CH);
+    zone(0, 0, CW, CH, { fn: () => { NET.manageSlot = null; } });
+
+    const mW = Math.min(300, CW - 32);
+    const mH = settings.teams ? 210 : 170;
+    const mX = Math.floor(CW/2 - mW/2);
+    const mY = Math.floor(CH/2 - mH/2);
+
+    rr(g, mX - 2, mY - 2, mW + 4, mH + 4, 14);
+    g.fillStyle = '#ffffff'; g.fill(); g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
+    rr(g, mX, mY, mW, mH, 12);
+    g.fillStyle = 'rgba(20, 28, 44, 0.98)'; g.fill();
+    g.lineWidth = 2; g.strokeStyle = mpCol; g.stroke();
+
+    ptxt('MANAGE: ' + mpName + ' (P' + (ms+1) + ')', mX + mW/2, mY + 20, FT(12), '#ffd166');
+
+    let mBtnY = mY + 42;
+    const mbW = mW - 28;
+    const mbH = 28;
+    const mbGap = 8;
+
+    // Option 1: Swap Team (if teams mode)
+    if(settings.teams){
+      const curTeam = (menu.slotTeam && menu.slotTeam[ms] != null) ? menu.slotTeam[ms] : (ms % 2);
+      const nextTeamName = (curTeam === 0) ? '🔵 BLUE TEAM' : '🔴 RED TEAM';
+      rr(g, mX + 14, mBtnY, mbW, mbH, 6);
+      g.fillStyle = 'rgba(243, 156, 18, 0.25)'; g.fill();
+      g.lineWidth = 1.2; g.strokeStyle = '#f39c12'; g.stroke();
+      txt('⚔️ Swap to ' + nextTeamName, mX + mW/2, mBtnY + mbH/2 + 1, FN(10.5, 900), '#ffd166');
+      zone(mX + 14, mBtnY, mbW, mbH, { fn: () => { netSwapPlayerTeam(ms); } });
+      mBtnY += mbH + mbGap;
+    }
+
+    // Option 2: Move to Waiting List
+    rr(g, mX + 14, mBtnY, mbW, mbH, 6);
+    g.fillStyle = 'rgba(56, 189, 248, 0.25)'; g.fill();
+    g.lineWidth = 1.2; g.strokeStyle = '#38bdf8'; g.stroke();
+    txt('⏳ Move to Waiting List', mX + mW/2, mBtnY + mbH/2 + 1, FN(10.5, 900), '#38bdf8');
+    zone(mX + 14, mBtnY, mbW, mbH, { fn: () => { netMovePlayerToWaitlist(ms); NET.manageSlot = null; } });
+    mBtnY += mbH + mbGap;
+
+    // Option 3: Kick from Room
+    rr(g, mX + 14, mBtnY, mbW, mbH, 6);
+    g.fillStyle = 'rgba(231, 76, 60, 0.25)'; g.fill();
+    g.lineWidth = 1.2; g.strokeStyle = '#e74c3c'; g.stroke();
+    txt('🚫 Kick from Room', mX + mW/2, mBtnY + mbH/2 + 1, FN(10.5, 900), '#ff6b81');
+    zone(mX + 14, mBtnY, mbW, mbH, { fn: () => { netKickPlayer(ms); NET.manageSlot = null; } });
+    mBtnY += mbH + mbGap;
+
+    // Option 4: Close
+    rr(g, mX + 14, mBtnY, mbW, mbH, 6);
+    g.fillStyle = 'rgba(255, 255, 255, 0.12)'; g.fill();
+    g.lineWidth = 1; g.strokeStyle = 'rgba(255, 255, 255, 0.3)'; g.stroke();
+    txt('✕ Close', mX + mW/2, mBtnY + mbH/2 + 1, FN(10.5, 900), '#ffffff');
+    zone(mX + 14, mBtnY, mbW, mbH, { fn: () => { NET.manageSlot = null; } });
+  }
 }
 
 /* ================= IN-GAME TAB SCOREBOARD OVERLAY ================= */
@@ -5222,7 +5319,7 @@ function drawMenu(){
   // Center Stage Area
   const stageY = headerBottom;
   const stageH = (menu.tab === 'online')
-    ? (NET.role !== null ? Math.max(70, startBtnY - stageY - 8) : Math.max(70, CH - stageY - bottomMargin))
+    ? (NET.role !== null ? Math.max(70, stripY - stageY - (isShortH ? 4 : 6)) : Math.max(70, CH - stageY - bottomMargin))
     : Math.max(70, stripY - stageY - (isShortH ? 4 : 6));
 
   if(menu.tab === 'online'){
@@ -5528,7 +5625,7 @@ function drawMenu(){
   }});
   }
 
-  if(menu.tab !== 'online'){
+  if(menu.tab !== 'online' || (typeof NET !== 'undefined' && NET && NET.role !== null)){
   // 5. Settings Strip
   rr(g, stripX, stripY, stripW, stripH, 12);
   g.fillStyle = 'rgba(14, 18, 28, 0.94)'; g.fill();
@@ -5563,7 +5660,10 @@ function drawMenu(){
     rr(g, mapMidX, mapY, mapMidW, rowH1 - 6, 6);
     g.fillStyle = settings.randomMap ? 'rgba(255, 209, 102, 0.25)' : 'rgba(255,255,255,0.18)'; g.fill();
     txt(mapLabelText, mapMidX + mapMidW/2, mapY + (rowH1 - 6)/2 + 1, FN(11.5, 900), settings.randomMap ? '#ffd166' : '#ffffff');
-    zone(mapMidX, mapY, mapMidW, rowH1 - 6, { fn: () => { menu.mapModal = true; sfx('ok'); } });
+    zone(mapMidX, mapY, mapMidW, rowH1 - 6, { fn: () => {
+      if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST SELECTS THE ARENA'); sfx('back'); return; }
+      menu.mapModal = true; sfx('ok');
+    } });
 
     // Row 2: Chips (2x Jump, 120s Timer, and NEW GAMEMODE: Teams)
     const chipsY = stripY + rowH1 + 1;
@@ -5574,14 +5674,20 @@ function drawMenu(){
     rr(g, stripX + 6, chipsY, chipW, chipH, 6);
     g.fillStyle = settings.doubleJump ? '#2ed573' : 'rgba(255,255,255,0.12)'; g.fill();
     txt('2x JUMP', stripX + 6 + chipW/2, chipsY + chipH/2 + 1, FN(10.5, 900), settings.doubleJump ? '#ffffff' : '#94a3b8');
-    zone(stripX + 6, chipsY, chipW, chipH, { fn: () => { settings.doubleJump = !settings.doubleJump; sfx('ui'); } });
+    zone(stripX + 6, chipsY, chipW, chipH, { fn: () => {
+      if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST CONTROLS ROOM MODIFIERS'); sfx('back'); return; }
+      settings.doubleJump = !settings.doubleJump; sfx('ui');
+      if(typeof NET !== 'undefined' && NET && NET.isHost) netBroadcastSettings();
+    } });
 
     // Chip 2: Timer
     rr(g, stripX + 12 + chipW, chipsY, chipW, chipH, 6);
     g.fillStyle = 'rgba(255,255,255,0.12)'; g.fill();
     txt('⏱️ ' + settings.time + 's', stripX + 12 + chipW * 1.5, chipsY + chipH/2 + 1, FN(10.5, 900), '#ffd166');
     zone(stripX + 12 + chipW, chipsY, chipW, chipH, { fn: () => {
+      if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST CONTROLS ROOM TIMER'); sfx('back'); return; }
       settings.timeIdx = (settings.timeIdx + 1) % TIMES.length; sfx('ui');
+      if(typeof NET !== 'undefined' && NET && NET.isHost) netBroadcastSettings();
     }});
 
     // Chip 3: NEW GAMEMODE: Teams
@@ -5634,8 +5740,10 @@ function drawMenu(){
     const mapMidX = stripX + 6 + arrowW + 4;
     rr(g, mapMidX, itemY, mapMidW, itemH, 6);
     g.fillStyle = settings.randomMap ? 'rgba(255, 209, 102, 0.25)' : 'rgba(255,255,255,0.18)'; g.fill();
-    txt(mapLabelText, mapMidX + mapMidW/2, itemY + itemH/2 + 1, FN(clamp(mapBoxW * 0.040, 11, 13), 900), settings.randomMap ? '#ffd166' : '#ffffff');
-    zone(mapMidX, itemY, mapMidW, itemH, { fn: () => { menu.mapModal = true; sfx('ok'); } });
+    zone(mapMidX, itemY, mapMidW, itemH, { fn: () => {
+      if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST SELECTS THE ARENA'); sfx('back'); return; }
+      menu.mapModal = true; sfx('ok');
+    } });
 
     // Right side: 3 Modifier Chips
     const chipsX = stripX + 6 + mapBoxW + 12;
@@ -5646,14 +5754,20 @@ function drawMenu(){
     rr(g, chipsX, itemY, chipW, itemH, 6);
     g.fillStyle = settings.doubleJump ? '#2ed573' : 'rgba(255,255,255,0.12)'; g.fill();
     txt('2x JUMP', chipsX + chipW/2, itemY + itemH/2 + 1, FN(11.5, 900), settings.doubleJump ? '#ffffff' : '#94a3b8');
-    zone(chipsX, itemY, chipW, itemH, { fn: () => { settings.doubleJump = !settings.doubleJump; sfx('ui'); } });
+    zone(chipsX, itemY, chipW, itemH, { fn: () => {
+      if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST CONTROLS ROOM MODIFIERS'); sfx('back'); return; }
+      settings.doubleJump = !settings.doubleJump; sfx('ui');
+      if(typeof NET !== 'undefined' && NET && NET.isHost) netBroadcastSettings();
+    } });
 
     // Chip 2: Timer
     rr(g, chipsX + chipW + 6, itemY, chipW, itemH, 6);
     g.fillStyle = 'rgba(255,255,255,0.12)'; g.fill();
     txt('⏱️ ' + settings.time + 's', chipsX + chipW + 6 + chipW/2, itemY + itemH/2 + 1, FN(11.5, 900), '#ffd166');
     zone(chipsX + chipW + 6, itemY, chipW, itemH, { fn: () => {
+      if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST CONTROLS ROOM TIMER'); sfx('back'); return; }
       settings.timeIdx = (settings.timeIdx + 1) % TIMES.length; sfx('ui');
+      if(typeof NET !== 'undefined' && NET && NET.isHost) netBroadcastSettings();
     }});
 
     // Chip 3: NEW GAMEMODE: Teams
@@ -8593,6 +8707,52 @@ function netAdmitSpectator(peerId){
   netBroadcastRoster();
   netUpdateHostDirectory();
   netToast((spec.name || 'Spectator') + ' admitted as P' + (slot+1));
+}
+
+function netMovePlayerToWaitlist(slot){
+  if(!NET.isHost || slot <= 0 || slot >= 8) return;
+  if(menu.slotColor[slot] < 0) return;
+
+  let targetPeer = null;
+  for(const [pid, s] of NET.peerSlots.entries()){
+    if(s === slot){ targetPeer = pid; break; }
+  }
+  if(!targetPeer) return;
+
+  const pName = NET.slotsName[slot] || ('Guest ' + (slot+1));
+  if(!NET.spectators) NET.spectators = [];
+  if(!NET.spectators.some(sp => sp.peerId === targetPeer)){
+    NET.spectators.push({ peerId: targetPeer, name: pName });
+  }
+
+  NET.hostInputs.delete(slot);
+  menu.slotColor[slot] = -1;
+  NET.slotsReady[slot] = false;
+  NET.slotsName[slot] = '';
+  NET.peerSlots.delete(targetPeer);
+  if(typeof _remoteTargets !== 'undefined') _remoteTargets.delete(slot);
+
+  const pair = NET.conns.get(targetPeer);
+  if(pair){
+    netSendRel(pair, {
+      t: 'spectator_init',
+      settings: {
+        map: settings.map,
+        doubleJump: settings.doubleJump,
+        collision: settings.collision,
+        teams: settings.teams,
+        slotColor: menu.slotColor.slice(0, 8),
+        slotTeam: menu.slotTeam.slice(0, 8),
+        ready: NET.slotsReady.slice(0, 8),
+        names: NET.slotsName.slice(0, 8)
+      }
+    });
+  }
+  sfx('ui');
+  netBroadcastSettings();
+  netBroadcastRoster();
+  netUpdateHostDirectory();
+  netToast(pName + ' moved to waitlist');
 }
 
 function netSwapPlayerTeam(slot){
