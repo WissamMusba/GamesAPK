@@ -6827,11 +6827,9 @@ const _remoteTargets = new Map(); // slot -> target state
 function netUpdateRemoteTarget(slot, data, pCurrent){
   if(slot == null || slot < 0) return;
   let tgt = _remoteTargets.get(slot);
-  const nowMs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
   if(!tgt){
     tgt = {
       targetX: data.x, targetY: data.y, targetVx: data.vx, targetVy: data.vy,
-      prevX: data.x, prevY: data.y, prevT: nowMs, currT: nowMs,
       errX: 0, errY: 0,
       face: data.face || 1, sx: data.sx || 1, sy: data.sy || 1,
       grounded: !!data.grounded, airJumps: data.airJumps || 0,
@@ -6845,17 +6843,15 @@ function netUpdateRemoteTarget(slot, data, pCurrent){
     if(data.seq != null && data.seq > 0) tgt.seq = data.seq;
 
     // Calculate error between where player visually was and new target
-    let snapNow = false;
     if(pCurrent){
       const rawDx = pCurrent.x - data.x;
       const rawDy = pCurrent.y - data.y;
-      // If warp / teleport > 350px, snap instantly without error bleed (raised: 240px snapped on normal 150-250ms spikes)
-      if(rawDx * rawDx + rawDy * rawDy > 122500){
+      // If warp / teleport > 240px, snap instantly without error bleed
+      if(rawDx * rawDx + rawDy * rawDy > 57600){
         pCurrent.x = data.x;
         pCurrent.y = data.y;
         tgt.errX = 0;
         tgt.errY = 0;
-        snapNow = true;
       } else {
         tgt.errX = rawDx;
         tgt.errY = data.grounded ? 0 : rawDy;
@@ -6865,16 +6861,6 @@ function netUpdateRemoteTarget(slot, data, pCurrent){
       tgt.errY = 0;
     }
 
-    // Shift interp history: prev <- last authoritative, then store new.
-    // If this packet warped (snap above), history restarts here — otherwise
-    // the next 100ms would lerp back toward the stale pre-teleport position.
-    if(snapNow){ tgt.prevX = data.x; tgt.prevY = data.y; tgt.prevT = nowMs; }
-    else{
-      tgt.prevX = tgt.targetX;
-      tgt.prevY = tgt.targetY;
-      tgt.prevT = (tgt.currT != null ? tgt.currT : nowMs);
-    }
-    tgt.currT = nowMs;
     tgt.targetX = data.x;
     tgt.targetY = data.y;
     tgt.targetVx = data.vx;
@@ -6891,38 +6877,29 @@ function netUpdateRemoteTarget(slot, data, pCurrent){
   }
 }
 
-const NET_INTERP_DELAY_MS = 35; // render remotes ~35ms in the past: smooth 60Hz into 60fps
 function netApplyRemoteTarget(p, dt){
   const tgt = _remoteTargets.get(p.slot);
   if(!tgt) return;
 
-  // Interpolated base: lerp between last two snapshots at (now - delay); extrapolate
-  // briefly past newest only (capped 250ms) instead of advancing the target every frame.
-  const nowMs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
-  const pt = (tgt.prevT != null ? tgt.prevT : nowMs), ct = (tgt.currT != null ? tgt.currT : nowMs);
-  let rx = tgt.targetX, ry = tgt.targetY;
-  if(ct > pt){
-    let a = (nowMs - NET_INTERP_DELAY_MS - pt) / Math.max(1, ct - pt);
-    a = a < 0 ? 0 : (a > 1 ? 1 : a);
-    const overMs = nowMs - NET_INTERP_DELAY_MS - ct;
-    const ex = overMs > 0 ? Math.min(250, overMs) / 1000 : 0; // gap extrapolation, capped
-    rx = tgt.prevX + (tgt.targetX - tgt.prevX) * a + tgt.targetVx * ex;
-    ry = tgt.prevY + (tgt.targetY - tgt.prevY) * a + (!tgt.grounded ? tgt.targetVy * ex : 0);
+  // Advance authoritative target along velocity vector between packets
+  tgt.targetX += tgt.targetVx * dt;
+  if(!tgt.grounded){
+    tgt.targetY += tgt.targetVy * dt;
   }
 
-  // Soft exponential decay of error offset (half-life ~77ms: smooth, no yank)
-  const decay = Math.exp(-dt * 9);
+  // Smooth exponential decay of error offset (half-life ~40ms: eliminates all micro-stutters and backward snapping)
+  const decay = Math.exp(-dt * 18);
   tgt.errX *= decay;
   tgt.errY *= decay;
 
-  // Visual position combines interpolated base + smoothly decaying error offset
-  p.x = rx + tgt.errX;
+  // Visual position combines extrapolated target + smoothly decaying error offset
+  p.x = tgt.targetX + tgt.errX;
   if(tgt.grounded){
-    p.y = ry;
+    p.y = tgt.targetY;
     p.grounded = true;
     p.vy = 0;
   } else {
-    p.y = ry + tgt.errY;
+    p.y = tgt.targetY + tgt.errY;
     p.grounded = false;
     p.vy = tgt.targetVy;
   }
