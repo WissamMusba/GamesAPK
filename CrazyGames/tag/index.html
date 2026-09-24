@@ -5479,178 +5479,206 @@ function drawMenu(){
     }
   }
 
-  // 4b. Online Multiplayer Coming Soon Sticker (Right Side of Screen)
-  const isWideScreen = (CW >= 880);
-  const isMediumScreen = (CW >= 680 && CW < 880);
-  let stickW, stickH, stickX, stickY;
-  if(isWideScreen){
-    stickW = 186; stickH = 88;
-    stickX = CW - stickW - 20;
-    stickY = headY + headH + 18;
-  } else if(isMediumScreen){
-    stickW = 152; stickH = 76;
-    stickX = CW - stickW - 14;
-    stickY = headY + headH + 12;
-  } else {
-    stickW = clamp(CW * 0.40, 130, 160);
-    stickH = clamp(CH * 0.13, 58, 72);
-    stickX = CW - stickW - 10;
-    stickY = headY + headH + 6;
+  const isMobilePhone = (typeof isTouch !== 'undefined' && isTouch) || (CW < 780);
+
+  // 4b. Online Multiplayer Coming Soon Sticker (Right Side of Screen) - Desktop / Laptop only
+  if(!isMobilePhone){
+    const isWideScreen = (CW >= 880);
+    const isMediumScreen = (CW >= 680 && CW < 880);
+    let stickW, stickH, stickX, stickY;
+    if(isWideScreen){
+      stickW = 186; stickH = 88;
+      stickX = CW - stickW - 20;
+      stickY = headY + headH + 18;
+    } else {
+      stickW = 152; stickH = 76;
+      stickX = CW - stickW - 14;
+      stickY = headY + headH + 12;
+    }
+
+    g.save();
+    const scx = stickX + stickW / 2;
+    const scy = stickY + stickH / 2;
+    g.translate(scx, scy);
+    g.rotate(-0.06); // ~-3.5 degrees sticker tilt
+    g.translate(-stickW / 2, -stickH / 2);
+
+    // Soft drop shadow
+    rr(g, 3, 5, stickW, stickH, 12);
+    g.fillStyle = 'rgba(0, 0, 0, 0.45)'; g.fill();
+
+    // Die-cut white vinyl border
+    rr(g, -3, -3, stickW + 6, stickH + 6, 14);
+    g.fillStyle = '#ffffff'; g.fill();
+    g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
+
+    // Sticker inner body
+    rr(g, 0, 0, stickW, stickH, 11);
+    g.fillStyle = '#161329'; g.fill();
+
+    // Glowing border pulse
+    const stickerPulse = 0.55 + 0.35 * Math.sin(tGlobal * 5);
+    g.lineWidth = 2;
+    g.strokeStyle = 'rgba(46, 204, 113, ' + stickerPulse + ')';
+    g.stroke();
+
+    // 1. "ONLINE PLAY" in BIG LETTERS
+    const bigFs = clamp(stickH * 0.28, 14, 19);
+    ptxt('🌐 ONLINE PLAY', stickW / 2, stickH * 0.28, FT(bigFs), '#ffd166');
+
+    // 2. "Public & Private Rooms" in small
+    const smallFs = clamp(stickH * 0.16, 9.5, 12);
+    txt('⚡ Public & Private Rooms', stickW / 2, stickH * 0.54, FN(smallFs, 800), '#e2e8f0');
+
+    // 3. Note: "▶ CLICK TO PLAY!"
+    const notePillW = stickW - 16;
+    const notePillH = Math.floor(stickH * 0.25);
+    const notePillY = stickH - notePillH - 6;
+    pill(8, notePillY, notePillW, notePillH, 'rgba(46, 204, 113, 0.20)', 'rgba(46, 204, 113, 0.6)');
+    txt('▶ CLICK TO PLAY!', stickW / 2, notePillY + notePillH / 2 + 1, FN(clamp(notePillH * 0.52, 8.5, 10.5), 900), '#2ecc71');
+    g.restore();
+
+    // Click zone for the sticker to open Online Hub
+    zone(stickX - 6, stickY - 6, stickW + 12, stickH + 12, { fn: () => { setMenuTab('online'); sfx('ok'); } });
   }
 
-  g.save();
-  const scx = stickX + stickW / 2;
-  const scy = stickY + stickH / 2;
-  g.translate(scx, scy);
-  g.rotate(-0.06); // ~-3.5 degrees sticker tilt
-  g.translate(-stickW / 2, -stickH / 2);
+  // 4c. SOLO v BOT BETA Sticker
+  // On mobile: Moved to the RIGHT side and scaled down small & sleek so it doesn't crowd P1 or the screen!
+  // On desktop/laptop: Left side animated sticker
+  if(menu.tab !== 'solo'){
+    let soloW, soloH, soloX, soloY, soloTilt;
+    if(isMobilePhone){
+      soloW = clamp(CW * 0.24, 114, 138);
+      soloH = clamp(CH * 0.14, 48, 62);
+      soloX = CW - soloW - 8;
+      soloY = headY + headH + 6;
+      soloTilt = -0.05; // tilt slightly towards center on right side
+    } else if(CW >= 880){
+      soloW = 240; soloH = 118;
+      soloX = 20;
+      soloY = headY + headH + 14;
+      soloTilt = 0.055;
+    } else {
+      soloW = 196; soloH = 100;
+      soloX = 14;
+      soloY = headY + headH + 10;
+      soloTilt = 0.055;
+    }
 
-  // Soft drop shadow
-  rr(g, 3, 5, stickW, stickH, 12);
-  g.fillStyle = 'rgba(0, 0, 0, 0.45)'; g.fill();
+    g.save();
+    const solocx = soloX + soloW / 2;
+    const solocy = soloY + soloH / 2;
+    g.translate(solocx, solocy);
+    g.rotate(soloTilt);
+    g.translate(-soloW / 2, -soloH / 2);
 
-  // Die-cut white vinyl border
-  rr(g, -3, -3, stickW + 6, stickH + 6, 14);
-  g.fillStyle = '#ffffff'; g.fill();
-  g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
+    // Soft drop shadow
+    rr(g, 3, 4, soloW, soloH, isMobilePhone ? 10 : 14);
+    g.fillStyle = 'rgba(0, 0, 0, 0.45)'; g.fill();
 
-  // Sticker inner body
-  rr(g, 0, 0, stickW, stickH, 11);
-  g.fillStyle = '#161329'; g.fill();
+    // Die-cut white vinyl border
+    rr(g, -2.5, -2.5, soloW + 5, soloH + 5, isMobilePhone ? 12 : 16);
+    g.fillStyle = '#ffffff'; g.fill();
+    g.lineWidth = isMobilePhone ? 2 : 2.5; g.strokeStyle = INK; g.stroke();
 
-  // Glowing border pulse
-  const stickerPulse = 0.55 + 0.35 * Math.sin(tGlobal * 5);
-  g.lineWidth = 2;
-  g.strokeStyle = 'rgba(46, 204, 113, ' + stickerPulse + ')';
-  g.stroke();
+    // Inner card body (deep arcade violet/indigo)
+    rr(g, 0, 0, soloW, soloH, isMobilePhone ? 9 : 13);
+    g.fillStyle = '#1c1335'; g.fill();
 
-  // 1. "ONLINE PLAY" in BIG LETTERS
-  const bigFs = clamp(stickH * 0.28, 14, 19);
-  ptxt('🌐 ONLINE PLAY', stickW / 2, stickH * 0.28, FT(bigFs), '#ffd166');
+    // Animated warm glowing pulse
+    const soloPulse = 0.55 + 0.35 * Math.sin(tGlobal * 6);
+    g.lineWidth = isMobilePhone ? 1.5 : 2;
+    g.strokeStyle = 'rgba(255, 107, 129, ' + soloPulse + ')';
+    g.stroke();
 
-  // 2. "Public & Private Rooms" in small
-  const smallFs = clamp(stickH * 0.16, 9.5, 12);
-  txt('⚡ Public & Private Rooms', stickW / 2, stickH * 0.54, FN(smallFs, 800), '#e2e8f0');
+    // Live expression & slight movement cycle every 3s
+    const cycleT = (tGlobal % 3.0);
+    let charFace = 'cool';
+    let charHopY = 0;
+    let charTilt = 0;
+    let charBlink = false;
 
-  // 3. Note: "▶ CLICK TO PLAY!"
-  const notePillW = stickW - 16;
-  const notePillH = Math.floor(stickH * 0.25);
-  const notePillY = stickH - notePillH - 6;
-  pill(8, notePillY, notePillW, notePillH, 'rgba(46, 204, 113, 0.20)', 'rgba(46, 204, 113, 0.6)');
-  txt('▶ CLICK TO PLAY!', stickW / 2, notePillY + notePillH / 2 + 1, FN(clamp(notePillH * 0.52, 8.5, 10.5), 900), '#2ecc71');
-  g.restore();
+    if(cycleT < 0.45){
+      charFace = 'happy';
+      charHopY = -Math.sin(cycleT / 0.45 * Math.PI) * (isMobilePhone ? 5 : 9);
+      charTilt = Math.sin(cycleT / 0.45 * Math.PI * 2) * 0.14;
+    } else if(cycleT >= 1.5 && cycleT < 1.7){
+      charBlink = true;
+      charFace = 'idle';
+    } else if(cycleT >= 2.1 && cycleT < 2.55){
+      charFace = 'run';
+      charTilt = Math.sin((cycleT - 2.1) / 0.45 * Math.PI) * 0.10;
+    }
 
-  // Click zone for the sticker to open Online Hub
-  zone(stickX - 6, stickY - 6, stickW + 12, stickH + 12, { fn: () => { setMenuTab('online'); sfx('ok'); } });
+    if(isMobilePhone){
+      // Compact, sleek mobile layout on the right side
+      const charSz = clamp(soloH * 0.38, 17, 23);
+      const charX = 14;
+      const charY = Math.floor(soloH * 0.32 + charHopY);
+      drawChar(g, charX, charY, charSz, '#ff4757', {
+        face: charFace,
+        tilt: charTilt,
+        blink: charBlink,
+        moving: (charHopY !== 0),
+        grounded: (charHopY === 0),
+        seed: 7
+      });
 
-  // 4c. SOLO v BOT BETA Sticker (Left Side of Screen - BIGGER & ANIMATED PLAYER!)
-  // "The player charecter give it some expression(live and slight movements like every 3 secs) and make the sticker bigger"
-  let soloW, soloH, soloX, soloY;
-  if(isWideScreen){
-    soloW = 240; soloH = 118;
-    soloX = 20;
-    soloY = headY + headH + 14;
-  } else if(isMediumScreen){
-    soloW = 196; soloH = 100;
-    soloX = 14;
-    soloY = headY + headH + 10;
-  } else {
-    soloW = clamp(CW * 0.48, 155, 195);
-    soloH = clamp(CH * 0.17, 74, 94);
-    soloX = 10;
-    soloY = headY + headH + 6;
+      const soloTxtX = charX + charSz + 5;
+      txt('🤖 1P SOLO', soloTxtX, soloH * 0.22, FT(clamp(soloH * 0.18, 9, 11.5)), '#ffd166', 'left');
+
+      const betaW = soloW - soloTxtX - 7;
+      const betaH = Math.floor(soloH * 0.20);
+      pill(soloTxtX, soloH * 0.37, betaW, betaH, 'rgba(255, 71, 87, 0.22)', '#ff4757');
+      txt('⚡ BETA', soloTxtX + betaW / 2, soloH * 0.37 + betaH / 2 + 1, FN(clamp(betaH * 0.55, 7.5, 9), 900), '#ff6b81');
+
+      const tryBtnW = soloW - 14;
+      const tryBtnH = Math.floor(soloH * 0.26);
+      const tryBtnY = soloH - tryBtnH - 5;
+      rr(g, 7, tryBtnY, tryBtnW, tryBtnH, 6);
+      g.fillStyle = '#2ed573'; g.fill();
+      g.lineWidth = 1.2; g.strokeStyle = '#ffffff'; g.stroke();
+      txt('▶ TRY NOW !', soloW / 2, tryBtnY + tryBtnH / 2 + 1, FT(clamp(tryBtnH * 0.58, 8.5, 11)), '#ffffff');
+    } else {
+      // Full Desktop / Laptop layout on the left side
+      const charSz = clamp(soloH * 0.38, 32, 44);
+      const charX = 22;
+      const charY = Math.floor(soloH * 0.34 + charHopY);
+      drawChar(g, charX, charY, charSz, '#ff4757', {
+        face: charFace,
+        tilt: charTilt,
+        blink: charBlink,
+        moving: (charHopY !== 0),
+        grounded: (charHopY === 0),
+        seed: 7
+      });
+
+      const soloTxtX = charX + charSz + 10;
+      txt('🤖 1P SOLO v BOT', soloTxtX, soloH * 0.22, FT(clamp(soloH * 0.155, 12, 16)), '#ffd166', 'left');
+
+      const betaW = soloW - soloTxtX - 12;
+      const betaH = Math.floor(soloH * 0.21);
+      pill(soloTxtX, soloH * 0.38, betaW, betaH, 'rgba(255, 71, 87, 0.22)', '#ff4757');
+      txt('⚡ BETA TESTING', soloTxtX + betaW / 2, soloH * 0.38 + betaH / 2 + 1, FN(clamp(betaH * 0.52, 9, 11), 900), '#ff6b81');
+
+      const tryBtnW = soloW - 22;
+      const tryBtnH = Math.floor(soloH * 0.26);
+      const tryBtnY = soloH - tryBtnH - 8;
+      rr(g, 11, tryBtnY, tryBtnW, tryBtnH, 8);
+      g.fillStyle = '#2ed573'; g.fill();
+      g.lineWidth = 1.5; g.strokeStyle = '#ffffff'; g.stroke();
+      txt('▶ TRY NOW !', soloW / 2, tryBtnY + tryBtnH / 2 + 1, FT(clamp(tryBtnH * 0.56, 12, 15)), '#ffffff');
+    }
+
+    g.restore();
+
+    // Click zone for SOLO v BOT sticker
+    zone(soloX - 6, soloY - 6, soloW + 12, soloH + 12, { fn: () => {
+      setMenuTab('solo');
+      toast('🤖 1P SOLO vs BOT ACTIVE');
+      sfx('go');
+    }});
   }
-
-  g.save();
-  const solocx = soloX + soloW / 2;
-  const solocy = soloY + soloH / 2;
-  g.translate(solocx, solocy);
-  g.rotate(0.055); // ~+3.2 degrees counter-tilt towards center
-  g.translate(-soloW / 2, -soloH / 2);
-
-  // Soft drop shadow
-  rr(g, 3, 5, soloW, soloH, 14);
-  g.fillStyle = 'rgba(0, 0, 0, 0.45)'; g.fill();
-
-  // Die-cut white vinyl border
-  rr(g, -3, -3, soloW + 6, soloH + 6, 16);
-  g.fillStyle = '#ffffff'; g.fill();
-  g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
-
-  // Inner card body (deep arcade violet/indigo)
-  rr(g, 0, 0, soloW, soloH, 13);
-  g.fillStyle = '#1c1335'; g.fill();
-
-  // Animated warm glowing pulse
-  const soloPulse = 0.55 + 0.35 * Math.sin(tGlobal * 6);
-  g.lineWidth = 2;
-  g.strokeStyle = 'rgba(255, 107, 129, ' + soloPulse + ')';
-  g.stroke();
-
-  // Live expression & slight movement cycle every 3s
-  const cycleT = (tGlobal % 3.0);
-  let charFace = 'cool';
-  let charHopY = 0;
-  let charTilt = 0;
-  let charBlink = false;
-
-  if(cycleT < 0.45){
-    // Cheerful hop & happy face!
-    charFace = 'happy';
-    charHopY = -Math.sin(cycleT / 0.45 * Math.PI) * 9;
-    charTilt = Math.sin(cycleT / 0.45 * Math.PI * 2) * 0.14;
-  } else if(cycleT >= 1.5 && cycleT < 1.7){
-    // Natural blink
-    charBlink = true;
-    charFace = 'idle';
-  } else if(cycleT >= 2.1 && cycleT < 2.55){
-    // Curious energetic lean
-    charFace = 'run';
-    charTilt = Math.sin((cycleT - 2.1) / 0.45 * Math.PI) * 0.10;
-  }
-
-  // Draw cute animated player character on the left side of the sticker!
-  const charSz = clamp(soloH * 0.38, 32, 44);
-  const charX = 22;
-  const charY = Math.floor(soloH * 0.34 + charHopY);
-  drawChar(g, charX, charY, charSz, '#ff4757', {
-    face: charFace,
-    tilt: charTilt,
-    blink: charBlink,
-    moving: (charHopY !== 0),
-    grounded: (charHopY === 0),
-    seed: 7
-  });
-
-  // Sticker text (right side of character)
-  const soloTxtX = charX + charSz + 10;
-
-  // Title: SOLO v BOT
-  txt('🤖 1P SOLO v BOT', soloTxtX, soloH * 0.22, FT(clamp(soloH * 0.155, 12, 16)), '#ffd166', 'left');
-
-  // Sub-badge: BETA TESTING
-  const betaW = soloW - soloTxtX - 12;
-  const betaH = Math.floor(soloH * 0.21);
-  pill(soloTxtX, soloH * 0.38, betaW, betaH, 'rgba(255, 71, 87, 0.22)', '#ff4757');
-  txt('⚡ BETA TESTING', soloTxtX + betaW / 2, soloH * 0.38 + betaH / 2 + 1, FN(clamp(betaH * 0.52, 9, 11), 900), '#ff6b81');
-
-  // Big Callout Button: TRY NOW!
-  const tryBtnW = soloW - 22;
-  const tryBtnH = Math.floor(soloH * 0.26);
-  const tryBtnY = soloH - tryBtnH - 8;
-  rr(g, 11, tryBtnY, tryBtnW, tryBtnH, 8);
-  g.fillStyle = '#2ed573'; g.fill();
-  g.lineWidth = 1.5; g.strokeStyle = '#ffffff'; g.stroke();
-  txt('▶ TRY NOW !', soloW / 2, tryBtnY + tryBtnH / 2 + 1, FT(clamp(tryBtnH * 0.56, 12, 15)), '#ffffff');
-
-  g.restore();
-
-  // Click zone for SOLO v BOT sticker
-  zone(soloX - 6, soloY - 6, soloW + 12, soloH + 12, { fn: () => {
-    setMenuTab('solo');
-    toast('🤖 1P SOLO vs BOT ACTIVE');
-    sfx('go');
-  }});
   }
 
   if(menu.tab !== 'online' || (typeof NET !== 'undefined' && NET && NET.role !== null)){
