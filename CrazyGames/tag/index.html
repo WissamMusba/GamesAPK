@@ -5323,24 +5323,24 @@ function drawMenu(){
   g.strokeStyle = 'rgba(46, 204, 113, ' + stickerPulse + ')';
   g.stroke();
 
-  // 1. "COMING SOON" in BIG LETTERS
+  // 1. "ONLINE PLAY" in BIG LETTERS
   const bigFs = clamp(stickH * 0.28, 14, 19);
-  ptxt('🚀 COMING SOON', stickW / 2, stickH * 0.28, FT(bigFs), '#ffd166');
+  ptxt('🌐 ONLINE PLAY', stickW / 2, stickH * 0.28, FT(bigFs), '#ffd166');
 
-  // 2. "online multiplayer" in small
+  // 2. "Public & Private Rooms" in small
   const smallFs = clamp(stickH * 0.16, 9.5, 12);
-  txt('🌐 Online Multiplayer', stickW / 2, stickH * 0.54, FN(smallFs, 800), '#e2e8f0');
+  txt('⚡ Public & Private Rooms', stickW / 2, stickH * 0.54, FN(smallFs, 800), '#e2e8f0');
 
-  // 3. Note: "Target: ~Sept 31 (Tentative)"
+  // 3. Note: "▶ CLICK TO PLAY!"
   const notePillW = stickW - 16;
   const notePillH = Math.floor(stickH * 0.25);
   const notePillY = stickH - notePillH - 6;
   pill(8, notePillY, notePillW, notePillH, 'rgba(46, 204, 113, 0.20)', 'rgba(46, 204, 113, 0.6)');
-  txt('📅 Target: ~Sept 31 (Tentative)', stickW / 2, notePillY + notePillH / 2 + 1, FN(clamp(notePillH * 0.52, 8.5, 10.5), 900), '#2ecc71');
+  txt('▶ CLICK TO PLAY!', stickW / 2, notePillY + notePillH / 2 + 1, FN(clamp(notePillH * 0.52, 8.5, 10.5), 900), '#2ecc71');
   g.restore();
 
-  // Click zone for the sticker to open more info modal
-  zone(stickX - 6, stickY - 6, stickW + 12, stickH + 12, { fn: () => { menu.onlineModal = true; sfx('ok'); } });
+  // Click zone for the sticker to open Online Hub
+  zone(stickX - 6, stickY - 6, stickW + 12, stickH + 12, { fn: () => { setMenuTab('online'); sfx('ok'); } });
 
   // 4c. SOLO v BOT BETA Sticker (Left Side of Screen - BIGGER & ANIMATED PLAYER!)
   // "The player charecter give it some expression(live and slight movements like every 3 secs) and make the sticker bigger"
@@ -7391,21 +7391,7 @@ function netLink(room){
   if(p.endsWith('/')){ /* keep */ }
   else if(/\/[^\/]+\.[a-z]+$/i.test(p)) p = p.replace(/\/[^\/]*$/, '/');
   else p = p + '/';
-  let link = location.origin + p + '?room=' + room.toUpperCase();
-  /* Carry the host peer suffix so guests can discover randomized host IDs */
-  try{
-    if(typeof NET!=='undefined'&&NET&&NET.room&&String(room||'').toUpperCase()===String(NET.room||'').toUpperCase()&&NET._hostSuffix){
-      link += '&h=' + encodeURIComponent(NET._hostSuffix);
-    }
-  }catch(e){}
-  /* Carry the signaling server so guests probe the same room directory (no split-brain) */
-  try{
-    if(typeof NET!=='undefined'&&NET&&NET._srv&&NET._srv.host&&String(room||'').toUpperCase()===String(NET.room||'').toUpperCase()){
-      const defH = (typeof PEER_SERVER_CONFIG !== 'undefined' ? PEER_SERVER_CONFIG.host : '') || '';
-      if(NET._srv.host !== defH) link += '&srv=' + encodeURIComponent(NET._srv.host);
-    }
-  }catch(e){}
-  return link;
+  return location.origin + p + '?room=' + room.toUpperCase();
 }
 
 /* Copy the portal invite link when available, else the ?room= fallback link */
@@ -7614,14 +7600,13 @@ function netConnectPeer(room, isHost, forceFallback = false){
     NET.peer = null;
   }
   const cleanRoom = room.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 6);
-  let hostSuffix = '';
   try{ if(typeof NET!=='undefined'&&NET) NET._joinHostId = NET._joinHostId || ''; }catch(e){}
   const id = isHost
-    ? ('tag-' + cleanRoom + '-host-' + (hostSuffix = netMakeSuffix(4)))
+    ? ('tag-' + cleanRoom + '-host')
     : ('tag-' + cleanRoom + '-g' + Math.floor(Math.random() * 1e6));
   try{
     if(typeof NET!=='undefined'&&NET){
-      if(isHost){ NET._hostSuffix = hostSuffix; NET._hostId = id; }
+      if(isHost){ NET._hostId = id; }
       else if(!NET._hostId){ NET._hostId = ''; }
     }
   }catch(e){}
@@ -7698,53 +7683,29 @@ function netConnectPeer(room, isHost, forceFallback = false){
       netToast('Hosting room ' + room.toUpperCase() + '! Link copied.');
       setTimeout(() => { netBroadcastSettings(); netBroadcastRoster(); }, 400);
     } else {
-      const legacyHostId = 'tag-' + cleanRoom + '-host';
-      const connectToHost = (hostId) => {
+      const hostId = NET._joinHostId || ('tag-' + cleanRoom + '-host');
+      NET._hostId = hostId;
+      NET.peerSlots.set(hostId, 0);
+      const connRel = NET.peer.connect(hostId, { reliable: true, label: 'rel' });
+      netWireConn(connRel, false);
+      const connFast = NET.peer.connect(hostId, { reliable: false, ordered: false, maxRetransmits: 0, label: 'fast' });
+      netWireConn(connFast, false);
+      NET._guestTimeout = setTimeout(() => {
         try{
-          if(!NET || NET.role !== 'guest' || !NET.peer || NET.peer.destroyed) return;
-          if(!hostId) hostId = legacyHostId;
-          NET._hostId = hostId;
-          NET.peerSlots.set(hostId, 0);
-          const connRel = NET.peer.connect(hostId, { reliable: true, label: 'rel' });
-          netWireConn(connRel, false);
-          const connFast = NET.peer.connect(hostId, { reliable: false, ordered: false, maxRetransmits: 0, label: 'fast' });
-          netWireConn(connFast, false);
-        }catch(e){}
-        NET._guestTimeout = setTimeout(() => {
+          if(!NET || NET.role !== 'guest') return;
+          let ok = false;
           try{
-            if(!NET || NET.role !== 'guest') return;
-            let ok = false;
-            try{
-              const pair = NET.conns.get(NET._hostId || hostId);
-              const open = pair && ((pair.rel && pair.rel.open) || (pair.fast && pair.fast.open));
-              if(open && (NET.mySlot >= 0 || NET.isSpectator)) ok = true;
-            }catch(e){}
-            if(!ok){
-              try{ if(typeof CG!=='undefined'&&CG&&typeof CG.leftRoom==='function')CG.leftRoom(); }catch(e){}
-              netLeaveRoom('Room unavailable');
-            }
+            const pair = NET.conns.get(NET._hostId || hostId);
+            const open = pair && ((pair.rel && pair.rel.open) || (pair.fast && pair.fast.open));
+            if(open && (NET.mySlot >= 0 || NET.isSpectator)) ok = true;
           }catch(e){}
-        }, 8000);
-      };
-      /* Host-id discovery: explicit join hint > ?h= suffix > directory > legacy id */
-      let hintId = '';
-      try{ hintId = (NET && NET._joinHostId) || ''; }catch(e){}
-      if(!hintId){
-        try{
-          const qp2 = new URLSearchParams(location.search);
-          const hRaw = ((qp2.get('h') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8));
-          if(hRaw) hintId = legacyHostId + '-' + hRaw;
+          if(!ok){
+            try{ if(typeof CG!=='undefined'&&CG&&typeof CG.leftRoom==='function')CG.leftRoom(); }catch(e){}
+            netToast('Could not find host. Check the room code.');
+            netLeaveRoom('Room unavailable');
+          }
         }catch(e){}
-      }
-      if(hintId){
-        connectToHost(hintId);
-      } else {
-        let done = false;
-        const to = setTimeout(()=>{ if(!done){ done = true; connectToHost(legacyHostId); } }, 2600);
-        try{
-          netFetchHostPeerId(room).then(hid=>{ if(!done){ done = true; clearTimeout(to); connectToHost(hid || legacyHostId); } }).catch(()=>{ if(!done){ done = true; clearTimeout(to); connectToHost(legacyHostId); } });
-        }catch(e){ if(!done){ done = true; clearTimeout(to); connectToHost(legacyHostId); } }
-      }
+      }, 7000);
     }
   });
 
@@ -8785,6 +8746,7 @@ function netHostAction(isPublic = true){
   NET.slotsName = [myProfile.name, '', '', '', '', '', '', ''];
   NET.midgameJoiner = false;
   menu.mode = 'rows';
+  setMenuTab('online');
   menu.slotColor = [menu.slotColor[0] >= 0 ? menu.slotColor[0] : 0, -1, -1, -1, -1, -1, -1, -1];
   menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
   history.replaceState(null, '', '?room=' + code);
@@ -8858,6 +8820,7 @@ function netJoinAction(codeParam, hostPeerIdParam){
   NET.slotsReady = [false, false, false, false, false, false, false, false];
   NET.midgameJoiner = false;
   menu.mode = 'rows';
+  setMenuTab('online');
   history.replaceState(null, '', '?room=' + code);
   netShow(false);
   netToast('Joining room ' + code + '…');
