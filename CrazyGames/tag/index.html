@@ -107,7 +107,7 @@ function resize(){
   const vH = (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight;
   CW = Math.floor(Math.min(rect.width || vW, vW));
   CH = Math.floor(Math.min(rect.height || vH, vH));
-  const maxDpr = isTouch ? 1.5 : 2;
+  const maxDpr = 1.25;
   DPR = Math.min(maxDpr, window.devicePixelRatio || 1);
   cv.width = Math.floor(CW * DPR);
   cv.height = Math.floor(CH * DPR);
@@ -178,12 +178,7 @@ function onKey(e){
   keys.add(e.code);pressed.add(e.code);initAudio();
 }
 window.addEventListener('keydown',onKey);
-document.addEventListener('keydown',onKey);
 window.addEventListener('keyup',e=>{
-  if(isInputActive()) return;
-  keys.delete(e.code);
-});
-document.addEventListener('keyup',e=>{
   if(isInputActive()) return;
   keys.delete(e.code);
 });
@@ -2217,14 +2212,12 @@ function drawNightWorld(){
 
 function drawInterior(){
   updateThemeGradients();
-  g.save();
   rr(g, WALL, WALL, W - 2 * WALL, H - 2 * WALL, 10);
-  g.clip();
   g.fillStyle = _cachedIntGr;
-  g.fillRect(WALL, WALL, W - 2 * WALL, H - 2 * WALL);
+  g.fill();
+  rr(g, WALL, WALL, W - 2 * WALL, H - 2 * WALL, 10);
   g.fillStyle = _cachedVignette;
-  g.fillRect(WALL, WALL, W - 2 * WALL, H - 2 * WALL);
-  g.restore();
+  g.fill();
 }
 
 /* ================= PHYSICS: RELIABLE PINK DROP/JUMP-THROUGH & AIRTIGHT SOLIDS ================= */
@@ -3803,7 +3796,6 @@ function updateGame(dt){
   updateCam(dt);
 }
 function update(dt){
-  pollGamepads();
   if(screen==='menu'){updateMenu(dt);updateCam(dt);}
   else{
     updateGame(dt);
