@@ -38,17 +38,29 @@ canvas{position:fixed;top:0;left:0;width:100%;height:100%;height:100dvh;display:
 #netToast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:60;background:rgba(10,14,22,0.95);border:2px solid #2ecc71;color:#ffffff;border-radius:10px;padding:10px 22px;font-size:14px;font-weight:700;display:none;pointer-events:none;font-family:'Outfit',system-ui,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,0.6)}
 
 /* In-game text chat overlay */
-#chatUI{position:fixed;left:16px;bottom:16px;z-index:45;width:min(340px,85vw);display:flex;flex-direction:column;pointer-events:none;font-family:'Outfit','Rubik',system-ui,sans-serif}
+#chatUI{position:fixed;left:16px;bottom:16px;z-index:45;width:min(340px,85vw);display:none;flex-direction:column;pointer-events:none;font-family:'Outfit','Rubik',system-ui,sans-serif}
+#chatUI.online{display:flex}
 #chatUI.active{pointer-events:auto}
-#chatLogs{max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;margin-bottom:6px;scrollbar-width:none}
+#chatLogs{max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:3px;margin-bottom:6px;scrollbar-width:none}
 #chatLogs::-webkit-scrollbar{display:none}
-.chatMsg{background:rgba(15,23,42,0.78);backdrop-filter:blur(3px);padding:4px 10px;border-radius:6px;font-size:12.5px;color:#f1f5f9;line-height:1.4;word-break:break-word;display:inline-block;max-width:100%;box-sizing:border-box;animation:chatFade 0.2s ease-out}
-.chatMsg .author{font-weight:800;margin-right:6px}
-.chatMsg.sys{color:#facc15;font-weight:700}
+.chatMsg{background:none!important;border:none!important;backdrop-filter:none!important;padding:1px 0;font-size:13px;color:#ffffff;line-height:1.35;word-break:break-word;display:inline-block;max-width:100%;box-sizing:border-box;animation:chatFade 0.2s ease-out;text-shadow:0 1px 3px rgba(0,0,0,0.95), 0 0 2px #000000, 0 2px 4px #000000}
+.chatMsg .author{font-weight:900;margin-right:6px}
+.chatMsg.sys{color:#facc15;font-weight:800}
+#chatCornerBar{display:inline-flex;align-items:center;padding:5px 12px;background:rgba(15,23,42,0.65);border:1px solid rgba(255,255,255,0.22);border-radius:14px;color:#cbd5e1;font-size:11.5px;font-weight:700;cursor:pointer;pointer-events:auto;backdrop-filter:blur(4px);width:fit-content;transition:all 0.15s;margin-top:2px;box-shadow:0 2px 8px rgba(0,0,0,0.4)}
+#chatCornerBar:hover{background:rgba(15,23,42,0.92);color:#38bdf8;border-color:#38bdf8}
+#chatUI.active #chatCornerBar{display:none}
 #chatInputRow{display:none;gap:6px;pointer-events:auto}
 #chatUI.active #chatInputRow{display:flex}
 #chatInput{flex:1;background:rgba(15,23,42,0.92);border:1.5px solid #2ecc71;color:#ffffff;border-radius:8px;padding:8px 12px;font-size:13px;font-family:inherit;outline:none}
 #chatSendBtn{background:#27ae60;color:#ffffff;border:none;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:700;cursor:pointer}
+@media (pointer: coarse) {
+  #chatCornerBar{display:none!important}
+  #chatUI{left:10px;bottom:10px;width:min(280px,75vw)}
+  #chatLogs{max-height:105px}
+  .chatMsg{font-size:11.5px}
+  #chatInput{padding:6px 10px;font-size:12px}
+  #chatSendBtn{padding:6px 10px;font-size:11.5px}
+}
 @keyframes chatFade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 </style>
 </head>
@@ -67,6 +79,9 @@ canvas{position:fixed;top:0;left:0;width:100%;height:100%;height:100dvh;display:
 <!-- In-game Text Chat Overlay -->
 <div id="chatUI">
   <div id="chatLogs"></div>
+  <div id="chatCornerBar" onclick="if(typeof chatToggle==='function')chatToggle();">
+    <span>💬 Type here... (Enter)</span>
+  </div>
   <div id="chatInputRow">
     <input id="chatInput" maxlength="120" placeholder="Type a message (Enter)..."/>
     <button id="chatSendBtn">Send</button>
@@ -4577,7 +4592,7 @@ function drawOnlineHub(stageY, stageH){
 
   const isWide = (CW >= 780);
   const pad = 12;
-  const availW = Math.min(CW - 24, 880);
+  const availW = (NET.role !== null) ? Math.min(CW - 24, 1080) : Math.min(CW - 24, 880);
   const startX = Math.floor(CW / 2 - availW / 2);
 
   // If player is IN A ROOM (as Host or Guest) -> Draw Lobby View!
@@ -4768,19 +4783,27 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
   txt('🚪 Leave', leaveBtnX + leaveBtnW/2, leaveBtnY + leaveBtnH/2 + 1, FN(10.5, 900), '#ff6b81');
   zone(leaveBtnX, leaveBtnY, leaveBtnW, leaveBtnH, { fn: () => { sfx('back'); netLeaveRoom(); } });
 
+  // Ensure chat overlay is enabled for room
+  const chatUIEl = document.getElementById('chatUI');
+  if(chatUIEl && !chatUIEl.classList.contains('online')) chatUIEl.classList.add('online');
+
   // Main 3-Column Layout:
   // Left: People who are playing (8 Slots Roster)
-  // Center: Compact "YOU" Player Card
+  // Center: "YOU" Player Card (scaled for desktop/laptop and mobile)
   // Right: Waiting List / Spectators
   const contentY0 = stageY + topH + 6;
   const contentH = stageH - topH - 10;
 
-  // Compact height for all three boxes: max 220px to prevent unneeded vertical stretch!
-  const panelH = clamp(contentH, 160, 220);
+  // Responsive sizing:
+  // On mobile / short screens: keep compact (160-240px)
+  // On laptop / desktop screens: scale up to 280-420px to fill the space cleanly!
+  const isShortH = (contentH < 280);
+  const isNarrowW = (availW < 640);
+  const panelH = isShortH ? clamp(contentH, 160, 240) : clamp(Math.floor(contentH * 0.94), 260, 420);
   const panelY = Math.floor(contentY0 + (contentH - panelH) / 2);
 
-  const isWide = (availW >= 640);
-  const sideW = isWide ? clamp(Math.floor(availW * 0.28), 190, 250) : Math.floor(availW * 0.48);
+  // Column widths:
+  const sideW = isNarrowW ? Math.max(140, Math.floor((availW - 16) * 0.31)) : clamp(Math.floor(availW * 0.28), 190, 260);
 
   // Left side: PLAYING
   const leftX = startX;
@@ -4793,10 +4816,10 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
   // Center: YOU
   const centerStartX = leftX + leftW + 10;
   const centerW = Math.max(160, rightX - centerStartX - 10);
-  const cardW = clamp(centerW, 180, 310);
+  const cardW = isNarrowW ? centerW : clamp(Math.floor(centerW * 0.92), 260, 420);
   const cardX = Math.floor(centerStartX + centerW/2 - cardW/2);
 
-  const headH = 26;
+  const headH = isShortH ? 24 : clamp(Math.floor(panelH * 0.09), 26, 32);
 
   // --- 1. LEFT PANEL: People who are playing (8-slot Roster) ---
   rr(g, leftX, panelY, leftW, panelH, 10);
@@ -4806,7 +4829,7 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
   rr(g, leftX, panelY, leftW, headH, 8);
   g.fillStyle = 'rgba(24, 32, 48, 0.96)'; g.fill();
   const act = activeSlots();
-  ptxt('🎮 PLAYING (' + act.length + '/8)', leftX + leftW/2, panelY + headH/2 + 1, FN(11, 900), '#2ecc71');
+  ptxt('🎮 PLAYING (' + act.length + '/8)', leftX + leftW/2, panelY + headH/2 + 1, FN(clamp(headH * 0.42, 10, 12), 900), '#2ecc71');
 
   // 8 Slot Rows
   const rowAvailH = panelH - headH - 4;
@@ -4825,7 +4848,7 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
 
     if(isConn){
       // Mini avatar swatch
-      const swSz = Math.min(13, rowH - 6);
+      const swSz = clamp(rowH - 8, 12, 18);
       rr(g, leftX + 7, ry + (rowH - swSz)/2, swSz, swSz, 3);
       g.fillStyle = col; g.fill(); g.lineWidth = 1; g.strokeStyle = INK; g.stroke();
 
@@ -4837,7 +4860,7 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
 
       const hasHostControls = (NET.isHost && !isMe);
       const maxChars = hasHostControls ? 7 : (settings.teams ? 8 : 11);
-      g.font = FN(Math.min(10, rowH * 0.42), 900); g.textAlign = 'left';
+      g.font = FN(clamp(rowH * 0.38, 9, 11.5), 900); g.textAlign = 'left';
       g.fillStyle = isMe ? '#38bdf8' : '#ffffff';
       g.fillText(who.slice(0, maxChars), leftX + 7 + swSz + 4, ry + rowH/2 + 3.5);
 
@@ -4845,28 +4868,28 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
       if(settings.teams){
         const tm = (menu.slotTeam && menu.slotTeam[s] != null) ? menu.slotTeam[s] : (s % 2);
         const tmIcon = (TEAMS[tm] ? TEAMS[tm].icon : '🔴');
-        ptxt(tmIcon, leftX + leftW - (hasHostControls ? 56 : 24), ry + rowH/2 + 1, FN(8.5, 900), '#ffffff');
+        ptxt(tmIcon, leftX + leftW - (hasHostControls ? 56 : 24), ry + rowH/2 + 1, FN(clamp(rowH * 0.35, 8.5, 10.5), 900), '#ffffff');
       }
 
       // Ready icon
-      ptxt(isRdy ? '✓' : '⏳', leftX + leftW - (hasHostControls ? 44 : 12), ry + rowH/2 + 1, FN(9.5, 900), isRdy ? '#2ecc71' : '#e67e22');
+      ptxt(isRdy ? '✓' : '⏳', leftX + leftW - (hasHostControls ? 44 : 12), ry + rowH/2 + 1, FN(clamp(rowH * 0.38, 9.5, 11.5), 900), isRdy ? '#2ecc71' : '#e67e22');
 
       // Host Quick Actions on other players (Swap Team, Waitlist, Kick)
       if(hasHostControls){
         // Quick Move to Waitlist (⏳)
-        const qSz = 13;
+        const qSz = clamp(rowH - 10, 13, 18);
         const qY = ry + (rowH - qSz)/2;
         const wlBtnX = leftX + leftW - qSz * 2 - 8;
         rr(g, wlBtnX, qY, qSz, qSz, 3);
         g.fillStyle = 'rgba(56, 189, 248, 0.35)'; g.fill();
-        txt('⏳', wlBtnX + qSz/2, qY + qSz/2 + 1, FN(7.5, 900), '#38bdf8');
+        txt('⏳', wlBtnX + qSz/2, qY + qSz/2 + 1, FN(clamp(qSz * 0.55, 7.5, 9.5), 900), '#38bdf8');
         zone(wlBtnX, qY, qSz, qSz, { fn: () => netMovePlayerToWaitlist(s) });
 
         // Quick Kick (✕)
         const kickX = leftX + leftW - qSz - 4;
         rr(g, kickX, qY, qSz, qSz, 3);
         g.fillStyle = '#e74c3c'; g.fill();
-        txt('✕', kickX + qSz/2, qY + qSz/2 + 1, FN(7.5, 900), '#ffffff');
+        txt('✕', kickX + qSz/2, qY + qSz/2 + 1, FN(clamp(qSz * 0.55, 7.5, 9.5), 900), '#ffffff');
         zone(kickX, qY, qSz, qSz, { fn: () => netKickPlayer(s) });
 
         // Clicking the player row opens the full management dialog!
@@ -4876,9 +4899,9 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
         } });
       }
     } else {
-      g.font = FN(9, 800); g.textAlign = 'left'; g.fillStyle = '#64748b';
+      g.font = FN(clamp(rowH * 0.38, 9, 11), 800); g.textAlign = 'left'; g.fillStyle = '#64748b';
       g.fillText('+ P' + (s+1) + ' OPEN', leftX + 10, ry + rowH/2 + 3);
-      zone(leftX + 4, ry, leftW - 8, rowH - 2, { fn: () => netCopyLink() });
+      zone(leftX + 4, ry, leftW - 8, rowH - 2, { fn: () => netClaimSlot(s) });
     }
   }
 
@@ -4890,20 +4913,20 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
   rr(g, rightX, panelY, rightW, headH, 8);
   g.fillStyle = 'rgba(24, 32, 48, 0.96)'; g.fill();
   const specList = NET.spectators || [];
-  ptxt('⏳ WAITING LIST (' + specList.length + ')', rightX + rightW/2, panelY + headH/2 + 1, FN(11, 900), '#ffd166');
+  ptxt('⏳ WAITING LIST (' + specList.length + ')', rightX + rightW/2, panelY + headH/2 + 1, FN(clamp(headH * 0.42, 10, 12), 900), '#ffd166');
 
   if(specList.length === 0){
-    txt('No one in waiting list', rightX + rightW/2, panelY + panelH * 0.38, FN(10.5, 800), '#64748b');
-    txt('Share link to invite!', rightX + rightW/2, panelY + panelH * 0.50, FN(9.5, 800), '#475569');
-    const invW = rightW - 28, invH = 24;
+    txt('No one in waiting list', rightX + rightW/2, panelY + panelH * 0.38, FN(clamp(panelH * 0.045, 10, 12), 800), '#64748b');
+    txt('Share link to invite!', rightX + rightW/2, panelY + panelH * 0.50, FN(clamp(panelH * 0.04, 9, 11), 800), '#475569');
+    const invW = rightW - 28, invH = clamp(panelH * 0.10, 24, 32);
     const invX = rightX + 14, invY = panelY + panelH * 0.65;
     rr(g, invX, invY, invW, invH, 6);
     g.fillStyle = 'rgba(56, 189, 248, 0.15)'; g.fill();
     g.lineWidth = 1; g.strokeStyle = '#38bdf8'; g.stroke();
-    txt('🔗 Invite Friend', invX + invW/2, invY + invH/2 + 1, FN(10, 900), '#38bdf8');
+    txt('🔗 Invite Friend', invX + invW/2, invY + invH/2 + 1, FN(clamp(invH * 0.42, 10, 12), 900), '#38bdf8');
     zone(invX, invY, invW, invH, { fn: () => { sfx('ui'); netCopyLink(); } });
   } else {
-    const rowH = Math.floor(clamp((panelH - headH - 6) / Math.max(specList.length, 5), 24, 34));
+    const rowH = Math.floor(clamp((panelH - headH - 6) / Math.max(specList.length, 5), 24, 38));
     for(let i = 0; i < Math.min(specList.length, 6); i++){
       const spec = specList[i];
       const ry = panelY + headH + 3 + i * rowH;
@@ -4911,30 +4934,30 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
       g.fillStyle = 'rgba(255,255,255,0.06)'; g.fill();
 
       // Spectator name
-      txt('👁️ ' + (spec.name || 'Guest Spec').slice(0, 10), rightX + 8, ry + rowH/2, FN(10, 800), '#ffffff', 'left');
+      txt('👁️ ' + (spec.name || 'Guest Spec').slice(0, 10), rightX + 8, ry + rowH/2, FN(clamp(rowH * 0.38, 9.5, 11.5), 800), '#ffffff', 'left');
 
       if(NET.isHost){
         // Admit button
-        const admW = 40, admH = rowH - 6;
+        const admW = clamp(rowH * 1.5, 38, 52), admH = rowH - 6;
         const admX = rightX + rightW - admW - 22, admY = ry + 3;
         rr(g, admX, admY, admW, admH, 4);
         g.fillStyle = '#27ae60'; g.fill();
-        txt('ADMIT', admX + admW/2, admY + admH/2 + 1, FN(8, 900), '#ffffff');
+        txt('ADMIT', admX + admW/2, admY + admH/2 + 1, FN(clamp(admH * 0.42, 8, 10), 900), '#ffffff');
         zone(admX, admY, admW, admH, { fn: () => netAdmitSpectator(spec.peerId) });
 
         // Kick spectator button
-        const kSz = 13;
+        const kSz = clamp(rowH - 10, 13, 18);
         const kX = rightX + rightW - kSz - 4, kY = ry + (rowH - kSz)/2;
         rr(g, kX, kY, kSz, kSz, 3);
         g.fillStyle = '#e74c3c'; g.fill();
-        txt('✕', kX + kSz/2, kY + kSz/2 + 1, FN(7.5, 900), '#ffffff');
+        txt('✕', kX + kSz/2, kY + kSz/2 + 1, FN(clamp(kSz * 0.55, 7.5, 9.5), 900), '#ffffff');
         zone(kX, kY, kSz, kSz, { fn: () => netKickPlayer(spec.peerId) });
       }
     }
   }
 
-  // --- 3. CENTER STAGE: Compact "YOU" Player Card ---
-  // Perfectly matching panelH in height!
+  // --- 3. CENTER STAGE: "YOU" Player Card ---
+  // Perfectly matching panelH in height and scaled for desktop/laptop & mobile
   rr(g, cardX - 2, panelY - 2, cardW + 4, panelH + 4, 12);
   g.fillStyle = '#ffffff'; g.fill(); g.lineWidth = 2; g.strokeStyle = INK; g.stroke();
   rr(g, cardX, panelY, cardW, panelH, 10);
@@ -4949,32 +4972,36 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
   const myRoleStr = NET.isHost ? '👑 HOST' : (NET.isSpectator ? '👁️ SPEC' : 'GUEST');
   const mySlotStr = (NET.mySlot >= 0) ? ('P' + (NET.mySlot + 1)) : 'SPEC';
   const myName = (NET.mySlot >= 0 && NET.slotsName[NET.mySlot]) ? NET.slotsName[NET.mySlot] : netGetMyProfile().name;
-  ptxt('YOU: ' + myName + ' (' + mySlotStr + ' ' + myRoleStr + ')', cx, panelY + 16, FN(11, 900), '#38bdf8');
+  const headerFontSize = isShortH ? 10.5 : (cardW > 300 ? 13 : 11.5);
+  const headerY = panelY + (isShortH ? 14 : 20);
+  ptxt('YOU: ' + myName + ' (' + mySlotStr + ' ' + myRoleStr + ')', cx, headerY, FN(headerFontSize, 900), '#38bdf8');
 
-  const btnW = cardW - 20;
-  const rdyH = 26;
-  const ctrlH = 22;
-  const teamH = 24;
-  const pad = 4;
+  const btnW = Math.min(cardW - (isShortH ? 16 : 28), 340);
+  const rdyH = isShortH ? 24 : clamp(Math.floor(panelH * 0.098), 28, 38);
+  const ctrlH = isShortH ? 20 : clamp(Math.floor(panelH * 0.082), 22, 32);
+  const teamH = isShortH ? 22 : clamp(Math.floor(panelH * 0.088), 24, 34);
+  const pad = isShortH ? 3 : clamp(Math.floor(panelH * 0.02), 5, 8);
 
-  const rdyY = panelY + panelH - rdyH - 8;
+  const rdyY = panelY + panelH - rdyH - (isShortH ? 6 : 12);
   const ctrlY = rdyY - ctrlH - pad;
   const teamY = ctrlY - teamH - pad;
 
-  // Mini avatar
-  const avTop = panelY + 24;
-  const avY = avTop + (teamY - avTop) * 0.52;
-  const charSz = clamp((teamY - avTop) * 0.68, 20, 30);
+  // Mini avatar - dynamically scaled
+  const avTop = headerY + (isShortH ? 12 : 20);
+  const avAvailH = Math.max(20, teamY - avTop);
+  const avY = avTop + avAvailH * 0.50;
+  const charSz = isShortH ? clamp(avAvailH * 0.65, 20, 28) : clamp(avAvailH * 0.62, 32, 54);
   drawChar(g, cx, avY, charSz, myCol, { face: isMeReady ? 'cool' : 'happy', grounded: true, seed: (NET.mySlot >= 0 ? NET.mySlot : 0) * 3 });
 
   // Team / Color Selector row
   rr(g, cx - btnW/2, teamY, btnW, teamH, 6);
   g.fillStyle = 'rgba(0,0,0,0.55)'; g.fill();
   g.lineWidth = 1.2; g.strokeStyle = 'rgba(255,255,255,0.3)'; g.stroke();
+  const teamFontSize = clamp(teamH * 0.42, 10, 12.5);
   if(settings.teams){
     const myTeam = (menu.slotTeam && NET.mySlot >= 0 && menu.slotTeam[NET.mySlot] != null) ? menu.slotTeam[NET.mySlot] : ((NET.mySlot >= 0 ? NET.mySlot : 0) % 2);
     const teamDef = TEAMS[myTeam] || TEAMS[0];
-    ptxt('‹  ' + teamDef.icon + ' ' + teamDef.name + '  ›', cx, teamY + teamH/2 + 1, FN(10.5, 900), '#ffffff');
+    ptxt('‹  ' + teamDef.icon + ' ' + teamDef.name + '  ›', cx, teamY + teamH/2 + 1, FN(teamFontSize, 900), '#ffffff');
     if(NET.mySlot >= 0){
       zone(cx - btnW/2, teamY, btnW * 0.45, teamH, { fn: () => cycleTeam(NET.mySlot, -1) });
       zone(cx + btnW * 0.05, teamY, btnW * 0.45, teamH, { fn: () => cycleTeam(NET.mySlot, 1) });
@@ -4982,7 +5009,7 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
   } else {
     const curCol = (NET.mySlot >= 0 && menu.slotColor[NET.mySlot] >= 0) ? menu.slotColor[NET.mySlot] : (NET.mySlot >= 0 ? NET.mySlot : 0);
     const colName = (PALETTE[curCol % PALETTE.length] || PALETTE[0]).name;
-    ptxt('‹  🎨 ' + colName + '  ›', cx, teamY + teamH/2 + 1, FN(10.5, 900), '#ffffff');
+    ptxt('‹  🎨 ' + colName + '  ›', cx, teamY + teamH/2 + 1, FN(teamFontSize, 900), '#ffffff');
     if(NET.mySlot >= 0){
       zone(cx - btnW/2, teamY, btnW * 0.45, teamH, { fn: () => {
         if(NET.isHost){ cycleSlot(NET.mySlot, -1); netBroadcastSettings(); netBroadcastRoster(); }
@@ -5001,14 +5028,15 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
   g.lineWidth = 1.2; g.strokeStyle = 'rgba(255,255,255,0.3)'; g.stroke();
   const ctrlName = NET.myCtrl || 'WASD';
   const ctrlIcon = (ctrlName === 'Controller') ? '🕹️' : (ctrlName === 'Arrows' ? '⬆️' : '🎮');
-  ptxt(ctrlIcon + ' ' + ctrlName + '  ▾', cx, ctrlY + ctrlH/2 + 1, FN(10, 900), '#ffffff');
+  ptxt(ctrlIcon + ' ' + ctrlName + '  ▾', cx, ctrlY + ctrlH/2 + 1, FN(clamp(ctrlH * 0.44, 9.5, 12), 900), '#ffffff');
   zone(cx - btnW/2, ctrlY, btnW, ctrlH, { fn: () => netCycleMyControl() });
 
   // Dedicated Ready Button
   rr(g, cx - btnW/2, rdyY, btnW, rdyH, 6);
   g.fillStyle = isMeReady ? '#27ae60' : 'rgba(255,255,255,0.14)'; g.fill();
   g.lineWidth = 1.5; g.strokeStyle = isMeReady ? '#2ecc71' : 'rgba(255,255,255,0.3)'; g.stroke();
-  ptxt(isMeReady ? 'READY ✓' : 'CLICK TO READY', cx, rdyY + rdyH/2 + 1, FN(11, 900), isMeReady ? '#ffffff' : '#ffd166');
+  const rdyFontSize = clamp(rdyH * 0.42, 10.5, 13);
+  ptxt(isMeReady ? 'READY ✓' : 'CLICK TO READY', cx, rdyY + rdyH/2 + 1, FN(rdyFontSize, 900), isMeReady ? '#ffffff' : '#ffd166');
   zone(cx - btnW/2, rdyY, btnW, rdyH, { fn: () => netToggleMyReady() });
 
   // --- 4. HOST PLAYER MANAGEMENT MODAL ---
@@ -6988,9 +7016,10 @@ function netSendRel(peerOrPair, msg){
   if(c){ try{ c.send(msg); }catch(e){} }
 }
 
-function netBroadcastReliable(msg){
+function netBroadcastReliable(msg, excludePeerId){
   if(typeof NET === 'undefined' || !NET || !NET.conns) return;
-  for(const pair of NET.conns.values()){
+  for(const [pid, pair] of NET.conns.entries()){
+    if(excludePeerId && pid === excludePeerId) continue;
     netSendRel(pair, msg);
   }
 }
@@ -8025,10 +8054,14 @@ function netOnData(m, c){
     const author = cleanText(m.name || 'Player').slice(0, 16);
     const text = cleanText(m.text || '').slice(0, 120);
     if(text){
-      netAddChatMessage(author, text, m.color || '#38bdf8');
+      const myProfile = netGetMyProfile();
+      const isFromMe = (m.sender === NET.myId || (!NET.isHost && author === myProfile.name));
+      if(!isFromMe){
+        netAddChatMessage(author, text, m.color || '#38bdf8');
+      }
       if(NET.isHost){
-        // Relay to other peers
-        netBroadcastReliable({ t: 'chat', name: author, text: text, color: m.color || '#38bdf8' });
+        // Relay to other peers, EXCLUDING the sender peer!
+        netBroadcastReliable({ t: 'chat', name: author, text: text, color: m.color || '#38bdf8', sender: c.peer }, c.peer);
       }
     }
     return;
@@ -8040,117 +8073,120 @@ function netOnData(m, c){
     const guestAvatar = m.avatar || '';
     NET.peerNames.set(c.peer, guestName);
 
-    // If lobby is locked or game is currently playing, put guest in Spectators queue!
-    const isMidgame = (match && screen === 'game' && match.state === 'playing');
-    if(NET.lobbyLocked || isMidgame){
+    // All new joiners start in the Waiting List / Spectator queue
+    if(!NET.spectators) NET.spectators = [];
+    if(!NET.spectators.some(sp => sp.peerId === c.peer)){
       NET.spectators.push({ peerId: c.peer, name: guestName, avatar: guestAvatar });
-      c.send({
-        t: 'spectator_init',
-        room: NET.room,
-        hostName: NET.slotsName[0] || 'Host',
-        settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, slotColor: menu.slotColor.slice(), slotTeam: (menu.slotTeam ? menu.slotTeam.slice() : []) },
-        mapData: MAPS[settings.map % MAPS.length],
-        spectating: true
-      });
-      netToast(guestName + ' joined as Spectator 👁️');
-      netBroadcastRoster();
-      netUpdateHostDirectory();
-      if(isMidgame){
-        const payload = {
-          it: match.it,
-          cooldownN: match.cooldown,
-          matchIndex: matchIndex,
-          currentThemeIdx: currentThemeIdx,
-          lastStartIT: lastStartIT,
-          timer: match.timer,
-          state: match.state,
-          cd: match.cd,
-          cdT: match.cdT,
-          tags: match.tags.slice(),
-          players: match.players.map(p => packPlayer(p))
-        };
-        netSendRel(c, {
-          t: 'midgame_start',
-          settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, slotColor: menu.slotColor.slice(), slotTeam: (menu.slotTeam ? menu.slotTeam.slice() : []) },
-          mapData: MAPS[settings.map % MAPS.length],
-          payload: payload,
-          isSpectator: true
-        });
-      }
-      return;
     }
-
-    let slot = -1;
-    for(let i=1; i<8; i++){
-      if(!NET.hostInputs.has(i) && menu.slotColor[i] === -1){
-        slot = i;
-        break;
-      }
-    }
-    if(slot === -1){
-      // Room full of players -> spectator queue
-      NET.spectators.push({ peerId: c.peer, name: guestName, avatar: guestAvatar });
-      c.send({
-        t: 'spectator_init',
-        room: NET.room,
-        hostName: NET.slotsName[0] || 'Host',
-        settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, slotColor: menu.slotColor.slice(), slotTeam: (menu.slotTeam ? menu.slotTeam.slice() : []) },
-        mapData: MAPS[settings.map % MAPS.length],
-        spectating: true
-      });
-      netToast(guestName + ' joined as Spectator (Room Full)');
-      netBroadcastRoster();
-      netUpdateHostDirectory();
-      return;
-    }
-
-    NET.hostInputs.set(slot, { dir:0, jumpEdge:false, jumpHeld:false, downHeld:false, consumeEdge:false, owner: c.peer, seq: 0 });
-    NET.peerSlots.set(c.peer, slot);
-    NET.slotsCtrl[slot] = m.ctrl || 'WASD';
-    NET.slotsReady[slot] = false;
-    NET.slotsName[slot] = guestName;
-
-    // Pick first available color
-    const taken = menu.slotColor.filter(v => v >= 0);
-    let pick = -1;
-    for(let pi=0; pi<PALETTE.length; pi++){
-      if(!taken.includes(pi)){ pick = pi; break; }
-    }
-    if(pick === -1) pick = slot % PALETTE.length;
-    menu.slotColor[slot] = pick;
-
-    // Assign team based on balance if teams mode active
-    if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
-    let redCount = 0, blueCount = 0;
-    for(let s=0; s<8; s++){
-      if(menu.slotColor[s] >= 0){
-        if(menu.slotTeam[s] === 0) redCount++;
-        else blueCount++;
-      }
-    }
-    menu.slotTeam[slot] = (redCount <= blueCount) ? 0 : 1;
-
     const slotsPeer = [NET.myId || '', '', '', '', '', '', '', ''];
     for(let i=1; i<8; i++){
       const ent = NET.hostInputs.get(i);
       if(ent && ent.owner) slotsPeer[i] = ent.owner;
     }
-
     c.send({
-      t: 'assign',
-      slot: slot,
-      settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, slotColor: menu.slotColor.slice(), slotTeam: menu.slotTeam.slice() },
+      t: 'spectator_init',
+      room: NET.room,
+      hostName: NET.slotsName[0] || 'Host',
+      settings: {
+        map: settings.map,
+        doubleJump: settings.doubleJump,
+        collision: settings.collision,
+        teams: settings.teams,
+        slotColor: menu.slotColor.slice(0, 8),
+        slotTeam: (menu.slotTeam ? menu.slotTeam.slice(0, 8) : []),
+        ready: NET.slotsReady.slice(0, 8),
+        names: NET.slotsName.slice(0, 8),
+        slotsPeer: slotsPeer
+      },
       mapData: MAPS[settings.map % MAPS.length],
-      slotsCtrl: NET.slotsCtrl.slice(),
-      slotsReady: NET.slotsReady.slice(),
-      slotsName: NET.slotsName.slice(),
-      slotsPeer: slotsPeer
+      spectating: true
     });
-
-    netBroadcastSettings();
+    netToast(guestName + ' joined the waiting list ⏳');
     netBroadcastRoster();
     netUpdateHostDirectory();
-    netToast(guestName + ' joined as P' + (slot + 1));
+
+    const isMidgame = (match && screen === 'game' && match.state === 'playing');
+    if(isMidgame){
+      const payload = {
+        it: match.it,
+        cooldownN: match.cooldown,
+        matchIndex: matchIndex,
+        currentThemeIdx: currentThemeIdx,
+        lastStartIT: lastStartIT,
+        timer: match.timer,
+        state: match.state,
+        cd: match.cd,
+        cdT: match.cdT,
+        tags: match.tags.slice(),
+        players: match.players.map(p => packPlayer(p))
+      };
+      netSendRel(c, {
+        t: 'midgame_start',
+        settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, slotColor: menu.slotColor.slice(0, 8), slotTeam: (menu.slotTeam ? menu.slotTeam.slice(0, 8) : []) },
+        mapData: MAPS[settings.map % MAPS.length],
+        payload: payload,
+        isSpectator: true
+      });
+    }
+    return;
+  } else if(m.t === 'claim_slot' && NET.isHost){
+    const reqSlot = m.slot | 0;
+    if(reqSlot >= 1 && reqSlot < 8 && !NET.hostInputs.has(reqSlot) && menu.slotColor[reqSlot] === -1){
+      const guestName = NET.peerNames.get(c.peer) || 'Player';
+      if(NET.spectators){
+        NET.spectators = NET.spectators.filter(sp => sp.peerId !== c.peer);
+      }
+      for(const [s, inp] of NET.hostInputs.entries()){
+        if(inp.owner === c.peer){
+          NET.hostInputs.delete(s);
+          menu.slotColor[s] = -1;
+          NET.slotsReady[s] = false;
+          NET.slotsName[s] = '';
+          if(typeof _remoteTargets !== 'undefined') _remoteTargets.delete(s);
+        }
+      }
+      NET.hostInputs.set(reqSlot, { dir:0, jumpEdge:false, jumpHeld:false, downHeld:false, consumeEdge:false, owner: c.peer, seq: 0 });
+      NET.peerSlots.set(c.peer, reqSlot);
+      NET.slotsCtrl[reqSlot] = 'WASD';
+      NET.slotsReady[reqSlot] = false;
+      NET.slotsName[reqSlot] = guestName;
+
+      const taken = menu.slotColor.filter(v => v >= 0);
+      let pick = -1;
+      for(let pi=0; pi<PALETTE.length; pi++){ if(!taken.includes(pi)){ pick = pi; break; } }
+      if(pick === -1) pick = reqSlot % PALETTE.length;
+      menu.slotColor[reqSlot] = pick;
+
+      if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+      let redCount = 0, blueCount = 0;
+      for(let s=0; s<8; s++){
+        if(menu.slotColor[s] >= 0){
+          if(menu.slotTeam[s] === 0) redCount++; else blueCount++;
+        }
+      }
+      menu.slotTeam[reqSlot] = (redCount <= blueCount) ? 0 : 1;
+
+      const slotsPeer = [NET.myId || '', '', '', '', '', '', '', ''];
+      for(let i=1; i<8; i++){
+        const ent = NET.hostInputs.get(i);
+        if(ent && ent.owner) slotsPeer[i] = ent.owner;
+      }
+      c.send({
+        t: 'assign',
+        slot: reqSlot,
+        settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, slotColor: menu.slotColor.slice(), slotTeam: menu.slotTeam.slice() },
+        mapData: MAPS[settings.map % MAPS.length],
+        slotsCtrl: NET.slotsCtrl.slice(),
+        slotsReady: NET.slotsReady.slice(),
+        slotsName: NET.slotsName.slice(),
+        slotsPeer: slotsPeer
+      });
+      netBroadcastSettings();
+      netBroadcastRoster();
+      netUpdateHostDirectory();
+      netToast(guestName + ' joined as P' + (reqSlot + 1));
+    }
+    return;
   } else if(m.t === 'spectator_init' && !NET.isHost){
     NET.isSpectator = true;
     NET.mySlot = -1;
@@ -8527,10 +8563,10 @@ function netSendChat(text){
   netAddChatMessage(myProfile.name, clean, myCol);
 
   if(NET.isHost){
-    netBroadcastReliable({ t: 'chat', name: myProfile.name, text: clean, color: myCol });
+    netBroadcastReliable({ t: 'chat', name: myProfile.name, text: clean, color: myCol, sender: NET.myId || 'host' });
   } else {
     for(const pair of NET.conns.values()){
-      netSendRel(pair, { t: 'chat', name: myProfile.name, text: clean, color: myCol });
+      netSendRel(pair, { t: 'chat', name: myProfile.name, text: clean, color: myCol, sender: NET.myId });
     }
   }
 }
@@ -8650,18 +8686,22 @@ function netKickPlayer(slotOrPeer){
   netToast('Player removed');
 }
 
-function netAdmitSpectator(peerId){
+function netAdmitSpectator(peerId, targetSlot){
   if(!NET.isHost) return;
   const specIdx = NET.spectators.findIndex(s => s.peerId === peerId);
   if(specIdx === -1) return;
   const spec = NET.spectators[specIdx];
 
-  // Find open slot
+  // Find open slot (prioritize targetSlot if specified and available)
   let slot = -1;
-  for(let i=1; i<8; i++){
-    if(!NET.hostInputs.has(i) && menu.slotColor[i] === -1){
-      slot = i;
-      break;
+  if(targetSlot != null && targetSlot >= 1 && targetSlot < 8 && !NET.hostInputs.has(targetSlot) && menu.slotColor[targetSlot] === -1){
+    slot = targetSlot;
+  } else {
+    for(let i=1; i<8; i++){
+      if(!NET.hostInputs.has(i) && menu.slotColor[i] === -1){
+        slot = i;
+        break;
+      }
     }
   }
   if(slot === -1){
@@ -8707,6 +8747,23 @@ function netAdmitSpectator(peerId){
   netBroadcastRoster();
   netUpdateHostDirectory();
   netToast((spec.name || 'Spectator') + ' admitted as P' + (slot+1));
+}
+
+function netClaimSlot(s){
+  if(s < 1 || s >= 8) return;
+  if(NET.isHost){
+    if(NET.spectators && NET.spectators.length > 0){
+      netAdmitSpectator(NET.spectators[0].peerId, s);
+    } else {
+      netCopyLink();
+    }
+    return;
+  }
+  if(NET.hostConn){
+    netSendRel(NET.hostConn, { t: 'claim_slot', slot: s });
+    sfx('ui');
+    netToast('Claiming slot P' + (s + 1) + '...');
+  }
 }
 
 function netMovePlayerToWaitlist(slot){
@@ -9126,6 +9183,11 @@ function netLeaveRoom(reason){
   menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
   history.replaceState(null, '', location.pathname);
   netShow(false);
+  const chatUI = document.getElementById('chatUI');
+  if(chatUI){
+    chatUI.classList.remove('active');
+    chatUI.classList.remove('online');
+  }
   netToast(reason || 'Playing offline');
 }
 
