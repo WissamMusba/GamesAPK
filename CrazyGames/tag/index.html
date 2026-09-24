@@ -6899,7 +6899,7 @@ function netUpdateRemoteTarget(slot, data, pCurrent){
   }
 }
 
-const NET_INTERP_DELAY_MS = 100; // render remotes ~100ms in the past: smooth 30Hz into 60fps
+const NET_INTERP_DELAY_MS = 35; // render remotes ~35ms in the past: smooth 60Hz into 60fps
 function netApplyRemoteTarget(p, dt){
   const tgt = _remoteTargets.get(p.slot);
   if(!tgt) return;
@@ -8938,9 +8938,9 @@ let _netStateT = 0, _netInputT = 0;
 function netTick(dt){
   if(NET.role === null) return;
   if(NET.isHost){
-    // Host broadcasts all player positions & match state at 30Hz (smooth via render interp, half the uplink)
+    // Host broadcasts all player positions & match state at 60Hz
     _netStateT += dt;
-    if(_netStateT >= 0.033 && match && match.players){
+    if(_netStateT >= 0.015 && match && match.players){
       _netStateT = 0;
       const packedPlayers = match.players.map(p => packPlayer(p));
       netBroadcastState({
@@ -8966,10 +8966,10 @@ function netTick(dt){
       });
     }
   } else {
-    // Guest: send local player position and state at 30Hz over fast WebRTC channel
+    // Guest: send local player position and state at 60Hz over fast WebRTC channel
     if(NET.mySlot === -1 || !match) return;
     _netInputT += dt;
-    if(_netInputT >= 0.033){
+    if(_netInputT >= 0.015){
       _netInputT = 0;
       const myP = getMyPlayer();
       if(myP){
