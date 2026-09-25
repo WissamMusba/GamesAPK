@@ -819,6 +819,20 @@ const CG={
           }catch(e){}},800);
         }
       }catch(e){}
+      try{
+        if(sdk.game && typeof sdk.game.addJoinRoomListener==='function'){
+          sdk.game.addJoinRoomListener((params)=>{
+            try{
+              let r='';
+              if(typeof params==='string')r=params;
+              else if(typeof params==='object'&&params)r=params.room||params.roomName||params.roomId||'';
+              if(r&&typeof netJoinAction==='function'){
+                netJoinAction(r);
+              }
+            }catch(err){}
+          });
+        }
+      }catch(e){}
     }catch(e){}
   },
   /* CrazyGames Multiplayer Room & Invite Link API (SDK v3 object form) */
@@ -1906,6 +1920,11 @@ function activeSlots(){
   return r;
 }
 function cycleTeam(i, d){
+  if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost && NET.teamsLocked){
+    toast('TEAMS ARE LOCKED BY THE HOST');
+    sfx('back');
+    return;
+  }
   if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
   menu.slotTeam[i] = ((menu.slotTeam[i] || 0) + d + TEAMS.length) % TEAMS.length;
   sfx('ui');
@@ -2107,6 +2126,15 @@ function startMatch(){
   if(typeof NET!=='undefined' && NET && NET.role!==null && !NET.isHost){
     toast('HOST RESTARTS THE MATCH');
     return;
+  }
+  // Auto-admit waiting spectators into open slots before starting next round
+  if(typeof NET !== 'undefined' && NET && NET.isHost && NET.spectators && NET.spectators.length > 0){
+    for(let s = 1; s < 8; s++){
+      if(menu.slotColor[s] === -1 && !NET.hostInputs.has(s) && NET.spectators.length > 0){
+        const nextSpec = NET.spectators[0];
+        netAdmitSpectator(nextSpec.peerId, s);
+      }
+    }
   }
   const act=activeSlots();
   if(act.length<2){
@@ -4699,8 +4727,17 @@ function drawOnlineHub(stageY, stageH){
       g.fillStyle = (r % 2 === 0) ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.02)';
       g.fill();
 
-      // Host Name & code
-      txt((rm.hostName || 'Host') + ' (' + rm.roomId + ')', rightX + 16, ry + rowH/2, FN(11, 900), '#ffffff', 'left');
+      // Host Name & code - dynamically measured so it never overflows
+      let hostDisp = (rm.hostName || 'Host') + ' (' + rm.roomId + ')';
+      const hostMaxW = rightW * 0.36;
+      g.font = FN(11, 900);
+      if(g.measureText(hostDisp).width > hostMaxW){
+        while(hostDisp.length > 5 && g.measureText(hostDisp + '…').width > hostMaxW){
+          hostDisp = hostDisp.slice(0, -1);
+        }
+        hostDisp += '…';
+      }
+      txt(hostDisp, rightX + 16, ry + rowH/2, FN(11, 900), '#ffffff', 'left');
       // Players count
       txt(rm.players + '/' + (rm.maxPlayers || 8), rightX + rightW * 0.44, ry + rowH/2, FN(11, 800), '#ffd166');
       // Map / Mode
@@ -4794,9 +4831,6 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
   const contentY0 = stageY + topH + 6;
   const contentH = stageH - topH - 10;
 
-  // Responsive sizing:
-  // On mobile / short screens: keep compact (160-240px)
-  // On laptop / desktop screens: scale up to 280-420px to fill the space cleanly!
   const isShortH = (contentH < 280);
   const isNarrowW = (availW < 640);
   const panelH = isShortH ? clamp(contentH, 160, 240) : clamp(Math.floor(contentH * 0.94), 260, 420);
@@ -4852,17 +4886,26 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
       rr(g, leftX + 7, ry + (rowH - swSz)/2, swSz, swSz, 3);
       g.fillStyle = col; g.fill(); g.lineWidth = 1; g.strokeStyle = INK; g.stroke();
 
-      // Player name
+      // Player name - dynamically measured to avoid cutoffs
       const defaultName = (s === 0 ? 'Host' : ('Guest ' + (s+1)));
       let who = NET.slotsName[s] || defaultName;
       if(isMe) who += ' (YOU)';
       else if(s === 0) who += ' 👑';
 
       const hasHostControls = (NET.isHost && !isMe);
-      const maxChars = hasHostControls ? 7 : (settings.teams ? 8 : 11);
-      g.font = FN(clamp(rowH * 0.38, 9, 11.5), 900); g.textAlign = 'left';
+      const rightIconsW = (hasHostControls ? 56 : (settings.teams ? 36 : 22));
+      const maxTextW = Math.max(40, leftW - (swSz + rightIconsW + 18));
+      g.font = FN(clamp(rowH * 0.38, 9, 11.5), 900);
+      g.textAlign = 'left';
       g.fillStyle = isMe ? '#38bdf8' : '#ffffff';
-      g.fillText(who.slice(0, maxChars), leftX + 7 + swSz + 4, ry + rowH/2 + 3.5);
+      let dispWho = who;
+      if(g.measureText(dispWho).width > maxTextW){
+        while(dispWho.length > 3 && g.measureText(dispWho + '…').width > maxTextW){
+          dispWho = dispWho.slice(0, -1);
+        }
+        dispWho += '…';
+      }
+      g.fillText(dispWho, leftX + 7 + swSz + 5, ry + rowH/2 + 3.5);
 
       // Team Badge if teams active
       if(settings.teams){
@@ -4933,8 +4976,17 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
       rr(g, rightX + 4, ry, rightW - 8, rowH - 2, 5);
       g.fillStyle = 'rgba(255,255,255,0.06)'; g.fill();
 
-      // Spectator name
-      txt('👁️ ' + (spec.name || 'Guest Spec').slice(0, 10), rightX + 8, ry + rowH/2, FN(clamp(rowH * 0.38, 9.5, 11.5), 800), '#ffffff', 'left');
+      // Spectator name - dynamically fitted
+      const specMaxW = rightW - (NET.isHost ? 80 : 24);
+      let specDisp = '👁️ ' + (spec.name || 'Guest Spec');
+      g.font = FN(clamp(rowH * 0.38, 9.5, 11.5), 800);
+      if(g.measureText(specDisp).width > specMaxW){
+        while(specDisp.length > 5 && g.measureText(specDisp + '…').width > specMaxW){
+          specDisp = specDisp.slice(0, -1);
+        }
+        specDisp += '…';
+      }
+      txt(specDisp, rightX + 8, ry + rowH/2, FN(clamp(rowH * 0.38, 9.5, 11.5), 800), '#ffffff', 'left');
 
       if(NET.isHost){
         // Admit button
@@ -4967,14 +5019,24 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
 
   const cx = cardX + cardW/2;
   const isMeReady = (NET.mySlot >= 0 && !!NET.slotsReady[NET.mySlot]);
+  const isSpectatorMe = (NET.isSpectator || NET.mySlot === -1);
 
-  // Header: YOU (P1 HOST) or (P2 GUEST)
-  const myRoleStr = NET.isHost ? '👑 HOST' : (NET.isSpectator ? '👁️ SPEC' : 'GUEST');
+  // Header: YOU (P1 HOST) or (P2 GUEST) or (SPEC)
+  const myRoleStr = NET.isHost ? '👑 HOST' : (isSpectatorMe ? '👁️ SPECTATOR' : 'GUEST');
   const mySlotStr = (NET.mySlot >= 0) ? ('P' + (NET.mySlot + 1)) : 'SPEC';
   const myName = (NET.mySlot >= 0 && NET.slotsName[NET.mySlot]) ? NET.slotsName[NET.mySlot] : netGetMyProfile().name;
   const headerFontSize = isShortH ? 10.5 : (cardW > 300 ? 13 : 11.5);
   const headerY = panelY + (isShortH ? 14 : 20);
-  ptxt('YOU: ' + myName + ' (' + mySlotStr + ' ' + myRoleStr + ')', cx, headerY, FN(headerFontSize, 900), '#38bdf8');
+
+  let headDisp = 'YOU: ' + myName + ' (' + mySlotStr + ' ' + myRoleStr + ')';
+  g.font = FN(headerFontSize, 900);
+  if(g.measureText(headDisp).width > cardW - 16){
+    headDisp = myName + ' (' + mySlotStr + ' ' + myRoleStr + ')';
+    if(g.measureText(headDisp).width > cardW - 16){
+      headDisp = myName.slice(0, 10) + '… (' + mySlotStr + ')';
+    }
+  }
+  ptxt(headDisp, cx, headerY, FN(headerFontSize, 900), '#38bdf8');
 
   const btnW = Math.min(cardW - (isShortH ? 16 : 28), 340);
   const rdyH = isShortH ? 24 : clamp(Math.floor(panelH * 0.098), 28, 38);
@@ -4994,31 +5056,42 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
   drawChar(g, cx, avY, charSz, myCol, { face: isMeReady ? 'cool' : 'happy', grounded: true, seed: (NET.mySlot >= 0 ? NET.mySlot : 0) * 3 });
 
   // Team / Color Selector row
+  const isTeamLockedForMe = (!NET.isHost && !!NET.teamsLocked);
   rr(g, cx - btnW/2, teamY, btnW, teamH, 6);
-  g.fillStyle = 'rgba(0,0,0,0.55)'; g.fill();
-  g.lineWidth = 1.2; g.strokeStyle = 'rgba(255,255,255,0.3)'; g.stroke();
+  g.fillStyle = isTeamLockedForMe ? 'rgba(230, 126, 34, 0.20)' : 'rgba(0,0,0,0.55)'; g.fill();
+  g.lineWidth = 1.2; g.strokeStyle = isTeamLockedForMe ? '#e67e22' : 'rgba(255,255,255,0.3)'; g.stroke();
   const teamFontSize = clamp(teamH * 0.42, 10, 12.5);
   if(settings.teams){
     const myTeam = (menu.slotTeam && NET.mySlot >= 0 && menu.slotTeam[NET.mySlot] != null) ? menu.slotTeam[NET.mySlot] : ((NET.mySlot >= 0 ? NET.mySlot : 0) % 2);
     const teamDef = TEAMS[myTeam] || TEAMS[0];
-    ptxt('‹  ' + teamDef.icon + ' ' + teamDef.name + '  ›', cx, teamY + teamH/2 + 1, FN(teamFontSize, 900), '#ffffff');
+    const teamLabel = isTeamLockedForMe ? ('🔒 ' + teamDef.icon + ' ' + teamDef.name) : ('‹  ' + teamDef.icon + ' ' + teamDef.name + '  ›');
+    ptxt(teamLabel, cx, teamY + teamH/2 + 1, FN(teamFontSize, 900), isTeamLockedForMe ? '#ffd166' : '#ffffff');
     if(NET.mySlot >= 0){
-      zone(cx - btnW/2, teamY, btnW * 0.45, teamH, { fn: () => cycleTeam(NET.mySlot, -1) });
-      zone(cx + btnW * 0.05, teamY, btnW * 0.45, teamH, { fn: () => cycleTeam(NET.mySlot, 1) });
+      if(isTeamLockedForMe){
+        zone(cx - btnW/2, teamY, btnW, teamH, { fn: () => { toast('TEAMS ARE LOCKED BY THE HOST'); sfx('back'); } });
+      } else {
+        zone(cx - btnW/2, teamY, btnW * 0.45, teamH, { fn: () => cycleTeam(NET.mySlot, -1) });
+        zone(cx + btnW * 0.05, teamY, btnW * 0.45, teamH, { fn: () => cycleTeam(NET.mySlot, 1) });
+      }
     }
   } else {
     const curCol = (NET.mySlot >= 0 && menu.slotColor[NET.mySlot] >= 0) ? menu.slotColor[NET.mySlot] : (NET.mySlot >= 0 ? NET.mySlot : 0);
     const colName = (PALETTE[curCol % PALETTE.length] || PALETTE[0]).name;
-    ptxt('‹  🎨 ' + colName + '  ›', cx, teamY + teamH/2 + 1, FN(teamFontSize, 900), '#ffffff');
+    const colLabel = isTeamLockedForMe ? ('🔒 🎨 ' + colName) : ('‹  🎨 ' + colName + '  ›');
+    ptxt(colLabel, cx, teamY + teamH/2 + 1, FN(teamFontSize, 900), isTeamLockedForMe ? '#ffd166' : '#ffffff');
     if(NET.mySlot >= 0){
-      zone(cx - btnW/2, teamY, btnW * 0.45, teamH, { fn: () => {
-        if(NET.isHost){ cycleSlot(NET.mySlot, -1); netBroadcastSettings(); netBroadcastRoster(); }
-        else netCycleMyColor(-1);
-      }});
-      zone(cx + btnW * 0.05, teamY, btnW * 0.45, teamH, { fn: () => {
-        if(NET.isHost){ cycleSlot(NET.mySlot, 1); netBroadcastSettings(); netBroadcastRoster(); }
-        else netCycleMyColor(1);
-      }});
+      if(isTeamLockedForMe){
+        zone(cx - btnW/2, teamY, btnW, teamH, { fn: () => { toast('TEAMS ARE LOCKED BY THE HOST'); sfx('back'); } });
+      } else {
+        zone(cx - btnW/2, teamY, btnW * 0.45, teamH, { fn: () => {
+          if(NET.isHost){ cycleSlot(NET.mySlot, -1); netBroadcastSettings(); netBroadcastRoster(); }
+          else netCycleMyColor(-1);
+        }});
+        zone(cx + btnW * 0.05, teamY, btnW * 0.45, teamH, { fn: () => {
+          if(NET.isHost){ cycleSlot(NET.mySlot, 1); netBroadcastSettings(); netBroadcastRoster(); }
+          else netCycleMyColor(1);
+        }});
+      }
     }
   }
 
@@ -5031,13 +5104,50 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
   ptxt(ctrlIcon + ' ' + ctrlName + '  ▾', cx, ctrlY + ctrlH/2 + 1, FN(clamp(ctrlH * 0.44, 9.5, 12), 900), '#ffffff');
   zone(cx - btnW/2, ctrlY, btnW, ctrlH, { fn: () => netCycleMyControl() });
 
-  // Dedicated Ready Button
-  rr(g, cx - btnW/2, rdyY, btnW, rdyH, 6);
-  g.fillStyle = isMeReady ? '#27ae60' : 'rgba(255,255,255,0.14)'; g.fill();
-  g.lineWidth = 1.5; g.strokeStyle = isMeReady ? '#2ecc71' : 'rgba(255,255,255,0.3)'; g.stroke();
+  // Action / Ready Buttons:
   const rdyFontSize = clamp(rdyH * 0.42, 10.5, 13);
-  ptxt(isMeReady ? 'READY ✓' : 'CLICK TO READY', cx, rdyY + rdyH/2 + 1, FN(rdyFontSize, 900), isMeReady ? '#ffffff' : '#ffd166');
-  zone(cx - btnW/2, rdyY, btnW, rdyH, { fn: () => netToggleMyReady() });
+  if(isSpectatorMe){
+    // Spectator View: "JOIN GAME" Button (if lobby unlocked)
+    rr(g, cx - btnW/2, rdyY, btnW, rdyH, 6);
+    if(NET.lobbyLocked){
+      g.fillStyle = 'rgba(230, 126, 34, 0.25)'; g.fill();
+      g.lineWidth = 1.2; g.strokeStyle = '#e67e22'; g.stroke();
+      ptxt('🔒 LOBBY LOCKED BY HOST', cx, rdyY + rdyH/2 + 1, FN(clamp(rdyH * 0.38, 9.5, 11.5), 900), '#f39c12');
+      zone(cx - btnW/2, rdyY, btnW, rdyH, { fn: () => netToast('Lobby is locked by the host.') });
+    } else {
+      g.fillStyle = '#27ae60'; g.fill();
+      g.lineWidth = 1.5; g.strokeStyle = '#2ecc71'; g.stroke();
+      ptxt('▶ JOIN GAME', cx, rdyY + rdyH/2 + 1, FN(rdyFontSize, 900), '#ffffff');
+      zone(cx - btnW/2, rdyY, btnW, rdyH, { fn: () => netRequestJoinGame() });
+    }
+  } else if(!NET.isHost && NET.mySlot >= 1){
+    // Active Guest: Ready Button + Spectate Button side by side
+    const specBtnW = Math.max(68, Math.floor(btnW * 0.30));
+    const rdyBtnW = btnW - specBtnW - 6;
+    const rdyBtnX = cx - btnW/2;
+    const specBtnX = rdyBtnX + rdyBtnW + 6;
+
+    // Ready Button
+    rr(g, rdyBtnX, rdyY, rdyBtnW, rdyH, 6);
+    g.fillStyle = isMeReady ? '#27ae60' : 'rgba(255,255,255,0.14)'; g.fill();
+    g.lineWidth = 1.5; g.strokeStyle = isMeReady ? '#2ecc71' : 'rgba(255,255,255,0.3)'; g.stroke();
+    ptxt(isMeReady ? 'READY ✓' : 'READY?', rdyBtnX + rdyBtnW/2, rdyY + rdyH/2 + 1, FN(rdyFontSize, 900), isMeReady ? '#ffffff' : '#ffd166');
+    zone(rdyBtnX, rdyY, rdyBtnW, rdyH, { fn: () => netToggleMyReady() });
+
+    // Spectate Button
+    rr(g, specBtnX, rdyY, specBtnW, rdyH, 6);
+    g.fillStyle = 'rgba(56, 189, 248, 0.2)'; g.fill();
+    g.lineWidth = 1.2; g.strokeStyle = '#38bdf8'; g.stroke();
+    ptxt('👁️ Spec', specBtnX + specBtnW/2, rdyY + rdyH/2 + 1, FN(clamp(rdyH * 0.38, 9.5, 11.5), 900), '#38bdf8');
+    zone(specBtnX, rdyY, specBtnW, rdyH, { fn: () => netRequestSpectate() });
+  } else {
+    // Host: Full Ready / Start Button
+    rr(g, cx - btnW/2, rdyY, btnW, rdyH, 6);
+    g.fillStyle = isMeReady ? '#27ae60' : 'rgba(255,255,255,0.14)'; g.fill();
+    g.lineWidth = 1.5; g.strokeStyle = isMeReady ? '#2ecc71' : 'rgba(255,255,255,0.3)'; g.stroke();
+    ptxt(isMeReady ? 'READY ✓' : 'CLICK TO READY', cx, rdyY + rdyH/2 + 1, FN(rdyFontSize, 900), isMeReady ? '#ffffff' : '#ffd166');
+    zone(cx - btnW/2, rdyY, btnW, rdyH, { fn: () => netToggleMyReady() });
+  }
 
   // --- 4. HOST PLAYER MANAGEMENT MODAL ---
   if(NET.isHost && NET.manageSlot !== null && NET.manageSlot !== undefined && NET.manageSlot > 0 && menu.slotColor[NET.manageSlot] >= 0){
@@ -5068,16 +5178,53 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
     const mbH = 28;
     const mbGap = 8;
 
-    // Option 1: Swap Team (if teams mode)
+    // Option 1: Swap Team (if teams mode) - Opens 4-team color pop-up flyout
     if(settings.teams){
-      const curTeam = (menu.slotTeam && menu.slotTeam[ms] != null) ? menu.slotTeam[ms] : (ms % 2);
-      const nextTeamName = (curTeam === 0) ? '🔵 BLUE TEAM' : '🔴 RED TEAM';
+      const curTeam = (menu.slotTeam && menu.slotTeam[ms] != null) ? (menu.slotTeam[ms] % TEAMS.length) : (ms % 2);
+      const curTeamDef = TEAMS[curTeam] || TEAMS[0];
       rr(g, mX + 14, mBtnY, mbW, mbH, 6);
       g.fillStyle = 'rgba(243, 156, 18, 0.25)'; g.fill();
       g.lineWidth = 1.2; g.strokeStyle = '#f39c12'; g.stroke();
-      txt('⚔️ Swap to ' + nextTeamName, mX + mW/2, mBtnY + mbH/2 + 1, FN(10.5, 900), '#ffd166');
-      zone(mX + 14, mBtnY, mbW, mbH, { fn: () => { netSwapPlayerTeam(ms); } });
+      txt('⚔️ Swap Teams (' + curTeamDef.icon + ') ▸', mX + mW/2, mBtnY + mbH/2 + 1, FN(10.5, 900), '#ffd166');
+      zone(mX + 14, mBtnY, mbW, mbH, { fn: () => {
+        NET.teamPickerOpen = !NET.teamPickerOpen;
+        sfx('ui');
+      } });
       mBtnY += mbH + mbGap;
+
+      // Small pop-up flyout beside it showing all 4 team colors
+      if(NET.teamPickerOpen){
+        const popW = 148;
+        const popH = TEAMS.length * 28 + 26;
+        let popX = (mX + mW + popW + 10 <= CW) ? (mX + mW + 8) : ((mX - popW - 8 >= 0) ? (mX - popW - 8) : (mX + 14));
+        let popY = (mX + mW + popW + 10 <= CW || mX - popW - 8 >= 0) ? mY + 12 : (mBtnY + 4);
+
+        // Pop-up frame
+        rr(g, popX - 2, popY - 2, popW + 4, popH + 4, 12);
+        g.fillStyle = '#ffffff'; g.fill(); g.lineWidth = 2; g.strokeStyle = INK; g.stroke();
+        rr(g, popX, popY, popW, popH, 10);
+        g.fillStyle = 'rgba(16, 24, 38, 0.98)'; g.fill();
+        g.lineWidth = 1.5; g.strokeStyle = 'rgba(255,255,255,0.25)'; g.stroke();
+        zone(popX, popY, popW, popH, { fn: () => {} });
+
+        txt('SELECT TEAM (4)', popX + popW/2, popY + 13, FN(9.5, 900), '#94a3b8');
+
+        for(let t = 0; t < TEAMS.length; t++){
+          const tm = TEAMS[t];
+          const ty = popY + 24 + t * 28;
+          const isThisCur = (curTeam === t);
+          rr(g, popX + 8, ty, popW - 16, 24, 6);
+          g.fillStyle = isThisCur ? tm.base : 'rgba(255,255,255,0.08)'; g.fill();
+          g.lineWidth = isThisCur ? 2 : 1;
+          g.strokeStyle = isThisCur ? '#ffffff' : tm.base; g.stroke();
+
+          txt(tm.icon + ' ' + tm.name + (isThisCur ? ' ✓' : ''), popX + popW/2, ty + 12 + 1, FN(9.5, 900), '#ffffff');
+          zone(popX + 8, ty, popW - 16, 24, { fn: () => {
+            netSetPlayerTeam(ms, t);
+            NET.teamPickerOpen = false;
+          } });
+        }
+      }
     }
 
     // Option 2: Move to Waiting List
@@ -5085,7 +5232,7 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
     g.fillStyle = 'rgba(56, 189, 248, 0.25)'; g.fill();
     g.lineWidth = 1.2; g.strokeStyle = '#38bdf8'; g.stroke();
     txt('⏳ Move to Waiting List', mX + mW/2, mBtnY + mbH/2 + 1, FN(10.5, 900), '#38bdf8');
-    zone(mX + 14, mBtnY, mbW, mbH, { fn: () => { netMovePlayerToWaitlist(ms); NET.manageSlot = null; } });
+    zone(mX + 14, mBtnY, mbW, mbH, { fn: () => { netMovePlayerToWaitlist(ms); NET.manageSlot = null; NET.teamPickerOpen = false; } });
     mBtnY += mbH + mbGap;
 
     // Option 3: Kick from Room
@@ -5093,7 +5240,7 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
     g.fillStyle = 'rgba(231, 76, 60, 0.25)'; g.fill();
     g.lineWidth = 1.2; g.strokeStyle = '#e74c3c'; g.stroke();
     txt('🚫 Kick from Room', mX + mW/2, mBtnY + mbH/2 + 1, FN(10.5, 900), '#ff6b81');
-    zone(mX + 14, mBtnY, mbW, mbH, { fn: () => { netKickPlayer(ms); NET.manageSlot = null; } });
+    zone(mX + 14, mBtnY, mbW, mbH, { fn: () => { netKickPlayer(ms); NET.manageSlot = null; NET.teamPickerOpen = false; } });
     mBtnY += mbH + mbGap;
 
     // Option 4: Close
@@ -5101,8 +5248,46 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
     g.fillStyle = 'rgba(255, 255, 255, 0.12)'; g.fill();
     g.lineWidth = 1; g.strokeStyle = 'rgba(255, 255, 255, 0.3)'; g.stroke();
     txt('✕ Close', mX + mW/2, mBtnY + mbH/2 + 1, FN(10.5, 900), '#ffffff');
-    zone(mX + 14, mBtnY, mbW, mbH, { fn: () => { NET.manageSlot = null; } });
+    zone(mX + 14, mBtnY, mbW, mbH, { fn: () => { NET.manageSlot = null; NET.teamPickerOpen = false; } });
   }
+}
+
+/* ================= SPECTATOR HUD BANNER ================= */
+function drawSpectatorBanner(){
+  if(!match) return;
+  g.save();
+  const banW = Math.min(CW - 24, 460);
+  const banH = 38;
+  const banX = CW / 2 - banW / 2;
+  const banY = 12;
+
+  // Background Glass Pill
+  rr(g, banX, banY, banW, banH, 19);
+  g.fillStyle = 'rgba(15, 23, 42, 0.90)';
+  g.fill();
+  g.lineWidth = 2;
+  g.strokeStyle = '#38bdf8';
+  g.stroke();
+
+  // Pulse dot icon
+  const dotX = banX + 22, dotY = banY + banH / 2;
+  const pulse = (Math.sin(performance.now() * 0.006) + 1) / 2;
+  g.beginPath();
+  g.arc(dotX, dotY, 4 + pulse * 2, 0, TAU);
+  g.fillStyle = 'rgba(56, 189, 248, 0.4)';
+  g.fill();
+  g.beginPath();
+  g.arc(dotX, dotY, 4, 0, TAU);
+  g.fillStyle = '#38bdf8';
+  g.fill();
+
+  // Text Info
+  const secLeft = Math.max(0, Math.ceil(match.timer || 0));
+  const mainTxt = 'SPECTATING  •  Round ends in ' + secLeft + 's';
+  ptxt(mainTxt, banX + banW / 2 + 6, banY + banH / 2 - 4, FT(clamp(banW * 0.034, 12, 14.5)), '#ffffff', 'center', 3);
+  txt('You will auto-join when this round finishes  •  [TAB] Players', banX + banW / 2 + 6, banY + banH / 2 + 9, FN(9.5, 800), '#94a3b8', 'center');
+
+  g.restore();
 }
 
 /* ================= IN-GAME TAB SCOREBOARD OVERLAY ================= */
@@ -5796,6 +5981,8 @@ function drawMenu(){
     const mapMidX = stripX + 6 + arrowW + 4;
     rr(g, mapMidX, itemY, mapMidW, itemH, 6);
     g.fillStyle = settings.randomMap ? 'rgba(255, 209, 102, 0.25)' : 'rgba(255,255,255,0.18)'; g.fill();
+    g.lineWidth = 1.5; g.strokeStyle = settings.randomMap ? 'rgba(255, 209, 102, 0.55)' : 'rgba(255,255,255,0.30)'; g.stroke();
+    txt(mapLabelText, mapMidX + mapMidW/2, itemY + itemH/2 + 1, FN(clamp(itemH * 0.40, 11, 13.5), 900), settings.randomMap ? '#ffd166' : '#ffffff');
     zone(mapMidX, itemY, mapMidW, itemH, { fn: () => {
       if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST SELECTS THE ARENA'); sfx('back'); return; }
       menu.mapModal = true; sfx('ok');
@@ -6608,8 +6795,10 @@ function drawHUD(){
   }
 
   /* In-game Tab Scoreboard / Spectator HUD Overlay */
-  if(scoreboardOpen || (typeof NET !== 'undefined' && NET && NET.isSpectator && match && match.state === 'playing')){
+  if(scoreboardOpen){
     drawScoreboardOverlay();
+  } else if(typeof NET !== 'undefined' && NET && NET.isSpectator && match && match.state === 'playing'){
+    drawSpectatorBanner();
   }
 }
 
@@ -8036,9 +8225,32 @@ function netWireConn(conn, isHostSide){
             if(match && match.players){
               const idx = match.players.findIndex(p => p.slot === i);
               if(idx !== -1){
+                const wasIt = (match.it === idx);
+                const removedPlayer = match.players[idx];
                 match.players.splice(idx, 1);
                 if(match.tags) match.tags.splice(idx, 1);
-                if(match.it >= match.players.length) match.it = 0;
+                if(match.players.length > 0){
+                  if(wasIt){
+                    // Find the player CLOSEST to the disconnecting player
+                    let closestIdx = 0, closestDist = Infinity;
+                    for(let pi=0; pi<match.players.length; pi++){
+                      const remP = match.players[pi];
+                      const d2 = Math.hypot(remP.x - removedPlayer.x, remP.y - removedPlayer.y);
+                      if(d2 < closestDist){
+                        closestDist = d2;
+                        closestIdx = pi;
+                      }
+                    }
+                    match.it = closestIdx;
+                    match.cooldown = 1.8;
+                    match.freeze = 0.3;
+                    const newItP = match.players[closestIdx];
+                    const newName = (newItP ? NET.slotsName[newItP.slot] : '') || ('P' + (closestIdx+1));
+                    netToast(newName + ' is now IT (closest player)! 🏃');
+                  } else if(match.it >= match.players.length){
+                    match.it = 0;
+                  }
+                }
               }
             }
             break;
@@ -8051,7 +8263,7 @@ function netWireConn(conn, isHostSide){
         netUpdateHostDirectory();
         netToast(removedSlot !== -1 ? ('P' + (removedSlot + 1) + ' disconnected') : 'A spectator left');
       } else {
-        netToast('Host left. Room closed.');
+        netToast('Host disconnected. Returning to menu.');
         netLeaveRoom();
       }
     }
@@ -8158,6 +8370,10 @@ function netOnData(m, c){
     }
     return;
   } else if(m.t === 'claim_slot' && NET.isHost){
+    if(NET.lobbyLocked){
+      c.send({ t: 'toast', msg: 'Lobby is locked by the host.' });
+      return;
+    }
     const reqSlot = m.slot | 0;
     if(reqSlot >= 1 && reqSlot < 8 && !NET.hostInputs.has(reqSlot) && menu.slotColor[reqSlot] === -1){
       const guestName = NET.peerNames.get(c.peer) || 'Player';
@@ -8213,6 +8429,18 @@ function netOnData(m, c){
       netBroadcastRoster();
       netUpdateHostDirectory();
       netToast(guestName + ' joined as P' + (reqSlot + 1));
+    }
+    return;
+  } else if(m.t === 'to_spectator' && NET.isHost){
+    let fromSlot = -1;
+    for(const [s, inp] of NET.hostInputs.entries()){
+      if(inp.owner === c.peer){
+        fromSlot = s;
+        break;
+      }
+    }
+    if(fromSlot > 0){
+      netMovePlayerToWaitlist(fromSlot);
     }
     return;
   } else if(m.t === 'spectator_init' && !NET.isHost){
@@ -8787,11 +9015,48 @@ function netClaimSlot(s){
     }
     return;
   }
-  if(NET.hostConn){
-    netSendRel(NET.hostConn, { t: 'claim_slot', slot: s });
-    sfx('ui');
-    netToast('Claiming slot P' + (s + 1) + '...');
+  if(NET.lobbyLocked){
+    netToast('Lobby is locked by the host.');
+    return;
   }
+  for(const pair of NET.conns.values()){
+    netSendRel(pair, { t: 'claim_slot', slot: s });
+  }
+  sfx('go');
+  netToast('Joining slot P' + (s + 1) + '...');
+}
+
+function netRequestJoinGame(){
+  if(NET.role === null || NET.isHost) return;
+  if(NET.lobbyLocked){
+    netToast('Lobby is locked by the host.');
+    return;
+  }
+  let openSlot = -1;
+  for(let s=1; s<8; s++){
+    if(menu.slotColor[s] === -1){
+      openSlot = s;
+      break;
+    }
+  }
+  if(openSlot === -1){
+    netToast('All player slots are full!');
+    return;
+  }
+  netClaimSlot(openSlot);
+}
+
+function netRequestSpectate(){
+  if(NET.role === null || NET.isHost) return;
+  if(NET.isSpectator || NET.mySlot === -1){
+    netToast('Already spectating.');
+    return;
+  }
+  for(const pair of NET.conns.values()){
+    netSendRel(pair, { t: 'to_spectator' });
+  }
+  sfx('back');
+  netToast('Moved to Spectators.');
 }
 
 function netMovePlayerToWaitlist(slot){
@@ -8844,9 +9109,19 @@ function netSwapPlayerTeam(slot){
   if(!NET.isHost || NET.teamsLocked || slot < 0 || slot >= 8) return;
   if(menu.slotColor[slot] < 0) return;
   if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
-  menu.slotTeam[slot] = (menu.slotTeam[slot] === 0) ? 1 : 0;
+  menu.slotTeam[slot] = ((menu.slotTeam[slot] || 0) + 1) % TEAMS.length;
   sfx('ui');
   netBroadcastRoster();
+}
+
+function netSetPlayerTeam(slot, teamIdx){
+  if(!NET.isHost || slot < 0 || slot >= 8) return;
+  if(menu.slotColor[slot] < 0) return;
+  if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+  menu.slotTeam[slot] = teamIdx % TEAMS.length;
+  sfx('ok');
+  netBroadcastRoster();
+  netToast((NET.slotsName[slot] || ('P' + (slot+1))) + ' moved to ' + TEAMS[teamIdx % TEAMS.length].name);
 }
 
 function netLockTeams(lock){
@@ -9161,10 +9436,15 @@ function netLeaveRoom(reason){
   if(NET.isHost && NET.room){
     const serverUrl = netDirBase();
     try {
+      const payload = JSON.stringify({ roomId: NET.room });
+      if(navigator.sendBeacon){
+        navigator.sendBeacon(serverUrl + '/api/rooms/close', new Blob([payload], { type: 'application/json' }));
+      }
       fetch(serverUrl + '/api/rooms/close', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomId: NET.room })
+        body: payload,
+        keepalive: true
       }).catch(() => {});
     } catch(e){}
   }
@@ -9391,18 +9671,13 @@ function render(){
   else if(match){drawGame();if(typeof DEMO!=='undefined'&&DEMO.active){try{demoOverlay();}catch(e){}}}
 }
 let last=performance.now();
-function frame(now){
-  requestAnimationFrame(frame);
-  if(document.hidden && NET.role !== null && NET.isHost){
-    return;
-  }
-  const dt=Math.min(0.033,(now-last)/1000);
-  last=now;tGlobal+=dt;
-  
+let bgAccumulator=0;
+
+function stepSimulation(dt){
   // Global gamepad polling for every client
   pollGamepads();
 
-  // Netplay 30Hz tick (smoothed by 100ms render interp)
+  // Netplay tick (smoothed by render interp)
   if(NET.role !== null){
     netTick(dt);
   }
@@ -9411,59 +9686,69 @@ function frame(now){
       // Tag freeze is host-authoritative: hold everything for 0.09s like the host does
       if(match.freeze > 0){ match.freeze -= dt; }
       else{
-      const inPlay = match.state === 'playing';
-      const myP = getMyPlayer();
-      if(myP){
-        physUpdate(myP, dt, inPlay);
-      }
-      // Smooth continuous predictive interpolation for all remote players
-      for(const p of match.players){
-        if(p.slot !== NET.mySlot){
-          netApplyRemoteTarget(p, dt);
+        const inPlay = match.state === 'playing';
+        const myP = getMyPlayer();
+        if(myP){
+          physUpdate(myP, dt, inPlay);
         }
-      }
-      checkTag();
-      if(typeof updateVoiceProximity === 'function') updateVoiceProximity(dt);
-      if(anyPressed(['KeyM'])) toggleSound();
-      if(anyPressed(['KeyO'])) toggleFullscreen();
-      updateCam(dt);
-      updateParts(dt);
-      if(match.tagPop){ match.tagPop.t -= dt; if(match.tagPop.t <= 0) match.tagPop = null; }
-      match.goFlash = Math.max(0, (match.goFlash || 0) - dt);
-      match.flash = Math.max(0, (match.flash || 0) - dt);
-      match.fade = Math.max(0, (match.fade || 0) - dt);
-      match.shake = (match.shake || 0) * Math.exp(-dt * 7);
-      if(match.state === 'result'){ match.resultT = (match.resultT || 0) + dt; }
+        // Smooth continuous predictive interpolation for all remote players
+        for(const p of match.players){
+          if(p.slot !== NET.mySlot){
+            netApplyRemoteTarget(p, dt);
+          }
+        }
+        checkTag();
+        if(typeof updateVoiceProximity === 'function') updateVoiceProximity(dt);
+        if(anyPressed(['KeyM'])) toggleSound();
+        if(anyPressed(['KeyO'])) toggleFullscreen();
+        updateCam(dt);
+        updateParts(dt);
+        if(match.tagPop){ match.tagPop.t -= dt; if(match.tagPop.t <= 0) match.tagPop = null; }
+        match.goFlash = Math.max(0, (match.goFlash || 0) - dt);
+        match.flash = Math.max(0, (match.flash || 0) - dt);
+        match.fade = Math.max(0, (match.fade || 0) - dt);
+        match.shake = (match.shake || 0) * Math.exp(-dt * 7);
+        if(match.state === 'result'){ match.resultT = (match.resultT || 0) + dt; }
       } // end freeze gate
     } else {
       update(dt);
     }
-    render();
   }catch(err){}
   TOUCH.jumpEdge = false;
   pressed.clear();
 }
 
-/* Background tick worker: keeps host simulation and 30Hz net broadcasting alive even if the tab is hidden or minimized */
+function frame(now){
+  requestAnimationFrame(frame);
+  if(document.hidden && NET.role !== null){
+    // In background, backgroundStep worker drives the simulation without double-ticking
+    return;
+  }
+  const dt=Math.min(0.033,(now-last)/1000);
+  last=now;
+  tGlobal+=dt;
+  
+  stepSimulation(dt);
+  render();
+}
+
+/* Background tick worker: keeps host simulation and net broadcasting alive at 60Hz even if tab is hidden/minimized */
 let bgWorker = null;
 function backgroundStep(){
   if(!document.hidden || NET.role === null) return;
   const now = performance.now();
-  const dt = Math.min(0.033, (now - last) / 1000);
+  let elapsed = Math.min(0.5, Math.max(0, (now - last) / 1000));
   last = now;
-  tGlobal += dt;
-  pollGamepads();
-  if(NET.isHost){
-    if(match && match.state !== 'paused'){
-      updateGame(dt);
-    }
-  } else if(match && match.state !== 'paused'){
-    const myP = getMyPlayer();
-    if(myP) physUpdate(myP, dt, match.state === 'playing');
+  bgAccumulator += elapsed;
+  const fixedStep = 1 / 60;
+  let steps = 0;
+  while(bgAccumulator >= fixedStep && steps < 10){
+    tGlobal += fixedStep;
+    stepSimulation(fixedStep);
+    bgAccumulator -= fixedStep;
+    steps++;
   }
-  netTick(dt);
-  TOUCH.jumpEdge = false;
-  pressed.clear();
+  if(bgAccumulator > fixedStep) bgAccumulator = 0;
 }
 
 try {
@@ -9485,12 +9770,27 @@ try {
 } catch(err) {
   setInterval(() => {
     backgroundStep();
-  }, 20);
+  }, 16);
 }
 
 document.addEventListener('visibilitychange', () => {
   last = performance.now();
+  bgAccumulator = 0;
 });
+
+const onTabCloseCloseRoom = () => {
+  if(typeof NET !== 'undefined' && NET && NET.isHost && NET.room){
+    try {
+      const serverUrl = netDirBase();
+      const payload = JSON.stringify({ roomId: NET.room });
+      if(navigator.sendBeacon){
+        navigator.sendBeacon(serverUrl + '/api/rooms/close', new Blob([payload], { type: 'application/json' }));
+      }
+    } catch(e){}
+  }
+};
+window.addEventListener('beforeunload', onTabCloseCloseRoom);
+window.addEventListener('pagehide', onTabCloseCloseRoom);
 syncCustomMaps();
 /* Editor launch: tag_map_editor.html "Full Game" stores the map you're viewing
    plus default 2P settings; the game jumps straight into that match. */
