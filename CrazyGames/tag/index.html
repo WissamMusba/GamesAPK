@@ -90,10 +90,10 @@ canvas{position:fixed;top:0;left:0;width:100%;height:100%;height:100dvh;display:
 <div id="netToast"></div>
 <!-- SDK Banners: rendered DOM containers so CrazyGames can inject without painting over the canvas -->
 <div id="cg-banners" style="position:fixed;left:50%;top:0;transform:translateX(-50%);z-index:10;display:none;pointer-events:none">
-  <div id="cg-banner-top" style="min-height:50px;min-width:320px;pointer-events:auto"></div>
+  <div id="cg-banner-top" style="min-height:50px;min-width:320px;pointer-events:none"></div>
 </div>
 <div id="cg-banner-resp" style="position:fixed;bottom:0;left:0;right:0;z-index:10;display:none;pointer-events:none;justify-content:center;padding:4px 0;background:rgba(10,10,16,0.92);border-top:1px solid #2a2c3d">
-  <div id="cg-banner-responsive" style="min-height:50px;min-width:320px;max-width:728px;width:100%;pointer-events:auto"></div>
+  <div id="cg-banner-responsive" style="min-height:50px;min-width:320px;max-width:728px;width:100%;pointer-events:none"></div>
 </div>
 <script>
 "use strict";
@@ -697,6 +697,7 @@ if(window.PointerEvent){
 
 let AC=null,master=null,muted=false,sdkMuted=false;
 let _cg=null;
+let _cgBoot=null;
 let lastAdTime = Date.now();
 const CG={
   ready:false,env:'',
@@ -708,12 +709,16 @@ const CG={
   _bannerIds:new Set(),
   boot(){
     return new Promise(res=>{
+      let _done=false;
+      const finish=()=>{try{if(!_done){_done=true;res();}}catch(e){}};
+      try{setTimeout(finish,5000);}catch(e){}
       const sdk=window.CrazyGames&&window.CrazyGames.SDK;
-      if(!sdk||!sdk.init){res();return;}
-      try{sdk.game.loadingStart();}catch(e){}
+      if(!sdk||!sdk.init){finish();return;}
+      try{
       sdk.init().then(async ()=>{
         this.ready=true;
         try{this.env=sdk.environment||'';}catch(e){}
+        try{sdk.game.loadingStart();}catch(e){}
         try{sdk.game.loadingStop();}catch(e){}
         try{
           const st=sdk.game.settings;
@@ -735,9 +740,9 @@ const CG={
         try{this._registerJoinListener();}catch(e){}
         /* Cold-start invite params + instant-multiplayer auto-host */
         try{this._handleColdStartInvite();}catch(e){}
-        res();
-        setTimeout(res,1200);
-      }).catch(()=>res());
+        finish();
+      }).catch(()=>finish());
+      }catch(e){finish();}
     });
   },
   ok(){return this.ready&&(this.env==='local'||this.env==='crazygames');},
@@ -851,13 +856,36 @@ const CG={
           maxPlayers: (typeof NET!=='undefined'&&NET&&NET.maxPlayers)||8,
           inviteParams: { room: roomId, roomId: roomId }
         });
-      }
-    }catch(e){}
+        try{window._cgLastRoom={roomId:roomId,join:join!==false,t:Date.now()};}catch(e){}
+        try{console.log('[CG room] updateRoom',roomId,'joinable='+(join!==false),'players='+(Array.isArray(playerList)?playerList.length:0),'env='+(window.CrazyGames&&window.CrazyGames.SDK&&window.CrazyGames.SDK.environment));}catch(e){}
+      } else { try{console.warn('[CG room] updateRoom skipped — SDK/game.updateRoom missing');}catch(e){} }
+    }catch(e){ try{console.warn('[CG room] updateRoom threw');}catch(e2){} }
   },
   leftRoom(){
     try{
       const sdk=window.CrazyGames&&window.CrazyGames.SDK;
       if(sdk&&sdk.game&&sdk.game.leftRoom){sdk.game.leftRoom();}
+    }catch(e){}
+    try{if(typeof this.hideInviteButton==='function')this.hideInviteButton();}catch(e){}
+  },
+  showInviteButton(roomId){
+    try{
+      const sdk=window.CrazyGames&&window.CrazyGames.SDK;
+      if(sdk&&sdk.game&&typeof sdk.game.showInviteButton==='function'){
+        const params={roomId:roomId,room:roomId,roomName:roomId};
+        try{const r=sdk.game.showInviteButton(params,()=>{});if(r&&r.catch)r.catch(()=>{});}catch(e){try{sdk.game.showInviteButton(params);}catch(e2){}}
+        try{window._cgInviteShown={roomId:roomId,t:Date.now()};}catch(e){}
+        try{console.log('[CG room] showInviteButton',roomId);}catch(e){}
+        return true;
+      } else { try{console.warn('[CG room] showInviteButton missing');}catch(e){} }
+    }catch(e){}
+    return false;
+  },
+  hideInviteButton(){
+    try{
+      const sdk=window.CrazyGames&&window.CrazyGames.SDK;
+      if(sdk&&sdk.game&&typeof sdk.game.hideInviteButton==='function'){try{sdk.game.hideInviteButton();}catch(e){}}
+      try{window._cgInviteShown=null;}catch(e){}
     }catch(e){}
   },
   async getInviteLink(roomId){
@@ -975,6 +1003,38 @@ const CG={
     try{sdk.banner.clearAllBanners();this._bannerIds.clear();}catch(e){}
   },
 };
+/* Banner click-through guard: empty ad containers must never swallow canvas taps.
+   Inners stay pointer-events:none until the SDK actually renders an ad (child node).
+   A MutationObserver reveals/hides each wrapper on render/clear, plus a 2s sweep
+   as backup. Real ads stay clickable (portal compliance); empty boxes stay inert. */
+let _cgBannerGuardOn=false;
+function cgBannerClickGuard(){
+  if(_cgBannerGuardOn) return; _cgBannerGuardOn=true;
+  try{
+    const pairs=[['cg-banners','cg-banner-top','block'],['cg-banner-resp','cg-banner-responsive','flex']];
+    const sync=(wrapId,innerId,showDisp)=>{
+      try{
+        const wrap=document.getElementById(wrapId),inner=document.getElementById(innerId);
+        if(!wrap||!inner) return;
+        const hasAd=!!(inner.children&&inner.children.length);
+        inner.style.pointerEvents=hasAd?'auto':'none';
+        if(hasAd){ if(wrap.style.display==='none')wrap.style.display=showDisp; }
+        else { if(wrap.style.display!=='none')wrap.style.display='none'; }
+      }catch(e){}
+    };
+    for(const pr of pairs){
+      try{
+        const inner=document.getElementById(pr[1]);
+        if(inner&&typeof MutationObserver!=='undefined'){
+          const mo=new MutationObserver(()=>sync(pr[0],pr[1],pr[2]));
+          mo.observe(inner,{childList:true,subtree:false});
+        }
+      }catch(e){}
+      sync(pr[0],pr[1],pr[2]);
+    }
+    try{setInterval(()=>{for(const pr of pairs)sync(pr[0],pr[1],pr[2]);},2000);}catch(e){}
+  }catch(e){}
+}
 function applySdkMute(m){sdkMuted=!!m;applyEffectiveMute();}
 function applySdkChatDisabled(v){try{if(typeof CG!=='undefined'&&CG)CG.chatDisabled=!!v;}catch(e){}}
 function applyEffectiveMute(){const eff=muted||sdkMuted;try{if(master)master.gain.value=eff?0:0.5;}catch(e){}}
@@ -2943,6 +3003,20 @@ function botInputFor(p,dt){
               want=0; S.dir=0;
             }
           }
+          // ANTI-CAMP: an intentional hold must never look frozen, nor trip the
+          // stuck detector into jump-spam jitter. Patrol instead after ~1.2s.
+          if(want===0&&S.dir===0){
+            S.campT=(S.campT||0)+botThinkRate;
+            S.stuckT=0; // intentional hold is not stuck: stops jitter cycle
+            if(S.campT>1.2){
+              S.campT=0; S.campFlip=!S.campFlip;
+              const toH=Math.sign(dx)||1;
+              const strollDir=S.campFlip?toH:-toH;
+              const strollOk=strollDir>0?(hasGroundR||hasWallR||(platR-(p.x+p.w))>26):(hasGroundL||hasWallL||(p.x-platL)>26);
+              if(strollOk){want=strollDir;S.dir=strollDir;}
+              else if(strollDir!==0){want=-strollDir;S.dir=-strollDir;}
+            }
+          }else{S.campT=0;}
         }else if(!botGroundAhead(p,want,fastGround?125:80)&&far){
           S.jumpQ=true;
           if(fastGround)S.jumpHoldT=0.16;
@@ -4781,10 +4855,19 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
   g.lineWidth = 1.5; g.strokeStyle = 'rgba(255,255,255,0.2)'; g.stroke();
 
   ptxt('ROOM: ' + NET.room.toUpperCase(), startX + 14, stageY + topH/2 + 1, FT(13), '#ffd166', 'left');
+  try{
+    const sdkOk=!!(window.CrazyGames&&window.CrazyGames.SDK&&window.CrazyGames.SDK.game&&window.CrazyGames.SDK.game.updateRoom);
+    const announced=!!(window._cgLastRoom&&window._cgLastRoom.roomId===NET.room&&window._cgLastRoom.join!==false);
+    const invited=!!window._cgInviteShown;
+    const dot=sdkOk?(announced?'● PORTAL OK':'○ WAITING'):'○ NO SDK';
+    const dotCol=!sdkOk?'#64748b':(announced?'#2ecc71':'#f39c12');
+    txt(dot, startX + 118, stageY + topH/2 + 1, FN(9, 800), dotCol, 'left');
+    if(!announced||!invited){ if(typeof netUpdateHostDirectory==='function'){ if(!drawOnlineLobby._portalRetry||Date.now()-drawOnlineLobby._portalRetry>4000){ drawOnlineLobby._portalRetry=Date.now(); try{netUpdateHostDirectory();}catch(e){} try{if(typeof CG!=='undefined'&&CG&&typeof CG.showInviteButton==='function')CG.showInviteButton(NET.room);}catch(e){} } } }
+  }catch(e){}
 
   // Copy Link Button
   const copyBtnW = 86, copyBtnH = 24;
-  const copyBtnX = startX + 130, copyBtnY = stageY + 5;
+  const copyBtnX = startX + 212, copyBtnY = stageY + 5;
   rr(g, copyBtnX, copyBtnY, copyBtnW, copyBtnH, 6);
   g.fillStyle = 'rgba(56, 189, 248, 0.2)'; g.fill();
   g.lineWidth = 1; g.strokeStyle = '#38bdf8'; g.stroke();
@@ -5422,19 +5505,20 @@ function drawMenu(){
       if(sdk && sdk.banner){
         const resp = document.getElementById('cg-banner-resp');
         const top = document.getElementById('cg-banners');
-        if(!isTouch && CH >= 550 && resp && resp.style.display === 'none' && !CG._bannerIds.has('cg-banner-responsive')){
-          try{ CG.requestResponsiveBanner('cg-banner-responsive'); resp.style.display = 'flex'; }catch(e){}
+        if(!isTouch && CH >= 550 && resp && !CG._bannerIds.has('cg-banner-responsive')){
+          try{ CG.requestResponsiveBanner('cg-banner-responsive'); }catch(e){}
         } else if((isTouch || CH < 550) && resp && resp.style.display !== 'none'){
           resp.style.display = 'none';
         }
-        if(top && top.style.display === 'none' && !CG._bannerIds.has('cg-banner-top')){
+        if(top && !CG._bannerIds.has('cg-banner-top')){
           try{
             if(!isTouch && CW >= 700){
               CG.requestBanner('cg-banner-top', '728x90');
-              top.style.display = 'block';
             }
           }catch(e){}
         }
+        /* Reveal only happens via cgBannerClickGuard when an ad actually renders —
+           empty containers stay display:none so they never cover menu tabs/buttons. */
       }
     }
   }catch(e){}
@@ -7837,10 +7921,22 @@ function netShow(on){
 
 function netLink(room){
   let p = location.pathname;
-  if(p.endsWith('/')){ /* keep */ }
+  if(p.endsWith('/')){
+    try{if(location.host&&location.host.indexOf('game-files.crazygames.com')>=0) p = p + 'index.html';}catch(e){}
+  }
   else if(/\/[^\/]+\.[a-z]+$/i.test(p)) p = p.replace(/\/[^\/]*$/, '/');
   else p = p + '/';
-  return location.origin + p + '?room=' + room.toUpperCase();
+  try{
+    if(p.endsWith('/')&&location.host&&location.host.indexOf('game-files.crazygames.com')>=0) p = p + 'index.html';
+  }catch(e){}
+  let l = location.origin + p + '?room=' + room.toUpperCase();
+  try{
+    if(typeof CG!=='undefined'&&CG&&typeof CG.getInviteLink==='function'&&l.indexOf('game-files.crazygames.com')>=0){
+      // direct game-files folder URLs 404 (NoSuchKey) — index.html form loads
+      l = l.replace(/\/\?room=/, '/index.html?room=');
+    }
+  }catch(e){}
+  return l;
 }
 
 /* Copy the portal invite link when available, else the ?room= fallback link */
@@ -7857,6 +7953,7 @@ function netCopyInviteToClipboard(doneMsg){
       CG.getInviteLink(NET.room).then(sdkLink=>{
         let l = sdkLink;
         if(l && typeof l !== 'string'){ try{ l = String(l); }catch(e){ l = null; } }
+        try{if(l&&l.indexOf('game-files.crazygames.com')>=0) l=l.replace(/\/\?room=/,'/index.html?room=');}catch(e){}
         if(!l){ fallback(); return; }
         try{
           if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(l).then(()=>netToast(msg)).catch(()=>prompt('Copy invite link:', l));
@@ -7878,6 +7975,7 @@ async function netCopyLink(){
     }
   }catch(e){ l = null; }
   if(!l) l = netLink(NET.room);
+  try{if(l&&l.indexOf('game-files.crazygames.com')>=0) l=l.replace(/\/\?room=/,'/index.html?room=');}catch(e){}
   if(navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(l).then(() => netToast('Invite link copied! Send it to your friend.')).catch(() => prompt('Copy invite link:', l));
   } else {
@@ -9287,6 +9385,7 @@ function netBroadcastRoster(){
     pings: pingsObj
   };
   netBroadcastReliable(msg);
+  try{if(typeof netUpdateHostDirectory==='function')netUpdateHostDirectory();}catch(e){}
 }
 
 function netBroadcastState(state){
@@ -9377,6 +9476,14 @@ function netHostAction(isPublic = true){
     if(typeof CG !== 'undefined' && CG && typeof CG.updateRoom === 'function'){
       CG.updateRoom(code, [{ id: 'p0', username: myProfile.name }], true);
     }
+    if(typeof CG !== 'undefined' && CG && typeof CG.showInviteButton === 'function'){
+      CG.showInviteButton(code);
+    }
+  }catch(e){}
+  try{
+    setTimeout(()=>{try{if(NET.isHost&&NET.room===code&&typeof netUpdateHostDirectory==='function')netUpdateHostDirectory();}catch(e){}},1200);
+    setTimeout(()=>{try{if(NET.isHost&&NET.room===code&&typeof netUpdateHostDirectory==='function')netUpdateHostDirectory();}catch(e){}},3500);
+    setTimeout(()=>{try{if(NET.isHost&&NET.room===code&&typeof CG!=='undefined'&&CG&&typeof CG.showInviteButton==='function')CG.showInviteButton(code);}catch(e){}},1500);
   }catch(e){}
   netEnsureServer(()=>netConnectPeer(code, true)); // fresh self/render pick (self wins within 20ms) before hosting
   netShow(false);
@@ -9842,6 +9949,7 @@ try{
 }catch(e){/* normal menu boot */}
 buildLevel();
 netInitUI();
+try{if(typeof cgBannerClickGuard==='function')cgBannerClickGuard();}catch(e){}
 
 /* Training harness launch: ?train (map 0) or ?train=N (map N) or ?harness=N */
 try{
