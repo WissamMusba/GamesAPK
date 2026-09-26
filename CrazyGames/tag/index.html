@@ -8538,6 +8538,11 @@ function netOnData(m, c){
     buildLevel();
     netShow(false);
     netToast('Connected as P' + (m.slot + 1) + '! Click Ready.');
+    try{
+      if(typeof CG !== 'undefined' && CG && typeof CG.updateRoom === 'function' && NET.room){
+        CG.updateRoom(NET.room, null, true);
+      }
+    }catch(e){}
   } else if(m.t === 'roster_sync'){
     if(m.slotsCtrl) NET.slotsCtrl = m.slotsCtrl.slice();
     if(m.slotsReady) NET.slotsReady = m.slotsReady.slice();
@@ -8551,6 +8556,12 @@ function netOnData(m, c){
       buildLevel();
     }
     if(m.slotTeam) menu.slotTeam = m.slotTeam.slice(0, 8);
+    try{
+      if(!NET.isHost && typeof CG !== 'undefined' && CG && typeof CG.updateRoom === 'function' && NET.room){
+        const pCount = (m.slotsName ? m.slotsName.filter(Boolean).length : 2);
+        CG.updateRoom(NET.room, new Array(pCount).fill(0), !m.lobbyLocked);
+      }
+    }catch(e){}
     if(m.pings && typeof m.pings === 'object'){
       for(const [pid, pingVal] of Object.entries(m.pings)){
         NET.pings.set(pid, pingVal);
@@ -9362,6 +9373,11 @@ function netHostAction(isPublic = true){
   history.replaceState(null, '', '?room=' + code);
   
   netCopyLink();
+  try{
+    if(typeof CG !== 'undefined' && CG && typeof CG.updateRoom === 'function'){
+      CG.updateRoom(code, [{ id: 'p0', username: myProfile.name }], true);
+    }
+  }catch(e){}
   netEnsureServer(()=>netConnectPeer(code, true)); // fresh self/render pick (self wins within 20ms) before hosting
   netShow(false);
 
