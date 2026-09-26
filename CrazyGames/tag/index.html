@@ -750,10 +750,16 @@ const CG={
       if(this._user&&this._user.name){
         return {username:this._user.name,profilePictureUrl:this._user.avatar||''};
       }
+    }catch(e){}
+    return null;
+  },
+  async getUserAsync(){
+    try{
       const sdk=window.CrazyGames&&window.CrazyGames.SDK;
+      if(this._user&&this._user.name) return {username:this._user.name,profilePictureUrl:this._user.avatar||''};
       if(sdk&&sdk.user&&sdk.user.getUser){
-        const r=sdk.user.getUser();
-        if(r&&r.username)return r;
+        const u=await sdk.user.getUser();
+        if(u&&u.username) return u;
       }
     }catch(e){}
     return null;
@@ -769,7 +775,7 @@ const CG={
           let code='';
           if(params){
             if(typeof params==='string')code=params;
-            else code=params.room||params.roomName||'';
+            else code=params.room||params.roomName||params.roomId||'';
           }
           if(!code)return;
           if(typeof NET!=='undefined'&&NET&&NET.role!==null){try{netToast('finish current match first');}catch(e){}return;}
@@ -789,14 +795,14 @@ const CG={
       let invRoom='';
       try{
         if(typeof sdk.game.getInviteParam==='function'){
-          invRoom=sdk.game.getInviteParam('room')||sdk.game.getInviteParam('roomName')||'';
+          invRoom=sdk.game.getInviteParam('room')||sdk.game.getInviteParam('roomName')||sdk.game.getInviteParam('roomId')||'';
         }
       }catch(e){}
       try{
         if(!invRoom&&sdk.game.inviteParams){
           const ip=sdk.game.inviteParams;
           if(typeof ip==='string')invRoom=ip;
-          else if(typeof ip==='object')invRoom=ip.room||ip.roomName||'';
+          else if(typeof ip==='object'&&ip)invRoom=ip.room||ip.roomName||ip.roomId||'';
         }
       }catch(e){}
       let urlRoom='';
@@ -819,20 +825,6 @@ const CG={
           }catch(e){}},800);
         }
       }catch(e){}
-      try{
-        if(sdk.game && typeof sdk.game.addJoinRoomListener==='function'){
-          sdk.game.addJoinRoomListener((params)=>{
-            try{
-              let r='';
-              if(typeof params==='string')r=params;
-              else if(typeof params==='object'&&params)r=params.room||params.roomName||params.roomId||'';
-              if(r&&typeof netJoinAction==='function'){
-                netJoinAction(r);
-              }
-            }catch(err){}
-          });
-        }
-      }catch(e){}
     }catch(e){}
   },
   /* CrazyGames Multiplayer Room & Invite Link API (SDK v3 object form) */
@@ -852,7 +844,13 @@ const CG={
             join=!(locked||full);
           }catch(e){join=true;}
         }
-        sdk.game.updateRoom({roomId:roomId,isJoinable:join!==false,inviteParams:{room:roomId}});
+        sdk.game.updateRoom({
+          roomId: roomId,
+          isJoinable: join !== false,
+          playerCount: Array.isArray(playerList) ? playerList.length : 0,
+          maxPlayers: (typeof NET!=='undefined'&&NET&&NET.maxPlayers)||8,
+          inviteParams: { room: roomId, roomId: roomId }
+        });
       }
     }catch(e){}
   },
@@ -866,7 +864,7 @@ const CG={
     try{
       const sdk=window.CrazyGames&&window.CrazyGames.SDK;
       if(sdk&&sdk.game&&sdk.game.inviteLink){
-        const r=await sdk.game.inviteLink({room:roomId});
+        const r=await sdk.game.inviteLink({ room: roomId, roomId: roomId });
         if(typeof r==='string'&&r)return r;
         if(r&&r.inviteLink)return r.inviteLink;
         if(r&&r.url)return r.url;
@@ -884,13 +882,17 @@ const CG={
       const callbacks = {
         adStarted: () => {
           try{ if(master) master.gain.value = 0; }catch(e){}
+          try{ if(match && match.state === 'playing'){ match.pausedFrom = 'playing'; match.state = 'paused'; match.pauseSel = 0; } }catch(e){}
+          try{ CG.gameplayStop(); }catch(e){}
         },
         adFinished: () => {
           applyEffectiveMute();
+          try{ if(match && match.state === 'paused' && match.pausedFrom){ match.state = match.pausedFrom; match.pausedFrom = null; CG.gameplayStart(); } }catch(e){}
           if(cb) cb(true);
         },
         adError: (err) => {
           applyEffectiveMute();
+          try{ if(match && match.state === 'paused' && match.pausedFrom){ match.state = match.pausedFrom; match.pausedFrom = null; CG.gameplayStart(); } }catch(e){}
           if(cb) cb(false);
         }
       };
@@ -906,9 +908,21 @@ const CG={
     if(!sdk||!sdk.ad||!sdk.ad.requestAd){if(cb)cb(false);return;}
     try{
       const callbacks = {
-        adStarted: () => { try{ if(master) master.gain.value = 0; }catch(e){} },
-        adFinished: () => { applyEffectiveMute(); if(cb) cb(true); },
-        adError: () => { applyEffectiveMute(); if(cb) cb(false); }
+        adStarted: () => {
+          try{ if(master) master.gain.value = 0; }catch(e){}
+          try{ if(match && match.state === 'playing'){ match.pausedFrom = 'playing'; match.state = 'paused'; match.pauseSel = 0; } }catch(e){}
+          try{ CG.gameplayStop(); }catch(e){}
+        },
+        adFinished: () => {
+          applyEffectiveMute();
+          try{ if(match && match.state === 'paused' && match.pausedFrom){ match.state = match.pausedFrom; match.pausedFrom = null; CG.gameplayStart(); } }catch(e){}
+          if(cb) cb(true);
+        },
+        adError: () => {
+          applyEffectiveMute();
+          try{ if(match && match.state === 'paused' && match.pausedFrom){ match.state = match.pausedFrom; match.pausedFrom = null; CG.gameplayStart(); } }catch(e){}
+          if(cb) cb(false);
+        }
       };
       const p = sdk.ad.requestAd('rewarded', callbacks);
       if(p && p.then){
@@ -2146,6 +2160,7 @@ function startMatch(){
   }
   // Clear any result/menu banners so the arena is clean
   try{CG.clearAllBanners();}catch(e){}
+  try{parts.length = 0;}catch(e){}
   try{const a=document.getElementById('cg-banner-resp');if(a)a.style.display='none';}catch(e){}
   try{const b=document.getElementById('cg-banners');if(b)b.style.display='none';}catch(e){}
   try{CG.gameplayStart();}catch(e){}
@@ -5413,7 +5428,12 @@ function drawMenu(){
           resp.style.display = 'none';
         }
         if(top && top.style.display === 'none' && !CG._bannerIds.has('cg-banner-top')){
-          try{ CG.requestBanner('cg-banner-top', '728x90'); top.style.display = 'block'; }catch(e){}
+          try{
+            if(!isTouch && CW >= 700){
+              CG.requestBanner('cg-banner-top', '728x90');
+              top.style.display = 'block';
+            }
+          }catch(e){}
         }
       }
     }
