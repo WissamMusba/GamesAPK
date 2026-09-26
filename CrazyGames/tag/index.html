@@ -9690,10 +9690,14 @@ function render(){
   if(screen==='menu')drawMenu();
   else if(match){drawGame();if(typeof DEMO!=='undefined'&&DEMO.active){try{demoOverlay();}catch(e){}}}
 }
-let last=performance.now();
-let bgAccumulator=0;
-
-function stepSimulation(dt){
+function frame(now){
+  requestAnimationFrame(frame);
+  if(document.hidden && NET.role !== null && NET.isHost){
+    return;
+  }
+  const dt=Math.min(0.033,(now-last)/1000);
+  last=now;tGlobal+=dt;
+  
   // Global gamepad polling for every client
   pollGamepads();
 
@@ -9733,42 +9737,32 @@ function stepSimulation(dt){
     } else {
       update(dt);
     }
+    render();
   }catch(err){}
   TOUCH.jumpEdge = false;
   pressed.clear();
 }
 
-function frame(now){
-  requestAnimationFrame(frame);
-  if(document.hidden && NET.role !== null){
-    // In background, backgroundStep worker drives the simulation without double-ticking
-    return;
-  }
-  const dt=Math.min(0.033,(now-last)/1000);
-  last=now;
-  tGlobal+=dt;
-  
-  stepSimulation(dt);
-  render();
-}
-
-/* Background tick worker: keeps host simulation and net broadcasting alive at 60Hz even if tab is hidden/minimized */
+/* Background tick worker: keeps host simulation and net broadcasting alive even if the tab is hidden or minimized */
 let bgWorker = null;
 function backgroundStep(){
   if(!document.hidden || NET.role === null) return;
   const now = performance.now();
-  let elapsed = Math.min(0.5, Math.max(0, (now - last) / 1000));
+  const dt = Math.min(0.033, (now - last) / 1000);
   last = now;
-  bgAccumulator += elapsed;
-  const fixedStep = 1 / 60;
-  let steps = 0;
-  while(bgAccumulator >= fixedStep && steps < 10){
-    tGlobal += fixedStep;
-    stepSimulation(fixedStep);
-    bgAccumulator -= fixedStep;
-    steps++;
+  tGlobal += dt;
+  pollGamepads();
+  if(NET.isHost){
+    if(match && match.state !== 'paused'){
+      updateGame(dt);
+    }
+  } else if(match && match.state !== 'paused'){
+    const myP = getMyPlayer();
+    if(myP) physUpdate(myP, dt, match.state === 'playing');
   }
-  if(bgAccumulator > fixedStep) bgAccumulator = 0;
+  netTick(dt);
+  TOUCH.jumpEdge = false;
+  pressed.clear();
 }
 
 try {
@@ -9795,7 +9789,6 @@ try {
 
 document.addEventListener('visibilitychange', () => {
   last = performance.now();
-  bgAccumulator = 0;
 });
 
 const onTabCloseCloseRoom = () => {
