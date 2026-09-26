@@ -545,7 +545,15 @@ function inputMove(x,y,id){
 
   if(JOY.leftId === id && JOY.boundsL){
     const b = JOY.boundsL;
-    const off = clamp((x - JOY.leftStartX) / b.maxTravel, -1, 1);
+    let dx = x - JOY.leftStartX;
+    // Drag-follow (standard floating-stick feel): pushing past max travel drags
+    // the whole base along instead of saturating in place. Track is drawn at
+    // leftStartX each frame, so it slides with the thumb automatically.
+    if(dx > b.maxTravel || dx < -b.maxTravel){
+      JOY.leftStartX = clamp(x - Math.sign(dx) * b.maxTravel, b.w / 2 + 4, CW - b.w / 2 - 4);
+      dx = x - JOY.leftStartX;
+    }
+    const off = clamp(dx / b.maxTravel, -1, 1);
     JOY.leftX = off;
     TOUCH.left = (off < -0.22);
     TOUCH.right = (off > 0.22);
