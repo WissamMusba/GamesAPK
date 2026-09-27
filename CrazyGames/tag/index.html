@@ -4328,6 +4328,35 @@ function drawVertSlider(cx, cyTop, maxTravel, r, jumpHeld, downHeld, visY){
   ptxt(ic, cx, ky + (ic === '▲' ? -1 : 1), FN(12, 900), icCol);
 }
 
+/* Crisp vector microphone glyph (mute/unmute) — no emoji */
+function drawMicGlyph(cx, cy, s, col, muted){
+  g.save();
+  g.strokeStyle = col; g.fillStyle = col;
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  // capsule body
+  const bw = s * 0.62, bh = s * 1.0;
+  const bx = cx - bw / 2, by = cy - bh / 2 - s * 0.14;
+  g.lineWidth = Math.max(1.6, s * 0.18);
+  rr(g, bx, by, bw, bh, bw / 2); g.stroke();
+  // grille tick
+  g.lineWidth = Math.max(1.2, s * 0.12);
+  g.beginPath(); g.moveTo(bx + bw * 0.28, by + bh * 0.32); g.lineTo(bx + bw * 0.72, by + bh * 0.32); g.stroke();
+  // cradle
+  const crY = by + bh * 0.78;
+  g.lineWidth = Math.max(1.6, s * 0.15);
+  g.beginPath(); g.arc(cx, crY, s * 0.52, Math.PI * 0.15, Math.PI * 0.85); g.stroke();
+  // stand + base
+  g.beginPath(); g.moveTo(cx, crY + s * 0.52); g.lineTo(cx, cy + s * 0.95); g.stroke();
+  g.beginPath(); g.moveTo(cx - s * 0.36, cy + s * 0.95); g.lineTo(cx + s * 0.36, cy + s * 0.95); g.stroke();
+  // muted slash
+  if(muted){
+    g.lineWidth = Math.max(2, s * 0.22);
+    g.strokeStyle = '#ff4757';
+    g.beginPath(); g.moveTo(cx - s * 0.85, cy - s * 0.95); g.lineTo(cx + s * 0.85, cy + s * 0.95); g.stroke();
+  }
+  g.restore();
+}
+
 function drawJuicyChip(x, y, w, h, o){
   o = o || {};
   const r = o.r || 6;
@@ -4380,6 +4409,11 @@ function drawJuicyChip(x, y, w, h, o){
       const tw = g.measureText(o.label).width;
       const gs = fs * 1.05, gap = 5;
       drawRefreshGlyph(txC - (tw + gap + gs) / 2 + gs / 2, y + pushY + h/2 + 1, gs / 2, col);
+      txC += (gs + gap) / 2;
+    } else if(o.icon === 'mic'){
+      const tw = g.measureText(o.label).width;
+      const gs = fs * 1.05, gap = 5;
+      drawMicGlyph(txC - (tw + gap + gs) / 2 + gs / 2, y + pushY + h/2 + 1, gs / 2, col, !!o.iconMuted);
       txC += (gs + gap) / 2;
     }
     if(active && col === '#ffffff'){
@@ -5356,23 +5390,26 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
     if(!announced||!invited){ if(typeof netUpdateHostDirectory==='function'){ if(!drawOnlineLobby._portalRetry||Date.now()-drawOnlineLobby._portalRetry>4000){ drawOnlineLobby._portalRetry=Date.now(); try{netUpdateHostDirectory();}catch(e){} try{if(typeof CG!=='undefined'&&CG&&typeof CG.showInviteButton==='function')CG.showInviteButton(NET.room);}catch(e){} } } }
   }catch(e){}
 
-  // Copy Link Button
-  const copyBtnW = 86, copyBtnH = 24;
-  const copyBtnX = startX + 212, copyBtnY = stageY + 5;
-  drawJuicyChip(copyBtnX, copyBtnY, copyBtnW, copyBtnH, {
-    label: '🔗 Link',
+  // Mic Mute/Unmute Button (vector mic glyph, no emoji)
+  const micIsMuted = (typeof VOICE !== 'undefined' && !!VOICE.muted);
+  const micBtnW = 86, micBtnH = 24;
+  const micBtnX = startX + 212, micBtnY = stageY + 5;
+  drawJuicyChip(micBtnX, micBtnY, micBtnW, micBtnH, {
+    label: micIsMuted ? 'MUTED' : 'MIC',
+    icon: 'mic',
+    iconMuted: micIsMuted,
     active: true,
-    activeBg: 'rgba(56, 189, 248, 0.25)',
-    activeDarkBg: 'rgba(2, 132, 199, 0.5)',
-    activeText: '#38bdf8',
-    activeBorder: '#38bdf8',
+    activeBg: micIsMuted ? 'rgba(231, 76, 60, 0.25)' : 'rgba(46, 204, 113, 0.25)',
+    activeDarkBg: micIsMuted ? 'rgba(185, 28, 28, 0.5)' : 'rgba(22, 101, 52, 0.5)',
+    activeText: micIsMuted ? '#ff6b81' : '#2ecc71',
+    activeBorder: micIsMuted ? '#e74c3c' : '#2ecc71',
     fontSize: 10.5,
-    fn: () => { sfx('ui'); netCopyLink(); }
+    fn: () => { sfx('ui'); if(typeof voiceToggleMic === 'function') voiceToggleMic(); }
   });
 
   // Chat Toggle Button in Header
   const chatBtnW = 76, chatBtnH = 24;
-  const chatBtnX = copyBtnX + copyBtnW + 8, chatBtnY = stageY + 5;
+  const chatBtnX = micBtnX + micBtnW + 8, chatBtnY = stageY + 5;
   drawJuicyChip(chatBtnX, chatBtnY, chatBtnW, chatBtnH, {
     label: '💬 Chat',
     active: true,
