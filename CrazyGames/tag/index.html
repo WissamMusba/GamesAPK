@@ -3755,6 +3755,7 @@ function endMatch(){
     }
   }catch(e){}
   match.state='result';
+  match.hostMenu=false;
   if(settings.teams && match.teamItTime){
     // Team with the lowest total IT time wins!
     const activeTeams = Array.from(new Set(match.players.map(p => p.team)));
@@ -3834,13 +3835,20 @@ function toggleSound(){
 }
 function togglePause(){
   if(!match)return;
-  // Online host stays in the arena (pausing would freeze every guest with no menu for them).
-  if(typeof NET!=='undefined'&&NET&&NET.role!==null&&NET.isHost){toast('HOST CANNOT PAUSE ONLINE');sfx('back');return;}
+  // Online host menu is LOCAL ONLY: an overlay for the host while the match
+  // continues live for everyone (pausing for real would freeze all guests).
+  if(typeof NET!=='undefined'&&NET&&NET.role!==null&&NET.isHost){
+    if(match.hostMenu){ match.hostMenu=false; sfx('ok'); }
+    else if(match.state==='playing'||match.state==='countdown'){ match.hostMenu=true; match.pauseSel=0; sfx('back'); }
+    return;
+  }
   if(match.state==='paused'){
     match.state=match.pausedFrom;
     match.pausedFrom=null;
     try{CG.gameplayStart();}catch(e){}
     sfx('ok');
+    // Guest may have previewed another map in the menu: snap back to the host map.
+    try{if(typeof NET!=='undefined'&&NET&&NET.role!==null&&!NET.isHost){buildLevel();}}catch(e){}
   }
   else if(match.state==='playing'||match.state==='countdown'){
     match.pausedFrom=match.state;
@@ -3858,6 +3866,13 @@ function cycleTheme(){
 function selectMapQuick(idx){
   settings.map=(idx+MAPS.length)%MAPS.length;
   buildLevel();
+  // Online guest: map change is a self-only preview (room keeps the host map).
+  // Host packets keep overwriting settings.map; resume rebuilds the host map.
+  if(typeof NET!=='undefined'&&NET&&NET.role!==null&&!NET.isHost){
+    if(match){match.mapToast='MAP PREVIEW (YOU ONLY)';match.mapToastT=2.4;}
+    sfx('ok');
+    return;
+  }
   if(match){
     match.mapToast='MAP: '+(settings.map+1)+'. '+MAPS[settings.map].name;
     match.mapToastT=2.4;
@@ -3881,7 +3896,7 @@ function updateGame(dt){
   if(pressed.has('Digit0'))selectMapQuick(9);
   
   for(let i=0;i<4;i++){if(PAD[i]&&PAD[i].pauseE)togglePause();}
-  if(match.state==='paused'){
+  if(match.state==='paused'||match.hostMenu){
     let up=anyPressed(['ArrowUp','KeyW']),dn=anyPressed(['ArrowDown','KeyS']),cf=anyPressed(['Enter','NumpadEnter','Space']);
     for(let i=0;i<4;i++){const pd=PAD[i];if(!pd)continue;up=up||pd.upE;dn=dn||pd.downE;cf=cf||pd.confirmE;}
     if(up){match.pauseSel=(match.pauseSel+5)%6;sfx('ui');}
@@ -3894,7 +3909,8 @@ function updateGame(dt){
       else if(match.pauseSel===4){toggleFullscreen();}
       else quitToMenu();
     }
-    return;
+    if(!match.hostMenu) return;
+    // host menu open: fall through — the match continues live underneath for everyone
   }
   if(match.state==='result'){
     match.resultT+=dt;
@@ -7625,7 +7641,7 @@ function drawGame(){
     g.fillRect(0,0,CW,CH);
   }
   drawHUD();
-  if(match.state==='paused')drawPause();
+  if(match.state==='paused'||match.hostMenu)drawPause();
   else if(match.state==='result')drawResult();
   else if(isTouch)drawTouchButtons();
 }
@@ -10440,6 +10456,9 @@ function frame(now){
           while(match.cdT >= 0.72 && match.cd > 1){ match.cdT -= 0.72; match.cd--; sfx('count'); }
           if(match.cdT >= 0.72) match.cdT = 0.72;
         }
+        // Tag-cooldown display backup (same idea): decay locally so guests always
+        // see 3-2-1 above the arrow; host packets snap-correct on arrival.
+        if(match.state === 'playing' && match.cooldown > 0) match.cooldown = Math.max(0, match.cooldown - dt);
         const myP = getMyPlayer();
         if(myP){
           physUpdate(myP, dt, inPlay);
