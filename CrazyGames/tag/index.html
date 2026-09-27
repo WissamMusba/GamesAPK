@@ -6754,6 +6754,9 @@ function drawMenu(){
           fn: () => netToggleMyReady()
         });
       }
+      // Tiny hint: scoreboard (ping + mute) lives behind TAB / timer tap in-match.
+      txt(isTouch ? '💡 In-match: tap the timer to check ping / mute players' : '💡 In-match: press TAB to check ping / mute players',
+        CW/2, startBtnY + startBtnH + 9, FN(9, 800), 'rgba(255,255,255,0.55)');
     }
   } else {
     const startBtnX = Math.floor(CW/2 - startBtnW/2);
