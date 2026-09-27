@@ -553,6 +553,9 @@ function inputMove(x,y,id){
       JOY.leftStartX = clamp(x - Math.sign(dx) * b.maxTravel, b.w / 2 + 4, CW - b.w / 2 - 4);
       dx = x - JOY.leftStartX;
     }
+    // Vertical follow (visual comfort only — this stick reads X): the whole
+    // base glides with the thumb; render clamps it below the HUD top bar.
+    JOY.leftStartY = y;
     const off = clamp(dx / b.maxTravel, -1, 1);
     JOY.leftX = off;
     TOUCH.left = (off < -0.22);
