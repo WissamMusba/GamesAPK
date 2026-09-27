@@ -3875,8 +3875,6 @@ function togglePause(){
     match.pausedFrom=null;
     try{CG.gameplayStart();}catch(e){}
     sfx('ok');
-    // Guest may have previewed another map in the menu: snap back to the host map.
-    try{if(typeof NET!=='undefined'&&NET&&NET.role!==null&&!NET.isHost){buildLevel();}}catch(e){}
   }
   else if(match.state==='playing'||match.state==='countdown'){
     match.pausedFrom=match.state;
@@ -3895,11 +3893,10 @@ function cycleTheme(){
 function selectMapQuick(idx){
   settings.map=(idx+MAPS.length)%MAPS.length;
   buildLevel();
-  // Online guest: map change is a self-only preview (room keeps the host map).
-  // Host packets keep overwriting settings.map; resume rebuilds the host map.
+  // Online guests have no map powers at all (no preview): the room runs the host map.
   if(typeof NET!=='undefined'&&NET&&NET.role!==null&&!NET.isHost){
-    if(match){match.mapToast='MAP PREVIEW (YOU ONLY)';match.mapToastT=2.4;}
-    sfx('ok');
+    toast('HOST CONTROLS THE MAP');
+    sfx('back');
     return;
   }
   if(match){
@@ -7499,13 +7496,17 @@ function drawPause(){
   g.fillStyle='rgba(20,28,42,0.96)';g.fill();g.lineWidth=4;g.strokeStyle=INK;g.stroke();
   ptxt('PAUSED',CW/2,py+32,FT(Math.min(28,ph*0.09)),'#ffffff');
   ptxt('MAP '+(settings.map+1)+': '+MAPS[settings.map].name,CW/2,py+56,FN(Math.min(13,ph*0.045),800),'#a0c0e8');
-  const opts=['RESUME','RESTART','NEXT MAP','SOUND: '+(muted?'OFF':'ON'),'FULLSCREEN','QUIT TO MENU'];
-  const rowH = clamp((ph - 76) / 6, 26, 42);
+  // Online guests get a trimmed menu: no RESTART, no NEXT MAP (host-only powers).
+  const isGuestPause=(typeof NET!=='undefined'&&NET&&NET.role!==null&&!NET.isHost);
+  const opts=isGuestPause?['RESUME','SOUND: '+(muted?'OFF':'ON'),'FULLSCREEN','QUIT TO MENU']:['RESUME','RESTART','NEXT MAP','SOUND: '+(muted?'OFF':'ON'),'FULLSCREEN','QUIT TO MENU'];
+  const nP=opts.length;
+  const rowH = clamp((ph - 76) / nP, 26, 42);
   const btnH = Math.min(34, rowH - 4);
   const btnW = Math.min(300, pw - 30);
-  for(let i=0;i<6;i++){
+  for(let i=0;i<nP;i++){
     const y=py + 72 + i*rowH + rowH/2;
     const sel=match.pauseSel===i;
+    const oid=opts[i];
     drawJuicyBtn(CW/2 - btnW/2, y - btnH/2, btnW, btnH, {
       label: opts[i],
       bg: sel ? '#2ecc71' : 'rgba(30, 41, 59, 0.85)',
@@ -7516,11 +7517,11 @@ function drawPause(){
       depth: 3,
       fontSize: sel ? 15 : 13.5,
       fn: () => {
-        if(i===0)togglePause();
-        else if(i===1){sfx('go');startMatch();}
-        else if(i===2){selectMapQuick(settings.map+1);}
-        else if(i===3){toggleSound();}
-        else if(i===4){toggleFullscreen();}
+        if(oid==='RESUME')togglePause();
+        else if(oid==='RESTART'){sfx('go');startMatch();}
+        else if(oid==='NEXT MAP'){selectMapQuick(settings.map+1);}
+        else if(oid && oid.indexOf('SOUND')===0){toggleSound();}
+        else if(oid==='FULLSCREEN'){toggleFullscreen();}
         else quitToMenu();
       }
     });
