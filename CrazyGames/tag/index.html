@@ -8370,18 +8370,18 @@ function updateVoiceProximity(dt){
         const dist = Math.sqrt(dx * dx + dy * dy);
         if(dist < nearestPeerDist) nearestPeerDist = dist;
 
-        // Near (<= 250px): 100% full volume
-        // Mid (250px to 900px): logarithmic falloff
-        // Beyond 900px: muted (0 volume)
-        const closeRadius = 250;
-        const maxDist = 900;
+        // Near (<= 350px): 100% full volume
+        // Mid (350px to 1300px): smooth falloff (audible much further out)
+        // Beyond 1300px: muted (0 volume)
+        const closeRadius = 350;
+        const maxDist = 1300;
         if(isNaN(dist) || dist <= closeRadius){
           targetVol = 1.0;
         } else if(dist >= maxDist){
           targetVol = 0.0;
         } else {
           const t = clamp((dist - closeRadius) / (maxDist - closeRadius), 0, 1);
-          targetVol = clamp(Math.pow(1 - t, 2.0), 0, 1.0);
+          targetVol = clamp(Math.pow(1 - t, 1.5), 0, 1.0);
         }
       }
     }
@@ -8410,11 +8410,17 @@ function updateVoiceProximity(dt){
     }
   }
 
-  // Send-side bandwidth gate: while playing and NOBODY is within earshot (900px),
+  // Send-side bandwidth gate: while playing and NOBODY is within earshot,
   // stop sending mic audio so the uplink serves game traffic. Restores instantly.
+  // Hysteresis band (mute past 1300px, back on inside 1100px) stops the mic from
+  // rapidly cutting in/out when hovering at the edge — the nearby cutoff cause.
   // Lobby/menu unaffected (people talk there). Never overrides user mute.
   try{
-    const wantProxMute = !!(isPlaying && myPos && VOICE.peers.size > 0 && nearestPeerDist >= 900);
+    let wantProxMute = false;
+    if(isPlaying && myPos && VOICE.peers.size > 0){
+      if(VOICE._proxMuted) wantProxMute = !(nearestPeerDist <= 1100);
+      else wantProxMute = nearestPeerDist >= 1300;
+    }
     if(wantProxMute !== !!VOICE._proxMuted){
       VOICE._proxMuted = wantProxMute;
       if(VOICE.localStream){
