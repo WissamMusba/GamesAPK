@@ -7322,6 +7322,8 @@ function drawHUD(){
   g.fill();
   g.lineWidth=2.5;g.strokeStyle=urgent?'#ef4444':INK;g.stroke();
   ptxt(fmtTime(match.timer),CW/2,8+th/2+1,FT(Math.min(22,th*0.54)),urgent?'#fff0f0':'#ffffff');
+  // Touch has no Tab key: tapping the timer pill opens the scoreboard (mute players).
+  if(isTouch) zone(CW/2-tw/2-6,2,tw+12,th+12,{fn:()=>{scoreboardOpen=!scoreboardOpen;sfx('ui');}});
   
   const P=match.players;
   const pillH = P.length > 4 ? 22 : 26;
