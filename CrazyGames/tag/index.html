@@ -233,8 +233,8 @@ const JOY = {
 /* ================= 2-player local mobile controls (Ergonomic Joysticks + Fixed Buttons) ================= */
 const LOCAL_TOUCH = {
   showTutorial: false,
-  p1: { joyId: null, startX: 0, startY: 0, curX: 0, curY: 0, active: false, offX: 0, visOffX: 0, left: false, right: false, jumpId: null, jumpHeld: false, jumpEdge: false, dropId: null, downHeld: false },
-  p2: { joyId: null, startX: 0, startY: 0, curX: 0, curY: 0, active: false, offX: 0, visOffX: 0, left: false, right: false, jumpId: null, jumpHeld: false, jumpEdge: false, dropId: null, downHeld: false }
+  p1: { joyId: null, startX: 0, startY: 0, curX: 0, curY: 0, active: false, offX: 0, visOffX: 0, left: false, right: false, spX: 0, sldId: null, sldStartY: 0, sldV: 0, jumpHeld: false, jumpEdge: false, downHeld: false },
+  p2: { joyId: null, startX: 0, startY: 0, curX: 0, curY: 0, active: false, offX: 0, visOffX: 0, left: false, right: false, spX: 0, sldId: null, sldStartY: 0, sldV: 0, jumpHeld: false, jumpEdge: false, downHeld: false }
 };
 const GESTURE_SPLIT = LOCAL_TOUCH; // Backward compatibility alias
 
@@ -279,6 +279,32 @@ function calcLocalBounds(){
     p1: { btnX: p1BtnX, jumpY: p1JumpY, dropY: p1DropY, splitY: p1SplitY, btnMinX: p1BtnMinX, btnMaxX: p1BtnMaxX, btnMinY: p1BtnMinY, btnMaxY: p1BtnMaxY, defJoyX: p1DefJoyX, defJoyY: p1DefJoyY },
     p2: { btnX: p2BtnX, jumpY: p2JumpY, dropY: p2DropY, splitY: p2SplitY, btnMinX: p2BtnMinX, btnMaxX: p2BtnMaxX, btnMinY: p2BtnMinY, btnMaxY: p2BtnMaxY, defJoyX: p2DefJoyX, defJoyY: p2DefJoyY }
   };
+}
+
+/* Solo-style vertical slider per local half (top = jump, bottom = drop),
+   built from the existing button column so halves stay exactly where they were */
+function localSlider(b, side){
+  const c = (side === 'p2') ? b.p2 : b.p1;
+  const sw = b.r * 2.1;
+  const top = c.jumpY - b.r * 1.05, bot = c.dropY + b.r * 1.05;
+  return { x: c.btnX - sw / 2, y: top, w: sw, h: Math.max(10, bot - top),
+    cx: c.btnX, cyTop: c.jumpY, maxTravel: Math.max(10, c.dropY - c.jumpY), r: b.r };
+}
+/* Shared solo-like slider press semantics for a local-half player */
+function localSlidePress(p, myP, sl, y, startY){
+  const off = clamp((y - sl.cyTop) / sl.maxTravel, 0, 1);
+  if(off > 0.22 || (y - startY > 12)){
+    // DROP ONLY, NEVER JUMP
+    p.downHeld = true;
+    p.jumpEdge = false;
+    p.jumpHeld = false;
+    if(myP && myP.jbuf > 0) myP.jbuf = 0;
+  } else {
+    // top knob zone = JUMP
+    p.downHeld = false;
+    p.jumpEdge = true;
+    p.jumpHeld = true;
+  }
 }
 
 function applyTouchAction(action, isDown){
@@ -386,30 +412,20 @@ function inputDown(x,y,id){
     if(x < b.midX){
       // --- Player 1 (Left Half) ---
       const p = LOCAL_TOUCH.p1;
-      // Check if touch lands in P1's fixed button zone (right side of P1 cluster)
-      if(x >= b.p1.btnMinX && x <= b.p1.btnMaxX && y >= b.p1.btnMinY && y <= b.p1.btnMaxY){
-        if(y < b.p1.splitY){
-          // P1 JUMP BUTTON
-          p.jumpId = id;
-          p.jumpEdge = true;
-          p.jumpHeld = true;
-          p.downHeld = false;
-          const myP = match.players[0];
-          if(myP) myP.jbuf = 0.16;
-        } else {
-          // P1 DROP BUTTON
-          p.dropId = id;
-          p.downHeld = true;
-          p.jumpEdge = false;
-          p.jumpHeld = false;
-          const myP = match.players[0];
-          if(myP && myP.jbuf > 0) myP.jbuf = 0;
-        }
+      // P1 vertical jump/drop slider (same feel as solo slider)
+      const sl1 = localSlider(b, 'p1');
+      if(x >= sl1.x - 24 && x <= sl1.x + sl1.w + 24 && y >= sl1.y - 24 && y <= sl1.y + sl1.h + 24){
+        p.sldId = id;
+        p.sldStartY = y;
+        localSlidePress(p, match.players[0], sl1, y, y);
+        const myP0 = match.players[0];
+        if(!p.downHeld && myP0) myP0.jbuf = 0.16;
         return;
       }
       // Floating Side-to-Side Joystick anywhere else in P1 half!
       p.joyId = id;
       p.startX = x;
+      p.spX = x;
       p.startY = y;
       p.curX = x;
       p.curY = y;
@@ -421,30 +437,20 @@ function inputDown(x,y,id){
     } else {
       // --- Player 2 (Right Half) ---
       const p = LOCAL_TOUCH.p2;
-      // Check if touch lands in P2's fixed button zone (right side of P2 cluster)
-      if(x >= b.p2.btnMinX && x <= b.p2.btnMaxX && y >= b.p2.btnMinY && y <= b.p2.btnMaxY){
-        if(y < b.p2.splitY){
-          // P2 JUMP BUTTON
-          p.jumpId = id;
-          p.jumpEdge = true;
-          p.jumpHeld = true;
-          p.downHeld = false;
-          const myP = match.players[1];
-          if(myP) myP.jbuf = 0.16;
-        } else {
-          // P2 DROP BUTTON
-          p.dropId = id;
-          p.downHeld = true;
-          p.jumpEdge = false;
-          p.jumpHeld = false;
-          const myP = match.players[1];
-          if(myP && myP.jbuf > 0) myP.jbuf = 0;
-        }
+      // P2 vertical jump/drop slider (same feel as solo slider)
+      const sl2 = localSlider(b, 'p2');
+      if(x >= sl2.x - 24 && x <= sl2.x + sl2.w + 24 && y >= sl2.y - 24 && y <= sl2.y + sl2.h + 24){
+        p.sldId = id;
+        p.sldStartY = y;
+        localSlidePress(p, match.players[1], sl2, y, y);
+        const myP1 = match.players[1];
+        if(!p.downHeld && myP1) myP1.jbuf = 0.16;
         return;
       }
       // Floating Side-to-Side Joystick anywhere else in P2 half!
       p.joyId = id;
       p.startX = x;
+      p.spX = x;
       p.startY = y;
       p.curX = x;
       p.curY = y;
@@ -513,41 +519,58 @@ function inputMove(x,y,id){
   const isSplitLocal = (!isOnline && match && screen === 'game' && isPlaying && match.players && match.players.length === 2 && isTouch && !menu.botOn && menu.tab !== 'solo');
   if(isSplitLocal){
     const b = calcLocalBounds();
-    // P1 Joystick
+    // P1 Joystick (leashed drag-follow like solo, pinned to left half)
     if(LOCAL_TOUCH.p1.joyId === id){
       const p = LOCAL_TOUCH.p1;
       p.curX = x; p.curY = y;
-      const dx = x - p.startX;
+      let dx = x - p.startX;
+      if(dx > b.maxTravel || dx < -b.maxTravel){
+        const lo = b.trackW / 2 + 2, hi = b.midX - b.trackW / 2 - 2;
+        p.startX = x - Math.sign(dx) * b.maxTravel;
+        if(lo <= hi) p.startX = clamp(p.startX, Math.max(lo, (p.spX || x) - b.maxTravel), Math.min(hi, (p.spX || x) + b.maxTravel));
+        dx = x - p.startX;
+      }
       p.offX = clamp(dx / b.maxTravel, -1, 1);
       p.left = (p.offX < -0.22);
       p.right = (p.offX > 0.22);
       return;
     }
-    // P2 Joystick
+    // P2 Joystick (leashed drag-follow like solo, pinned to right half)
     if(LOCAL_TOUCH.p2.joyId === id){
       const p = LOCAL_TOUCH.p2;
       p.curX = x; p.curY = y;
-      const dx = x - p.startX;
+      let dx = x - p.startX;
+      if(dx > b.maxTravel || dx < -b.maxTravel){
+        const lo = b.midX + b.trackW / 2 + 2, hi = CW - b.trackW / 2 - 2;
+        p.startX = x - Math.sign(dx) * b.maxTravel;
+        if(lo <= hi) p.startX = clamp(p.startX, Math.max(lo, (p.spX || x) - b.maxTravel), Math.min(hi, (p.spX || x) + b.maxTravel));
+        dx = x - p.startX;
+      }
       p.offX = clamp(dx / b.maxTravel, -1, 1);
       p.left = (p.offX < -0.22);
       p.right = (p.offX > 0.22);
       return;
     }
-    // Retain button hold as long as finger is reasonably close
-    if(LOCAL_TOUCH.p1.jumpId === id){
-      LOCAL_TOUCH.p1.jumpHeld = (Math.hypot(x - b.p1.btnX, y - b.p1.jumpY) < b.r * 3.0 || (x >= b.p1.btnMinX - 30 && y < b.p1.splitY + 20));
+    // P1 slider drag (top = jump, bottom = drop — solo feel)
+    if(LOCAL_TOUCH.p1.sldId === id){
+      const p = LOCAL_TOUCH.p1;
+      const sl = localSlider(b, 'p1');
+      if(Math.hypot(x - sl.cx, y - (sl.cyTop + sl.maxTravel / 2)) > Math.max(sl.w, sl.maxTravel / 2) + 70){
+        p.sldId = null; p.jumpHeld = false; p.downHeld = false;
+      } else {
+        localSlidePress(p, match.players[0], sl, y, p.sldStartY);
+      }
       return;
     }
-    if(LOCAL_TOUCH.p1.dropId === id){
-      LOCAL_TOUCH.p1.downHeld = (Math.hypot(x - b.p1.btnX, y - b.p1.dropY) < b.r * 3.0 || (x >= b.p1.btnMinX - 30 && y >= b.p1.splitY - 20));
-      return;
-    }
-    if(LOCAL_TOUCH.p2.jumpId === id){
-      LOCAL_TOUCH.p2.jumpHeld = (Math.hypot(x - b.p2.btnX, y - b.p2.jumpY) < b.r * 3.0 || (x >= b.p2.btnMinX - 30 && y < b.p2.splitY + 20));
-      return;
-    }
-    if(LOCAL_TOUCH.p2.dropId === id){
-      LOCAL_TOUCH.p2.downHeld = (Math.hypot(x - b.p2.btnX, y - b.p2.dropY) < b.r * 3.0 || (x >= b.p2.btnMinX - 30 && y >= b.p2.splitY - 20));
+    // P2 slider drag (top = jump, bottom = drop — solo feel)
+    if(LOCAL_TOUCH.p2.sldId === id){
+      const p = LOCAL_TOUCH.p2;
+      const sl = localSlider(b, 'p2');
+      if(Math.hypot(x - sl.cx, y - (sl.cyTop + sl.maxTravel / 2)) > Math.max(sl.w, sl.maxTravel / 2) + 70){
+        p.sldId = null; p.jumpHeld = false; p.downHeld = false;
+      } else {
+        localSlidePress(p, match.players[1], sl, y, p.sldStartY);
+      }
       return;
     }
     return;
@@ -617,13 +640,10 @@ function inputUp(id){
     p.left = false;
     p.right = false;
   }
-  if(LOCAL_TOUCH.p1.jumpId === id){
-    LOCAL_TOUCH.p1.jumpId = null;
+  if(LOCAL_TOUCH.p1.sldId === id){
+    LOCAL_TOUCH.p1.sldId = null;
     LOCAL_TOUCH.p1.jumpHeld = false;
     LOCAL_TOUCH.p1.jumpEdge = false;
-  }
-  if(LOCAL_TOUCH.p1.dropId === id){
-    LOCAL_TOUCH.p1.dropId = null;
     LOCAL_TOUCH.p1.downHeld = false;
   }
   // P2 Local Touch Reset
@@ -635,13 +655,10 @@ function inputUp(id){
     p.left = false;
     p.right = false;
   }
-  if(LOCAL_TOUCH.p2.jumpId === id){
-    LOCAL_TOUCH.p2.jumpId = null;
+  if(LOCAL_TOUCH.p2.sldId === id){
+    LOCAL_TOUCH.p2.sldId = null;
     LOCAL_TOUCH.p2.jumpHeld = false;
     LOCAL_TOUCH.p2.jumpEdge = false;
-  }
-  if(LOCAL_TOUCH.p2.dropId === id){
-    LOCAL_TOUCH.p2.dropId = null;
     LOCAL_TOUCH.p2.downHeld = false;
   }
 
@@ -2264,8 +2281,8 @@ function startMatch(){
   const initState = isSplitLocalTouch ? 'tutorial' : 'countdown';
   if(isSplitLocalTouch){
     LOCAL_TOUCH.showTutorial = true;
-    LOCAL_TOUCH.p1.joyId = null; LOCAL_TOUCH.p1.active = false; LOCAL_TOUCH.p1.left = false; LOCAL_TOUCH.p1.right = false; LOCAL_TOUCH.p1.offX = 0; LOCAL_TOUCH.p1.visOffX = 0; LOCAL_TOUCH.p1.jumpId = null; LOCAL_TOUCH.p1.jumpHeld = false; LOCAL_TOUCH.p1.jumpEdge = false; LOCAL_TOUCH.p1.dropId = null; LOCAL_TOUCH.p1.downHeld = false;
-    LOCAL_TOUCH.p2.joyId = null; LOCAL_TOUCH.p2.active = false; LOCAL_TOUCH.p2.left = false; LOCAL_TOUCH.p2.right = false; LOCAL_TOUCH.p2.offX = 0; LOCAL_TOUCH.p2.visOffX = 0; LOCAL_TOUCH.p2.jumpId = null; LOCAL_TOUCH.p2.jumpHeld = false; LOCAL_TOUCH.p2.jumpEdge = false; LOCAL_TOUCH.p2.dropId = null; LOCAL_TOUCH.p2.downHeld = false;
+    LOCAL_TOUCH.p1.joyId = null; LOCAL_TOUCH.p1.active = false; LOCAL_TOUCH.p1.left = false; LOCAL_TOUCH.p1.right = false; LOCAL_TOUCH.p1.offX = 0; LOCAL_TOUCH.p1.visOffX = 0; LOCAL_TOUCH.p1.spX = 0; LOCAL_TOUCH.p1.sldId = null; LOCAL_TOUCH.p1.sldV = 0; LOCAL_TOUCH.p1.jumpHeld = false; LOCAL_TOUCH.p1.jumpEdge = false; LOCAL_TOUCH.p1.downHeld = false;
+    LOCAL_TOUCH.p2.joyId = null; LOCAL_TOUCH.p2.active = false; LOCAL_TOUCH.p2.left = false; LOCAL_TOUCH.p2.right = false; LOCAL_TOUCH.p2.offX = 0; LOCAL_TOUCH.p2.visOffX = 0; LOCAL_TOUCH.p2.spX = 0; LOCAL_TOUCH.p2.sldId = null; LOCAL_TOUCH.p2.sldV = 0; LOCAL_TOUCH.p2.jumpHeld = false; LOCAL_TOUCH.p2.jumpEdge = false; LOCAL_TOUCH.p2.downHeld = false;
   } else {
     LOCAL_TOUCH.showTutorial = false;
   }
@@ -5039,7 +5056,10 @@ function drawOnlineHub(stageY, stageH){
     }
   }
 
-  const isWide = (CW >= 780);
+  // Side-by-side on desktop-wide AND on touch (mobile portrait included);
+  // narrow touch columns switch to compact labels so everything stays tappable.
+  const isWide = (CW >= 780) || (isTouch && CW >= 380);
+  const compactHub = isTouch && CW < 780;
   const pad = 12;
   const availW = (NET.role !== null) ? Math.min(CW - 24, 1080) : Math.min(CW - 24, 880);
   const startX = Math.floor(CW / 2 - availW / 2);
@@ -5063,7 +5083,7 @@ function drawOnlineHub(stageY, stageH){
   g.fillStyle = 'rgba(16, 22, 34, 0.92)'; g.fill();
   g.lineWidth = 2; g.strokeStyle = 'rgba(255,255,255,0.18)'; g.stroke();
 
-  ptxt('⚡ CREATE OR JOIN ROOM', startX + leftW/2, stageY + 22, FT(clamp(leftW * 0.056, 12, 14)), '#ffd166');
+  ptxt(compactHub ? '⚡ HOST / JOIN' : '⚡ CREATE OR JOIN ROOM', startX + leftW/2, stageY + 22, FT(clamp(leftW * 0.056, 11, 14)), '#ffd166');
 
   // Room Privacy Selector (Public / Private)
   const privY = stageY + 42;
@@ -5071,7 +5091,7 @@ function drawOnlineHub(stageY, stageH){
   const privW = Math.floor((leftW - 24) / 2);
   // Public button
   drawJuicyChip(startX + 10, privY, privW, privH, {
-    label: '🌐 PUBLIC',
+    label: compactHub ? 'PUBLIC' : '🌐 PUBLIC',
     active: NET.isPublic,
     activeBg: '#2ecc71',
     activeDarkBg: '#166534',
@@ -5083,7 +5103,7 @@ function drawOnlineHub(stageY, stageH){
 
   // Private button
   drawJuicyChip(startX + 14 + privW, privY, privW, privH, {
-    label: '🔒 PRIVATE',
+    label: compactHub ? 'PRIVATE' : '🔒 PRIVATE',
     active: !NET.isPublic,
     activeBg: '#f39c12',
     activeDarkBg: '#b45309',
@@ -5098,7 +5118,7 @@ function drawOnlineHub(stageY, stageH){
   const hostBtnH = clamp(leftH * 0.18, 34, 42);
   const hostBtnW = leftW - 20;
   drawJuicyBtn(startX + 10, hostBtnY, hostBtnW, hostBtnH, {
-    label: '👑 HOST NEW ROOM',
+    label: compactHub ? '👑 HOST' : '👑 HOST NEW ROOM',
     bg: '#27ae60',
     darkBg: '#166534',
     depth: 4,
@@ -5112,7 +5132,7 @@ function drawOnlineHub(stageY, stageH){
   const joinBtnY = hostBtnY + hostBtnH + 12;
   const joinBtnH = clamp(leftH * 0.16, 32, 38);
   drawJuicyBtn(startX + 10, joinBtnY, hostBtnW, joinBtnH, {
-    label: '🔑 ENTER ROOM CODE / LINK',
+    label: compactHub ? '🔑 JOIN' : '🔑 ENTER ROOM CODE / LINK',
     bg: 'rgba(56, 189, 248, 0.25)',
     darkBg: 'rgba(2, 132, 199, 0.55)',
     borderColor: '#38bdf8',
@@ -5134,7 +5154,7 @@ function drawOnlineHub(stageY, stageH){
   g.fillStyle = 'rgba(16, 22, 34, 0.92)'; g.fill();
   g.lineWidth = 2; g.strokeStyle = 'rgba(255,255,255,0.18)'; g.stroke();
 
-  ptxt('🌐 PUBLIC ROOMS DIRECTORY', rightX + rightW/2 - 30, rightY + 20, FT(clamp(rightW * 0.045, 12, 14)), '#ffffff');
+  ptxt(rightW < 300 ? '🌐 ROOMS' : '🌐 PUBLIC ROOMS DIRECTORY', rightX + rightW/2 - 30, rightY + 20, FT(clamp(rightW * 0.045, 11, 14)), '#ffffff');
 
   // Polished Refresh button
   const refBtnW = 84, refBtnH = 25;
@@ -6065,6 +6085,8 @@ function drawMenu(){
     if(menu.slotColor[0] < 0) menu.slotColor[0] = 0;
     if(menu.slotColor[1] < 0) menu.slotColor[1] = 1;
     actSlots = [0, 1];
+    // Touch devices have no P3/P4 controls: local party is capped at 2 players.
+    if(isTouch){ menu.slotColor[2] = -1; menu.slotColor[3] = -1; }
     if(menu.slotColor[2] >= 0) actSlots.push(2);
     if(menu.slotColor[3] >= 0) actSlots.push(3);
   }
@@ -6100,7 +6122,8 @@ function drawMenu(){
       });
     }
   } else {
-    const countOpts = [2, 3, 4];
+    // Touch: P3/P4 have no on-screen controls, so only 2-player is offered.
+    const countOpts = (typeof isTouch !== 'undefined' && isTouch) ? [2] : [2, 3, 4];
     const pw = clamp(CW * 0.16, 56, 84);
     const totalPillsW = countOpts.length * pw + (countOpts.length - 1) * 6;
     const pillsStartX = Math.floor(CW / 2 - totalPillsW / 2);
@@ -6142,7 +6165,7 @@ function drawMenu(){
 
   // Check if 4 cards should wrap to 2x2 grid on small mobile
   const use2x2 = (!isSolo && actSlots.length === 4 && CW < 680);
-  const showAddCard = (!isSolo && actSlots.length < 4 && CW >= 580 && !use2x2);
+  const showAddCard = (!isSolo && actSlots.length < 4 && CW >= 580 && !use2x2 && !isTouch);
   const totalItems = actSlots.length + (showAddCard ? 1 : 0);
 
   const cardGap = clamp(CW * 0.016, 6, 14);
@@ -7106,27 +7129,44 @@ function drawTouchButtons(){
       const knobIcon = pData.left ? '◀' : (pData.right ? '▶' : '•');
       ptxt(knobIcon, kx, jy + (knobIcon === '•' ? 0 : 1), FN(12, 900), isJoyActive ? '#ffffff' : 'rgba(255, 255, 255, 0.65)');
 
-      // --- B. Fixed JUMP Button (Top) ---
-      const jumpR = b.r * 0.88;
-      g.beginPath();
-      g.arc(cfg.btnX, cfg.jumpY, jumpR, 0, TAU);
-      g.fillStyle = pData.jumpHeld ? 'rgba(46, 204, 113, 0.65)' : 'rgba(255, 255, 255, 0.12)';
+      // --- B+C. Solo-style vertical slider (top = jump, bottom = drop) ---
+      // Slide knob mirrors the solo right slider: tap top to jump, drag down to drop.
+      const slCfg = { btnX: cfg.btnX, jumpY: cfg.jumpY, dropY: cfg.dropY };
+      const slW = b.r * 2.1;
+      const slTop = slCfg.jumpY - b.r * 1.05, slBot = slCfg.dropY + b.r * 1.05;
+      const slH = Math.max(10, slBot - slTop);
+      const slX = slCfg.btnX - slW / 2;
+      pData.sldV += ((pData.downHeld ? 1 : 0) - (pData.sldV || 0)) * 0.45;
+      rr(g, slX, slTop, slW, slH, slW / 2);
+      g.fillStyle = pData.sldId != null ? rgba(col, 0.14) : 'rgba(255, 255, 255, 0.08)';
       g.fill();
-      g.lineWidth = pData.jumpHeld ? 2.5 : 1.8;
-      g.strokeStyle = pData.jumpHeld ? '#2ecc71' : 'rgba(255, 255, 255, 0.35)';
+      g.lineWidth = 1.5;
+      g.strokeStyle = pData.sldId != null ? rgba(col, 0.55) : 'rgba(255, 255, 255, 0.22)';
       g.stroke();
-      ptxt('▲', cfg.btnX, cfg.jumpY, FN(13, 900), pData.jumpHeld ? '#ffffff' : 'rgba(255, 255, 255, 0.85)');
-
-      // --- C. Fixed DROP Button (Bottom) ---
-      const dropR = b.r * 0.88;
+      // Drop pad target at bottom
       g.beginPath();
-      g.arc(cfg.btnX, cfg.dropY, dropR, 0, TAU);
-      g.fillStyle = pData.downHeld ? 'rgba(235, 75, 155, 0.65)' : 'rgba(235, 75, 155, 0.15)';
+      g.arc(slCfg.btnX, slBot - b.r * 1.05, b.r * 0.72, 0, TAU);
+      g.fillStyle = pData.downHeld ? 'rgba(235, 75, 155, 0.55)' : 'rgba(235, 75, 155, 0.15)';
       g.fill();
-      g.lineWidth = pData.downHeld ? 2.5 : 1.8;
+      g.lineWidth = 1.5;
       g.strokeStyle = pData.downHeld ? '#eb4b9b' : 'rgba(235, 75, 155, 0.50)';
       g.stroke();
-      ptxt('v', cfg.btnX, cfg.dropY + 1, FN(13, 900), pData.downHeld ? '#ffffff' : 'rgba(235, 75, 155, 0.85)');
+      ptxt('v', slCfg.btnX, slBot - b.r * 1.05 + 1, FN(11, 900), pData.downHeld ? '#ffffff' : 'rgba(235, 75, 155, 0.85)');
+      // Knob (top = jump ▲, dragged down = drop v)
+      const slKy = slTop + (pData.sldV || 0) * Math.max(10, slCfg.dropY - slCfg.jumpY);
+      g.beginPath();
+      g.arc(slCfg.btnX, slKy, b.r * 0.88, 0, TAU);
+      if(pData.downHeld){
+        g.fillStyle = 'rgba(235, 75, 155, 0.65)'; g.strokeStyle = '#eb4b9b';
+      } else if(pData.jumpHeld){
+        g.fillStyle = 'rgba(46, 204, 113, 0.65)'; g.strokeStyle = '#2ecc71';
+      } else {
+        g.fillStyle = 'rgba(255, 255, 255, 0.22)'; g.strokeStyle = rgba(col, 0.60);
+      }
+      g.fill();
+      g.lineWidth = 2;
+      g.stroke();
+      ptxt(pData.downHeld ? 'v' : '▲', slCfg.btnX, slKy + 1, FN(12, 900), (pData.downHeld || pData.jumpHeld) ? '#ffffff' : 'rgba(255, 255, 255, 0.85)');
     };
 
     drawPlayerControls(LOCAL_TOUCH.p1, b.p1, colP1);
@@ -7171,7 +7211,7 @@ function drawLocalTutorialCard(){
   ptxt('📱 2-PLAYER TOUCH CONTROLS', CW / 2, cardY + 16 + ph / 2 + 1, FN(14, 900), '#ffffff');
 
   // Subtitle
-  ptxt('Ergonomic Joysticks • Fixed Jump & Drop Buttons', CW / 2, cardY + 66, FN(11, 700), '#94a3b8');
+  ptxt('Ergonomic Joysticks • Slide-Up Jump & Slide-Down Drop', CW / 2, cardY + 66, FN(11, 700), '#94a3b8');
 
   // Two columns: Left (P1) and Right (P2)
   const colW = (cardW - 36) / 2;
@@ -7205,8 +7245,8 @@ function drawLocalTutorialCard(){
   const rowH = isMini ? 25 : 30;
   const rowY0 = colY + 48;
   ptxt('🕹️  TOUCH ANYWHERE TO RUN', col1X + colW / 2, rowY0, FN(isMini ? 10 : 11.5, 800), '#e2e8f0');
-  ptxt('▲  FIXED JUMP BUTTON', col1X + colW / 2, rowY0 + rowH, FN(isMini ? 10 : 11.5, 800), '#2ecc71');
-  ptxt('v  FIXED DROP BUTTON', col1X + colW / 2, rowY0 + rowH * 2, FN(isMini ? 10 : 11.5, 800), '#f472b6');
+  ptxt('▲  SLIDE UP = JUMP', col1X + colW / 2, rowY0 + rowH, FN(isMini ? 10 : 11.5, 800), '#2ecc71');
+  ptxt('v  SLIDE DOWN = DROP', col1X + colW / 2, rowY0 + rowH * 2, FN(isMini ? 10 : 11.5, 800), '#f472b6');
 
   // --- Column 2: Player 2 (Right Half) ---
   rr(g, col2X, colY, colW, colH, 12);
@@ -7227,8 +7267,8 @@ function drawLocalTutorialCard(){
 
   // P2 Instructions
   ptxt('🕹️  TOUCH ANYWHERE TO RUN', col2X + colW / 2, rowY0, FN(isMini ? 10 : 11.5, 800), '#e2e8f0');
-  ptxt('▲  FIXED JUMP BUTTON', col2X + colW / 2, rowY0 + rowH, FN(isMini ? 10 : 11.5, 800), '#2ecc71');
-  ptxt('v  FIXED DROP BUTTON', col2X + colW / 2, rowY0 + rowH * 2, FN(isMini ? 10 : 11.5, 800), '#f472b6');
+  ptxt('▲  SLIDE UP = JUMP', col2X + colW / 2, rowY0 + rowH, FN(isMini ? 10 : 11.5, 800), '#2ecc71');
+  ptxt('v  SLIDE DOWN = DROP', col2X + colW / 2, rowY0 + rowH * 2, FN(isMini ? 10 : 11.5, 800), '#f472b6');
 
   // Glowing Start Button at bottom
   const btnW = Math.min(cardW * 0.72, 280), btnH = 40;
