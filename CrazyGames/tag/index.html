@@ -324,6 +324,10 @@ function pollGamepads(){
 
 /* ================= touch zones ================= */
 const zones=[];const touchPts=new Map();const glow={};
+let pointerX = -999, pointerY = -999, pointerDown = false;
+function isPointerIn(x, y, w, h){
+  return pointerX >= x && pointerX <= x + w && pointerY >= y && pointerY <= y + h;
+}
 function zone(x,y,w,h,o){
   zones.push({
     x:x,y:y,w:w,h:h,
@@ -342,6 +346,7 @@ function zoneAt(x,y,holdOnly){
 }
 function inputDown(x,y,id){
   initAudio();grabFocus();
+  pointerX = x; pointerY = y; pointerDown = true;
   
   // Tutorial Card dismiss for 2-Player Local Touch
   if(match && screen === 'game' && GESTURE_SPLIT.showTutorial){
@@ -498,6 +503,7 @@ function inputDown(x,y,id){
   }
 }
 function inputMove(x,y,id){
+  pointerX = x; pointerY = y;
   const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
   const isPlaying = (match && (match.state === 'playing' || match.state === 'countdown'));
   const isSplitLocal = (!isOnline && match && screen === 'game' && isPlaying && match.players && match.players.length === 2 && isTouch && !menu.botOn && menu.tab !== 'solo');
@@ -596,6 +602,7 @@ function inputMove(x,y,id){
   }
 }
 function inputUp(id){
+  pointerDown = false;
   // P1 Local Touch Reset
   if(LOCAL_TOUCH.p1.joyId === id){
     const p = LOCAL_TOUCH.p1;
@@ -671,6 +678,7 @@ if(window.PointerEvent){
   cv.addEventListener('pointercancel',e=>{
     inputUp(e.pointerId!=null?e.pointerId:'touch');
   },{passive:false});
+  cv.addEventListener('pointerleave', ()=>{ pointerX = -999; pointerY = -999; pointerDown = false; });
 }else{
   cv.addEventListener('touchstart',e=>{
     e.preventDefault();
@@ -3971,17 +3979,284 @@ function pill(x,y,w,h,fill,stroke){
   if(stroke){g.lineWidth=2.5;g.strokeStyle=stroke;g.stroke();}
 }
 function fmtTime(s){s=Math.max(0,Math.ceil(s));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}
-function simpleButton(x,y,w,h,label,fn,sub){
-  const pulse=1+0.015*Math.sin(tGlobal*4);
+
+function shadeColor(color, percent) {
+  if(!color) return '#1e293b';
+  if(color.startsWith('rgba') || color.startsWith('rgb')) return 'rgba(0,0,0,0.35)';
+  let num = parseInt(color.replace('#',''), 16);
+  if(isNaN(num)) return '#141414';
+  let amt = Math.round(2.55 * percent);
+  let R = clamp((num >> 16) + amt, 0, 255);
+  let G = clamp(((num >> 8) & 0x00FF) + amt, 0, 255);
+  let B = clamp((num & 0x0000FF) + amt, 0, 255);
+  return '#' + (0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1);
+}
+
+function drawJuicyBtn(x, y, w, h, o){
+  o = o || {};
+  const r = (o.r !== undefined) ? o.r : Math.min(14, Math.floor(h / 2));
+  const depth = (o.depth !== undefined) ? o.depth : clamp(Math.round(h * 0.11), 3, 5);
+  const isHover = !isTouch && isPointerIn(x, y, w, h + depth);
+  const isPress = isHover && pointerDown;
+  const disabled = !!o.disabled;
+  
+  const pushY = disabled ? 0 : (isPress ? (depth - 1) : (isHover ? -1 : 0));
+  const curDepth = disabled ? depth : (isPress ? 1 : (isHover ? depth + 1 : depth));
+  
+  const baseBg = disabled ? '#64748b' : (o.bg || '#2ecc71');
+  const darkBg = disabled ? '#334155' : (o.darkBg || (baseBg.startsWith('#') ? shadeColor(baseBg, -36) : 'rgba(0,0,0,0.35)'));
+  
   g.save();
-  g.translate(x+w/2,y+h/2);g.scale(pulse,pulse);g.translate(-w/2,-h/2);
-  rr(g,0,0,w,h,h/2);
-  g.fillStyle='#ffffff';g.fill();
-  g.lineWidth=3;g.strokeStyle=INK;g.stroke();
-  txt(label,w/2,h/2+(sub?-6:1),FN(Math.min(24,h*0.4),900),'#1c6b38');
-  if(sub)txt(sub,w/2,h*0.76,FN(10,700),'#5a8f6d');
+  // 1. Ambient soft drop shadow
+  rr(g, x, y + depth + 2, w, h, r);
+  g.fillStyle = 'rgba(15, 23, 42, 0.22)';
+  g.fill();
+  
+  // 2. 3D Bottom Bevel / Extrusion
+  rr(g, x, y + pushY + curDepth, w, h, r);
+  g.fillStyle = darkBg;
+  g.fill();
+  g.lineWidth = o.borderWidth || 2.5;
+  g.strokeStyle = o.borderColor || INK;
+  g.stroke();
+  
+  // 3. Top Button Face
+  rr(g, x, y + pushY, w, h, r);
+  if(o.gradient && !disabled){
+    const grad = g.createLinearGradient(x, y + pushY, x, y + pushY + h);
+    grad.addColorStop(0, shadeColor(baseBg, 12));
+    grad.addColorStop(1, baseBg);
+    g.fillStyle = grad;
+  } else {
+    g.fillStyle = (isHover && !disabled && baseBg.startsWith('#')) ? shadeColor(baseBg, 10) : baseBg;
+  }
+  g.fill();
+  
+  // 4. Glossy Top Sheen
+  g.save();
+  rr(g, x, y + pushY, w, h, r);
+  g.clip();
+  
+  const glossH = Math.max(8, h * 0.44);
+  const glossGrad = g.createLinearGradient(x, y + pushY, x, y + pushY + glossH);
+  glossGrad.addColorStop(0, 'rgba(255, 255, 255, 0.40)');
+  glossGrad.addColorStop(1, 'rgba(255, 255, 255, 0.03)');
+  g.fillStyle = glossGrad;
+  g.fillRect(x, y + pushY, w, glossH);
+  
+  // Specular shine sweep across button (juice!)
+  if(o.shine && !disabled){
+    const shineProgress = ((tGlobal * 0.75) % 2.8) - 0.4;
+    if(shineProgress >= 0 && shineProgress <= 1.4){
+      const shineX = x - w * 0.3 + shineProgress * (w * 1.6);
+      const sGrad = g.createLinearGradient(shineX - 25, y + pushY, shineX + 25, y + pushY);
+      sGrad.addColorStop(0, 'rgba(255, 255, 255, 0)');
+      sGrad.addColorStop(0.5, 'rgba(255, 255, 255, 0.45)');
+      sGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      g.fillStyle = sGrad;
+      g.transform(1, 0, -0.3, 1, 0, 0);
+      g.fillRect(shineX - 30, y + pushY - 10, 60, h + 20);
+    }
+  }
+  g.restore(); // end gloss clip
+  
+  // 5. Button Outline
+  rr(g, x, y + pushY, w, h, r);
+  g.lineWidth = o.borderWidth || 2.5;
+  g.strokeStyle = o.borderColor || INK;
+  g.stroke();
+  
+  // 6. Label & Subtext
+  const textCol = disabled ? '#94a3b8' : (o.textColor || '#ffffff');
+  const cy = y + pushY + h / 2;
+  const cx = x + w / 2;
+  
+  if(o.label){
+    const fs = o.fontSize || clamp(h * 0.40, 11, 18);
+    const sub = o.sub;
+    const fontStr = o.font || (o.boldFont ? FT(fs) : FN(fs, 900));
+    
+    g.save();
+    g.font = fontStr;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    
+    const textY = cy + (sub ? -h * 0.12 : 1);
+    
+    if(o.textShadow !== false){
+      g.fillStyle = o.textShadow || (textCol === '#ffffff' ? 'rgba(0, 0, 0, 0.40)' : 'rgba(255, 255, 255, 0.50)');
+      g.fillText(o.label, cx, textY + 1.2);
+    }
+    g.fillStyle = textCol;
+    g.fillText(o.label, cx, textY);
+    
+    if(sub){
+      const subFs = o.subFontSize || Math.max(9, fs * 0.65);
+      g.font = FN(subFs, 800);
+      g.fillStyle = o.subColor || (textCol === '#ffffff' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(15, 23, 42, 0.70)');
+      g.fillText(sub, cx, cy + h * 0.26);
+    }
+    g.restore();
+  }
+  
+  if(o.badge){
+    const bw = 32, bh = 14;
+    const bx = x + w - bw - 2, by = y + pushY - 4;
+    rr(g, bx, by, bw, bh, 4);
+    g.fillStyle = '#ff4757'; g.fill();
+    g.lineWidth = 1; g.strokeStyle = '#ffffff'; g.stroke();
+    txt(o.badge, bx + bw/2, by + bh/2 + 1, FN(8, 900), '#ffffff');
+  }
+  
   g.restore();
-  zone(x,y,w,h,{fn:fn});
+  
+  if(o.fn && !disabled){
+    zone(x, y, w, h + depth, { fn: o.fn });
+  }
+}
+
+function drawJuicyIconBtn(x, y, sz, o){
+  o = o || {};
+  const r = o.r || 9;
+  const depth = o.depth || 3;
+  const isHover = !isTouch && isPointerIn(x, y, sz, sz + depth);
+  const isPress = isHover && pointerDown;
+  const pushY = isPress ? (depth - 1) : (isHover ? -1 : 0);
+  const curDepth = isPress ? 1 : (isHover ? depth + 1 : depth);
+  const baseBg = o.bg || 'rgba(255, 255, 255, 0.94)';
+  const darkBg = o.darkBg || (baseBg.startsWith('#') ? shadeColor(baseBg, -25) : 'rgba(203, 213, 225, 0.95)');
+  
+  g.save();
+  rr(g, x, y + depth + 1, sz, sz, r);
+  g.fillStyle = 'rgba(15, 23, 42, 0.20)';
+  g.fill();
+  
+  rr(g, x, y + pushY + curDepth, sz, sz, r);
+  g.fillStyle = darkBg;
+  g.fill();
+  g.lineWidth = 2.2;
+  g.strokeStyle = INK;
+  g.stroke();
+  
+  rr(g, x, y + pushY, sz, sz, r);
+  g.fillStyle = (isHover && baseBg.startsWith('#')) ? shadeColor(baseBg, 8) : baseBg;
+  g.fill();
+  
+  g.save();
+  rr(g, x, y + pushY, sz, sz, r);
+  g.clip();
+  const glossH = sz * 0.44;
+  const glossGrad = g.createLinearGradient(x, y + pushY, x, y + pushY + glossH);
+  glossGrad.addColorStop(0, 'rgba(255, 255, 255, 0.45)');
+  glossGrad.addColorStop(1, 'rgba(255, 255, 255, 0.03)');
+  g.fillStyle = glossGrad;
+  g.fillRect(x, y + pushY, sz, glossH);
+  g.restore();
+  
+  rr(g, x, y + pushY, sz, sz, r);
+  g.lineWidth = 2.2;
+  g.strokeStyle = INK;
+  g.stroke();
+  
+  if(o.renderContent){
+    o.renderContent(x, y + pushY, sz);
+  } else if(o.icon){
+    g.font = FN(o.iconSize || Math.floor(sz * 0.46), 900);
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillStyle = o.iconColor || '#1e293b';
+    g.fillText(o.icon, x + sz/2, y + pushY + sz/2 + 1);
+  }
+  g.restore();
+  
+  if(o.fn || o.upFn){
+    zone(x, y, sz, sz + depth, { fn: o.fn, upFn: o.upFn });
+  }
+}
+
+function drawJuicyChip(x, y, w, h, o){
+  o = o || {};
+  const r = o.r || 6;
+  const depth = o.depth || 3;
+  const isHover = !isTouch && isPointerIn(x, y, w, h + depth);
+  const isPress = isHover && pointerDown;
+  const pushY = isPress ? (depth - 1) : (isHover ? -1 : 0);
+  const curDepth = isPress ? 1 : (isHover ? depth + 1 : depth);
+  const active = !!o.active;
+  const baseBg = active ? (o.activeBg || '#2ed573') : (o.bg || 'rgba(255, 255, 255, 0.12)');
+  const darkBg = active ? (o.activeDarkBg || (baseBg.startsWith('#') ? shadeColor(baseBg, -30) : 'rgba(0, 0, 0, 0.35)')) : (o.darkBg || 'rgba(0, 0, 0, 0.28)');
+  
+  g.save();
+  rr(g, x, y + pushY + curDepth, w, h, r);
+  g.fillStyle = darkBg;
+  g.fill();
+  g.lineWidth = active ? 2 : 1.5;
+  g.strokeStyle = active ? (o.activeBorder || INK) : (o.border || 'rgba(255, 255, 255, 0.25)');
+  g.stroke();
+  
+  rr(g, x, y + pushY, w, h, r);
+  g.fillStyle = isHover && !active ? 'rgba(255, 255, 255, 0.22)' : baseBg;
+  g.fill();
+  
+  g.save();
+  rr(g, x, y + pushY, w, h, r);
+  g.clip();
+  const glossH = h * 0.44;
+  const glossGrad = g.createLinearGradient(x, y + pushY, x, y + pushY + glossH);
+  glossGrad.addColorStop(0, active ? 'rgba(255, 255, 255, 0.35)' : 'rgba(255, 255, 255, 0.18)');
+  glossGrad.addColorStop(1, 'rgba(255, 255, 255, 0.02)');
+  g.fillStyle = glossGrad;
+  g.fillRect(x, y + pushY, w, glossH);
+  g.restore();
+  
+  rr(g, x, y + pushY, w, h, r);
+  g.lineWidth = active ? 2 : 1.5;
+  g.strokeStyle = active ? (o.activeBorder || INK) : (o.border || 'rgba(255, 255, 255, 0.25)');
+  g.stroke();
+  
+  if(o.label){
+    const fs = o.fontSize || 11;
+    const col = active ? (o.activeText || '#ffffff') : (o.textColor || '#94a3b8');
+    g.font = FN(fs, 900);
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    if(active && col === '#ffffff'){
+      g.fillStyle = 'rgba(0, 0, 0, 0.35)';
+      g.fillText(o.label, x + w/2, y + pushY + h/2 + 2);
+    }
+    g.fillStyle = col;
+    g.fillText(o.label, x + w/2, y + pushY + h/2 + 1);
+  }
+  
+  if(o.badge){
+    const nbW = 28, nbH = 13;
+    const nbX = x + w - nbW - 2, nbY = y + pushY - 4;
+    rr(g, nbX, nbY, nbW, nbH, 3);
+    g.fillStyle = '#ff4757'; g.fill();
+    g.lineWidth = 1; g.strokeStyle = '#ffffff'; g.stroke();
+    txt(o.badge, nbX + nbW/2, nbY + nbH/2 + 1, FN(7.5, 900), '#ffffff');
+  }
+  
+  g.restore();
+  
+  if(o.fn){
+    zone(x, y, w, h + depth, { fn: o.fn });
+  }
+}
+
+function simpleButton(x,y,w,h,label,fn,sub,bgCol){
+  drawJuicyBtn(x, y, w, h, {
+    label: label,
+    sub: sub,
+    bg: bgCol || '#ffffff',
+    darkBg: bgCol ? shadeColor(bgCol, -30) : '#cbd5e1',
+    textColor: bgCol ? '#ffffff' : '#1c6b38',
+    textShadow: bgCol ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.7)',
+    r: Math.floor(h / 2),
+    depth: clamp(Math.round(h * 0.12), 3, 5),
+    fn: fn,
+    shine: true
+  });
 }
 function padGlyph(x,y,s,lit){
   g.save();
@@ -4532,10 +4807,16 @@ function drawMapModal(){
 
   const cbSz = Math.min(32, headH - 10);
   const cbX = modalX + modalW - cbSz - 12, cbY = modalY + (headH - cbSz) / 2;
-  rr(g, cbX, cbY, cbSz, cbSz, 8);
-  g.fillStyle = '#e74c3c'; g.fill(); g.lineWidth = 2; g.strokeStyle = INK; g.stroke();
-  ptxt('✕', cbX + cbSz / 2, cbY + cbSz / 2 + 1, FN(13, 900), '#ffffff');
-  zone(cbX, cbY, cbSz, cbSz, { fn: () => { menu.mapModal = false; sfx('back'); } });
+  drawJuicyIconBtn(cbX, cbY, cbSz, {
+    r: 8,
+    depth: 3,
+    bg: '#e74c3c',
+    darkBg: '#b91c1c',
+    icon: '✕',
+    iconColor: '#ffffff',
+    iconSize: 13,
+    fn: () => { menu.mapModal = false; sfx('back'); }
+  });
 
   const isWide = (modalW >= 640);
   const isMedium = (modalW >= 460 && !isWide);
@@ -4550,20 +4831,23 @@ function drawMapModal(){
   const randBtnY = modalY + headH + 2;
 
   const isRand = !!settings.randomMap;
-  rr(g, randBtnX, randBtnY, randBtnW, randBtnH, 8);
-  g.fillStyle = isRand ? 'rgba(255, 209, 102, 0.28)' : 'rgba(255, 255, 255, 0.08)';
-  g.fill();
-  g.lineWidth = isRand ? 2.5 : 1.5;
-  g.strokeStyle = isRand ? '#ffd166' : 'rgba(255, 255, 255, 0.25)';
-  g.stroke();
-
-  txt(isRand ? '🎲 RANDOM ARENA  ✓' : '🎲 RANDOM ARENA  (Surprise map every match)', randBtnX + randBtnW / 2, randBtnY + randBtnH / 2 + 1, FN(clamp(randBtnW * 0.038, 10.5, 13), 900), isRand ? '#ffd166' : '#ffffff');
-  zone(randBtnX, randBtnY, randBtnW, randBtnH, { fn: () => {
-    settings.randomMap = true;
-    menu.mapModal = false;
-    toast('🎲 RANDOM ARENAS: ON');
-    sfx('ok');
-  }});
+  drawJuicyBtn(randBtnX, randBtnY, randBtnW, randBtnH, {
+    label: isRand ? '🎲 RANDOM ARENA  ✓' : '🎲 RANDOM ARENA  (Surprise map every match)',
+    active: isRand,
+    bg: isRand ? '#f39c12' : 'rgba(255, 255, 255, 0.12)',
+    darkBg: isRand ? '#b45309' : 'rgba(0, 0, 0, 0.35)',
+    textColor: isRand ? '#0f172a' : '#ffffff',
+    textShadow: isRand ? 'rgba(255, 255, 255, 0.6)' : 'rgba(0, 0, 0, 0.4)',
+    r: 8,
+    depth: 3,
+    fontSize: clamp(randBtnW * 0.038, 10.5, 13),
+    fn: () => {
+      settings.randomMap = true;
+      menu.mapModal = false;
+      toast('🎲 RANDOM ARENAS: ON');
+      sfx('ok');
+    }
+  });
 
   const gridTopY = randBtnY + randBtnH + 6;
   const availGridH = modalH - (gridTopY - modalY) - gridPad;
@@ -4749,37 +5033,57 @@ function drawOnlineHub(stageY, stageH){
   const privH = 30;
   const privW = Math.floor((leftW - 24) / 2);
   // Public button
-  rr(g, startX + 10, privY, privW, privH, 6);
-  g.fillStyle = NET.isPublic ? '#2ecc71' : 'rgba(255,255,255,0.1)'; g.fill();
-  g.lineWidth = 1.5; g.strokeStyle = NET.isPublic ? '#ffffff' : 'rgba(255,255,255,0.2)'; g.stroke();
-  txt('🌐 PUBLIC', startX + 10 + privW/2, privY + privH/2 + 1, FN(11, 900), NET.isPublic ? '#ffffff' : '#94a3b8');
-  zone(startX + 10, privY, privW, privH, { fn: () => { NET.isPublic = true; sfx('ui'); } });
+  drawJuicyChip(startX + 10, privY, privW, privH, {
+    label: '🌐 PUBLIC',
+    active: NET.isPublic,
+    activeBg: '#2ecc71',
+    activeDarkBg: '#166534',
+    activeText: '#ffffff',
+    textColor: '#94a3b8',
+    fontSize: 11,
+    fn: () => { NET.isPublic = true; sfx('ui'); }
+  });
 
   // Private button
-  rr(g, startX + 14 + privW, privY, privW, privH, 6);
-  g.fillStyle = !NET.isPublic ? '#f39c12' : 'rgba(255,255,255,0.1)'; g.fill();
-  g.lineWidth = 1.5; g.strokeStyle = !NET.isPublic ? '#ffffff' : 'rgba(255,255,255,0.2)'; g.stroke();
-  txt('🔒 PRIVATE', startX + 14 + privW + privW/2, privY + privH/2 + 1, FN(11, 900), !NET.isPublic ? '#ffffff' : '#94a3b8');
-  zone(startX + 14 + privW, privY, privW, privH, { fn: () => { NET.isPublic = false; sfx('ui'); } });
+  drawJuicyChip(startX + 14 + privW, privY, privW, privH, {
+    label: '🔒 PRIVATE',
+    active: !NET.isPublic,
+    activeBg: '#f39c12',
+    activeDarkBg: '#b45309',
+    activeText: '#0f172a',
+    textColor: '#94a3b8',
+    fontSize: 11,
+    fn: () => { NET.isPublic = false; sfx('ui'); }
+  });
 
   // Big HOST ROOM button
   const hostBtnY = privY + privH + 12;
   const hostBtnH = clamp(leftH * 0.18, 34, 42);
   const hostBtnW = leftW - 20;
-  rr(g, startX + 10, hostBtnY, hostBtnW, hostBtnH, 8);
-  g.fillStyle = '#27ae60'; g.fill();
-  g.lineWidth = 2; g.strokeStyle = '#ffffff'; g.stroke();
-  ptxt('👑 HOST NEW ROOM', startX + leftW/2, hostBtnY + hostBtnH/2 + 1, FT(13), '#ffffff');
-  zone(startX + 10, hostBtnY, hostBtnW, hostBtnH, { fn: () => { sfx('go'); netHostAction(NET.isPublic); } });
+  drawJuicyBtn(startX + 10, hostBtnY, hostBtnW, hostBtnH, {
+    label: '👑 HOST NEW ROOM',
+    bg: '#27ae60',
+    darkBg: '#166534',
+    depth: 4,
+    shine: true,
+    boldFont: true,
+    fontSize: 13,
+    fn: () => { sfx('go'); netHostAction(NET.isPublic); }
+  });
 
   // Join Room by Code / Link Button
   const joinBtnY = hostBtnY + hostBtnH + 12;
   const joinBtnH = clamp(leftH * 0.16, 32, 38);
-  rr(g, startX + 10, joinBtnY, hostBtnW, joinBtnH, 8);
-  g.fillStyle = 'rgba(56, 189, 248, 0.18)'; g.fill();
-  g.lineWidth = 1.5; g.strokeStyle = '#38bdf8'; g.stroke();
-  txt('🔑 ENTER ROOM CODE / LINK', startX + leftW/2, joinBtnY + joinBtnH/2 + 1, FN(12, 900), '#38bdf8');
-  zone(startX + 10, joinBtnY, hostBtnW, joinBtnH, { fn: () => { sfx('ui'); netJoinAction(); } });
+  drawJuicyBtn(startX + 10, joinBtnY, hostBtnW, joinBtnH, {
+    label: '🔑 ENTER ROOM CODE / LINK',
+    bg: 'rgba(56, 189, 248, 0.25)',
+    darkBg: 'rgba(2, 132, 199, 0.55)',
+    borderColor: '#38bdf8',
+    textColor: '#38bdf8',
+    depth: 4,
+    fontSize: 12,
+    fn: () => { sfx('ui'); netJoinAction(); }
+  });
 
   // Help info text at bottom of left card
   const infoY = joinBtnY + joinBtnH + 12;
@@ -4798,11 +5102,16 @@ function drawOnlineHub(stageY, stageH){
   // Polished Refresh button
   const refBtnW = 84, refBtnH = 25;
   const refBtnX = rightX + rightW - refBtnW - 10, refBtnY = rightY + 8;
-  rr(g, refBtnX, refBtnY, refBtnW, refBtnH, 6);
-  g.fillStyle = 'rgba(56, 189, 248, 0.20)'; g.fill();
-  g.lineWidth = 1.5; g.strokeStyle = '#38bdf8'; g.stroke();
-  txt('🔄 Refresh', refBtnX + refBtnW/2, refBtnY + refBtnH/2 + 1, FN(10.5, 900), '#38bdf8');
-  zone(refBtnX, refBtnY, refBtnW, refBtnH, { fn: () => { sfx('ui'); netFetchPublicRooms(); } });
+  drawJuicyChip(refBtnX, refBtnY, refBtnW, refBtnH, {
+    label: '🔄 Refresh',
+    active: true,
+    activeBg: 'rgba(56, 189, 248, 0.22)',
+    activeDarkBg: 'rgba(2, 132, 199, 0.45)',
+    activeText: '#38bdf8',
+    activeBorder: '#38bdf8',
+    fontSize: 10.5,
+    fn: () => { sfx('ui'); netFetchPublicRooms(); }
+  });
 
   // Rooms table header
   const tableY = rightY + 38;
@@ -4846,13 +5155,18 @@ function drawOnlineHub(stageY, stageH){
       txt(mapName.slice(0, 10) + ' • ' + modeLabel, rightX + rightW * 0.68, ry + rowH/2, FN(10, 800), '#38bdf8');
 
       // Join button
-      const jbW = 54, jbH = rowH - 8;
+      const jbW = 58, jbH = rowH - 8;
       const jbX = rightX + rightW - jbW - 10, jbY = ry + 4;
-      rr(g, jbX, jbY, jbW, jbH, 6);
       const isLocked = rm.isLocked;
-      g.fillStyle = isLocked ? '#e67e22' : '#2ecc71'; g.fill();
-      txt(isLocked ? '👁️ Spec' : '▶ Join', jbX + jbW/2, jbY + jbH/2 + 1, FN(10, 900), '#ffffff');
-      zone(jbX, jbY, jbW, jbH, { fn: () => { sfx('go'); netJoinAction(rm.roomId, rm.hostPeerId || rm.hostId || ''); } });
+      drawJuicyChip(jbX, jbY, jbW, jbH, {
+        label: isLocked ? '👁️ Spec' : '▶ Join',
+        active: true,
+        activeBg: isLocked ? '#e67e22' : '#2ecc71',
+        activeDarkBg: isLocked ? '#b45309' : '#166534',
+        activeText: '#ffffff',
+        fontSize: 10,
+        fn: () => { sfx('go'); netJoinAction(rm.roomId, rm.hostPeerId || rm.hostId || ''); }
+      });
     }
   }
 }
@@ -4879,20 +5193,30 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
   // Copy Link Button
   const copyBtnW = 86, copyBtnH = 24;
   const copyBtnX = startX + 212, copyBtnY = stageY + 5;
-  rr(g, copyBtnX, copyBtnY, copyBtnW, copyBtnH, 6);
-  g.fillStyle = 'rgba(56, 189, 248, 0.2)'; g.fill();
-  g.lineWidth = 1; g.strokeStyle = '#38bdf8'; g.stroke();
-  txt('🔗 Link', copyBtnX + copyBtnW/2, copyBtnY + copyBtnH/2 + 1, FN(10.5, 900), '#38bdf8');
-  zone(copyBtnX, copyBtnY, copyBtnW, copyBtnH, { fn: () => { sfx('ui'); netCopyLink(); } });
+  drawJuicyChip(copyBtnX, copyBtnY, copyBtnW, copyBtnH, {
+    label: '🔗 Link',
+    active: true,
+    activeBg: 'rgba(56, 189, 248, 0.25)',
+    activeDarkBg: 'rgba(2, 132, 199, 0.5)',
+    activeText: '#38bdf8',
+    activeBorder: '#38bdf8',
+    fontSize: 10.5,
+    fn: () => { sfx('ui'); netCopyLink(); }
+  });
 
   // Chat Toggle Button in Header
   const chatBtnW = 76, chatBtnH = 24;
   const chatBtnX = copyBtnX + copyBtnW + 8, chatBtnY = stageY + 5;
-  rr(g, chatBtnX, chatBtnY, chatBtnW, chatBtnH, 6);
-  g.fillStyle = 'rgba(46, 204, 113, 0.2)'; g.fill();
-  g.lineWidth = 1; g.strokeStyle = '#2ecc71'; g.stroke();
-  txt('💬 Chat', chatBtnX + chatBtnW/2, chatBtnY + chatBtnH/2 + 1, FN(10.5, 900), '#2ecc71');
-  zone(chatBtnX, chatBtnY, chatBtnW, chatBtnH, { fn: () => { sfx('ui'); if(typeof chatToggle==='function') chatToggle(); } });
+  drawJuicyChip(chatBtnX, chatBtnY, chatBtnW, chatBtnH, {
+    label: '💬 Chat',
+    active: true,
+    activeBg: 'rgba(46, 204, 113, 0.25)',
+    activeDarkBg: 'rgba(22, 101, 52, 0.5)',
+    activeText: '#2ecc71',
+    activeBorder: '#2ecc71',
+    fontSize: 10.5,
+    fn: () => { sfx('ui'); if(typeof chatToggle==='function') chatToggle(); }
+  });
 
   // 15s Ready Countdown Badge if ticking down
   if(NET.readyCountdown !== null && NET.readyCountdown !== undefined){
@@ -4906,28 +5230,45 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
     // Lock Teams Toggle
     const ltBtnW = 90, ltBtnH = 24;
     const ltBtnX = startX + availW - ltBtnW - 170, ltBtnY = stageY + 5;
-    rr(g, ltBtnX, ltBtnY, ltBtnW, ltBtnH, 6);
-    g.fillStyle = NET.teamsLocked ? '#e74c3c' : 'rgba(255,255,255,0.12)'; g.fill();
-    txt(NET.teamsLocked ? '🔒 Teams Lock' : '🔓 Teams Open', ltBtnX + ltBtnW/2, ltBtnY + ltBtnH/2 + 1, FN(9.5, 900), '#ffffff');
-    zone(ltBtnX, ltBtnY, ltBtnW, ltBtnH, { fn: () => netLockTeams(!NET.teamsLocked) });
+    drawJuicyChip(ltBtnX, ltBtnY, ltBtnW, ltBtnH, {
+      label: NET.teamsLocked ? '🔒 Teams Lock' : '🔓 Teams Open',
+      active: NET.teamsLocked,
+      activeBg: '#e74c3c',
+      activeDarkBg: '#b91c1c',
+      activeText: '#ffffff',
+      textColor: '#cbd5e1',
+      fontSize: 9.5,
+      fn: () => netLockTeams(!NET.teamsLocked)
+    });
 
     // Lock Lobby Toggle
     const llBtnW = 84, llBtnH = 24;
     const llBtnX = startX + availW - llBtnW - 82, llBtnY = stageY + 5;
-    rr(g, llBtnX, llBtnY, llBtnW, llBtnH, 6);
-    g.fillStyle = NET.lobbyLocked ? '#e67e22' : 'rgba(255,255,255,0.12)'; g.fill();
-    txt(NET.lobbyLocked ? '🔒 Locked' : '🔓 Open', llBtnX + llBtnW/2, llBtnY + llBtnH/2 + 1, FN(9.5, 900), '#ffffff');
-    zone(llBtnX, llBtnY, llBtnW, llBtnH, { fn: () => netLockLobby(!NET.lobbyLocked) });
+    drawJuicyChip(llBtnX, llBtnY, llBtnW, llBtnH, {
+      label: NET.lobbyLocked ? '🔒 Locked' : '🔓 Open',
+      active: NET.lobbyLocked,
+      activeBg: '#e67e22',
+      activeDarkBg: '#b45309',
+      activeText: '#ffffff',
+      textColor: '#cbd5e1',
+      fontSize: 9.5,
+      fn: () => netLockLobby(!NET.lobbyLocked)
+    });
   }
 
   // Leave Room Button
   const leaveBtnW = 72, leaveBtnH = 24;
   const leaveBtnX = startX + availW - leaveBtnW - 6, leaveBtnY = stageY + 5;
-  rr(g, leaveBtnX, leaveBtnY, leaveBtnW, leaveBtnH, 6);
-  g.fillStyle = 'rgba(231, 76, 60, 0.2)'; g.fill();
-  g.lineWidth = 1; g.strokeStyle = '#e74c3c'; g.stroke();
-  txt('🚪 Leave', leaveBtnX + leaveBtnW/2, leaveBtnY + leaveBtnH/2 + 1, FN(10.5, 900), '#ff6b81');
-  zone(leaveBtnX, leaveBtnY, leaveBtnW, leaveBtnH, { fn: () => { sfx('back'); netLeaveRoom(); } });
+  drawJuicyChip(leaveBtnX, leaveBtnY, leaveBtnW, leaveBtnH, {
+    label: '🚪 Leave',
+    active: true,
+    activeBg: 'rgba(231, 76, 60, 0.25)',
+    activeDarkBg: 'rgba(185, 28, 28, 0.5)',
+    activeText: '#ff6b81',
+    activeBorder: '#e74c3c',
+    fontSize: 10.5,
+    fn: () => { sfx('back'); netLeaveRoom(); }
+  });
 
   // Ensure chat overlay is enabled for room
   const chatUIEl = document.getElementById('chatUI');
@@ -5217,17 +5558,26 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
   const rdyFontSize = clamp(rdyH * 0.42, 10.5, 13);
   if(isSpectatorMe){
     // Spectator View: "JOIN GAME" Button (if lobby unlocked)
-    rr(g, cx - btnW/2, rdyY, btnW, rdyH, 6);
     if(NET.lobbyLocked){
-      g.fillStyle = 'rgba(230, 126, 34, 0.25)'; g.fill();
-      g.lineWidth = 1.2; g.strokeStyle = '#e67e22'; g.stroke();
-      ptxt('🔒 LOBBY LOCKED BY HOST', cx, rdyY + rdyH/2 + 1, FN(clamp(rdyH * 0.38, 9.5, 11.5), 900), '#f39c12');
-      zone(cx - btnW/2, rdyY, btnW, rdyH, { fn: () => netToast('Lobby is locked by the host.') });
+      drawJuicyChip(cx - btnW/2, rdyY, btnW, rdyH, {
+        label: '🔒 LOBBY LOCKED BY HOST',
+        active: false,
+        bg: 'rgba(230, 126, 34, 0.25)',
+        darkBg: 'rgba(180, 83, 9, 0.4)',
+        textColor: '#f39c12',
+        fontSize: clamp(rdyH * 0.38, 9.5, 11.5),
+        fn: () => netToast('Lobby is locked by the host.')
+      });
     } else {
-      g.fillStyle = '#27ae60'; g.fill();
-      g.lineWidth = 1.5; g.strokeStyle = '#2ecc71'; g.stroke();
-      ptxt('▶ JOIN GAME', cx, rdyY + rdyH/2 + 1, FN(rdyFontSize, 900), '#ffffff');
-      zone(cx - btnW/2, rdyY, btnW, rdyH, { fn: () => netRequestJoinGame() });
+      drawJuicyChip(cx - btnW/2, rdyY, btnW, rdyH, {
+        label: '▶ JOIN GAME',
+        active: true,
+        activeBg: '#27ae60',
+        activeDarkBg: '#166534',
+        activeText: '#ffffff',
+        fontSize: rdyFontSize,
+        fn: () => netRequestJoinGame()
+      });
     }
   } else if(!NET.isHost && NET.mySlot >= 1){
     // Active Guest: Ready Button + Spectate Button side by side
@@ -5237,25 +5587,40 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
     const specBtnX = rdyBtnX + rdyBtnW + 6;
 
     // Ready Button
-    rr(g, rdyBtnX, rdyY, rdyBtnW, rdyH, 6);
-    g.fillStyle = isMeReady ? '#27ae60' : 'rgba(255,255,255,0.14)'; g.fill();
-    g.lineWidth = 1.5; g.strokeStyle = isMeReady ? '#2ecc71' : 'rgba(255,255,255,0.3)'; g.stroke();
-    ptxt(isMeReady ? 'READY ✓' : 'READY?', rdyBtnX + rdyBtnW/2, rdyY + rdyH/2 + 1, FN(rdyFontSize, 900), isMeReady ? '#ffffff' : '#ffd166');
-    zone(rdyBtnX, rdyY, rdyBtnW, rdyH, { fn: () => netToggleMyReady() });
+    drawJuicyChip(rdyBtnX, rdyY, rdyBtnW, rdyH, {
+      label: isMeReady ? 'READY ✓' : 'READY?',
+      active: isMeReady,
+      activeBg: '#27ae60',
+      activeDarkBg: '#166534',
+      activeText: '#ffffff',
+      textColor: '#ffd166',
+      fontSize: rdyFontSize,
+      fn: () => netToggleMyReady()
+    });
 
     // Spectate Button
-    rr(g, specBtnX, rdyY, specBtnW, rdyH, 6);
-    g.fillStyle = 'rgba(56, 189, 248, 0.2)'; g.fill();
-    g.lineWidth = 1.2; g.strokeStyle = '#38bdf8'; g.stroke();
-    ptxt('👁️ Spec', specBtnX + specBtnW/2, rdyY + rdyH/2 + 1, FN(clamp(rdyH * 0.38, 9.5, 11.5), 900), '#38bdf8');
-    zone(specBtnX, rdyY, specBtnW, rdyH, { fn: () => netRequestSpectate() });
+    drawJuicyChip(specBtnX, rdyY, specBtnW, rdyH, {
+      label: '👁️ Spec',
+      active: true,
+      activeBg: 'rgba(56, 189, 248, 0.25)',
+      activeDarkBg: 'rgba(2, 132, 199, 0.5)',
+      activeText: '#38bdf8',
+      activeBorder: '#38bdf8',
+      fontSize: clamp(rdyH * 0.38, 9.5, 11.5),
+      fn: () => netRequestSpectate()
+    });
   } else {
     // Host: Full Ready / Start Button
-    rr(g, cx - btnW/2, rdyY, btnW, rdyH, 6);
-    g.fillStyle = isMeReady ? '#27ae60' : 'rgba(255,255,255,0.14)'; g.fill();
-    g.lineWidth = 1.5; g.strokeStyle = isMeReady ? '#2ecc71' : 'rgba(255,255,255,0.3)'; g.stroke();
-    ptxt(isMeReady ? 'READY ✓' : 'CLICK TO READY', cx, rdyY + rdyH/2 + 1, FN(rdyFontSize, 900), isMeReady ? '#ffffff' : '#ffd166');
-    zone(cx - btnW/2, rdyY, btnW, rdyH, { fn: () => netToggleMyReady() });
+    drawJuicyChip(cx - btnW/2, rdyY, btnW, rdyH, {
+      label: isMeReady ? 'READY ✓' : 'CLICK TO READY',
+      active: isMeReady,
+      activeBg: '#27ae60',
+      activeDarkBg: '#166534',
+      activeText: '#ffffff',
+      textColor: '#ffd166',
+      fontSize: rdyFontSize,
+      fn: () => netToggleMyReady()
+    });
   }
 
   // --- 4. HOST PLAYER MANAGEMENT MODAL ---
@@ -5559,28 +5924,39 @@ function drawMenu(){
   // Sound & Theme buttons on top-right
   const si = Math.floor(clamp(headH * 0.88, 28, 38));
   const soundX = CW - si - 12;
-  rr(g, soundX, headY, si, si, 8);
-  g.fillStyle = 'rgba(255,255,255,0.85)'; g.fill(); g.lineWidth = 2; g.strokeStyle = INK; g.stroke();
-  g.fillStyle = '#3a5a3a';
-  g.beginPath();
-  g.moveTo(soundX + 8, headY + si/2 - 4);
-  g.lineTo(soundX + 8, headY + si/2 + 4);
-  g.lineTo(soundX + 14, headY + si/2 + 4);
-  g.lineTo(soundX + 21, headY + si/2 + 10);
-  g.lineTo(soundX + 21, headY + si/2 - 10);
-  g.lineTo(soundX + 14, headY + si/2 - 4);
-  g.closePath(); g.fill();
-  if(muted){
-    g.strokeStyle = '#c0392b'; g.lineWidth = 3;
-    g.beginPath(); g.moveTo(soundX + 23, headY + si/2 - 7); g.lineTo(soundX + 32, headY + si/2 + 7); g.stroke();
-  }
-  zone(soundX, headY, si, si, { fn: () => { muted = !muted; applyEffectiveMute(); } });
+  drawJuicyIconBtn(soundX, headY, si, {
+    r: 8,
+    depth: 3,
+    bg: 'rgba(255, 255, 255, 0.92)',
+    darkBg: 'rgba(203, 213, 225, 0.95)',
+    renderContent: (x, y, sz) => {
+      g.fillStyle = '#3a5a3a';
+      g.beginPath();
+      g.moveTo(x + 8, y + sz/2 - 4);
+      g.lineTo(x + 8, y + sz/2 + 4);
+      g.lineTo(x + 14, y + sz/2 + 4);
+      g.lineTo(x + 21, y + sz/2 + 10);
+      g.lineTo(x + 21, y + sz/2 - 10);
+      g.lineTo(x + 14, y + sz/2 - 4);
+      g.closePath(); g.fill();
+      if(muted){
+        g.strokeStyle = '#c0392b'; g.lineWidth = 3;
+        g.beginPath(); g.moveTo(x + 23, y + sz/2 - 7); g.lineTo(x + 32, y + sz/2 + 7); g.stroke();
+      }
+    },
+    fn: () => { muted = !muted; applyEffectiveMute(); }
+  });
 
   const themeX = soundX - si - 8;
-  rr(g, themeX, headY, si, si, 8);
-  g.fillStyle = 'rgba(255,255,255,0.85)'; g.fill(); g.lineWidth = 2; g.strokeStyle = INK; g.stroke();
-  ptxt('🎨', themeX + si/2, headY + si/2 + 1, FN(Math.floor(si * 0.44), 900), '#ffffff');
-  zone(themeX, headY, si, si, { fn: () => { cycleTheme(); } });
+  drawJuicyIconBtn(themeX, headY, si, {
+    r: 8,
+    depth: 3,
+    bg: 'rgba(255, 255, 255, 0.92)',
+    darkBg: 'rgba(203, 213, 225, 0.95)',
+    icon: '🎨',
+    iconSize: Math.floor(si * 0.44),
+    fn: () => { cycleTheme(); }
+  });
 
   // Game Logo (Left)
   const logoFs = clamp(headH * 0.82, 22, 42);
@@ -5603,32 +5979,21 @@ function drawMenu(){
     const tx = tabsX + t * (tabW + 8);
     const ty = headY + (headH - tabH) / 2;
     const isAct = (menu.tab === tab.id);
-
-    rr(g, tx, ty, tabW, tabH, 8);
-    g.fillStyle = isAct ? '#ffffff' : 'rgba(255,255,255,0.12)';
-    g.fill();
-    g.lineWidth = isAct ? 2.5 : 1.5;
-    g.strokeStyle = isAct ? INK : 'rgba(255,255,255,0.25)';
-    g.stroke();
-
     const tLabel = isNarrowW ? tab.short : tab.label;
     const tFs = clamp(tabW * 0.095, 11, 13.5);
-    if(isAct){
-      txt(tLabel, tx + tabW/2, ty + tabH/2 + 1, FN(tFs, 900), '#0f172a');
-    } else {
-      txt(tLabel, tx + tabW/2, ty + tabH/2 + 1, FN(tFs, 800), '#cbd5e1');
-    }
 
-    if(tab.badge){
-      const bW = 32, bH = 15;
-      const bX = tx + tabW - bW - 2, bY = ty - 5;
-      rr(g, bX, bY, bW, bH, 4);
-      g.fillStyle = '#ff4757'; g.fill();
-      g.lineWidth = 1; g.strokeStyle = '#ffffff'; g.stroke();
-      txt(tab.badge, bX + bW/2, bY + bH/2 + 1, FN(8.5, 900), '#ffffff');
-    }
-
-    zone(tx, ty, tabW, tabH, { fn: () => setMenuTab(tab.id) });
+    drawJuicyBtn(tx, ty, tabW, tabH, {
+      label: tLabel,
+      bg: isAct ? '#ffffff' : 'rgba(255, 255, 255, 0.14)',
+      darkBg: isAct ? '#cbd5e1' : 'rgba(0, 0, 0, 0.32)',
+      textColor: isAct ? '#0f172a' : '#cbd5e1',
+      textShadow: isAct ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.4)',
+      r: 8,
+      depth: 3,
+      fontSize: tFs,
+      badge: tab.badge,
+      fn: () => setMenuTab(tab.id)
+    });
   }
 
   // 3. Layout vertical budgeting
@@ -5686,15 +6051,15 @@ function drawMenu(){
       const opt = diffOpts[k];
       const px = pillsStartX + k * (pw + 8);
       const isCur = ((menu.botDifficulty || 'hard') === opt.id);
-      rr(g, px, pillY, pw, ph, 6);
-      g.fillStyle = isCur ? opt.col : 'rgba(255,255,255,0.12)';
-      g.fill();
-      g.lineWidth = isCur ? 2 : 1;
-      g.strokeStyle = isCur ? '#ffffff' : 'rgba(255,255,255,0.25)';
-      g.stroke();
-      txt(opt.label, px + pw/2, pillY + ph/2 + 1, FN(10.5, 900), isCur ? '#ffffff' : '#cbd5e1');
-
-      zone(px, pillY, pw, ph, { fn: () => setBotDifficulty(opt.id) });
+      drawJuicyChip(px, pillY, pw, ph, {
+        label: opt.label,
+        active: isCur,
+        activeBg: opt.col,
+        activeDarkBg: shadeColor(opt.col, -30),
+        activeText: '#ffffff',
+        fontSize: 10.5,
+        fn: () => setBotDifficulty(opt.id)
+      });
     }
   } else {
     const countOpts = [2, 3, 4];
@@ -5718,19 +6083,19 @@ function drawMenu(){
       const numP = countOpts[k];
       const px = pillsStartX + k * (pw + 6);
       const isCurCount = (actSlots.length === numP);
-      rr(g, px, pillY, pw, ph, 6);
-      g.fillStyle = isCurCount ? '#2ed573' : 'rgba(255,255,255,0.12)';
-      g.fill();
-      g.lineWidth = isCurCount ? 2 : 1;
-      g.strokeStyle = isCurCount ? '#ffffff' : 'rgba(255,255,255,0.25)';
-      g.stroke();
-      txt(numP + ' PLAYERS', px + pw/2, pillY + ph/2 + 1, FN(10.5, 900), isCurCount ? '#ffffff' : '#cbd5e1');
-
-      zone(px, pillY, pw, ph, { fn: () => {
-        if(numP === 2){ menu.slotColor[2] = -1; menu.slotColor[3] = -1; sfx('ui'); }
-        else if(numP === 3){ menu.slotColor[2] = 2; menu.slotColor[3] = -1; sfx('ok'); }
-        else if(numP === 4){ menu.slotColor[2] = 2; menu.slotColor[3] = 3; sfx('ok'); }
-      }});
+      drawJuicyChip(px, pillY, pw, ph, {
+        label: numP + ' PLAYERS',
+        active: isCurCount,
+        activeBg: '#2ed573',
+        activeDarkBg: '#166534',
+        activeText: '#ffffff',
+        fontSize: 10.5,
+        fn: () => {
+          if(numP === 2){ menu.slotColor[2] = -1; menu.slotColor[3] = -1; sfx('ui'); }
+          else if(numP === 3){ menu.slotColor[2] = 2; menu.slotColor[3] = -1; sfx('ok'); }
+          else if(numP === 4){ menu.slotColor[2] = 2; menu.slotColor[3] = 3; sfx('ok'); }
+        }
+      });
     }
   }
 
@@ -5996,30 +6361,39 @@ function drawMenu(){
     const mapY = stripY + 3;
     const arrowW = 34;
     // Left Arrow
-    rr(g, stripX + 6, mapY, arrowW, rowH1 - 6, 6);
-    g.fillStyle = 'rgba(255,255,255,0.18)'; g.fill();
-    g.lineWidth = 1.5; g.strokeStyle = 'rgba(255,255,255,0.30)'; g.stroke();
-    txt('◀', stripX + 6 + arrowW/2, mapY + (rowH1 - 6)/2 + 1, FN(13, 900), '#ffffff');
-    zone(stripX + 6, mapY, arrowW, rowH1 - 6, { fn: () => cycleMap(-1) });
+    drawJuicyChip(stripX + 6, mapY, arrowW, rowH1 - 6, {
+      label: '◀',
+      fontSize: 13,
+      textColor: '#ffffff',
+      fn: () => cycleMap(-1)
+    });
 
     // Right Arrow
     const rightNarrowX = stripX + stripW - arrowW - 6;
-    rr(g, rightNarrowX, mapY, arrowW, rowH1 - 6, 6);
-    g.fillStyle = 'rgba(255,255,255,0.18)'; g.fill();
-    g.lineWidth = 1.5; g.strokeStyle = 'rgba(255,255,255,0.30)'; g.stroke();
-    txt('▶', rightNarrowX + arrowW/2, mapY + (rowH1 - 6)/2 + 1, FN(13, 900), '#ffffff');
-    zone(rightNarrowX, mapY, arrowW, rowH1 - 6, { fn: () => cycleMap(1) });
+    drawJuicyChip(rightNarrowX, mapY, arrowW, rowH1 - 6, {
+      label: '▶',
+      fontSize: 13,
+      textColor: '#ffffff',
+      fn: () => cycleMap(1)
+    });
 
     // Middle Map Name (Opens Modal!)
     const mapMidW = stripW - arrowW * 2 - 24;
     const mapMidX = stripX + arrowW + 12;
-    rr(g, mapMidX, mapY, mapMidW, rowH1 - 6, 6);
-    g.fillStyle = settings.randomMap ? 'rgba(255, 209, 102, 0.25)' : 'rgba(255,255,255,0.18)'; g.fill();
-    txt(mapLabelText, mapMidX + mapMidW/2, mapY + (rowH1 - 6)/2 + 1, FN(11.5, 900), settings.randomMap ? '#ffd166' : '#ffffff');
-    zone(mapMidX, mapY, mapMidW, rowH1 - 6, { fn: () => {
-      if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST SELECTS THE ARENA'); sfx('back'); return; }
-      menu.mapModal = true; sfx('ok');
-    } });
+    drawJuicyChip(mapMidX, mapY, mapMidW, rowH1 - 6, {
+      label: mapLabelText,
+      active: settings.randomMap,
+      activeBg: 'rgba(255, 209, 102, 0.35)',
+      activeDarkBg: 'rgba(180, 83, 9, 0.5)',
+      activeText: '#ffd166',
+      activeBorder: '#ffd166',
+      textColor: '#ffffff',
+      fontSize: 11.5,
+      fn: () => {
+        if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST SELECTS THE ARENA'); sfx('back'); return; }
+        menu.mapModal = true; sfx('ok');
+      }
+    });
 
     // Row 2: Chips (2x Jump, 120s Timer, and NEW GAMEMODE: Teams)
     const chipsY = stripY + rowH1 + 1;
@@ -6027,45 +6401,50 @@ function drawMenu(){
     const chipH = rowH1 - 6;
 
     // Chip 1: Double Jump
-    rr(g, stripX + 6, chipsY, chipW, chipH, 6);
-    g.fillStyle = settings.doubleJump ? '#2ed573' : 'rgba(255,255,255,0.12)'; g.fill();
-    txt('2x JUMP', stripX + 6 + chipW/2, chipsY + chipH/2 + 1, FN(10.5, 900), settings.doubleJump ? '#ffffff' : '#94a3b8');
-    zone(stripX + 6, chipsY, chipW, chipH, { fn: () => {
-      if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST CONTROLS ROOM MODIFIERS'); sfx('back'); return; }
-      settings.doubleJump = !settings.doubleJump; sfx('ui');
-      if(typeof NET !== 'undefined' && NET && NET.isHost) netBroadcastSettings();
-    } });
+    drawJuicyChip(stripX + 6, chipsY, chipW, chipH, {
+      label: '2x JUMP',
+      active: settings.doubleJump,
+      activeBg: '#2ed573',
+      activeDarkBg: '#166534',
+      activeText: '#ffffff',
+      fontSize: 10.5,
+      fn: () => {
+        if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST CONTROLS ROOM MODIFIERS'); sfx('back'); return; }
+        settings.doubleJump = !settings.doubleJump; sfx('ui');
+        if(typeof NET !== 'undefined' && NET && NET.isHost) netBroadcastSettings();
+      }
+    });
 
     // Chip 2: Timer
-    rr(g, stripX + 12 + chipW, chipsY, chipW, chipH, 6);
-    g.fillStyle = 'rgba(255,255,255,0.12)'; g.fill();
-    txt('⏱️ ' + settings.time + 's', stripX + 12 + chipW * 1.5, chipsY + chipH/2 + 1, FN(10.5, 900), '#ffd166');
-    zone(stripX + 12 + chipW, chipsY, chipW, chipH, { fn: () => {
-      if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST CONTROLS ROOM TIMER'); sfx('back'); return; }
-      settings.timeIdx = (settings.timeIdx + 1) % TIMES.length; sfx('ui');
-      if(typeof NET !== 'undefined' && NET && NET.isHost) netBroadcastSettings();
-    }});
+    drawJuicyChip(stripX + 12 + chipW, chipsY, chipW, chipH, {
+      label: '⏱️ ' + settings.time + 's',
+      active: true,
+      activeBg: 'rgba(255, 209, 102, 0.22)',
+      activeDarkBg: 'rgba(180, 83, 9, 0.45)',
+      activeText: '#ffd166',
+      activeBorder: 'rgba(255, 209, 102, 0.55)',
+      fontSize: 10.5,
+      fn: () => {
+        if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST CONTROLS ROOM TIMER'); sfx('back'); return; }
+        settings.timeIdx = (settings.timeIdx + 1) % TIMES.length; sfx('ui');
+        if(typeof NET !== 'undefined' && NET && NET.isHost) netBroadcastSettings();
+      }
+    });
 
     // Chip 3: NEW GAMEMODE: Teams
     const chip3X = stripX + 18 + chipW * 2;
-    rr(g, chip3X, chipsY, chipW, chipH, 6);
-    if(settings.teams){
-      g.fillStyle = '#f39c12'; g.fill();
-      g.lineWidth = 1.5; g.strokeStyle = '#ffffff'; g.stroke();
-      txt('⚔️ TEAMS (ON)', chip3X + chipW/2, chipsY + chipH/2 + 1, FN(10.5, 900), '#0f172a');
-    } else {
-      g.fillStyle = 'rgba(243, 156, 18, 0.18)'; g.fill();
-      g.lineWidth = 1.5; g.strokeStyle = 'rgba(243, 156, 18, 0.55)'; g.stroke();
-      txt('⚔️ TEAMS', chip3X + chipW/2, chipsY + chipH/2 + 1, FN(10, 900), '#ffd166');
-      // NEW badge on corner
-      const nbW = 28, nbH = 13;
-      const nbX = chip3X + chipW - nbW - 2, nbY = chipsY - 4;
-      rr(g, nbX, nbY, nbW, nbH, 3);
-      g.fillStyle = '#ff4757'; g.fill();
-      g.lineWidth = 1; g.strokeStyle = '#ffffff'; g.stroke();
-      txt('NEW', nbX + nbW/2, nbY + nbH/2 + 1, FN(7.5, 900), '#ffffff');
-    }
-    zone(chip3X, chipsY, chipW, chipH, { fn: () => toggleTeams() });
+    drawJuicyChip(chip3X, chipsY, chipW, chipH, {
+      label: settings.teams ? '⚔️ TEAMS (ON)' : '⚔️ TEAMS',
+      active: settings.teams,
+      activeBg: '#f39c12',
+      activeDarkBg: '#b45309',
+      activeText: '#0f172a',
+      activeBorder: '#ffffff',
+      textColor: '#ffd166',
+      fontSize: 10.5,
+      badge: 'NEW',
+      fn: () => toggleTeams()
+    });
 
   } else {
     // Single sleek horizontal dock for desktop & tablets
@@ -6077,31 +6456,39 @@ function drawMenu(){
     const arrowW = 34;
 
     // Left Arrow
-    rr(g, stripX + 6, itemY, arrowW, itemH, 6);
-    g.fillStyle = 'rgba(255,255,255,0.18)'; g.fill();
-    g.lineWidth = 1.5; g.strokeStyle = 'rgba(255,255,255,0.30)'; g.stroke();
-    txt('◀', stripX + 6 + arrowW/2, itemY + itemH/2 + 1, FN(14, 900), '#ffffff');
-    zone(stripX + 6, itemY, arrowW, itemH, { fn: () => cycleMap(-1) });
+    drawJuicyChip(stripX + 6, itemY, arrowW, itemH, {
+      label: '◀',
+      fontSize: 14,
+      textColor: '#ffffff',
+      fn: () => cycleMap(-1)
+    });
 
-    // Right Arrow (Fixed hitbox coordinate!)
+    // Right Arrow
     const rightArrowX = stripX + 6 + mapBoxW - arrowW;
-    rr(g, rightArrowX, itemY, arrowW, itemH, 6);
-    g.fillStyle = 'rgba(255,255,255,0.18)'; g.fill();
-    g.lineWidth = 1.5; g.strokeStyle = 'rgba(255,255,255,0.30)'; g.stroke();
-    txt('▶', rightArrowX + arrowW/2, itemY + itemH/2 + 1, FN(14, 900), '#ffffff');
-    zone(rightArrowX, itemY, arrowW, itemH, { fn: () => cycleMap(1) });
+    drawJuicyChip(rightArrowX, itemY, arrowW, itemH, {
+      label: '▶',
+      fontSize: 14,
+      textColor: '#ffffff',
+      fn: () => cycleMap(1)
+    });
 
     // Middle Map Name (Opens Modal!)
     const mapMidW = mapBoxW - arrowW * 2 - 8;
     const mapMidX = stripX + 6 + arrowW + 4;
-    rr(g, mapMidX, itemY, mapMidW, itemH, 6);
-    g.fillStyle = settings.randomMap ? 'rgba(255, 209, 102, 0.25)' : 'rgba(255,255,255,0.18)'; g.fill();
-    g.lineWidth = 1.5; g.strokeStyle = settings.randomMap ? 'rgba(255, 209, 102, 0.55)' : 'rgba(255,255,255,0.30)'; g.stroke();
-    txt(mapLabelText, mapMidX + mapMidW/2, itemY + itemH/2 + 1, FN(clamp(itemH * 0.40, 11, 13.5), 900), settings.randomMap ? '#ffd166' : '#ffffff');
-    zone(mapMidX, itemY, mapMidW, itemH, { fn: () => {
-      if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST SELECTS THE ARENA'); sfx('back'); return; }
-      menu.mapModal = true; sfx('ok');
-    } });
+    drawJuicyChip(mapMidX, itemY, mapMidW, itemH, {
+      label: mapLabelText,
+      active: settings.randomMap,
+      activeBg: 'rgba(255, 209, 102, 0.35)',
+      activeDarkBg: 'rgba(180, 83, 9, 0.5)',
+      activeText: '#ffd166',
+      activeBorder: '#ffd166',
+      textColor: '#ffffff',
+      fontSize: clamp(itemH * 0.40, 11, 13.5),
+      fn: () => {
+        if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST SELECTS THE ARENA'); sfx('back'); return; }
+        menu.mapModal = true; sfx('ok');
+      }
+    });
 
     // Right side: 3 Modifier Chips
     const chipsX = stripX + 6 + mapBoxW + 12;
@@ -6109,104 +6496,119 @@ function drawMenu(){
     const chipW = Math.floor((chipsAvailW - 12) / 3);
 
     // Chip 1: Double Jump
-    rr(g, chipsX, itemY, chipW, itemH, 6);
-    g.fillStyle = settings.doubleJump ? '#2ed573' : 'rgba(255,255,255,0.12)'; g.fill();
-    txt('2x JUMP', chipsX + chipW/2, itemY + itemH/2 + 1, FN(11.5, 900), settings.doubleJump ? '#ffffff' : '#94a3b8');
-    zone(chipsX, itemY, chipW, itemH, { fn: () => {
-      if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST CONTROLS ROOM MODIFIERS'); sfx('back'); return; }
-      settings.doubleJump = !settings.doubleJump; sfx('ui');
-      if(typeof NET !== 'undefined' && NET && NET.isHost) netBroadcastSettings();
-    } });
+    drawJuicyChip(chipsX, itemY, chipW, itemH, {
+      label: '2x JUMP',
+      active: settings.doubleJump,
+      activeBg: '#2ed573',
+      activeDarkBg: '#166534',
+      activeText: '#ffffff',
+      fontSize: 11.5,
+      fn: () => {
+        if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST CONTROLS ROOM MODIFIERS'); sfx('back'); return; }
+        settings.doubleJump = !settings.doubleJump; sfx('ui');
+        if(typeof NET !== 'undefined' && NET && NET.isHost) netBroadcastSettings();
+      }
+    });
 
     // Chip 2: Timer
-    rr(g, chipsX + chipW + 6, itemY, chipW, itemH, 6);
-    g.fillStyle = 'rgba(255,255,255,0.12)'; g.fill();
-    txt('⏱️ ' + settings.time + 's', chipsX + chipW + 6 + chipW/2, itemY + itemH/2 + 1, FN(11.5, 900), '#ffd166');
-    zone(chipsX + chipW + 6, itemY, chipW, itemH, { fn: () => {
-      if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST CONTROLS ROOM TIMER'); sfx('back'); return; }
-      settings.timeIdx = (settings.timeIdx + 1) % TIMES.length; sfx('ui');
-      if(typeof NET !== 'undefined' && NET && NET.isHost) netBroadcastSettings();
-    }});
+    drawJuicyChip(chipsX + chipW + 6, itemY, chipW, itemH, {
+      label: '⏱️ ' + settings.time + 's',
+      active: true,
+      activeBg: 'rgba(255, 209, 102, 0.22)',
+      activeDarkBg: 'rgba(180, 83, 9, 0.45)',
+      activeText: '#ffd166',
+      activeBorder: 'rgba(255, 209, 102, 0.55)',
+      fontSize: 11.5,
+      fn: () => {
+        if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST CONTROLS ROOM TIMER'); sfx('back'); return; }
+        settings.timeIdx = (settings.timeIdx + 1) % TIMES.length; sfx('ui');
+        if(typeof NET !== 'undefined' && NET && NET.isHost) netBroadcastSettings();
+      }
+    });
 
     // Chip 3: NEW GAMEMODE: Teams
     const chip3X = chipsX + chipW * 2 + 12;
-    rr(g, chip3X, itemY, chipW, itemH, 6);
-    if(settings.teams){
-      g.fillStyle = '#f39c12'; g.fill();
-      g.lineWidth = 2; g.strokeStyle = '#ffffff'; g.stroke();
-      txt('⚔️ TEAMS (ON)', chip3X + chipW/2, itemY + itemH/2 + 1, FN(11.5, 900), '#0f172a');
-    } else {
-      g.fillStyle = 'rgba(243, 156, 18, 0.18)'; g.fill();
-      g.lineWidth = 1.5; g.strokeStyle = 'rgba(243, 156, 18, 0.55)'; g.stroke();
-      txt('⚔️ TEAMS', chip3X + chipW/2, itemY + itemH/2 + 1, FN(11.5, 900), '#ffd166');
-      // NEW badge on corner
-      const nbW = 32, nbH = 14;
-      const nbX = chip3X + chipW - nbW - 2, nbY = itemY - 5;
-      rr(g, nbX, nbY, nbW, nbH, 4);
-      g.fillStyle = '#ff4757'; g.fill();
-      g.lineWidth = 1; g.strokeStyle = '#ffffff'; g.stroke();
-      txt('NEW', nbX + nbW/2, nbY + nbH/2 + 1, FN(8.5, 900), '#ffffff');
-    }
-    zone(chip3X, itemY, chipW, itemH, { fn: () => toggleTeams() });
+    drawJuicyChip(chip3X, itemY, chipW, itemH, {
+      label: settings.teams ? '⚔️ TEAMS (ON)' : '⚔️ TEAMS',
+      active: settings.teams,
+      activeBg: '#f39c12',
+      activeDarkBg: '#b45309',
+      activeText: '#0f172a',
+      activeBorder: '#ffffff',
+      textColor: '#ffd166',
+      fontSize: 11.5,
+      badge: 'NEW',
+      fn: () => toggleTeams()
+    });
   }
   }
 
   // 6. Giant START MATCH Button / Online Action Button
   if(menu.tab === 'online'){
     if(NET.role !== null){
-      const pulse = 0.90 + Math.sin(tGlobal * 5) * 0.10;
       const startBtnX = Math.floor(CW/2 - startBtnW/2);
-      rr(g, startBtnX - 2, startBtnY - 2, startBtnW + 4, startBtnH + 4, 14);
-      g.fillStyle = '#ffffff'; g.fill(); g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
-      rr(g, startBtnX, startBtnY, startBtnW, startBtnH, 12);
-
       if(NET.isHost){
         const actCount = activeSlots().length;
         const canStart = actCount >= 2;
-        g.fillStyle = canStart ? ('rgba(46, 204, 113, ' + pulse + ')') : 'rgba(100, 116, 139, 0.85)'; g.fill();
-        g.lineWidth = 2; g.strokeStyle = '#ffffff'; g.stroke();
         const hostLabel = canStart ? '▶ START ONLINE MATCH (SPACE)' : '⏳ WAITING FOR PLAYERS (MIN 2)';
-        ptxt(hostLabel, CW/2, startBtnY + startBtnH/2 + 1, FT(clamp(startBtnH * 0.36, 12, 16)), '#ffffff');
-        if(canStart){
-          zone(startBtnX - 2, startBtnY - 2, startBtnW + 4, startBtnH + 4, { fn: () => netForceStart() });
-        }
+        drawJuicyBtn(startBtnX, startBtnY, startBtnW, startBtnH, {
+          label: hostLabel,
+          bg: canStart ? '#2ecc71' : '#64748b',
+          darkBg: canStart ? '#166534' : '#334155',
+          depth: 5,
+          shine: canStart,
+          boldFont: true,
+          fontSize: clamp(startBtnH * 0.38, 12, 16),
+          disabled: !canStart,
+          fn: canStart ? () => netForceStart() : null
+        });
       } else if(NET.isSpectator){
-        g.fillStyle = 'rgba(56, 189, 248, 0.85)'; g.fill();
-        g.lineWidth = 2; g.strokeStyle = '#ffffff'; g.stroke();
-        ptxt('👁️ SPECTATING MATCH', CW/2, startBtnY + startBtnH/2 + 1, FT(clamp(startBtnH * 0.36, 12, 16)), '#ffffff');
+        drawJuicyBtn(startBtnX, startBtnY, startBtnW, startBtnH, {
+          label: '👁️ SPECTATING MATCH',
+          bg: '#38bdf8',
+          darkBg: '#0284c7',
+          depth: 5,
+          boldFont: true,
+          fontSize: clamp(startBtnH * 0.38, 12, 16)
+        });
       } else {
         const myReady = (NET.mySlot >= 0 && NET.slotsReady[NET.mySlot]);
-        g.fillStyle = myReady ? ('rgba(46, 204, 113, ' + pulse + ')') : ('rgba(243, 156, 18, ' + pulse + ')'); g.fill();
-        g.lineWidth = 2; g.strokeStyle = '#ffffff'; g.stroke();
         const guestLabel = myReady ? '✓ READY (WAITING FOR HOST)' : '▶ CLICK TO READY UP';
-        ptxt(guestLabel, CW/2, startBtnY + startBtnH/2 + 1, FT(clamp(startBtnH * 0.36, 12, 16)), '#ffffff');
-        zone(startBtnX - 2, startBtnY - 2, startBtnW + 4, startBtnH + 4, { fn: () => netToggleMyReady() });
+        drawJuicyBtn(startBtnX, startBtnY, startBtnW, startBtnH, {
+          label: guestLabel,
+          bg: myReady ? '#2ecc71' : '#f39c12',
+          darkBg: myReady ? '#166534' : '#b45309',
+          depth: 5,
+          shine: true,
+          boldFont: true,
+          fontSize: clamp(startBtnH * 0.38, 12, 16),
+          fn: () => netToggleMyReady()
+        });
       }
     }
   } else {
-    const pulse = 0.90 + Math.sin(tGlobal * 5) * 0.10;
     const startBtnX = Math.floor(CW/2 - startBtnW/2);
-    rr(g, startBtnX - 2, startBtnY - 2, startBtnW + 4, startBtnH + 4, 14);
-    g.fillStyle = '#ffffff'; g.fill(); g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
-    rr(g, startBtnX, startBtnY, startBtnW, startBtnH, 12);
-    g.fillStyle = isTeams ? ('rgba(241, 196, 15, ' + pulse + ')') : ('rgba(46, 204, 113, ' + pulse + ')'); g.fill();
-    g.lineWidth = 2; g.strokeStyle = '#ffffff'; g.stroke();
-
     let startLabel = isTouch ? '▶ START MATCH' : '▶ START MATCH  (SPACE / ENTER)';
     if(isTeams) startLabel = isTouch ? '⚔️ START TEAM MATCH' : '⚔️ START TEAM MATCH (SPACE)';
     const labelFs = clamp(startBtnH * 0.38, 12.5, 16.5);
-    if(isTeams){
-      txt(startLabel, CW/2, startBtnY + startBtnH/2 + 1, FT(labelFs), '#0f172a');
-    } else {
-      ptxt(startLabel, CW/2, startBtnY + startBtnH/2 + 1, FT(labelFs), '#ffffff');
-    }
-    zone(startBtnX - 2, startBtnY - 2, startBtnW + 4, startBtnH + 4, { fn: () => {
-      if(activeSlots().length < 2){
-        menu.slotColor[0] = 0; menu.slotColor[1] = 1;
+    drawJuicyBtn(startBtnX, startBtnY, startBtnW, startBtnH, {
+      label: startLabel,
+      bg: isTeams ? '#f1c40f' : '#2ecc71',
+      darkBg: isTeams ? '#b45309' : '#166534',
+      textColor: isTeams ? '#0f172a' : '#ffffff',
+      textShadow: isTeams ? 'rgba(255, 255, 255, 0.65)' : 'rgba(0, 0, 0, 0.45)',
+      depth: 5,
+      shine: true,
+      boldFont: true,
+      fontSize: labelFs,
+      fn: () => {
+        if(activeSlots().length < 2){
+          menu.slotColor[0] = 0; menu.slotColor[1] = 1;
+        }
+        sfx('go');
+        startMatch();
       }
-      sfx('go');
-      startMatch();
-    }}); 
+    });
   }
   // 7. Toast Message
   if(menu.toastT > 0 && menu.toast){
@@ -6244,15 +6646,20 @@ function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
   if(canRemove){
     const rxSz = clamp(cardW * 0.12, 18, 22);
     const rxX = cx + cardW - rxSz - 4, rxY = cardY + 4;
-    rr(g, rxX, rxY, rxSz, rxSz, 6);
-    g.fillStyle = 'rgba(231, 76, 60, 0.85)'; g.fill();
-    g.lineWidth = 1.2; g.strokeStyle = INK; g.stroke();
-    ptxt('✕', rxX + rxSz/2, rxY + rxSz/2 + 1, FN(10.5, 900), '#ffffff');
-    zone(rxX, rxY, rxSz, rxSz, { fn: () => {
-      menu.slotColor[slotIdx] = -1;
-      if(slotIdx === 2) menu.slotColor[3] = -1;
-      sfx('back');
-    }});
+    drawJuicyIconBtn(rxX, rxY, rxSz, {
+      r: 6,
+      depth: 2,
+      bg: '#e74c3c',
+      darkBg: '#b91c1c',
+      icon: '✕',
+      iconColor: '#ffffff',
+      iconSize: 10,
+      fn: () => {
+        menu.slotColor[slotIdx] = -1;
+        if(slotIdx === 2) menu.slotColor[3] = -1;
+        sfx('back');
+      }
+    });
   }
 
   // Avatar in middle
@@ -6345,27 +6752,34 @@ function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
 
 /* Helper to render "+ ADD PLAYER" card */
 function drawAddPlayerCard(cx, cardY, cardW, cardH, nextSlot){
+  const isHover = !isTouch && isPointerIn(cx, cardY, cardW, cardH);
+  const pushY = (isHover && pointerDown) ? 2 : (isHover ? -2 : 0);
   const centerX = cx + cardW / 2;
-  const centerY = cardY + cardH / 2;
+  const centerY = cardY + cardH / 2 + pushY;
 
-  // Dashed style box
-  rr(g, cx, cardY, cardW, cardH, 12);
-  g.fillStyle = 'rgba(255, 255, 255, 0.04)'; g.fill();
-  g.lineWidth = 2;
+  // Dashed style box with hover lift
+  rr(g, cx, cardY + pushY, cardW, cardH, 12);
+  g.fillStyle = isHover ? 'rgba(46, 204, 113, 0.08)' : 'rgba(255, 255, 255, 0.04)'; g.fill();
+  g.lineWidth = isHover ? 2.5 : 2;
   g.setLineDash ? g.setLineDash([6, 5]) : null;
-  g.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+  g.strokeStyle = isHover ? '#2ecc71' : 'rgba(255, 255, 255, 0.35)';
   g.stroke();
   g.setLineDash ? g.setLineDash([]) : null;
 
-  // Plus Circle
-  const plusR = clamp(cardW * 0.16, 18, 26);
-  g.beginPath(); g.arc(centerX, centerY - 10, plusR, 0, TAU);
-  g.fillStyle = 'rgba(46, 204, 113, 0.85)'; g.fill();
-  g.lineWidth = 2; g.strokeStyle = '#ffffff'; g.stroke();
-  ptxt('+', centerX, centerY - 8, FT(Math.round(plusR * 1.3)), '#ffffff');
+  // Plus 3D Button
+  const plusSz = clamp(cardW * 0.32, 34, 48);
+  drawJuicyIconBtn(centerX - plusSz/2, centerY - plusSz/2 - 12, plusSz, {
+    r: Math.floor(plusSz / 2),
+    depth: 3,
+    bg: '#2ecc71',
+    darkBg: '#166534',
+    icon: '+',
+    iconColor: '#ffffff',
+    iconSize: Math.round(plusSz * 0.70)
+  });
 
-  ptxt('+ ADD P' + (nextSlot + 1), centerX, centerY + plusR + 10, FN(clamp(cardW * 0.08, 11, 13), 900), '#2ecc71');
-  ptxt('(CLICK TO JOIN)', centerX, centerY + plusR + 24, FN(clamp(cardW * 0.058, 8.5, 10), 800), 'rgba(255,255,255,0.5)');
+  ptxt('+ ADD P' + (nextSlot + 1), centerX, centerY + plusSz/2 + 6, FN(clamp(cardW * 0.08, 11, 13), 900), isHover ? '#2ed573' : '#2ecc71');
+  ptxt('(CLICK TO JOIN)', centerX, centerY + plusSz/2 + 20, FN(clamp(cardW * 0.058, 8.5, 10), 800), 'rgba(255,255,255,0.6)');
 
   zone(cx, cardY, cardW, cardH, { fn: () => {
     menu.slotColor[nextSlot] = nextSlot;
@@ -6383,11 +6797,25 @@ function tri(x,y,r,dir){
 }
 function drawPadBtn(cx,cy,r,dir,o){
   const active=o.hold?keys.has(o.hold):(tGlobal-(glow[o.pk]||-9))<0.15;
-  g.beginPath();g.arc(cx,cy,r,0,TAU);
-  g.fillStyle=active?'rgba(255,255,255,0.75)':'rgba(15,23,42,0.65)';
+  const pushY = active ? 2 : 0;
+  // 3D bottom shadow
+  g.beginPath();g.arc(cx,cy+3,r,0,TAU);
+  g.fillStyle='rgba(0,0,0,0.3)';g.fill();
+  
+  // Base circle
+  g.beginPath();g.arc(cx,cy+pushY,r,0,TAU);
+  g.fillStyle=active?'rgba(255,255,255,0.85)':'rgba(15,23,42,0.75)';
   g.fill();
   g.lineWidth=2.5;g.strokeStyle=active?'#ffffff':'rgba(255,255,255,0.45)';g.stroke();
-  tri(cx,cy,r*0.55,dir);
+  
+  // Top gloss arc
+  g.save();
+  g.beginPath();g.arc(cx,cy+pushY,r,0,TAU);g.clip();
+  g.beginPath();g.arc(cx,cy+pushY-r*0.35,r,0,TAU);
+  g.fillStyle='rgba(255,255,255,0.25)';g.fill();
+  g.restore();
+
+  tri(cx,cy+pushY,r*0.55,dir);
   g.fillStyle=active?'#143c26':'#ffffff';
   g.fill();
   zone(cx-r-12,cy-r-12,r*2+24,r*2+24,o);
@@ -6400,33 +6828,45 @@ function drawPadBtnAction(cx,cy,r,actionKey,symbol,glowCol,label){
   else if(actionKey === 'jump') active = TOUCH.jumpHeld;
   else if(actionKey === 'down') active = TOUCH.downHeld;
   
+  const pushY = active ? 2.5 : 0;
   g.save();
   if(active){
-    g.beginPath(); g.arc(cx,cy,r+6,0,TAU);
+    g.beginPath(); g.arc(cx,cy,r+7,0,TAU);
     g.fillStyle=glowCol||'rgba(255,255,255,0.3)';
     g.fill();
   }
   
+  // 3D bottom bevel/shadow
+  g.beginPath(); g.arc(cx,cy+4,r,0,TAU);
+  g.fillStyle='rgba(0,0,0,0.35)'; g.fill();
+  
   // Frosted circular button
-  g.beginPath(); g.arc(cx,cy,r,0,TAU);
-  g.fillStyle=active?'rgba(255,255,255,0.90)':'rgba(15,23,42,0.68)';
+  g.beginPath(); g.arc(cx,cy+pushY,r,0,TAU);
+  g.fillStyle=active?'rgba(255,255,255,0.92)':'rgba(15,23,42,0.72)';
   g.fill();
   g.lineWidth=active?3.5:2.5;
   g.strokeStyle=active?'#ffffff':'rgba(255,255,255,0.45)';
   g.stroke();
+  
+  // Top gloss highlight
+  g.save();
+  g.beginPath(); g.arc(cx,cy+pushY,r,0,TAU); g.clip();
+  g.beginPath(); g.arc(cx,cy+pushY-r*0.38,r,0,TAU);
+  g.fillStyle='rgba(255,255,255,0.22)'; g.fill();
+  g.restore();
   
   // Symbol icon
   g.font=FN(Math.round(r*(label?0.62:0.72)),900);
   g.textAlign='center';
   g.textBaseline='middle';
   g.fillStyle=active?'#0f172a':'#ffffff';
-  g.fillText(symbol,cx,cy+(label?-r*0.12:1));
+  g.fillText(symbol,cx,cy+pushY+(label?-r*0.12:1));
   
   // Optional small label below icon (e.g. JUMP, DROP on tablet)
   if(label && r>=34){
     g.font=FN(Math.max(9,Math.round(r*0.22)),900);
     g.fillStyle=active?'#0f172a':'rgba(255,255,255,0.75)';
-    g.fillText(label,cx,cy+r*0.52);
+    g.fillText(label,cx,cy+pushY+r*0.52);
   }
   g.restore();
   
@@ -6803,83 +7243,106 @@ function drawHUD(){
   const xChat=xVoice-btnSize-8;
   
   // Pause button
-  rr(g,xPause,10,btnSize,btnSize,9);
-  g.fillStyle='rgba(255,255,255,0.92)';g.fill();g.lineWidth=2.5;g.strokeStyle=INK;g.stroke();
-  g.fillStyle='#1e293b';
-  g.fillRect(xPause+12,10+10,4,18);
-  g.fillRect(xPause+22,10+10,4,18);
-  zone(xPause,10,btnSize,btnSize,{fn:togglePause});
+  drawJuicyIconBtn(xPause, 10, btnSize, {
+    r: 9,
+    depth: 3,
+    renderContent: (x, y, sz) => {
+      g.fillStyle = '#1e293b';
+      g.fillRect(x + 12, y + 10, 4, 18);
+      g.fillRect(x + 22, y + 10, 4, 18);
+    },
+    fn: togglePause
+  });
   
   // Audio Mute/Unmute button
-  rr(g,xMute,10,btnSize,btnSize,9);
-  g.fillStyle='rgba(255,255,255,0.92)';g.fill();g.lineWidth=2.5;g.strokeStyle=INK;g.stroke();
-  g.fillStyle='#1e293b';
-  g.beginPath();
-  g.moveTo(xMute+10, 10+btnSize/2-4);
-  g.lineTo(xMute+14, 10+btnSize/2-4);
-  g.lineTo(xMute+20, 10+btnSize/2-10);
-  g.lineTo(xMute+20, 10+btnSize/2+10);
-  g.lineTo(xMute+14, 10+btnSize/2+4);
-  g.lineTo(xMute+10, 10+btnSize/2+4);
-  g.closePath();
-  g.fill();
-  if(!muted){
-    // sound wave arc
-    g.strokeStyle='#1e293b'; g.lineWidth=2.2;
-    g.beginPath(); g.arc(xMute+19, 10+btnSize/2, 6, -0.6, 0.6); g.stroke();
-  }else{
-    // red mute strike
-    g.strokeStyle='#ef4444'; g.lineWidth=3;
-    g.beginPath(); g.moveTo(xMute+8, 10+8); g.lineTo(xMute+btnSize-8, 10+btnSize-8); g.stroke();
-  }
-  zone(xMute,10,btnSize,btnSize,{fn:toggleSound});
+  drawJuicyIconBtn(xMute, 10, btnSize, {
+    r: 9,
+    depth: 3,
+    renderContent: (x, y, sz) => {
+      g.fillStyle = '#1e293b';
+      g.beginPath();
+      g.moveTo(x + 10, y + sz/2 - 4);
+      g.lineTo(x + 14, y + sz/2 - 4);
+      g.lineTo(x + 20, y + sz/2 - 10);
+      g.lineTo(x + 20, y + sz/2 + 10);
+      g.lineTo(x + 14, y + sz/2 + 4);
+      g.lineTo(x + 10, y + sz/2 + 4);
+      g.closePath();
+      g.fill();
+      if(!muted){
+        g.strokeStyle = '#1e293b'; g.lineWidth = 2.2;
+        g.beginPath(); g.arc(x + 19, y + sz/2, 6, -0.6, 0.6); g.stroke();
+      } else {
+        g.strokeStyle = '#ef4444'; g.lineWidth = 3;
+        g.beginPath(); g.moveTo(x + 8, y + 8); g.lineTo(x + sz - 8, y + sz - 8); g.stroke();
+      }
+    },
+    fn: toggleSound
+  });
   
   // Fullscreen button
-  rr(g,xFull,10,btnSize,btnSize,9);
-  g.fillStyle='rgba(255,255,255,0.92)';g.fill();g.lineWidth=2.5;g.strokeStyle=INK;g.stroke();
-  g.strokeStyle='#1e293b'; g.lineWidth=2.5;
-  const isFull=!!(document.fullscreenElement||document.webkitFullscreenElement||document.mozFullScreenElement||document.msFullscreenElement||document.webkitIsFullScreen);
-  if(!isFull){
-    const m=10;
-    g.beginPath(); g.moveTo(xFull+m, 10+m+5); g.lineTo(xFull+m, 10+m); g.lineTo(xFull+m+5, 10+m); g.stroke();
-    g.beginPath(); g.moveTo(xFull+btnSize-m-5, 10+m); g.lineTo(xFull+btnSize-m, 10+m); g.lineTo(xFull+btnSize-m, 10+m+5); g.stroke();
-    g.beginPath(); g.moveTo(xFull+m, 10+btnSize-m-5); g.lineTo(xFull+m, 10+btnSize-m); g.lineTo(xFull+m+5, 10+btnSize-m); g.stroke();
-    g.beginPath(); g.moveTo(xFull+btnSize-m-5, 10+btnSize-m); g.lineTo(xFull+btnSize-m, 10+btnSize-m); g.lineTo(xFull+btnSize-m, 10+btnSize-m-5); g.stroke();
-  }else{
-    const m=11;
-    g.strokeRect(xFull+m, 10+m, btnSize-2*m, btnSize-2*m);
-  }
-  zone(xFull,10,btnSize,btnSize,{upFn:toggleFullscreen});
+  drawJuicyIconBtn(xFull, 10, btnSize, {
+    r: 9,
+    depth: 3,
+    renderContent: (x, y, sz) => {
+      g.strokeStyle = '#1e293b'; g.lineWidth = 2.5;
+      const isFull = !!(document.fullscreenElement||document.webkitFullscreenElement||document.mozFullScreenElement||document.msFullscreenElement||document.webkitIsFullScreen);
+      if(!isFull){
+        const m = 10;
+        g.beginPath(); g.moveTo(x + m, y + m + 5); g.lineTo(x + m, y + m); g.lineTo(x + m + 5, y + m); g.stroke();
+        g.beginPath(); g.moveTo(x + sz - m - 5, y + m); g.lineTo(x + sz - m, y + m); g.lineTo(x + sz - m, y + m + 5); g.stroke();
+        g.beginPath(); g.moveTo(x + m, y + sz - m - 5); g.lineTo(x + m, y + sz - m); g.lineTo(x + m + 5, y + sz - m); g.stroke();
+        g.beginPath(); g.moveTo(x + sz - m - 5, y + sz - m); g.lineTo(x + sz - m, y + sz - m); g.lineTo(x + sz - m, y + sz - m - 5); g.stroke();
+      } else {
+        const m = 11;
+        g.strokeRect(x + m, y + m, sz - 2 * m, sz - 2 * m);
+      }
+    },
+    upFn: toggleFullscreen
+  });
   
   // Next map quick button
-  rr(g,xNext,10,btnSize,btnSize,9);
-  g.fillStyle='rgba(255,255,255,0.92)';g.fill();g.lineWidth=2.5;g.strokeStyle=INK;g.stroke();
-  ptxt('▶',xNext+btnSize/2+1,10+btnSize/2+1,FT(14),'#1c6b38');
-  zone(xNext,10,btnSize,btnSize,{fn:()=>selectMapQuick(settings.map+1)});
+  drawJuicyIconBtn(xNext, 10, btnSize, {
+    r: 9,
+    depth: 3,
+    icon: '▶',
+    iconColor: '#1c6b38',
+    fn: () => selectMapQuick(settings.map + 1)
+  });
 
   // Proximity Voice Chat button (online) or Help/Tutorial button (2-player local touch)
-  if(typeof NET!=='undefined' && NET && NET.role!==null){
-    rr(g,xVoice,10,btnSize,btnSize,9);
-    const vOn = (typeof VOICE!=='undefined' && VOICE.enabled);
-    const vMuted = (typeof VOICE!=='undefined' && VOICE.muted);
-    g.fillStyle = vOn ? (vMuted ? 'rgba(231, 76, 60, 0.92)' : 'rgba(39, 174, 96, 0.92)') : 'rgba(255,255,255,0.92)';
-    g.fill();
-    g.lineWidth=2.5; g.strokeStyle=INK; g.stroke();
-    ptxt(vOn ? (vMuted ? '🔇' : '🎙️') : '🎙️', xVoice+btnSize/2, 10+btnSize/2+1, FN(15,900), vOn?'#ffffff':'#1e293b');
-    zone(xVoice,10,btnSize,btnSize,{fn:voiceToggleMic});
+  if(typeof NET !== 'undefined' && NET && NET.role !== null){
+    const vOn = (typeof VOICE !== 'undefined' && VOICE.enabled);
+    const vMuted = (typeof VOICE !== 'undefined' && VOICE.muted);
+    drawJuicyIconBtn(xVoice, 10, btnSize, {
+      r: 9,
+      depth: 3,
+      bg: vOn ? (vMuted ? '#e74c3c' : '#27ae60') : 'rgba(255, 255, 255, 0.92)',
+      darkBg: vOn ? (vMuted ? '#b91c1c' : '#166534') : 'rgba(203, 213, 225, 0.95)',
+      icon: vOn ? (vMuted ? '🔇' : '🎙️') : '🎙️',
+      iconColor: vOn ? '#ffffff' : '#1e293b',
+      iconSize: 15,
+      fn: voiceToggleMic
+    });
 
     // In-game text chat toggle button
-    rr(g,xChat,10,btnSize,btnSize,9);
-    g.fillStyle='rgba(255,255,255,0.92)';g.fill();g.lineWidth=2.5;g.strokeStyle=INK;g.stroke();
-    ptxt('💬', xChat+btnSize/2, 10+btnSize/2+1, FN(15,900), '#1e293b');
-    zone(xChat,10,btnSize,btnSize,{fn:()=>{ if(typeof chatToggle==='function') chatToggle(); }});
+    drawJuicyIconBtn(xChat, 10, btnSize, {
+      r: 9,
+      depth: 3,
+      icon: '💬',
+      iconColor: '#1e293b',
+      iconSize: 15,
+      fn: () => { if(typeof chatToggle === 'function') chatToggle(); }
+    });
   } else if(isTouch && match.players && match.players.length === 2 && !menu.botOn && menu.tab !== 'solo'){
-    rr(g,xVoice,10,btnSize,btnSize,9);
-    g.fillStyle = 'rgba(255,255,255,0.92)';
-    g.fill();
-    g.lineWidth=2.5; g.strokeStyle=INK; g.stroke();
-    ptxt('?', xVoice+btnSize/2, 10+btnSize/2+1, FT(18), '#1e293b');
-    zone(xVoice,10,btnSize,btnSize,{fn:()=>{ GESTURE_SPLIT.showTutorial = true; sfx('ui'); }});
+    drawJuicyIconBtn(xVoice, 10, btnSize, {
+      r: 9,
+      depth: 3,
+      icon: '?',
+      iconColor: '#1e293b',
+      iconSize: 18,
+      fn: () => { GESTURE_SPLIT.showTutorial = true; sfx('ui'); }
+    });
   }
   
   if(match.state==='countdown')drawBigCount(match.cd,'GET READY!');
@@ -6939,19 +7402,28 @@ function drawPause(){
   const opts=['RESUME','RESTART','NEXT MAP','SOUND: '+(muted?'OFF':'ON'),'FULLSCREEN','QUIT TO MENU'];
   const rowH = clamp((ph - 76) / 6, 26, 42);
   const btnH = Math.min(34, rowH - 4);
+  const btnW = Math.min(300, pw - 30);
   for(let i=0;i<6;i++){
     const y=py + 72 + i*rowH + rowH/2;
     const sel=match.pauseSel===i;
-    if(sel){pill(CW/2-150,y-btnH/2,300,btnH,'rgba(255,255,255,0.18)','#ffffff');}
-    ptxt(opts[i],CW/2,y,FN(sel?16:14,900),sel?'#ffffff':'#bcd0e8');
-    zone(CW/2-150,y-btnH/2,300,btnH,{fn:()=>{
-      if(i===0)togglePause();
-      else if(i===1){sfx('go');startMatch();}
-      else if(i===2){selectMapQuick(settings.map+1);}
-      else if(i===3){toggleSound();}
-      else if(i===4){toggleFullscreen();}
-      else quitToMenu();
-    }});
+    drawJuicyBtn(CW/2 - btnW/2, y - btnH/2, btnW, btnH, {
+      label: opts[i],
+      bg: sel ? '#2ecc71' : 'rgba(30, 41, 59, 0.85)',
+      darkBg: sel ? '#166534' : 'rgba(15, 23, 42, 0.95)',
+      textColor: sel ? '#ffffff' : '#cbd5e1',
+      textShadow: sel ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0.6)',
+      r: Math.floor(btnH / 2),
+      depth: 3,
+      fontSize: sel ? 15 : 13.5,
+      fn: () => {
+        if(i===0)togglePause();
+        else if(i===1){sfx('go');startMatch();}
+        else if(i===2){selectMapQuick(settings.map+1);}
+        else if(i===3){toggleSound();}
+        else if(i===4){toggleFullscreen();}
+        else quitToMenu();
+      }
+    });
   }
 }
 
@@ -7025,7 +7497,7 @@ function drawResult(){
       return;
     }
     sfx('ui');selectMapQuick(settings.map+1);
-  });
+  }, null, '#3b82f6');
   simpleButton(sx0+b3+14,btnY,b3,btnH,'PLAY AGAIN',()=>{
     if(typeof NET!=='undefined' && NET && NET.role!==null && !NET.isHost){ toast('HOST RESTARTS THE MATCH'); return; }
     if(typeof NET!=='undefined' && NET && NET.isHost && NET.midgameJoiner){
@@ -7034,10 +7506,10 @@ function drawResult(){
       return;
     }
     sfx('go');startMatch();
-  });
+  }, null, '#2ecc71');
   simpleButton(sx0+2*(b3+14),btnY,b3,btnH,'MENU',()=>{
     quitToMenu();
-  });
+  }, null, '#475569');
   g.restore();
 }
 
@@ -9823,6 +10295,13 @@ function render(){
   }
   if(screen==='menu')drawMenu();
   else if(match){drawGame();if(typeof DEMO!=='undefined'&&DEMO.active){try{demoOverlay();}catch(e){}}}
+  if(!isTouch){
+    const hz = zoneAt(pointerX, pointerY, false);
+    const wantPointer = !!(hz && (hz.fn || hz.upFn || hz.touchAction));
+    if(cv.style.cursor !== (wantPointer ? 'pointer' : 'default')){
+      cv.style.cursor = wantPointer ? 'pointer' : 'default';
+    }
+  }
 }
 let last = performance.now();
 function frame(now){
