@@ -286,9 +286,14 @@ function calcLocalBounds(){
 function localSlider(b, side){
   const c = (side === 'p2') ? b.p2 : b.p1;
   const sw = b.r * 2.1;
-  const top = c.jumpY - b.r * 1.05, bot = c.dropY + b.r * 1.05;
+  const bot = c.dropY + b.r * 1.05;
+  // Never slide under the in-match HUD button bar (ends at y=48); the jump
+  // point and travel stay glued to the visible track so input matches draw.
+  const top = Math.max(c.jumpY - b.r * 1.05, 58);
+  const cyTop = Math.max(c.jumpY, top);
+  const maxTravel = Math.max(10, Math.min(c.dropY - c.jumpY, bot - cyTop));
   return { x: c.btnX - sw / 2, y: top, w: sw, h: Math.max(10, bot - top),
-    cx: c.btnX, cyTop: c.jumpY, maxTravel: Math.max(10, c.dropY - c.jumpY), r: b.r };
+    cx: c.btnX, cyTop: cyTop, maxTravel: maxTravel, r: b.r };
 }
 /* Shared solo-like slider press semantics for a local-half player */
 function localSlidePress(p, myP, sl, y, startY){
@@ -7098,7 +7103,7 @@ function drawTouchButtons(){
     ptxt('P2 ZONE', CW - Math.max(34, CW * 0.08), 34, FN(isNarrow ? 10 : 12, 900), rgba(colP2, 0.45));
 
     // Helper to draw a player's controls
-    const drawPlayerControls = (pData, cfg, col) => {
+    const drawPlayerControls = (pData, cfg, col, side) => {
       // Smooth visual knob interpolation
       pData.visOffX += (pData.offX - pData.visOffX) * 0.40;
 
@@ -7144,11 +7149,13 @@ function drawTouchButtons(){
 
       // --- B+C. Solo-style vertical slider (top = jump, bottom = drop) ---
       // Slide knob mirrors the solo right slider: tap top to jump, drag down to drop.
-      const slCfg = { btnX: cfg.btnX, jumpY: cfg.jumpY, dropY: cfg.dropY };
-      const slW = b.r * 2.1;
-      const slTop = slCfg.jumpY - b.r * 1.05, slBot = slCfg.dropY + b.r * 1.05;
-      const slH = Math.max(10, slBot - slTop);
-      const slX = slCfg.btnX - slW / 2;
+      // Geometry comes from localSlider() — the exact object input uses.
+      const sl = localSlider(b, side || (cfg.btnX < b.midX ? 'p1' : 'p2'));
+      const slCfg = { btnX: sl.cx, jumpY: sl.cyTop, dropY: sl.cyTop + sl.maxTravel };
+      const slW = sl.w;
+      const slTop = sl.y, slBot = sl.y + sl.h;
+      const slH = sl.h;
+      const slX = sl.x;
       pData.sldV += ((pData.downHeld ? 1 : 0) - (pData.sldV || 0)) * 0.45;
       rr(g, slX, slTop, slW, slH, slW / 2);
       g.fillStyle = pData.sldId != null ? rgba(col, 0.14) : 'rgba(255, 255, 255, 0.08)';
