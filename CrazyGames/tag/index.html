@@ -3817,7 +3817,7 @@ function toggleFullscreen(){
     if(!isFs){
       const target = (de.requestFullscreen || de.webkitRequestFullscreen || de.webkitRequestFullScreen) ? de : cv;
       const p = req.call(target);
-      if(p && p.catch) p.catch(()=>{});
+      if(p && p.catch) p.catch(()=>{ try{if(match){match.mapToast='ADD TO HOME SCREEN FOR FULLSCREEN';match.mapToastT=2.5;}}catch(e){} });
     }else{
       const exit = document.exitFullscreen || document.webkitExitFullscreen || document.webkitCancelFullScreen || document.mozCancelFullScreen || document.msExitFullscreen;
       if(exit){
@@ -4252,6 +4252,54 @@ function drawRefreshGlyph(cx, cy, r, col){
   g.closePath();
   g.fill();
   g.restore();
+}
+
+/* Shared vertical jump/drop slider — the solo right-slider look & feel, reused
+   verbatim for each local half so both control schemes are pixel-identical:
+   tap top = jump ▲, drag down = drop v. */
+function drawVertSlider(cx, cyTop, maxTravel, r, jumpHeld, downHeld, visY){
+  const sw = r * 2.1, sh = maxTravel + r * 2.1;
+  const x0 = cx - sw / 2, y0 = cyTop - r * 1.05;
+  rr(g, x0, y0, sw, sh, sw / 2);
+  g.fillStyle = 'rgba(255, 255, 255, 0.08)';
+  g.fill();
+  g.lineWidth = 1.5;
+  g.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+  g.stroke();
+  g.beginPath();
+  g.moveTo(cx, cyTop + r * 0.2);
+  g.lineTo(cx, cyTop + maxTravel);
+  g.lineWidth = 2.5;
+  g.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+  g.stroke();
+  const cyBot = y0 + sh - r * 1.05;
+  g.beginPath();
+  g.arc(cx, cyBot, r * 0.76, 0, TAU);
+  g.fillStyle = downHeld ? 'rgba(235, 75, 155, 0.45)' : 'rgba(235, 75, 155, 0.14)';
+  g.fill();
+  g.lineWidth = 1.5;
+  g.strokeStyle = downHeld ? '#eb4b9b' : 'rgba(235, 75, 155, 0.50)';
+  g.stroke();
+  ptxt('v', cx, cyBot + 1, FN(11, 900), downHeld ? '#ffffff' : 'rgba(235, 75, 155, 0.85)');
+  const ky = cyTop + visY * maxTravel;
+  g.beginPath();
+  g.arc(cx, ky, r * 0.88, 0, TAU);
+  if(downHeld || visY > 0.25){
+    g.fillStyle = 'rgba(235, 75, 155, 0.65)';
+    g.strokeStyle = '#eb4b9b';
+  } else if(jumpHeld){
+    g.fillStyle = 'rgba(46, 204, 113, 0.65)';
+    g.strokeStyle = '#2ecc71';
+  } else {
+    g.fillStyle = 'rgba(255, 255, 255, 0.22)';
+    g.strokeStyle = 'rgba(255, 255, 255, 0.60)';
+  }
+  g.fill();
+  g.lineWidth = 2;
+  g.stroke();
+  const ic = (downHeld || visY > 0.25) ? 'v' : '▲';
+  const icCol = (downHeld || jumpHeld || visY > 0.25) ? '#ffffff' : 'rgba(255, 255, 255, 0.85)';
+  ptxt(ic, cx, ky + (ic === '▲' ? -1 : 1), FN(12, 900), icCol);
 }
 
 function drawJuicyChip(x, y, w, h, o){
@@ -7044,55 +7092,8 @@ function drawTouchButtons(){
     g.fillStyle = leftActive ? '#ffffff' : 'rgba(255, 255, 255, 0.50)';
     g.fill();
 
-    // --- Render Right Vertical Track ---
-    rr(g, xR, yR, wR, hR, wR / 2);
-    g.fillStyle = 'rgba(255, 255, 255, 0.08)';
-    g.fill();
-    g.lineWidth = 1.5;
-    g.strokeStyle = 'rgba(255, 255, 255, 0.22)';
-    g.stroke();
-
-    // Subtle vertical slot guideline
-    g.beginPath();
-    g.moveTo(cxR, cyTopR + r * 0.2);
-    g.lineTo(cxR, cyTopR + maxTravelR);
-    g.lineWidth = 2.5;
-    g.strokeStyle = 'rgba(255, 255, 255, 0.12)';
-    g.stroke();
-
-    // Dedicated Drop Pad target at bottom
-    const cyBotR = yR + hR - r * 1.05;
-    g.beginPath();
-    g.arc(cxR, cyBotR, r * 0.76, 0, Math.PI * 2);
-    g.fillStyle = TOUCH.downHeld ? 'rgba(235, 75, 155, 0.45)' : 'rgba(235, 75, 155, 0.14)';
-    g.fill();
-    g.lineWidth = 1.5;
-    g.strokeStyle = TOUCH.downHeld ? '#eb4b9b' : 'rgba(235, 75, 155, 0.50)';
-    g.stroke();
-    ptxt('v', cxR, cyBotR + 1, FN(11, 900), TOUCH.downHeld ? '#ffffff' : 'rgba(235, 75, 155, 0.85)');
-
-    // Render Right Knob (snaps to top, tap jumps, drag down drops)
-    const kyR = cyTopR + JOY.rightVisY * maxTravelR;
-    g.beginPath();
-    g.arc(cxR, kyR, r * 0.88, 0, Math.PI * 2);
-    if(TOUCH.downHeld || JOY.rightVisY > 0.25){
-      g.fillStyle = 'rgba(235, 75, 155, 0.65)';
-      g.strokeStyle = '#eb4b9b';
-    } else if(TOUCH.jumpHeld){
-      g.fillStyle = 'rgba(46, 204, 113, 0.65)';
-      g.strokeStyle = '#2ecc71';
-    } else {
-      g.fillStyle = 'rgba(255, 255, 255, 0.22)';
-      g.strokeStyle = 'rgba(255, 255, 255, 0.60)';
-    }
-    g.fill();
-    g.lineWidth = 2;
-    g.stroke();
-
-    // Icon inside knob (▲ for Jump, v when dragged down for Drop)
-    const knobIcon = (TOUCH.downHeld || JOY.rightVisY > 0.25) ? 'v' : '▲';
-    const knobCol = (TOUCH.downHeld || TOUCH.jumpHeld || JOY.rightVisY > 0.25) ? '#ffffff' : 'rgba(255, 255, 255, 0.85)';
-    ptxt(knobIcon, cxR, kyR + (knobIcon === '▲' ? -1 : 1), FN(12, 900), knobCol);
+    // --- Render Right Vertical Track (shared slider component) ---
+    drawVertSlider(cxR, cyTopR, maxTravelR, r, TOUCH.jumpHeld, TOUCH.downHeld, JOY.rightVisY);
 
     g.restore();
   } else {
@@ -7166,43 +7167,9 @@ function drawTouchButtons(){
       // --- B+C. Solo-style vertical slider (top = jump, bottom = drop) ---
       // Slide knob mirrors the solo right slider: tap top to jump, drag down to drop.
       // Geometry comes from localSlider() — the exact object input uses.
-      const sl = localSlider(b, side || (cfg.btnX < b.midX ? 'p1' : 'p2'));
-      const slCfg = { btnX: sl.cx, jumpY: sl.cyTop, dropY: sl.cyTop + sl.maxTravel };
-      const slW = sl.w;
-      const slTop = sl.y, slBot = sl.y + sl.h;
-      const slH = sl.h;
-      const slX = sl.x;
       pData.sldV += ((pData.downHeld ? 1 : 0) - (pData.sldV || 0)) * 0.45;
-      rr(g, slX, slTop, slW, slH, slW / 2);
-      g.fillStyle = pData.sldId != null ? rgba(col, 0.14) : 'rgba(255, 255, 255, 0.08)';
-      g.fill();
-      g.lineWidth = 1.5;
-      g.strokeStyle = pData.sldId != null ? rgba(col, 0.55) : 'rgba(255, 255, 255, 0.22)';
-      g.stroke();
-      // Drop pad target at bottom
-      g.beginPath();
-      g.arc(slCfg.btnX, slBot - b.r * 1.05, b.r * 0.72, 0, TAU);
-      g.fillStyle = pData.downHeld ? 'rgba(235, 75, 155, 0.55)' : 'rgba(235, 75, 155, 0.15)';
-      g.fill();
-      g.lineWidth = 1.5;
-      g.strokeStyle = pData.downHeld ? '#eb4b9b' : 'rgba(235, 75, 155, 0.50)';
-      g.stroke();
-      ptxt('v', slCfg.btnX, slBot - b.r * 1.05 + 1, FN(11, 900), pData.downHeld ? '#ffffff' : 'rgba(235, 75, 155, 0.85)');
-      // Knob (top = jump ▲, dragged down = drop v)
-      const slKy = slTop + (pData.sldV || 0) * Math.max(10, slCfg.dropY - slCfg.jumpY);
-      g.beginPath();
-      g.arc(slCfg.btnX, slKy, b.r * 0.88, 0, TAU);
-      if(pData.downHeld){
-        g.fillStyle = 'rgba(235, 75, 155, 0.65)'; g.strokeStyle = '#eb4b9b';
-      } else if(pData.jumpHeld){
-        g.fillStyle = 'rgba(46, 204, 113, 0.65)'; g.strokeStyle = '#2ecc71';
-      } else {
-        g.fillStyle = 'rgba(255, 255, 255, 0.22)'; g.strokeStyle = rgba(col, 0.60);
-      }
-      g.fill();
-      g.lineWidth = 2;
-      g.stroke();
-      ptxt(pData.downHeld ? 'v' : '▲', slCfg.btnX, slKy + 1, FN(12, 900), (pData.downHeld || pData.jumpHeld) ? '#ffffff' : 'rgba(255, 255, 255, 0.85)');
+      const sl = localSlider(b, side || (cfg.btnX < b.midX ? 'p1' : 'p2'));
+      drawVertSlider(sl.cx, sl.cyTop, sl.maxTravel, b.r, pData.jumpHeld, pData.downHeld, pData.sldV || 0);
     };
 
     drawPlayerControls(LOCAL_TOUCH.p1, b.p1, colP1);
@@ -7411,7 +7378,7 @@ function drawHUD(){
         g.strokeRect(x + m, y + m, sz - 2 * m, sz - 2 * m);
       }
     },
-    upFn: toggleFullscreen
+    fn: toggleFullscreen
   });
   
   // Proximity Voice Chat button (online) or Help/Tutorial button (2-player local touch)
