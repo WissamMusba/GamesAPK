@@ -8370,18 +8370,25 @@ function updateVoiceProximity(dt){
         const dist = Math.sqrt(dx * dx + dy * dy);
         if(dist < nearestPeerDist) nearestPeerDist = dist;
 
-        // Near (<= 350px): 100% full volume
-        // Mid (350px to 1300px): smooth falloff (audible much further out)
-        // Beyond 1300px: muted (0 volume)
+        // Real-life stepped proximity: distinct audible cuts as distance changes,
+        // updating every frame while chasing. Generally hearable until pretty far.
+        // Near (<= 350px): full volume. Beyond 1300px: muted (matches mic gate).
         const closeRadius = 350;
         const maxDist = 1300;
         if(isNaN(dist) || dist <= closeRadius){
           targetVol = 1.0;
-        } else if(dist >= maxDist){
-          targetVol = 0.0;
+        } else if(dist < 550){
+          targetVol = 0.75;
+        } else if(dist < 750){
+          targetVol = 0.5;
+        } else if(dist < 950){
+          targetVol = 0.3;
+        } else if(dist < 1150){
+          targetVol = 0.15;
+        } else if(dist < maxDist){
+          targetVol = 0.05;
         } else {
-          const t = clamp((dist - closeRadius) / (maxDist - closeRadius), 0, 1);
-          targetVol = clamp(Math.pow(1 - t, 1.5), 0, 1.0);
+          targetVol = 0.0;
         }
       }
     }
