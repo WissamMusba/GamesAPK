@@ -1894,6 +1894,8 @@ function setMenuTab(tab){
   if(tab === 'solo'){
     menu.botOn = true;
     settings.teams = false;
+    settings.gameMode = 'party';
+    menu.gameMode = 'party';
     menu.slotColor = [0, 1, -1, -1, -1, -1, -1, -1];
   } else if(tab === '2p'){
     menu.botOn = false;
@@ -1920,8 +1922,27 @@ function cycleTeam(i, d){
     return;
   }
   if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
-  menu.slotTeam[i] = ((menu.slotTeam[i] || 0) + d + TEAMS.length) % TEAMS.length;
+  const curTeam = (menu.slotTeam[i] || 0) % TEAMS.length;
+  const targetTeam = (curTeam + d + TEAMS.length) % TEAMS.length;
+
+  if(settings.gameMode === 'hunter'){
+    // Disallow 3v1, 6v2, 5v3, etc. Keep team count difference max ±1!
+    const act = activeSlots();
+    let redCount = 0, blueCount = 0;
+    for(const s of act){
+      const t = (s === i ? targetTeam : (menu.slotTeam[s] || 0) % 2);
+      if(t === 0) redCount++; else blueCount++;
+    }
+    if(Math.abs(redCount - blueCount) > 1){
+      toast('⚠️ TEAMS MUST BE BALANCED (MAX ±1 DIFFERENCE)');
+      sfx('back');
+      return;
+    }
+  }
+
+  menu.slotTeam[i] = targetTeam;
   sfx('ui');
+  if(settings.gameMode === 'hunter') updateElectedHuntersFromVotes();
   if(typeof NET !== 'undefined' && NET && NET.role !== null){
     if(NET.isHost) netBroadcastRoster();
     else {
@@ -1931,47 +1952,181 @@ function cycleTeam(i, d){
     }
   }
 }
-function validateHunterRoles(){
+
+if(!menu.hunterVotes) menu.hunterVotes = {};
+if(!menu.hunterHistory) menu.hunterHistory = {};
+
+function getHunterTeamCounts(){
   const act = activeSlots();
-  const redSlots = act.filter(s => ((menu.slotTeam ? menu.slotTeam[s] : s) % 2) === 0);
-  const blueSlots = act.filter(s => ((menu.slotTeam ? menu.slotTeam[s] : s) % 2) === 1);
-  if(redSlots.length > 0 && redSlots.indexOf(settings.hunterRed) < 0){
-    settings.hunterRed = redSlots[0];
+  let red = 0, blue = 0;
+  for(const s of act){
+    const t = (menu.slotTeam ? menu.slotTeam[s] : s) % 2;
+    if(t === 0) red++; else blue++;
   }
-  if(blueSlots.length > 0 && blueSlots.indexOf(settings.hunterBlue) < 0){
-    settings.hunterBlue = blueSlots[0];
+  return { red: red, blue: blue, diff: Math.abs(red - blue) };
+}
+
+function enforceHunterBalance(){
+  const act = activeSlots();
+  if(act.length < 2) return;
+  let red = 0, blue = 0;
+  for(const s of act){
+    const t = (menu.slotTeam ? menu.slotTeam[s] : s) % 2;
+    if(t === 0) red++; else blue++;
+  }
+  if(Math.abs(red - blue) > 1){
+    if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+    let r = 0, b = 0;
+    for(let k = 0; k < act.length; k++){
+      const s = act[k];
+      if(r <= b){ menu.slotTeam[s] = 0; r++; }
+      else { menu.slotTeam[s] = 1; b++; }
+    }
   }
 }
 
-function selectHunterRole(slot){
+function getCandidateVoteCount(slot, team){
+  if(!menu.hunterVotes) return 0;
+  let cnt = 0;
+  for(const [voter, cand] of Object.entries(menu.hunterVotes)){
+    const v = parseInt(voter);
+    if(team != null){
+      const vTeam = (menu.slotTeam ? menu.slotTeam[v] : v) % 2;
+      if(vTeam !== team) continue;
+    }
+    if(slot === 'random'){
+      if(cand === 'random' || cand === -1 || cand === '-1') cnt++;
+    } else {
+      if(parseInt(cand) === slot) cnt++;
+    }
+  }
+  return cnt;
+}
+
+function resolveTeamHunter(team){
+  const act = activeSlots();
+  const teamSlots = act.filter(s => ((menu.slotTeam ? menu.slotTeam[s] : s) % 2) === team);
+  if(teamSlots.length === 0) return 0;
+  if(teamSlots.length === 1) return teamSlots[0];
+
+  const hist = (match && match.hunterHistory) ? match.hunterHistory : (menu.hunterHistory || {});
+
+  // 1. Tally votes for each candidate on this team, and random votes
+  const votes = {};
+  for(const s of teamSlots) votes[s] = 0;
+  let randomVotes = 0;
+
+  if(menu.hunterVotes){
+    for(const [voter, cand] of Object.entries(menu.hunterVotes)){
+      const v = parseInt(voter);
+      if(teamSlots.includes(v)){
+        if(cand === 'random' || cand === -1 || cand === '-1'){
+          randomVotes++;
+        } else {
+          const c = parseInt(cand);
+          if(teamSlots.includes(c)){
+            votes[c] = (votes[c] || 0) + 1;
+          }
+        }
+      }
+    }
+  }
+
+  // 2. Find maximum vote count among candidates
+  let maxCandidateVotes = -1;
+  for(const s of teamSlots){
+    if((votes[s] || 0) > maxCandidateVotes) maxCandidateVotes = votes[s] || 0;
+  }
+
+  // If random strictly won
+  if(randomVotes > maxCandidateVotes && randomVotes > 0){
+    let minR = 1e9;
+    for(const s of teamSlots){
+      const r = hist[s] || 0;
+      if(r < minR) minR = r;
+    }
+    const leastRounds = teamSlots.filter(s => (hist[s] || 0) === minR);
+    return leastRounds[Math.floor(Math.random() * leastRounds.length)];
+  }
+
+  const topCandidates = teamSlots.filter(s => (votes[s] || 0) === maxCandidateVotes);
+  if(topCandidates.length === 1 && maxCandidateVotes > randomVotes){
+    return topCandidates[0];
+  }
+
+  // 3. Tie breaker: pick candidate(s) with LEAST hunter rounds played
+  let minRounds = 1e9;
+  for(const s of topCandidates){
+    const r = hist[s] || 0;
+    if(r < minRounds) minRounds = r;
+  }
+  const leastRoundCandidates = topCandidates.filter(s => (hist[s] || 0) === minRounds);
+
+  // 4. If still tied: random choice among those tied with least hunter rounds
+  return leastRoundCandidates[Math.floor(Math.random() * leastRoundCandidates.length)];
+}
+
+function updateElectedHuntersFromVotes(){
+  settings.hunterRed = resolveTeamHunter(0);
+  settings.hunterBlue = resolveTeamHunter(1);
+  if(match){
+    match.hunterRed = settings.hunterRed;
+    match.hunterBlue = settings.hunterBlue;
+  }
+}
+
+function castHunterVote(voterSlot, candSlot){
   if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost && NET.teamsLocked){
-    toast('ROLES ARE LOCKED BY HOST');
+    toast('VOTING LOCKED BY HOST');
     sfx('back');
     return;
   }
-  const team = ((menu.slotTeam ? menu.slotTeam[slot] : slot) % 2);
-  if(team === 0){
-    settings.hunterRed = slot;
-    toast('👑 P' + (slot + 1) + ' IS RED HUNTER!');
-  } else {
-    settings.hunterBlue = slot;
-    toast('👑 P' + (slot + 1) + ' IS BLUE HUNTER!');
-  }
+  if(!menu.hunterVotes) menu.hunterVotes = {};
+  menu.hunterVotes[voterSlot] = candSlot;
   sfx('ok');
+
+  updateElectedHuntersFromVotes();
+  let candName = 'Random';
+  if(candSlot !== 'random' && candSlot >= 0){
+    candName = (typeof NET !== 'undefined' && NET && NET.slotsName && NET.slotsName[candSlot]) || ('P' + (candSlot + 1));
+  }
+  toast('🗳️ Voted for ' + candName + ' as Hunter!');
+
   if(typeof NET !== 'undefined' && NET && NET.role !== null){
-    if(NET.isHost) netBroadcastSettings();
-    else {
+    if(NET.isHost){
+      netBroadcastReliable({
+        t: 'hunter_votes_sync',
+        hunterVotes: menu.hunterVotes,
+        hunterRed: settings.hunterRed,
+        hunterBlue: settings.hunterBlue
+      });
+      netBroadcastSettings();
+      netBroadcastRoster();
+    } else {
       for(const pair of NET.conns.values()){
-        netSendRel(pair, { t: 'set_hunter', slot: slot, team: team });
+        netSendRel(pair, { t: 'hunter_vote', voter: voterSlot, candidate: candSlot });
       }
     }
   }
 }
 
+function validateHunterRoles(){
+  enforceHunterBalance();
+  updateElectedHuntersFromVotes();
+}
+
+function selectHunterRole(slot){
+  const myVoter = (typeof NET !== 'undefined' && NET && NET.role !== null && NET.mySlot >= 0) ? NET.mySlot : slot;
+  castHunterVote(myVoter, slot);
+}
+
 function setGameMode(newMode){
   if(menu.tab === 'solo'){
-    menu.tab = '2p';
-    menu.botOn = false;
+    if(newMode !== 'party'){
+      toast('🤖 SOLO MODE IS FREE-FOR-ALL ONLY');
+      sfx('back');
+      return;
+    }
   }
   settings.gameMode = newMode;
   menu.gameMode = newMode;
@@ -2000,6 +2155,11 @@ function setGameMode(newMode){
 }
 
 function cycleGameMode(d){
+  if(menu.tab === 'solo'){
+    toast('🤖 SOLO MODE IS FREE-FOR-ALL ONLY');
+    sfx('back');
+    return;
+  }
   if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){
     toast('HOST SELECTS GAME MODE');
     sfx('back');
@@ -2021,6 +2181,10 @@ function cycleSlot(i,d){
   let cur=list.indexOf(menu.slotColor[i]);
   cur=(cur+d+list.length)%list.length;
   menu.slotColor[i]=list[cur];
+  if(settings.gameMode === 'hunter'){
+    enforceHunterBalance();
+    validateHunterRoles();
+  }
   if(menu.mode==='rows'&&activeSlots().length<2){
     menu.mode='slots';
     menu.row=0;
@@ -2159,63 +2323,131 @@ function updateMenu(dt){
 let matchIndex=0,lastStartIT=0;
 let match=null;
 const cam={x:W/2,y:H/2,s:0.5};
+
+function findSafeSpawn(team, isHunter, playerIndex, totalPlayers){
+  const P_W = 46, P_H = 46;
+
+  function isSpotSafe(sx, sy){
+    if(sx < WALL + 10 || sx + P_W > W - WALL - 10) return false;
+    if(sy < WALL + 10 || sy + P_H > H - WALL) return false;
+    const body = { x: sx + 2, y: sy + 2, w: P_W - 4, h: P_H - 4 };
+    if(SOLIDS.some(s => hitRect(body, s))) return false;
+    const head = { x: sx + 4, y: sy - 20, w: P_W - 8, h: 20 };
+    if(SOLIDS.some(s => hitRect(head, s))) return false;
+    return true;
+  }
+
+  // 1. Collect all valid flat platforms from SOLIDS
+  const candidateSpots = [];
+  for(const s of SOLIDS){
+    if(s.dy || s.w < 60) continue; // Skip slopes and thin vertical walls
+    const surfaceY = s.y;
+    const testY = surfaceY - P_H;
+
+    // Try center, left edge, and right edge of platform
+    const spots = [
+      Math.round(s.x + s.w / 2 - P_W / 2),
+      Math.round(s.x + 16),
+      Math.round(s.x + s.w - P_W - 16)
+    ];
+    for(const testX of spots){
+      if(isSpotSafe(testX, testY)){
+        candidateSpots.push({ x: testX, y: testY, platY: surfaceY, plat: s });
+      }
+    }
+  }
+
+  // 2. Also check the arena floor (accounting for any boost/speed pads on floor)
+  for(let fx = WALL + 80; fx < W - WALL - 80; fx += 80){
+    let floorSurfaceY = H - WALL;
+    for(const s of SOLIDS){
+      if(!s.dy && fx + P_W > s.x && fx < s.x + s.w){
+        if(s.y < floorSurfaceY && s.y >= H - WALL - 120){
+          floorSurfaceY = s.y;
+        }
+      }
+    }
+    const fy = floorSurfaceY - P_H;
+    if(isSpotSafe(fx, fy)){
+      candidateSpots.push({ x: fx, y: fy, platY: floorSurfaceY, isFloor: true });
+    }
+  }
+
+  if(isHunter){
+    if(team === 0){
+      // Red Hunter: leftmost bottom spot
+      const leftSpots = candidateSpots.filter(p => p.x < W * 0.45).sort((a,b) => b.y - a.y || a.x - b.x);
+      if(leftSpots.length > 0) return { x: leftSpots[0].x, y: leftSpots[0].y, face: 1 };
+    } else {
+      // Blue Hunter: rightmost bottom spot
+      const rightSpots = candidateSpots.filter(p => p.x > W * 0.55).sort((a,b) => b.y - a.y || b.x - a.x);
+      if(rightSpots.length > 0) return { x: rightSpots[0].x, y: rightSpots[0].y, face: -1 };
+    }
+  } else {
+    if(team === 0){
+      // Red Runners: upper platforms on right half
+      const rightRunners = candidateSpots.filter(p => p.x > W * 0.40 && p.y < H * 0.85).sort((a,b) => a.y - b.y);
+      if(rightRunners.length > 0){
+        const pick = rightRunners[playerIndex % rightRunners.length];
+        return { x: pick.x, y: pick.y, face: -1 };
+      }
+    } else {
+      // Blue Runners: upper platforms on left half
+      const leftRunners = candidateSpots.filter(p => p.x < W * 0.60 && p.y < H * 0.85).sort((a,b) => a.y - b.y);
+      if(leftRunners.length > 0){
+        const pick = leftRunners[playerIndex % leftRunners.length];
+        return { x: pick.x, y: pick.y, face: 1 };
+      }
+    }
+  }
+
+  // Fallback: pick any safe spot
+  if(candidateSpots.length > 0){
+    const pick = candidateSpots[playerIndex % candidateSpots.length];
+    return { x: pick.x, y: pick.y, face: pick.x < W/2 ? 1 : -1 };
+  }
+
+  // Absolute fallback: center of arena
+  return { x: W/2 - 23, y: H/2 - 23, face: 1 };
+}
+
 function makePlayer(i,slot,colIdx){
   const N=activeSlots().length;
   const s=SLOTS[slot] || SLOTS[0];
   const team = (menu.slotTeam && menu.slotTeam[slot] != null) ? menu.slotTeam[slot] : (slot % 2);
-  let x = Math.round(WALL+(W-2*WALL)*((i+0.5)/N))-23;
-  let y = H-WALL-46;
-  let face = i%2===0?1:-1;
+  let x, y, face;
 
   const isHunterMode = (settings.gameMode === 'hunter');
   let roleHunter = false;
 
   if(isHunterMode){
     roleHunter = (team === 0 && slot === settings.hunterRed) || (team === 1 && slot === settings.hunterBlue);
-    if(roleHunter){
-      if(team === 0){
-        // Red Hunter: far lower-left platform / corner
-        x = WALL + 70;
-        y = H - WALL - 46;
-        face = 1;
-      } else {
-        // Blue Hunter: far lower-right platform / corner
-        x = W - WALL - 70 - 46;
-        y = H - WALL - 46;
-        face = -1;
-      }
-    } else {
-      // Smart polar spawning for runners: high vantage platforms opposite their hunter
-      if(team === 0){
-        // Red Runners: upper platforms on right half
-        const rightSolids = (typeof SOLIDS !== 'undefined' && SOLIDS.length > 4)
-          ? SOLIDS.slice(4).filter(s => s.x > W * 0.45 && s.y < H - WALL - 80 && s.y >= 120)
-          : [];
-        const pPlat = rightSolids.length > 0 ? rightSolids[i % rightSolids.length] : null;
-        if(pPlat){
-          x = clamp(pPlat.x + pPlat.w / 2 - 23, WALL + 20, W - WALL - 66);
-          y = pPlat.y - 46;
-        } else {
-          x = W - WALL - 140 - (i * 70);
-          y = Math.min(320, H - 260);
+    const safeSpawn = findSafeSpawn(team, roleHunter, i, N);
+    x = safeSpawn.x;
+    y = safeSpawn.y;
+    face = safeSpawn.face;
+  } else {
+    // Normal party / teams spawn: verify and safe-snap to avoid platform clipping
+    let candidateX = Math.round(WALL + (W - 2 * WALL) * ((i + 0.5) / N)) - 23;
+    let surfaceY = H - WALL;
+    for(const s of SOLIDS){
+      if(!s.dy && candidateX + 46 > s.x && candidateX < s.x + s.w){
+        if(s.y < surfaceY && s.y >= H - WALL - 120){
+          surfaceY = s.y;
         }
-        face = -1;
-      } else {
-        // Blue Runners: upper platforms on left half
-        const leftSolids = (typeof SOLIDS !== 'undefined' && SOLIDS.length > 4)
-          ? SOLIDS.slice(4).filter(s => s.x + s.w < W * 0.55 && s.y < H - WALL - 80 && s.y >= 120)
-          : [];
-        const pPlat = leftSolids.length > 0 ? leftSolids[i % leftSolids.length] : null;
-        if(pPlat){
-          x = clamp(pPlat.x + pPlat.w / 2 - 23, WALL + 20, W - WALL - 66);
-          y = pPlat.y - 46;
-        } else {
-          x = WALL + 140 + (i * 70);
-          y = Math.min(320, H - 260);
-        }
-        face = 1;
       }
     }
+    x = candidateX;
+    y = surfaceY - 46;
+    face = (i % 2 === 0 ? 1 : -1);
+  }
+
+  // Emergency safety guard: verify 0 solid overlap
+  for(let pass = 0; pass < 5; pass++){
+    const pBox = { x: x + 2, y: y + 2, w: 42, h: 42 };
+    const coll = SOLIDS.find(s => hitRect(pBox, s));
+    if(!coll) break;
+    y = coll.y - 46;
   }
 
   return {x:x,y:y,w:46,h:46,vx:0,vy:0,grounded:true,gp:SOLIDS[1],lastGp:SOLIDS[1],
@@ -2224,8 +2456,11 @@ function makePlayer(i,slot,colIdx){
     slot:slot,colIdx:colIdx,team:team,trail:[],isHunter:roleHunter,isEliminated:false,survivalT:0};
 }
 function startMatch(){
-  if(menu.tab === 'solo') settings.teams = false;
-  else if(menu.tab === 'teams') settings.teams = true;
+  if(menu.tab === 'solo'){
+    settings.teams = false;
+    settings.gameMode = 'party';
+    menu.gameMode = 'party';
+  } else if(menu.tab === 'teams') settings.teams = true;
   if(settings.randomMap){
     settings.map = Math.floor(rand(MAPS.length));
   }
@@ -2251,11 +2486,18 @@ function startMatch(){
   const act=activeSlots();
   const isHunter = (settings.gameMode === 'hunter');
   if(isHunter){
+    enforceHunterBalance();
     validateHunterRoles();
     if(act.length < 4){
       menu.mode = 'slots';
       menu.row = 0;
       toast('🎯 HUNTER MODE REQUIRES AT LEAST 4 PLAYERS!');
+      sfx('back');
+      return;
+    }
+    const counts = getHunterTeamCounts();
+    if(counts.diff > 1){
+      toast('⚠️ TEAMS MUST BE BALANCED (MAX ±1 DIFFERENCE)');
       sfx('back');
       return;
     }
@@ -2289,11 +2531,23 @@ function startMatch(){
   } else {
     LOCAL_TOUCH.showTutorial = false;
   }
+
+  let hHistory = (match && match.hunterHistory) ? { ...match.hunterHistory } : {};
+  if(isHunter){
+    hHistory[settings.hunterRed] = (hHistory[settings.hunterRed] || 0) + 1;
+    hHistory[settings.hunterBlue] = (hHistory[settings.hunterBlue] || 0) + 1;
+    if(menu.hunterHistory){
+      menu.hunterHistory[settings.hunterRed] = hHistory[settings.hunterRed];
+      menu.hunterHistory[settings.hunterBlue] = hHistory[settings.hunterBlue];
+    }
+    menu.hunterVotes = {};
+  }
+
   match={state:initState,cd:3,cdT:0,timer:isHunter?60:settings.time,lastTick:isHunter?60:settings.time,it:it,itTeam:itTeam,
     hunterMode:isHunter,hunterRed:settings.hunterRed,hunterBlue:settings.hunterBlue,
     hunterScores:(match && match.hunterScores)?match.hunterScores:{0:0,1:0},
     hunterRound:(match && match.hunterRound)?match.hunterRound:1,
-    hunterMaxRounds:3,hunterWipeTime:{0:null,1:null},
+    hunterMaxRounds:3,hunterWipeTime:{0:null,1:null},hunterHistory:hHistory,
     cageT:isHunter?3.0:0,killfeed:[],killfeedT:0,spectateTarget:null,
     teamItTime:[0,0,0,0],cooldown:0,
     goFlash:0,freeze:0,shake:0,flash:0,fade:0.6,tagPop:null,resultT:0,
@@ -2305,7 +2559,7 @@ function startMatch(){
 
   // Broadcast to all connected netplay guests
   if(typeof NET!=='undefined' && NET && NET.role!==null && NET.isHost && NET.conns.size>0){
-    const payload={it:match.it, itTeam:match.itTeam, cooldownN:0, matchIndex:matchIndex, currentThemeIdx:currentThemeIdx, lastStartIT:lastStartIT, hunterMode:isHunter, hunterRed:settings.hunterRed, hunterBlue:settings.hunterBlue, hunterRound:match.hunterRound, hunterScores:match.hunterScores, cageT:match.cageT};
+    const payload={it:match.it, itTeam:match.itTeam, cooldownN:0, matchIndex:matchIndex, currentThemeIdx:currentThemeIdx, lastStartIT:lastStartIT, hunterMode:isHunter, hunterRed:settings.hunterRed, hunterBlue:settings.hunterBlue, hunterRound:match.hunterRound, hunterScores:match.hunterScores, cageT:match.cageT, hunterHistory:hHistory};
     netBroadcastReliable({t:'start',settings:{map:settings.map,doubleJump:settings.doubleJump,collision:settings.collision,teams:settings.teams,gameMode:settings.gameMode,hunterRed:settings.hunterRed,hunterBlue:settings.hunterBlue,slotColor:menu.slotColor.slice(),slotTeam:(menu.slotTeam?menu.slotTeam.slice():[])},mapData:MAPS[settings.map%MAPS.length],payload:payload});
   }
 }
@@ -3827,28 +4081,34 @@ function advanceHunterRound(){
   if(match.roundSummary && match.roundSummary.isMatchOver){
     match.hunterRound = 1;
     match.hunterScores = { 0: 0, 1: 0 };
+    match.hunterHistory = {};
+    if(menu.hunterHistory) menu.hunterHistory = {};
+    menu.hunterVotes = {};
     startMatch();
     return;
   }
 
+  // Resolve team hunters from votes / tie-breakers (fewest hunter rounds first, then random)
+  const electedRed = resolveTeamHunter(0);
+  const electedBlue = resolveTeamHunter(1);
+  settings.hunterRed = electedRed;
+  settings.hunterBlue = electedBlue;
+
+  // Track hunter history rounds
+  if(!match.hunterHistory) match.hunterHistory = {};
+  match.hunterHistory[electedRed] = (match.hunterHistory[electedRed] || 0) + 1;
+  match.hunterHistory[electedBlue] = (match.hunterHistory[electedBlue] || 0) + 1;
+  if(menu.hunterHistory){
+    menu.hunterHistory[electedRed] = match.hunterHistory[electedRed];
+    menu.hunterHistory[electedBlue] = match.hunterHistory[electedBlue];
+  }
+
+  // Clear votes for upcoming rounds
+  menu.hunterVotes = {};
+
   match.hunterRound++;
   match.roundSummary = null;
   match.hunterWipeTime = { 0: null, 1: null };
-
-  // Hunter Auto-Rotation if enabled
-  if(settings.hunterRotate){
-    const act = activeSlots();
-    const redSlots = act.filter(s => ((menu.slotTeam ? menu.slotTeam[s] : s) % 2) === 0);
-    const blueSlots = act.filter(s => ((menu.slotTeam ? menu.slotTeam[s] : s) % 2) === 1);
-    if(redSlots.length > 1){
-      const curIdx = redSlots.indexOf(settings.hunterRed);
-      settings.hunterRed = redSlots[(curIdx + 1) % redSlots.length];
-    }
-    if(blueSlots.length > 1){
-      const curIdx = blueSlots.indexOf(settings.hunterBlue);
-      settings.hunterBlue = blueSlots[(curIdx + 1) % blueSlots.length];
-    }
-  }
 
   match.hunterRed = settings.hunterRed;
   match.hunterBlue = settings.hunterBlue;
@@ -3872,7 +4132,8 @@ function advanceHunterRound(){
       it: match.it, itTeam: match.itTeam, cooldownN: 0, matchIndex: matchIndex,
       currentThemeIdx: currentThemeIdx, lastStartIT: lastStartIT,
       hunterMode: true, hunterRed: settings.hunterRed, hunterBlue: settings.hunterBlue,
-      hunterRound: match.hunterRound, hunterScores: match.hunterScores, cageT: match.cageT
+      hunterRound: match.hunterRound, hunterScores: match.hunterScores, cageT: match.cageT,
+      hunterHistory: match.hunterHistory
     };
     netBroadcastReliable({
       t: 'start',
@@ -4174,7 +4435,7 @@ function drawHunterHUD(){
 }
 
 function drawHunterRoundResult(){
-  g.fillStyle = 'rgba(10, 16, 24, 0.82)';
+  g.fillStyle = 'rgba(10, 16, 24, 0.84)';
   g.fillRect(0, 0, CW, CH);
 
   const summary = match.roundSummary;
@@ -4184,8 +4445,9 @@ function drawHunterRoundResult(){
   const ap = easeBack(clamp(t * 2.5, 0, 1));
   if(ap <= 0) return;
 
-  const pw = Math.min(680, CW - 24);
-  const ph = Math.min(420, CH - 28);
+  const isShort = CH < 540;
+  const pw = Math.min(740, CW - 20);
+  const ph = Math.min(summary.isMatchOver ? 440 : (isShort ? 470 : 510), CH - 16);
   const px = CW / 2 - pw / 2;
   const py = CH / 2 - ph / 2;
 
@@ -4195,14 +4457,14 @@ function drawHunterRoundResult(){
   g.translate(-CW / 2, -CH / 2);
 
   rr(g, px, py, pw, ph, 16);
-  g.fillStyle = 'rgba(20, 28, 42, 0.98)';
+  g.fillStyle = 'rgba(18, 24, 38, 0.98)';
   g.fill();
-  g.lineWidth = 3.5;
+  g.lineWidth = 3;
   g.strokeStyle = INK;
   g.stroke();
 
   // Header Title
-  let roundTitle = 'ROUND ' + summary.round + ' COMPLETE!';
+  let roundTitle = 'ROUND ' + summary.round + ' OF ' + match.hunterMaxRounds + ' COMPLETE!';
   let roundCol = '#ffd166';
   if(summary.wiperTeam === 0){
     roundTitle = '🔴 RED TEAM WIPED BLUE!';
@@ -4213,55 +4475,51 @@ function drawHunterRoundResult(){
   } else {
     roundTitle = "⏱️ TIME'S UP - POINTS ROUND!";
   }
-  ptxt(roundTitle, CW / 2, py + 34, FT(clamp(pw * 0.052, 18, 26)), roundCol);
+  ptxt(roundTitle, CW / 2, py + (isShort ? 24 : 28), FT(clamp(pw * 0.048, 17, 24)), roundCol);
 
   // Split Scoring Breakdown (Side by Side)
-  const colW = (pw - 40) / 2;
-  const colH = ph * 0.54;
-  const colY = py + 56;
+  const colW = (pw - 36) / 2;
+  const colH = summary.isMatchOver ? (ph * 0.58) : (isShort ? 94 : 108);
+  const colY = py + (isShort ? 44 : 50);
 
   // --- RED TEAM CARD ---
-  const redX = px + 14;
+  const redX = px + 12;
   rr(g, redX, colY, colW, colH, 10);
   g.fillStyle = 'rgba(235, 60, 40, 0.08)'; g.fill();
   g.lineWidth = 1.8; g.strokeStyle = '#ff4757'; g.stroke();
 
-  ptxt('🔴 RED TEAM', redX + colW/2, colY + 22, FT(16), '#ff6b81');
-  const rY0 = colY + 48;
-  txt('Capture Points: +' + summary.red.capture + ' / 50 pts', redX + 16, rY0, FN(11, 800), '#ffffff', 'left');
-  txt('Hunter Speed: +' + summary.red.speed + ' / 30 pts', redX + 16, rY0 + 24, FN(11, 800), '#ffffff', 'left');
-  txt('Runner Survival: +' + summary.red.survival + ' / 20 pts', redX + 16, rY0 + 48, FN(11, 800), '#ffffff', 'left');
+  ptxt('🔴 RED TEAM', redX + colW/2, colY + 18, FT(15), '#ff6b81');
+  const rY0 = colY + 38;
+  txt('Capture: +' + summary.red.capture + ' pts  •  Speed: +' + summary.red.speed + ' pts  •  Survival: +' + summary.red.survival + ' pts', redX + colW/2, rY0, FN(10.5, 800), '#cbd5e1');
 
-  rr(g, redX + 12, colY + colH - 42, colW - 24, 32, 6);
+  rr(g, redX + 10, colY + colH - (isShort ? 32 : 36), colW - 20, isShort ? 26 : 30, 6);
   g.fillStyle = 'rgba(235, 60, 40, 0.22)'; g.fill();
-  ptxt('ROUND +' + summary.red.total + '  •  TOTAL: ' + summary.cumulative[0] + ' PTS', redX + colW/2, colY + colH - 25, FN(12, 900), '#ffd166');
+  ptxt('ROUND +' + summary.red.total + '  •  TOTAL: ' + summary.cumulative[0] + ' PTS', redX + colW/2, colY + colH - (isShort ? 18 : 20), FN(11.5, 900), '#ffd166');
 
   // --- BLUE TEAM CARD ---
-  const blueX = px + 26 + colW;
+  const blueX = px + 24 + colW;
   rr(g, blueX, colY, colW, colH, 10);
   g.fillStyle = 'rgba(56, 189, 248, 0.08)'; g.fill();
   g.lineWidth = 1.8; g.strokeStyle = '#38bdf8'; g.stroke();
 
-  ptxt('🔵 BLUE TEAM', blueX + colW/2, colY + 22, FT(16), '#38bdf8');
-  const bY0 = colY + 48;
-  txt('Capture Points: +' + summary.blue.capture + ' / 50 pts', blueX + 16, bY0, FN(11, 800), '#ffffff', 'left');
-  txt('Hunter Speed: +' + summary.blue.speed + ' / 30 pts', blueX + 16, bY0 + 24, FN(11, 800), '#ffffff', 'left');
-  txt('Runner Survival: +' + summary.blue.survival + ' / 20 pts', blueX + 16, bY0 + 48, FN(11, 800), '#ffffff', 'left');
+  ptxt('🔵 BLUE TEAM', blueX + colW/2, colY + 18, FT(15), '#38bdf8');
+  const bY0 = colY + 38;
+  txt('Capture: +' + summary.blue.capture + ' pts  •  Speed: +' + summary.blue.speed + ' pts  •  Survival: +' + summary.blue.survival + ' pts', blueX + colW/2, bY0, FN(10.5, 800), '#cbd5e1');
 
-  rr(g, blueX + 12, colY + colH - 42, colW - 24, 32, 6);
+  rr(g, blueX + 10, colY + colH - (isShort ? 32 : 36), colW - 20, isShort ? 26 : 30, 6);
   g.fillStyle = 'rgba(56, 189, 248, 0.22)'; g.fill();
-  ptxt('ROUND +' + summary.blue.total + '  •  TOTAL: ' + summary.cumulative[1] + ' PTS', blueX + colW/2, colY + colH - 25, FN(12, 900), '#ffd166');
+  ptxt('ROUND +' + summary.blue.total + '  •  TOTAL: ' + summary.cumulative[1] + ' PTS', blueX + colW/2, colY + colH - (isShort ? 18 : 20), FN(11.5, 900), '#ffd166');
 
   // Buttons at bottom
-  const btnW = Math.min(180, (pw - 50) / 2);
-  const btnH = 38;
-  const btnY = py + ph - btnH - 14;
+  const btnW = Math.min(220, (pw - 40) / 2);
+  const btnH = isShort ? 34 : 38;
+  const btnY = py + ph - btnH - (isShort ? 10 : 14);
 
   if(summary.isMatchOver){
     const champ = summary.cumulative[0] > summary.cumulative[1]
       ? '🔴 RED TEAM'
       : (summary.cumulative[1] > summary.cumulative[0] ? '🔵 BLUE TEAM' : 'TIE MATCH');
-    ptxt('🏆 ' + champ + ' WINS THE TOURNAMENT!', CW / 2, btnY - 14, FT(15), '#ffd166');
+    ptxt('🏆 ' + champ + ' WINS THE TOURNAMENT!', CW / 2, btnY - 16, FT(16), '#ffd166');
 
     simpleButton(CW / 2 - btnW - 8, btnY, btnW, btnH, '🏆 PLAY AGAIN', () => {
       advanceHunterRound();
@@ -4271,9 +4529,126 @@ function drawHunterRoundResult(){
       quitToMenu();
     }, null, '#475569');
   } else {
-    simpleButton(CW / 2 - btnW - 8, btnY, btnW, btnH, '▶ NEXT ROUND (' + (summary.round + 1) + '/' + match.hunterMaxRounds + ')', () => {
-      advanceHunterRound();
-    }, null, '#8b5cf6');
+    // --- INTERMISSION HUNTER ELECTION PANEL ---
+    const voteY = colY + colH + (isShort ? 8 : 12);
+    const voteH = btnY - voteY - (isShort ? 8 : 12);
+    const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
+    const mySlot = isOnline ? NET.mySlot : 0;
+    const myTeam = (mySlot >= 0 && menu.slotTeam) ? (menu.slotTeam[mySlot] % 2) : 0;
+    const hist = match.hunterHistory || menu.hunterHistory || {};
+
+    // 1. Red Election Box
+    rr(g, redX, voteY, colW, voteH, 8);
+    g.fillStyle = 'rgba(235, 60, 40, 0.05)'; g.fill();
+    g.lineWidth = 1.2; g.strokeStyle = 'rgba(235, 60, 40, 0.35)'; g.stroke();
+
+    const curRedElected = resolveTeamHunter(0);
+    const curRedName = (isOnline && NET.slotsName && NET.slotsName[curRedElected]) || ('P' + (curRedElected + 1));
+    ptxt('🔴 ELECT RED HUNTER (ROUND ' + (summary.round + 1) + ')', redX + colW/2, voteY + 16, FN(11, 900), '#ff6b81');
+    ptxt('👑 Elected: ' + curRedName, redX + colW/2, voteY + 31, FN(9.5, 800), '#ffd166');
+
+    const redSlots = activeSlots().filter(s => ((menu.slotTeam ? menu.slotTeam[s] : s) % 2) === 0);
+    const canVoteRed = !isOnline || (NET.mySlot >= 0 && myTeam === 0);
+    const redItems = redSlots.concat(['random']);
+    const rItemW = Math.floor((colW - 16) / Math.min(redItems.length, 3));
+    const rItemH = clamp(voteH - 46, 26, 36);
+    const rItemY = voteY + voteH - rItemH - 8;
+
+    redItems.forEach((cand, idx) => {
+      const ix = redX + 8 + idx * (rItemW + 4);
+      if(ix + rItemW > redX + colW) return;
+      const isCandElected = (cand !== 'random' && curRedElected === cand);
+      const isRand = (cand === 'random');
+      const votes = getCandidateVoteCount(cand, 0);
+      const rds = isRand ? '' : ((hist[cand] || 0) + 'rd');
+      const name = isRand ? '🎲 Random' : ((isOnline && NET.slotsName && NET.slotsName[cand]) || ('P' + (cand + 1)));
+      const isVotedByMe = (menu.hunterVotes && menu.hunterVotes[mySlot] === cand);
+
+      rr(g, ix, rItemY, rItemW, rItemH, 5);
+      g.fillStyle = isCandElected ? 'rgba(235, 60, 40, 0.35)' : (isVotedByMe ? 'rgba(255, 209, 102, 0.2)' : 'rgba(255, 255, 255, 0.07)');
+      g.fill();
+      g.lineWidth = isCandElected ? 1.5 : (isVotedByMe ? 1.2 : 0.8);
+      g.strokeStyle = isCandElected ? '#ffd166' : (isVotedByMe ? '#ffd166' : 'rgba(255,255,255,0.25)');
+      g.stroke();
+
+      const label = (isCandElected ? '👑 ' : '') + name;
+      const subLabel = votes + ' 🗳️' + (rds ? (' • ' + rds) : '');
+      ptxt(label, ix + rItemW/2, rItemY + rItemH * 0.38, FN(clamp(rItemW * 0.12, 8.5, 10.5), 900), isCandElected ? '#ffd166' : '#ffffff');
+      ptxt(subLabel, ix + rItemW/2, rItemY + rItemH * 0.76, FN(clamp(rItemW * 0.10, 7.5, 9), 800), isVotedByMe ? '#ffd166' : '#cbd5e1');
+
+      zone(ix, rItemY, rItemW, rItemH, { fn: () => {
+        if(!canVoteRed){
+          toast('⚠️ You can only vote for your own team!');
+          sfx('back');
+          return;
+        }
+        const voter = isOnline ? NET.mySlot : (cand !== 'random' ? cand : redSlots[0]);
+        castHunterVote(voter, cand);
+      }});
+    });
+
+    // 2. Blue Election Box
+    rr(g, blueX, voteY, colW, voteH, 8);
+    g.fillStyle = 'rgba(56, 189, 248, 0.05)'; g.fill();
+    g.lineWidth = 1.2; g.strokeStyle = 'rgba(56, 189, 248, 0.35)'; g.stroke();
+
+    const curBlueElected = resolveTeamHunter(1);
+    const curBlueName = (isOnline && NET.slotsName && NET.slotsName[curBlueElected]) || ('P' + (curBlueElected + 1));
+    ptxt('🔵 ELECT BLUE HUNTER (ROUND ' + (summary.round + 1) + ')', blueX + colW/2, voteY + 16, FN(11, 900), '#38bdf8');
+    ptxt('👑 Elected: ' + curBlueName, blueX + colW/2, voteY + 31, FN(9.5, 800), '#ffd166');
+
+    const blueSlots = activeSlots().filter(s => ((menu.slotTeam ? menu.slotTeam[s] : s) % 2) === 1);
+    const canVoteBlue = !isOnline || (NET.mySlot >= 0 && myTeam === 1);
+    const blueItems = blueSlots.concat(['random']);
+    const bItemW = Math.floor((colW - 16) / Math.min(blueItems.length, 3));
+    const bItemH = clamp(voteH - 46, 26, 36);
+    const bItemY = voteY + voteH - bItemH - 8;
+
+    blueItems.forEach((cand, idx) => {
+      const ix = blueX + 8 + idx * (bItemW + 4);
+      if(ix + bItemW > blueX + colW) return;
+      const isCandElected = (cand !== 'random' && curBlueElected === cand);
+      const isRand = (cand === 'random');
+      const votes = getCandidateVoteCount(cand, 1);
+      const rds = isRand ? '' : ((hist[cand] || 0) + 'rd');
+      const name = isRand ? '🎲 Random' : ((isOnline && NET.slotsName && NET.slotsName[cand]) || ('P' + (cand + 1)));
+      const isVotedByMe = (menu.hunterVotes && menu.hunterVotes[mySlot] === cand);
+
+      rr(g, ix, bItemY, bItemW, bItemH, 5);
+      g.fillStyle = isCandElected ? 'rgba(56, 189, 248, 0.35)' : (isVotedByMe ? 'rgba(255, 209, 102, 0.2)' : 'rgba(255, 255, 255, 0.07)');
+      g.fill();
+      g.lineWidth = isCandElected ? 1.5 : (isVotedByMe ? 1.2 : 0.8);
+      g.strokeStyle = isCandElected ? '#ffd166' : (isVotedByMe ? '#ffd166' : 'rgba(255,255,255,0.25)');
+      g.stroke();
+
+      const label = (isCandElected ? '👑 ' : '') + name;
+      const subLabel = votes + ' 🗳️' + (rds ? (' • ' + rds) : '');
+      ptxt(label, ix + bItemW/2, bItemY + bItemH * 0.38, FN(clamp(bItemW * 0.12, 8.5, 10.5), 900), isCandElected ? '#ffd166' : '#ffffff');
+      ptxt(subLabel, ix + bItemW/2, bItemY + bItemH * 0.76, FN(clamp(bItemW * 0.10, 7.5, 9), 800), isVotedByMe ? '#ffd166' : '#cbd5e1');
+
+      zone(ix, bItemY, bItemW, bItemH, { fn: () => {
+        if(!canVoteBlue){
+          toast('⚠️ You can only vote for your own team!');
+          sfx('back');
+          return;
+        }
+        const voter = isOnline ? NET.mySlot : (cand !== 'random' ? cand : blueSlots[0]);
+        castHunterVote(voter, cand);
+      }});
+    });
+
+    // Next Round Action Button
+    if(isOnline && !NET.isHost){
+      // Guest: view-only waiting status
+      rr(g, CW / 2 - btnW - 8, btnY, btnW, btnH, 8);
+      g.fillStyle = 'rgba(71, 85, 105, 0.8)'; g.fill();
+      g.lineWidth = 1; g.strokeStyle = 'rgba(255,255,255,0.2)'; g.stroke();
+      ptxt('⏳ WAITING FOR HOST (' + (summary.round + 1) + '/' + match.hunterMaxRounds + ')', CW / 2 - btnW/2 - 8, btnY + btnH/2 + 1, FN(clamp(btnW * 0.065, 10, 12), 900), '#cbd5e1');
+    } else {
+      simpleButton(CW / 2 - btnW - 8, btnY, btnW, btnH, '▶ START ROUND ' + (summary.round + 1) + ' (' + (summary.round + 1) + '/' + match.hunterMaxRounds + ')', () => {
+        advanceHunterRound();
+      }, null, '#8b5cf6');
+    }
 
     simpleButton(CW / 2 + 8, btnY, btnW, btnH, '🚪 MENU', () => {
       quitToMenu();
@@ -4410,39 +4785,20 @@ function updateCam(dt){
     tx=W/2;ty=H/2;ts=Math.min(CW/(W+160),CH/(H+160));
   }else{
     const P=match.players;
-    const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
-    const myP = isOnline && NET.mySlot >= 0 ? P.find(p => p.slot === NET.mySlot) : null;
-
-    if(match.hunterMode && myP && myP.isEliminated){
-      let targetP = P.find(p => p.slot === match.spectateTarget && !p.isEliminated);
-      if(!targetP){
-        const hunterSlot = (myP.team === 0 ? match.hunterRed : match.hunterBlue);
-        targetP = P.find(p => p.slot === hunterSlot && !p.isEliminated) || P.find(p => p.team === myP.team && !p.isEliminated);
-        if(targetP) match.spectateTarget = targetP.slot;
-      }
-      if(targetP){
-        tx = targetP.x + targetP.w/2;
-        ty = targetP.y + targetP.h/2;
-        ts = 1.35;
-      } else {
-        tx = W/2; ty = H/2; ts = Math.min(CW/(W+140),CH/(H+140));
-      }
-    } else {
-      let mx=0,my=0,minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9,cnt=0;
-      for(const p of P){
-        if(p.isEliminated) continue;
-        mx+=p.x;my+=p.y;minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y);
-        cnt++;
-      }
-      if(cnt === 0){
-        mx = W/2; my = H/2; minX = W/2 - 100; maxX = W/2 + 100; minY = H/2 - 100; maxY = H/2 + 100; cnt = 1;
-      }
-      tx=mx/cnt+23;ty=my/cnt+23;
-      const dx=maxX-minX,dy=maxY-minY;
-      const needW=dx+640+(N-2)*220,needH=dy+500+(N-2)*120;
-      const minS=Math.min(CW/(W+140),CH/(H+140));
-      ts=clamp(Math.min(CW/needW,CH/needH),minS,N>=6?1.05:(N>=4?1.25:1.75));
+    let mx=0,my=0,minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9,cnt=0;
+    for(const p of P){
+      if(p.isEliminated) continue;
+      mx+=p.x;my+=p.y;minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y);
+      cnt++;
     }
+    if(cnt === 0){
+      mx = W/2; my = H/2; minX = W/2 - 100; maxX = W/2 + 100; minY = H/2 - 100; maxY = H/2 + 100; cnt = 1;
+    }
+    tx=mx/cnt+23;ty=my/cnt+23;
+    const dx=maxX-minX,dy=maxY-minY;
+    const needW=dx+640+(N-2)*220,needH=dy+500+(N-2)*120;
+    const minS=Math.min(CW/(W+140),CH/(H+140));
+    ts=clamp(Math.min(CW/needW,CH/needH),minS,N>=6?1.05:(N>=4?1.25:1.75));
   }
   const kp=1-Math.exp(-dt*5.5),ks=1-Math.exp(-dt*3.8);
   cam.x+=(tx-cam.x)*kp;cam.y+=(ty-cam.y)*kp;cam.s+=(ts-cam.s)*ks;
@@ -4608,14 +4964,16 @@ function updateGame(dt){
   }
   if(match.state==='hunter_round_result'){
     match.resultT = (match.resultT || 0) + dt;
-    if(anyPressed(['Enter','NumpadEnter','Space'])){
-      if(typeof NET!=='undefined' && NET && NET.role!==null && !NET.isHost) return;
-      advanceHunterRound();
-    }
-    for(let i=0;i<4;i++){
-      if(PAD[i]&&PAD[i].confirmE){
+    if(match.resultT >= 1.5){
+      if(anyPressed(['Enter','NumpadEnter','Space'])){
         if(typeof NET!=='undefined' && NET && NET.role!==null && !NET.isHost) return;
         advanceHunterRound();
+      }
+      for(let i=0;i<4;i++){
+        if(PAD[i]&&PAD[i].confirmE){
+          if(typeof NET!=='undefined' && NET && NET.role!==null && !NET.isHost) return;
+          advanceHunterRound();
+        }
       }
     }
     updateParts(dt);updateCam(dt);match.shake*=Math.exp(-dt*7);match.flash=Math.max(0,match.flash-dt);
@@ -6457,7 +6815,9 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
     const myTeam = (menu.slotTeam && NET.mySlot >= 0 && menu.slotTeam[NET.mySlot] != null) ? menu.slotTeam[NET.mySlot] : ((NET.mySlot >= 0 ? NET.mySlot : 0) % 2);
     const isMeHunter = (myTeam === 0 && settings.hunterRed === NET.mySlot) || (myTeam === 1 && settings.hunterBlue === NET.mySlot);
     const teamDef = TEAMS[myTeam] || TEAMS[0];
-    const roleStr = isMeHunter ? ('👑 ' + teamDef.name + ' HUNTER') : ('🏃 ' + teamDef.name + ' RUNNER (SET 👑)');
+    const myVotes = getCandidateVoteCount(NET.mySlot, myTeam);
+    const voteBadge = myVotes > 0 ? (' (' + myVotes + ' 🗳️)') : '';
+    const roleStr = isMeHunter ? ('👑 ' + teamDef.name + ' HUNTER' + voteBadge) : ('🗳️ ' + teamDef.name + ' VOTE HUNTER' + voteBadge);
     ptxt(roleStr, cx, teamY + teamH/2 + 1, FN(teamFontSize, 900), isMeHunter ? '#ffd166' : '#ffffff');
     if(NET.mySlot >= 0){
       zone(cx - btnW/2, teamY, btnW, teamH, { fn: () => selectHunterRole(NET.mySlot) });
@@ -7692,17 +8052,20 @@ function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
     const roleY = cardY + cardH * 0.54;
     const roleW = cardW - 14;
     const roleX = cx + 7;
+    const candVotes = getCandidateVoteCount(slotIdx, slotTeam);
+    const voteBadge = candVotes > 0 ? (' (' + candVotes + ' 🗳️)') : '';
     if(isHunter){
       rr(g, roleX, roleY, roleW, roleH, 5);
       g.fillStyle = slotTeam === 0 ? 'rgba(235, 60, 40, 0.88)' : 'rgba(47, 155, 232, 0.88)';
       g.fill();
       g.lineWidth = 1.2; g.strokeStyle = '#ffd166'; g.stroke();
-      txt('👑 HUNTER', centerX, roleY + roleH/2 + 1, FN(clamp(roleH * 0.55, 8.5, 10.5), 900), '#ffffff');
+      txt('👑 HUNTER' + voteBadge, centerX, roleY + roleH/2 + 1, FN(clamp(roleH * 0.55, 8.5, 10.5), 900), '#ffffff');
+      zone(roleX, roleY, roleW, roleH, { fn: () => selectHunterRole(slotIdx) });
     } else {
       rr(g, roleX, roleY, roleW, roleH, 5);
       g.fillStyle = 'rgba(255, 255, 255, 0.08)'; g.fill();
       g.lineWidth = 1; g.strokeStyle = 'rgba(255, 255, 255, 0.22)'; g.stroke();
-      txt('🏃 RUNNER (SET 👑)', centerX, roleY + roleH/2 + 1, FN(clamp(roleH * 0.50, 7.5, 9), 800), '#cbd5e1');
+      txt('🗳️ VOTE HUNTER' + voteBadge, centerX, roleY + roleH/2 + 1, FN(clamp(roleH * 0.50, 7.5, 9), 800), '#cbd5e1');
       zone(roleX, roleY, roleW, roleH, { fn: () => selectHunterRole(slotIdx) });
     }
   }
@@ -7823,6 +8186,10 @@ function drawAddPlayerCard(cx, cardY, cardW, cardH, nextSlot){
 
   zone(cx, cardY, cardW, cardH, { fn: () => {
     menu.slotColor[nextSlot] = nextSlot;
+    if(settings.gameMode === 'hunter'){
+      enforceHunterBalance();
+      validateHunterRoles();
+    }
     sfx('ok');
   }});
 }
@@ -10164,6 +10531,7 @@ function netOnData(m, c){
     if(m.slotTeam) menu.slotTeam = m.slotTeam.slice(0, 8);
     if(m.hunterRed != null) settings.hunterRed = m.hunterRed;
     if(m.hunterBlue != null) settings.hunterBlue = m.hunterBlue;
+    if(m.hunterVotes) menu.hunterVotes = { ...m.hunterVotes };
     try{
       if(!NET.isHost && typeof CG !== 'undefined' && CG && typeof CG.updateRoom === 'function' && NET.room){
         const pCount = (m.slotsName ? m.slotsName.filter(Boolean).length : 2);
@@ -10189,8 +10557,18 @@ function netOnData(m, c){
   } else if(m.t === 'team'){
     if(NET.isHost && !NET.teamsLocked){
       if(m.slot >= 0 && m.slot < 8 && m.team != null){
+        if(settings.gameMode === 'hunter'){
+          const act = activeSlots();
+          let r = 0, b = 0;
+          for(const s of act){
+            const t = (s === m.slot ? m.team : (menu.slotTeam ? menu.slotTeam[s] : s)) % 2;
+            if(t === 0) r++; else b++;
+          }
+          if(Math.abs(r - b) > 1) return;
+        }
         if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
         menu.slotTeam[m.slot] = m.team;
+        if(settings.gameMode === 'hunter') updateElectedHuntersFromVotes();
         netBroadcastRoster();
       }
     }
@@ -10328,6 +10706,27 @@ function netOnData(m, c){
           }
         }
       }
+    }
+  } else if(m.t === 'hunter_vote' && NET.isHost){
+    if(!NET.teamsLocked && m.voter >= 0 && m.voter < 8){
+      if(!menu.hunterVotes) menu.hunterVotes = {};
+      menu.hunterVotes[m.voter] = m.candidate;
+      updateElectedHuntersFromVotes();
+      netBroadcastReliable({
+        t: 'hunter_votes_sync',
+        hunterVotes: menu.hunterVotes,
+        hunterRed: settings.hunterRed,
+        hunterBlue: settings.hunterBlue
+      });
+      netBroadcastRoster();
+    }
+  } else if(m.t === 'hunter_votes_sync' && !NET.isHost){
+    if(m.hunterVotes) menu.hunterVotes = { ...m.hunterVotes };
+    if(m.hunterRed != null) settings.hunterRed = m.hunterRed;
+    if(m.hunterBlue != null) settings.hunterBlue = m.hunterBlue;
+    if(match){
+      match.hunterRed = settings.hunterRed;
+      match.hunterBlue = settings.hunterBlue;
     }
   } else if(m.t === 'set_hunter' && NET.isHost){
     if(!NET.teamsLocked && m.slot >= 0 && m.slot < 8 && menu.slotColor[m.slot] >= 0){
@@ -10654,6 +11053,10 @@ function netKickPlayer(slotOrPeer){
     NET.slotsReady[targetSlot] = false;
     NET.slotsName[targetSlot] = '';
     _remoteTargets.delete(targetSlot);
+    if(settings.gameMode === 'hunter'){
+      enforceHunterBalance();
+      validateHunterRoles();
+    }
   }
   if(targetPeer){
     NET.peerSlots.delete(targetPeer);
@@ -10704,6 +11107,10 @@ function netAdmitSpectator(peerId, targetSlot){
   }
   if(pick === -1) pick = slot % PALETTE.length;
   menu.slotColor[slot] = pick;
+  if(settings.gameMode === 'hunter'){
+    enforceHunterBalance();
+    validateHunterRoles();
+  }
 
   const pair = NET.conns.get(peerId);
   if(pair){
@@ -10838,8 +11245,25 @@ function netSwapPlayerTeam(slot){
   if(!NET.isHost || NET.teamsLocked || slot < 0 || slot >= 8) return;
   if(menu.slotColor[slot] < 0) return;
   if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
-  menu.slotTeam[slot] = ((menu.slotTeam[slot] || 0) + 1) % TEAMS.length;
+  const targetTeam = ((menu.slotTeam[slot] || 0) + 1) % TEAMS.length;
+
+  if(settings.gameMode === 'hunter'){
+    const act = activeSlots();
+    let redCount = 0, blueCount = 0;
+    for(const s of act){
+      const t = (s === slot ? targetTeam : (menu.slotTeam[s] || 0) % 2);
+      if(t === 0) redCount++; else blueCount++;
+    }
+    if(Math.abs(redCount - blueCount) > 1){
+      netToast('⚠️ TEAMS MUST BE BALANCED (MAX ±1 DIFFERENCE)');
+      sfx('back');
+      return;
+    }
+  }
+
+  menu.slotTeam[slot] = targetTeam;
   sfx('ui');
+  if(settings.gameMode === 'hunter') updateElectedHuntersFromVotes();
   netBroadcastRoster();
 }
 
@@ -10847,10 +11271,27 @@ function netSetPlayerTeam(slot, teamIdx){
   if(!NET.isHost || slot < 0 || slot >= 8) return;
   if(menu.slotColor[slot] < 0) return;
   if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
-  menu.slotTeam[slot] = teamIdx % TEAMS.length;
+  const targetTeam = teamIdx % TEAMS.length;
+
+  if(settings.gameMode === 'hunter'){
+    const act = activeSlots();
+    let redCount = 0, blueCount = 0;
+    for(const s of act){
+      const t = (s === slot ? targetTeam : (menu.slotTeam[s] || 0) % 2);
+      if(t === 0) redCount++; else blueCount++;
+    }
+    if(Math.abs(redCount - blueCount) > 1){
+      netToast('⚠️ TEAMS MUST BE BALANCED (MAX ±1 DIFFERENCE)');
+      sfx('back');
+      return;
+    }
+  }
+
+  menu.slotTeam[slot] = targetTeam;
   sfx('ok');
+  if(settings.gameMode === 'hunter') updateElectedHuntersFromVotes();
   netBroadcastRoster();
-  netToast((NET.slotsName[slot] || ('P' + (slot+1))) + ' moved to ' + TEAMS[teamIdx % TEAMS.length].name);
+  netToast((NET.slotsName[slot] || ('P' + (slot+1))) + ' moved to ' + TEAMS[targetTeam].name);
 }
 
 function netLockTeams(lock){
@@ -10944,9 +11385,15 @@ function netForceStart(){
   if(!NET.isHost) return;
   const activeCount = menu.slotColor.filter(c => c >= 0).length;
   if(settings.gameMode === 'hunter'){
+    enforceHunterBalance();
     validateHunterRoles();
     if(activeCount < 4){
       netToast('🎯 HUNTER MODE REQUIRES AT LEAST 4 PLAYERS!');
+      return;
+    }
+    const counts = getHunterTeamCounts();
+    if(counts.diff > 1){
+      netToast('⚠️ TEAMS MUST BE BALANCED (MAX ±1 DIFFERENCE)');
       return;
     }
   } else if(activeCount < 2){
@@ -10990,6 +11437,7 @@ function netBroadcastRoster(){
     readyCountdown: NET.readyCountdown,
     hunterRed: settings.hunterRed,
     hunterBlue: settings.hunterBlue,
+    hunterVotes: menu.hunterVotes ? { ...menu.hunterVotes } : {},
     pings: pingsObj
   };
   netBroadcastReliable(msg);
@@ -11268,6 +11716,11 @@ function startMatchNetGuest(p){
   const isHunter = !!(p.hunterMode || settings.gameMode === 'hunter');
   if(p.hunterRed != null) settings.hunterRed = p.hunterRed;
   if(p.hunterBlue != null) settings.hunterBlue = p.hunterBlue;
+  if(p.hunterHistory != null){
+    if(!menu.hunterHistory) menu.hunterHistory = {};
+    menu.hunterHistory = { ...p.hunterHistory };
+  }
+  menu.hunterVotes = {};
   match = {
     state: initState,
     cd: p.cd != null ? p.cd : 3,
@@ -11283,6 +11736,7 @@ function startMatchNetGuest(p){
     hunterRound: p.hunterRound != null ? p.hunterRound : 1,
     hunterMaxRounds: 3,
     hunterWipeTime: { 0: null, 1: null },
+    hunterHistory: p.hunterHistory ? { ...p.hunterHistory } : {},
     cageT: p.cageT != null ? p.cageT : (isHunter ? 3.0 : 0),
     killfeed: [],
     killfeedT: 0,
