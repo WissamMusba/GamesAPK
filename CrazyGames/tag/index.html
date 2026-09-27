@@ -2592,6 +2592,93 @@ function botFindSpeedPadMeta(p, target, dx, dy){
 
   return best;
 }
+
+/* ================= BREADCRUMB SHADOW SYSTEM =================
+   Allows hunting bots to retrace the human player's exact path,
+   shortcut corner loops, and replicate successful platforming actions
+   (jumps, double-jumps, wall-kicks, and pink platform drops). */
+function botFindBreadcrumbWaypoint(bot, target, cx, cy){
+  if(!target || !target.navTrail || target.navTrail.length < 2) return null;
+  const trail = target.navTrail;
+  const botFeet = bot.y + bot.h;
+
+  // 1. Find closest breadcrumb to bot
+  let closestIdx = 0;
+  let minDSq = 1e9;
+  for(let i = 0; i < trail.length; i++){
+    const cr = trail[i];
+    const dSq = (cr.x - cx) ** 2 + (cr.y - botFeet) ** 2;
+    if(dSq < minDSq){
+      minDSq = dSq;
+      closestIdx = i;
+    }
+  }
+
+  // 2. Shortcut ahead along the trail: find the furthest waypoint visible without brown obstacles
+  let bestCrumb = trail[closestIdx];
+  let bestIdx = closestIdx;
+  const maxAhead = Math.min(trail.length - 1, closestIdx + 18);
+  for(let i = maxAhead; i >= closestIdx; i--){
+    const cr = trail[i];
+    // Check line of sight from bot center to crumb
+    if(!botSolidBetween(cx, cy, cr.x, cr.y - 12, bot.gp)){
+      bestCrumb = cr;
+      bestIdx = i;
+      break;
+    }
+  }
+
+  // If even closest isn't directly visible, step 1 crumb forward from closest
+  if(!bestCrumb && closestIdx < trail.length - 1){
+    bestCrumb = trail[closestIdx + 1];
+    bestIdx = closestIdx + 1;
+  }
+
+  if(!bestCrumb) return null;
+
+  // 3. Scan crumbs between closestIdx and bestIdx + 2 for any jump/drop platforming triggers
+  let triggerJump = false;
+  let triggerDrop = false;
+  let triggerWallJump = false;
+  let triggerDoubleJump = false;
+
+  const triggerLimit = Math.min(trail.length - 1, bestIdx + 2);
+  for(let i = closestIdx; i <= triggerLimit; i++){
+    const cr = trail[i];
+    const dxCrumb = Math.abs(cr.x - cx);
+
+    if(cr.action === 'jump'){
+      if(dxCrumb < 65 && (bot.grounded || bot.coyote > 0)){
+        triggerJump = true;
+      }
+    }else if(cr.action === 'wallJump'){
+      if(bot.sideT > 0 && bot.wallJumps < 2){
+        triggerWallJump = true;
+      }
+    }else if(cr.action === 'doubleJump'){
+      if(!bot.grounded && bot.airJumps > 0 && bot.vy > -130){
+        triggerDoubleJump = true;
+      }
+    }else if(cr.action === 'drop'){
+      if(botFullyOnDrop(bot) && dxCrumb < 80){
+        triggerDrop = true;
+      }
+    }
+  }
+
+  return {
+    crumb: bestCrumb,
+    idx: bestIdx,
+    closestIdx: closestIdx,
+    dx: bestCrumb.x - cx,
+    dy: bestCrumb.y - botFeet,
+    triggerJump: triggerJump,
+    triggerDrop: triggerDrop,
+    triggerWallJump: triggerWallJump,
+    triggerDoubleJump: triggerDoubleJump
+  };
+}
+
 function botInputFor(p,dt){
   let S=BOT.st[p.slot];
   if(!S){S=BOT.st[p.slot]={dir:0,jumpQ:false,jumpHoldT:0,decideT:0,px:p.x,py:p.y,stuckT:0,unstuckT:0,unstuckDir:0,bonks:0,bonkT:0,airT:0,dropHold:0,descLockT:0,descDir:0,airT2:0,exitX:0,hasExit:false,exitLockT:0,exitDir:0,exitGp:null,climbPlat:null,climbOut:0,climbT:0,bannedSide:0,banT:0,banTierY:0,dropNoJumpT:0,pinkJukePhase:0,pinkJukeT:0,pinkJukeCooldown:0,pinkJukePlat:null,pinkJukeDir:0,airBrakeT:0,airBrakeCooldown:0};}
@@ -2810,8 +2897,32 @@ function botInputFor(p,dt){
     // Mode B: Ceiling / Obstacle Detour Router if a solid brown platform or wall is in the line of sight
     const solidInPath = isIt ? botSolidBetween(cx, cy, tx, ty, p.gp) : null;
     const isDirectPath = isIt && !solidInPath;
+    const distTarget = Math.hypot(dx, dy);
 
-    if(isDirectPath){
+    // BREADCRUMB SHADOW SYSTEM:
+    // If bot is hunting (IT) and HARD mode (or solo mode), consult target's path history:
+    const useBreadcrumbs = isIt && !isEasy && target.navTrail && target.navTrail.length >= 2;
+    let trailNav = null;
+    if(useBreadcrumbs){
+      // Only bypass trail if bot is in close-quarters strike range (< 160px) with direct line-of-sight!
+      const inStrikeRange = isDirectPath && distTarget < 160;
+      if(!inStrikeRange){
+        trailNav = botFindBreadcrumbWaypoint(p, target, cx, cy);
+      }
+    }
+
+    if(trailNav){
+      // TIER 0: BREADCRUMB SHADOW / REPLAY NAVIGATION
+      // Retrace human platforming path, cut corners across loops, and solve complex tiers
+      S.exitLockT = 0; S.exitDir = 0; S.exitGp = null; S.hasExit = false;
+      const tdx = trailNav.dx;
+      if(Math.abs(tdx) > 14){
+        want = Math.sign(tdx);
+      } else {
+        want = (trailNav.crumb.vx !== 0 ? Math.sign(trailNav.crumb.vx) : (Math.sign(dx) || S.dir || 1));
+      }
+      detour = want;
+    }else if(isDirectPath){
       // TIER 1: DIRECT GREEDY BEELINE (clear air or through pink platforms)
       S.exitLockT=0;S.exitDir=0;S.exitGp=null;S.hasExit=false;
       want=chaseWant;
@@ -2933,7 +3044,18 @@ function botInputFor(p,dt){
           }
         }
 
-        if(policyJump){
+        if(trailNav){
+          if(trailNav.triggerJump){
+            S.jumpQ = true; S.jumpHoldT = 0.16;
+          } else if(trailNav.dy < -45 && !headBlocked && (p.grounded || p.coyote > 0)){
+            S.jumpQ = true; S.jumpHoldT = 0.16;
+          } else if(isJumpableWall){
+            S.descLockT = 0; S.descDir = 0; S.jumpQ = true;
+          } else if(!botGroundAhead(p, want, fastGround ? 125 : 80) && far){
+            S.jumpQ = true;
+          }
+        }
+        else if(policyJump){
           S.jumpQ=true; S.jumpHoldT=0.16;
         }
         else if(isTargetDescending && isTouchdownFrame && inTagRange && !headBlocked && !ceilAbove){
@@ -3048,6 +3170,11 @@ function botInputFor(p,dt){
       if(isDropEscape){S.dropNoJumpT=0.85;}
       const belowGap=ty-(p.y+p.h);
       const sameTier=Math.abs(belowGap)<60&&Math.abs(dx)<200;
+      if(trailNav && botFullyOnDrop(p)){
+        if(trailNav.triggerDrop || trailNav.dy > 45){
+          down = true;
+        }
+      }
       if(isIt&&belowGap>60&&!sameTier){
         const onPink=botFullyOnDrop(p);
         if(isDirectPath&&belowGap>50&&onPink){
@@ -3113,12 +3240,18 @@ function botInputFor(p,dt){
         if(p.vy<0&&!onOuterWall&&S.climbOut)S.dir=S.climbOut;
         if(S.climbT<=0||(p.y+p.h)<(S.climbPlat?S.climbPlat.y:1e9))S.climbPlat=null;
       }
-      if(p.sideT>0&&p.wallJumps<2){
+      if(trailNav && trailNav.triggerWallJump && p.sideT > 0 && p.wallJumps < 2){
+        S.jumpQ = true; S.jumpHoldT = 0.15;
+      }
+      else if(p.sideT>0&&p.wallJumps<2){
         // Outer walls OK, interior only when climbing.
         if(onOuterWall||isClimbing||!isIt){
           if(belowGapAir<=60||!isIt){S.jumpQ=true;S.jumpHoldT=0.14;}
           else S.jumpQ=false;
         }else S.jumpQ=false;
+      }
+      else if(trailNav && trailNav.triggerDoubleJump && p.airJumps > 0 && p.vy > -130){
+        S.jumpQ = true; S.jumpHoldT = 0.14;
       }
       else if(p.airJumps>0){
         if(S._policyDjDelay > 0){
@@ -3393,6 +3526,7 @@ function physUpdate(p,dt,allow){
     p.jbuf = 0;
     const dropPlat=planted?p.gp:hoverPlat;
     if(dropPlat){
+      p.lastNavAction = 'drop';
       p.dropT=0.35;
       p.grounded=false;
       p.gp=null;
@@ -3412,6 +3546,7 @@ function physUpdate(p,dt,allow){
      full hold rises just past the old fixed jump height. */
   if(p.jbuf>0 && !downHeld){
     if(p.grounded||p.coyote>0){
+      p.lastNavAction = 'jump';
       const boost=(p.grounded&&zoneAtFeet(p,'boost'))?BOOST_MULT:1;
       p.vy=-JUMP_V*boost;
       p.vx=clamp(p.vx,-baseMax*1.1,baseMax*1.1);
@@ -3420,6 +3555,7 @@ function physUpdate(p,dt,allow){
       p.sy=1.10;p.sx=0.93;dust(p.x+p.w/2,p.y+p.h,5,70);
     }else if(onWall&&p.wallJumps<2){
       /* KICK OFF WALL! (Wall-Jump: Max 2 consecutive) */
+      p.lastNavAction = 'wallJump';
       p.wallJumps++;
       p.vy=-JUMP_V*0.96;
       p.vx=-p.wallSide*480;
@@ -3430,6 +3566,7 @@ function physUpdate(p,dt,allow){
       sfx('walljump');
       dust(p.x+(p.wallSide<0?0:p.w),p.y+p.h/2,4,80);
     }else if(p.airJumps>0){
+      p.lastNavAction = 'doubleJump';
       p.vy=-JUMP_V*0.95;p.airJumps--;p.jbuf=0;p.holdT=HOLD_LIFT_T;p.vx=clamp(p.vx,-baseMax*1.1,baseMax*1.1);sfx('djump');
       ringP(p.x+p.w/2,p.y+p.h/2,'#ffffff');p.sy=1.08;p.sx=0.94;
     }
@@ -3614,6 +3751,37 @@ function physUpdate(p,dt,allow){
   for(let tr of p.trail)tr.alpha-=dt*1.8;
   
   if(p.grounded&&Math.abs(p.vx)>240&&Math.random()<dt*14)dust(p.x+p.w/2-p.face*16,p.y+p.h-2,1,30);
+
+  /* Record player breadcrumb trail for hunting bot navigation */
+  if(match && (match.state === 'playing' || match.state === 'countdown')){
+    if(!p.navTrail) p.navTrail = [];
+    const footX = p.x + p.w / 2;
+    const footY = p.y + p.h;
+    const lastCrumb = p.navTrail.length > 0 ? p.navTrail[p.navTrail.length - 1] : null;
+    const distSq = lastCrumb ? ((footX - lastCrumb.x) ** 2 + (footY - lastCrumb.y) ** 2) : 9999;
+    const act = p.lastNavAction || null;
+    p.lastNavAction = null;
+
+    const hasLanded = (!wasG && p.grounded);
+    const timeDelta = lastCrumb ? (tGlobal - lastCrumb.t) : 999;
+    if(act || hasLanded || distSq > 360 || (timeDelta > 0.10 && distSq > 25)){
+      p.navTrail.push({
+        x: footX,
+        y: footY,
+        vx: p.vx || 0,
+        vy: p.vy || 0,
+        grounded: !!p.grounded,
+        gp: p.gp || null,
+        wallSide: p.wallSide || 0,
+        action: act || (hasLanded ? 'land' : 'move'),
+        t: tGlobal
+      });
+      if(p.navTrail.length > 85) p.navTrail.shift();
+    }
+    while(p.navTrail.length > 0 && (tGlobal - p.navTrail[0].t) > 4.5){
+      p.navTrail.shift();
+    }
+  }
 }
 
 function pairCollide(){
@@ -3649,6 +3817,10 @@ function applyTag(newItIdx, popX, popY){
   }
   match.cooldown = 3;
   match.tags[newItIdx]++;
+  // Clear navigation breadcrumb trails on tag change so new pursuit starts fresh
+  for(const pl of P){
+    if(pl && pl.navTrail) pl.navTrail.length = 0;
+  }
   match.freeze = 0.09; match.shake = 13; match.flash = 0.14;
   match.tagPop = { t: 0.55, x: popX != null ? popX : (oldIt.x + newIt.x) / 2 + 23, y: popY != null ? popY : (oldIt.y + newIt.y) / 2 + 10 };
   oldIt.tagT = 0.7; newIt.tagT = 0.7;
@@ -4172,6 +4344,30 @@ function drawJuicyIconBtn(x, y, sz, o){
   if(o.fn || o.upFn){
     zone(x, y, sz, sz + depth, { fn: o.fn, upFn: o.upFn });
   }
+}
+
+/* Crisp vector refresh glyph — resolution-independent circular arrow, no emoji-font lottery */
+function drawRefreshGlyph(cx, cy, r, col){
+  g.save();
+  g.strokeStyle = col; g.fillStyle = col;
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  g.lineWidth = Math.max(1.6, r * 0.36);
+  const a1 = -Math.PI / 2;              // arc ends at top...
+  const a0 = a1 - Math.PI * 1.62;       // ...sweeping ~292deg clockwise (gap upper-right)
+  g.beginPath();
+  g.arc(cx, cy, r, a0, a1);
+  g.stroke();
+  // arrowhead at arc end, pointing clockwise along tangent
+  const ex = cx + Math.cos(a1) * r, ey = cy + Math.sin(a1) * r;
+  const tx = -Math.sin(a1), ty = Math.cos(a1);
+  const px = -ty, py = tx, s = r * 1.05, k = s * 0.62;
+  g.beginPath();
+  g.moveTo(ex + tx * s, ey + ty * s);
+  g.lineTo(ex + px * k, ey + py * k);
+  g.lineTo(ex - px * k, ey - py * k);
+  g.closePath();
+  g.fill();
+  g.restore();
 }
 
 function drawJuicyChip(x, y, w, h, o){
