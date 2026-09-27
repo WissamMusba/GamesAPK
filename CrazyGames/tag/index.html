@@ -2238,6 +2238,12 @@ function startMatch(){
   if(settings.randomMap){
     settings.map = Math.floor(rand(MAPS.length));
   }
+  // Starting a solo/bot or local-party match while in an online room:
+  // leave the room first (any role), then start offline. Online-tab guests stay blocked.
+  if(typeof NET!=='undefined' && NET && NET.role!==null && (menu.tab==='solo' || menu.tab==='2p')){
+    try{if(NET.isHost) netBroadcastReliable({t:'to_menu'});}catch(e){}
+    try{if(typeof netLeaveRoom==='function')netLeaveRoom(menu.tab==='solo'?'Solo mode — left online room':'Local mode — left online room');}catch(e){}
+  }
   if(typeof NET!=='undefined' && NET && NET.role!==null && !NET.isHost){
     toast('HOST RESTARTS THE MATCH');
     return;
@@ -8938,6 +8944,12 @@ function netWireConn(conn, isHostSide){
         netBroadcastRoster();
         netUpdateHostDirectory();
         netToast(removedSlot !== -1 ? ('P' + (removedSlot + 1) + ' disconnected') : 'A spectator left');
+        // Host left alone mid-match (and host has no pause menu online):
+        // back to lobby with the room still open instead of running solo forever.
+        if(match && (match.state === 'playing' || match.state === 'countdown') && match.players && match.players.length < 2){
+          netToast('Everyone left — back to lobby');
+          quitToMenu();
+        }
       } else {
         netToast('Host disconnected. Returning to menu.');
         netLeaveRoom();
@@ -10195,6 +10207,12 @@ function netLeaveRoom(reason){
   _remoteTargets.clear();
   menu.slotColor = [0, 2, -1, -1, -1, -1, -1, -1];
   menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+  // If we were mid-match (host quit, kicked, or failed join), actually leave the
+  // arena for the menu — otherwise guests stare at a frozen game that will never sync.
+  try{
+    if(match && screen === 'game'){ match = null; screen = 'menu'; }
+    if(typeof GESTURE_SPLIT !== 'undefined' && GESTURE_SPLIT) GESTURE_SPLIT.showTutorial = false;
+  }catch(e){}
   history.replaceState(null, '', location.pathname);
   netShow(false);
   const chatUI = document.getElementById('chatUI');
