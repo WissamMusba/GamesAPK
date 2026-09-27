@@ -1051,7 +1051,7 @@ const TEAMS = [
 ];
 
 const TIMES=[60,120,180];
-const settings={map:0,randomMap:false,doubleJump:true,collision:false,timeIdx:1,teams:false,botDifficulty:'hard'};
+const settings={map:0,randomMap:false,doubleJump:true,collision:false,timeIdx:1,teams:false,botDifficulty:'hard',gameMode:'party',hunterRed:0,hunterBlue:1,hunterRotate:false};
 Object.defineProperty(settings,'time',{get(){return TIMES[this.timeIdx];}});
 
 /* ================= LOCAL CONTROLS SCHEMES ================= */
@@ -1931,31 +1931,89 @@ function cycleTeam(i, d){
     }
   }
 }
-function toggleTeams(){
+function validateHunterRoles(){
+  const act = activeSlots();
+  const redSlots = act.filter(s => ((menu.slotTeam ? menu.slotTeam[s] : s) % 2) === 0);
+  const blueSlots = act.filter(s => ((menu.slotTeam ? menu.slotTeam[s] : s) % 2) === 1);
+  if(redSlots.length > 0 && redSlots.indexOf(settings.hunterRed) < 0){
+    settings.hunterRed = redSlots[0];
+  }
+  if(blueSlots.length > 0 && blueSlots.indexOf(settings.hunterBlue) < 0){
+    settings.hunterBlue = blueSlots[0];
+  }
+}
+
+function selectHunterRole(slot){
+  if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost && NET.teamsLocked){
+    toast('ROLES ARE LOCKED BY HOST');
+    sfx('back');
+    return;
+  }
+  const team = ((menu.slotTeam ? menu.slotTeam[slot] : slot) % 2);
+  if(team === 0){
+    settings.hunterRed = slot;
+    toast('👑 P' + (slot + 1) + ' IS RED HUNTER!');
+  } else {
+    settings.hunterBlue = slot;
+    toast('👑 P' + (slot + 1) + ' IS BLUE HUNTER!');
+  }
+  sfx('ok');
+  if(typeof NET !== 'undefined' && NET && NET.role !== null){
+    if(NET.isHost) netBroadcastSettings();
+    else {
+      for(const pair of NET.conns.values()){
+        netSendRel(pair, { t: 'set_hunter', slot: slot, team: team });
+      }
+    }
+  }
+}
+
+function setGameMode(newMode){
   if(menu.tab === 'solo'){
     menu.tab = '2p';
     menu.botOn = false;
   }
-  if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){
-    toast('HOST TOGGLES TEAM MODE');
-    sfx('back');
-    return;
-  }
-  settings.teams = !settings.teams;
-  if(settings.teams){
-    if(menu.slotColor[0] < 0) menu.slotColor[0] = 0;
-    if(menu.slotColor[1] < 0) menu.slotColor[1] = 1;
+  settings.gameMode = newMode;
+  menu.gameMode = newMode;
+
+  if(newMode === 'party'){
+    settings.teams = false;
+    toast('👥 FREE-FOR-ALL PARTY MODE');
+    sfx('ui');
+  } else if(newMode === 'teams'){
+    settings.teams = true;
     if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
     toast('⚔️ TEAM TAG MODE: ON (RED VS BLUE)');
     sfx('ok');
-  } else {
-    toast('👥 FREE-FOR-ALL PARTY MODE');
-    sfx('ui');
+  } else if(newMode === 'hunter'){
+    settings.teams = true;
+    if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+    validateHunterRoles();
+    toast('🎯 HUNTER MODE: CROSS-HUNT ELIMINATION (TRY NOW!)');
+    sfx('ok');
   }
+
   if(typeof NET !== 'undefined' && NET && NET.isHost){
     netBroadcastSettings();
     netBroadcastRoster();
   }
+}
+
+function cycleGameMode(d){
+  if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){
+    toast('HOST SELECTS GAME MODE');
+    sfx('back');
+    return;
+  }
+  const modes = ['party', 'teams', 'hunter'];
+  let curIdx = modes.indexOf(settings.gameMode || (settings.teams ? 'teams' : 'party'));
+  if(curIdx < 0) curIdx = 0;
+  const nextIdx = (curIdx + (d || 1) + modes.length) % modes.length;
+  setGameMode(modes[nextIdx]);
+}
+
+function toggleTeams(){
+  cycleGameMode(1);
 }
 function cycleSlot(i,d){
   const taken=menu.slotColor.filter((c,k)=>c>=0&&k!==i);
@@ -2104,12 +2162,66 @@ const cam={x:W/2,y:H/2,s:0.5};
 function makePlayer(i,slot,colIdx){
   const N=activeSlots().length;
   const s=SLOTS[slot] || SLOTS[0];
-  const x=Math.round(WALL+(W-2*WALL)*((i+0.5)/N))-23;
   const team = (menu.slotTeam && menu.slotTeam[slot] != null) ? menu.slotTeam[slot] : (slot % 2);
-  return {x:x,y:H-WALL-46,w:46,h:46,vx:0,vy:0,grounded:true,gp:SOLIDS[1],lastGp:SOLIDS[1],
-    face:i%2===0?1:-1,airJumps:settings.doubleJump?1:0,wallJumps:0,coyote:0,jbuf:0,holdT:0,dropT:0,sideT:0,wallSide:0,
+  let x = Math.round(WALL+(W-2*WALL)*((i+0.5)/N))-23;
+  let y = H-WALL-46;
+  let face = i%2===0?1:-1;
+
+  const isHunterMode = (settings.gameMode === 'hunter');
+  let roleHunter = false;
+
+  if(isHunterMode){
+    roleHunter = (team === 0 && slot === settings.hunterRed) || (team === 1 && slot === settings.hunterBlue);
+    if(roleHunter){
+      if(team === 0){
+        // Red Hunter: far lower-left platform / corner
+        x = WALL + 70;
+        y = H - WALL - 46;
+        face = 1;
+      } else {
+        // Blue Hunter: far lower-right platform / corner
+        x = W - WALL - 70 - 46;
+        y = H - WALL - 46;
+        face = -1;
+      }
+    } else {
+      // Smart polar spawning for runners: high vantage platforms opposite their hunter
+      if(team === 0){
+        // Red Runners: upper platforms on right half
+        const rightSolids = (typeof SOLIDS !== 'undefined' && SOLIDS.length > 4)
+          ? SOLIDS.slice(4).filter(s => s.x > W * 0.45 && s.y < H - WALL - 80 && s.y >= 120)
+          : [];
+        const pPlat = rightSolids.length > 0 ? rightSolids[i % rightSolids.length] : null;
+        if(pPlat){
+          x = clamp(pPlat.x + pPlat.w / 2 - 23, WALL + 20, W - WALL - 66);
+          y = pPlat.y - 46;
+        } else {
+          x = W - WALL - 140 - (i * 70);
+          y = Math.min(320, H - 260);
+        }
+        face = -1;
+      } else {
+        // Blue Runners: upper platforms on left half
+        const leftSolids = (typeof SOLIDS !== 'undefined' && SOLIDS.length > 4)
+          ? SOLIDS.slice(4).filter(s => s.x + s.w < W * 0.55 && s.y < H - WALL - 80 && s.y >= 120)
+          : [];
+        const pPlat = leftSolids.length > 0 ? leftSolids[i % leftSolids.length] : null;
+        if(pPlat){
+          x = clamp(pPlat.x + pPlat.w / 2 - 23, WALL + 20, W - WALL - 66);
+          y = pPlat.y - 46;
+        } else {
+          x = WALL + 140 + (i * 70);
+          y = Math.min(320, H - 260);
+        }
+        face = 1;
+      }
+    }
+  }
+
+  return {x:x,y:y,w:46,h:46,vx:0,vy:0,grounded:true,gp:SOLIDS[1],lastGp:SOLIDS[1],
+    face:face,airJumps:settings.doubleJump?1:0,wallJumps:0,coyote:0,jbuf:0,holdT:0,dropT:0,sideT:0,wallSide:0,
     sx:1,sy:1,landT:0,tagT:0,padOn:false,blinkT:rand(1.5,4),blink:0,seed:i*3.7,
-    slot:slot,colIdx:colIdx,team:team,trail:[]};
+    slot:slot,colIdx:colIdx,team:team,trail:[],isHunter:roleHunter,isEliminated:false,survivalT:0};
 }
 function startMatch(){
   if(menu.tab === 'solo') settings.teams = false;
@@ -2137,7 +2249,17 @@ function startMatch(){
     }
   }
   const act=activeSlots();
-  if(act.length<2){
+  const isHunter = (settings.gameMode === 'hunter');
+  if(isHunter){
+    validateHunterRoles();
+    if(act.length < 4){
+      menu.mode = 'slots';
+      menu.row = 0;
+      toast('🎯 HUNTER MODE REQUIRES AT LEAST 4 PLAYERS!');
+      sfx('back');
+      return;
+    }
+  } else if(act.length<2){
     menu.mode='slots';
     menu.row=0;
     toast('CHOOSE AT LEAST 2 PLAYERS!');
@@ -2167,10 +2289,15 @@ function startMatch(){
   } else {
     LOCAL_TOUCH.showTutorial = false;
   }
-  match={state:initState,cd:3,cdT:0,timer:settings.time,lastTick:settings.time,it:it,itTeam:itTeam,
+  match={state:initState,cd:3,cdT:0,timer:isHunter?60:settings.time,lastTick:isHunter?60:settings.time,it:it,itTeam:itTeam,
+    hunterMode:isHunter,hunterRed:settings.hunterRed,hunterBlue:settings.hunterBlue,
+    hunterScores:(match && match.hunterScores)?match.hunterScores:{0:0,1:0},
+    hunterRound:(match && match.hunterRound)?match.hunterRound:1,
+    hunterMaxRounds:3,hunterWipeTime:{0:null,1:null},
+    cageT:isHunter?3.0:0,killfeed:[],killfeedT:0,spectateTarget:null,
     teamItTime:[0,0,0,0],cooldown:0,
     goFlash:0,freeze:0,shake:0,flash:0,fade:0.6,tagPop:null,resultT:0,
-    tags:players.map(()=>0),hintT:7,players:players,result:null,pausedFrom:null,pauseSel:0,
+    tags:players.map(()=>0),hintT:7,players:players,result:null,roundSummary:null,pausedFrom:null,pauseSel:0,
     mapToast:(settings.randomMap?('🎲 RANDOM: '+MAPS[settings.map].name):MAPS[settings.map].name),mapToastT:2.5};
   try{botReset();}catch(e){}
   screen='game';
@@ -2178,8 +2305,8 @@ function startMatch(){
 
   // Broadcast to all connected netplay guests
   if(typeof NET!=='undefined' && NET && NET.role!==null && NET.isHost && NET.conns.size>0){
-    const payload={it:match.it, itTeam:match.itTeam, cooldownN:0, matchIndex:matchIndex, currentThemeIdx:currentThemeIdx, lastStartIT:lastStartIT};
-    netBroadcastReliable({t:'start',settings:{map:settings.map,doubleJump:settings.doubleJump,collision:settings.collision,teams:settings.teams,slotColor:menu.slotColor.slice(),slotTeam:(menu.slotTeam?menu.slotTeam.slice():[])},mapData:MAPS[settings.map%MAPS.length],payload:payload});
+    const payload={it:match.it, itTeam:match.itTeam, cooldownN:0, matchIndex:matchIndex, currentThemeIdx:currentThemeIdx, lastStartIT:lastStartIT, hunterMode:isHunter, hunterRed:settings.hunterRed, hunterBlue:settings.hunterBlue, hunterRound:match.hunterRound, hunterScores:match.hunterScores, cageT:match.cageT};
+    netBroadcastReliable({t:'start',settings:{map:settings.map,doubleJump:settings.doubleJump,collision:settings.collision,teams:settings.teams,gameMode:settings.gameMode,hunterRed:settings.hunterRed,hunterBlue:settings.hunterBlue,slotColor:menu.slotColor.slice(),slotTeam:(menu.slotTeam?menu.slotTeam.slice():[])},mapData:MAPS[settings.map%MAPS.length],payload:payload});
   }
 }
 function quitToMenu(){
@@ -3253,6 +3380,10 @@ function inputFor(p,dt){
 }
 
 function physUpdate(p,dt,allow){
+  if(p.isEliminated){ p.vx = 0; p.vy = 0; return; }
+  if(match && match.hunterMode && match.cageT > 0 && p.isHunter){
+    p.vx = 0; p.vy = 0; allow = false;
+  }
   const wasG=p.grounded;
   if(wasG)p.coyote=0.11;else p.coyote-=dt;
   let dir=0,jumpP=false,jumpHeld=false,downHeld=false;
@@ -3529,6 +3660,8 @@ function pairCollide(){
   const P=match.players;
   for(let i=0;i<P.length;i++)for(let j=i+1;j<P.length;j++){
     const a=P[i],b=P[j];
+    if(a.isEliminated || b.isEliminated) continue;
+    if(match.hunterMode && match.cageT > 0 && (a.isHunter || b.isHunter)) continue;
     if(!hitRect(a,b))continue;
     const ox=Math.min(a.x+a.w-b.x,b.x+b.w-a.x),oy=Math.min(a.y+a.h-b.y,b.y+b.h-a.y);
     if(ox<oy){
@@ -3564,6 +3697,592 @@ function applyTag(newItIdx, popX, popY){
   tagBurst(match.tagPop.x, match.tagPop.y, getPlayerColor(oldIt), getPlayerColor(newIt));
 }
 
+/* ================= HUNTER MODE CORE ENGINE ================= */
+function getPlayerDisplayName(p){
+  if(!p) return 'Player';
+  if(typeof NET !== 'undefined' && NET && NET.slotsName && NET.slotsName[p.slot]){
+    return NET.slotsName[p.slot];
+  }
+  return 'Player ' + (p.slot + 1);
+}
+
+function eliminateHunterRunner(hunter, runner, popX, popY){
+  if(!match || !match.hunterMode || runner.isEliminated) return;
+  runner.isEliminated = true;
+  runner.eliminatedTime = Math.max(0.1, Math.round((60 - match.timer) * 10) / 10);
+  runner.survivalT = runner.eliminatedTime;
+
+  match.freeze = 0.08;
+  match.shake = 13;
+  match.flash = 0.12;
+  match.tagPop = { t: 0.55, x: popX != null ? popX : runner.x + 23, y: popY != null ? popY : runner.y + 10 };
+  runner.tagT = 0.7;
+  hunter.tagT = 0.7;
+  sfx('tag');
+  tagBurst(match.tagPop.x, match.tagPop.y, getPlayerColor(hunter), getPlayerColor(runner));
+
+  const hunterName = getPlayerDisplayName(hunter);
+  const runnerName = getPlayerDisplayName(runner);
+  const enemyTeam = runner.team;
+  const livingRunners = match.players.filter(p => p.team === enemyTeam && !p.isHunter && !p.isEliminated);
+  const leftCount = livingRunners.length;
+  const leftMsg = leftCount === 1 ? '1 runner left!' : (leftCount + ' runners left');
+  const toastMsg = '💥 ' + hunterName + ' caught ' + runnerName + '! (' + leftMsg + ')';
+
+  if(!match.killfeed) match.killfeed = [];
+  match.killfeed.unshift({ msg: toastMsg, t: 3.5, team: hunter.team });
+  if(match.killfeed.length > 3) match.killfeed.pop();
+  toast(toastMsg);
+
+  // Broadcast elimination if online host
+  if(typeof NET !== 'undefined' && NET && NET.role !== null && NET.isHost){
+    netBroadcastReliable({
+      t: 'hunter_catch',
+      hunterSlot: hunter.slot,
+      runnerSlot: runner.slot,
+      x: match.tagPop.x,
+      y: match.tagPop.y
+    });
+  }
+
+  // Check Full Wipe:
+  if(leftCount === 0){
+    match.hunterWipeTime[hunter.team] = Math.round((60 - match.timer) * 10) / 10;
+    endHunterRound(hunter.team);
+  }
+}
+
+function endHunterRound(wiperTeam){
+  if(!match || !match.hunterMode || match.state === 'hunter_round_result') return;
+  try{ CG.happytime(); }catch(e){}
+  try{ CG.gameplayStop(); }catch(e){}
+
+  match.state = 'hunter_round_result';
+  match.resultT = 0;
+
+  const P = match.players;
+  const redRunners = P.filter(p => p.team === 0 && !p.isHunter);
+  const blueRunners = P.filter(p => p.team === 1 && !p.isHunter);
+  const nRed = redRunners.length || 1;
+  const nBlue = blueRunners.length || 1;
+
+  // 1. Capture Points (Max 50 pts)
+  const redCaught = blueRunners.filter(p => p.isEliminated).length;
+  const blueCaught = redRunners.filter(p => p.isEliminated).length;
+  const redCapturePts = Math.round(50 * (redCaught / nBlue));
+  const blueCapturePts = Math.round(50 * (blueCaught / nRed));
+
+  // 2. Hunter Speed Bonus (Max 30 pts)
+  let redSpeedPts = 0;
+  if(match.hunterWipeTime[0] != null){
+    redSpeedPts = Math.round(30 * Math.max(0, (60 - match.hunterWipeTime[0]) / 60));
+  }
+  let blueSpeedPts = 0;
+  if(match.hunterWipeTime[1] != null){
+    blueSpeedPts = Math.round(30 * Math.max(0, (60 - match.hunterWipeTime[1]) / 60));
+  }
+
+  // 3. Runner Survival Bonus (Max 20 pts)
+  const elapsed = Math.max(1, 60 - match.timer);
+  let redSurvivalSum = 0;
+  for(const r of redRunners){
+    redSurvivalSum += (r.isEliminated ? (r.survivalT || r.eliminatedTime || 0) : elapsed);
+  }
+  const redSurvivalPts = Math.round(20 * (redSurvivalSum / (nRed * 60)));
+
+  let blueSurvivalSum = 0;
+  for(const r of blueRunners){
+    blueSurvivalSum += (r.isEliminated ? (r.survivalT || r.eliminatedTime || 0) : elapsed);
+  }
+  const blueSurvivalPts = Math.round(20 * (blueSurvivalSum / (nBlue * 60)));
+
+  // Round Totals
+  const redRoundTotal = Math.min(100, redCapturePts + redSpeedPts + redSurvivalPts);
+  const blueRoundTotal = Math.min(100, blueCapturePts + blueSpeedPts + blueSurvivalPts);
+
+  if(!match.hunterScores) match.hunterScores = { 0: 0, 1: 0 };
+  match.hunterScores[0] += redRoundTotal;
+  match.hunterScores[1] += blueRoundTotal;
+
+  const isMatchOver = (match.hunterRound >= match.hunterMaxRounds);
+  match.roundSummary = {
+    round: match.hunterRound,
+    wiperTeam: wiperTeam,
+    red: { capture: redCapturePts, speed: redSpeedPts, survival: redSurvivalPts, total: redRoundTotal },
+    blue: { capture: blueCapturePts, speed: blueSpeedPts, survival: blueSurvivalPts, total: blueRoundTotal },
+    cumulative: { 0: match.hunterScores[0], 1: match.hunterScores[1] },
+    isMatchOver: isMatchOver
+  };
+
+  confetti();
+  sfx('win');
+
+  if(typeof NET !== 'undefined' && NET && NET.role !== null && NET.isHost){
+    netBroadcastReliable({ t: 'hunter_score', summary: match.roundSummary });
+  }
+}
+
+function advanceHunterRound(){
+  if(!match || !match.hunterMode) return;
+  if(match.roundSummary && match.roundSummary.isMatchOver){
+    match.hunterRound = 1;
+    match.hunterScores = { 0: 0, 1: 0 };
+    startMatch();
+    return;
+  }
+
+  match.hunterRound++;
+  match.roundSummary = null;
+  match.hunterWipeTime = { 0: null, 1: null };
+
+  // Hunter Auto-Rotation if enabled
+  if(settings.hunterRotate){
+    const act = activeSlots();
+    const redSlots = act.filter(s => ((menu.slotTeam ? menu.slotTeam[s] : s) % 2) === 0);
+    const blueSlots = act.filter(s => ((menu.slotTeam ? menu.slotTeam[s] : s) % 2) === 1);
+    if(redSlots.length > 1){
+      const curIdx = redSlots.indexOf(settings.hunterRed);
+      settings.hunterRed = redSlots[(curIdx + 1) % redSlots.length];
+    }
+    if(blueSlots.length > 1){
+      const curIdx = blueSlots.indexOf(settings.hunterBlue);
+      settings.hunterBlue = blueSlots[(curIdx + 1) % blueSlots.length];
+    }
+  }
+
+  match.hunterRed = settings.hunterRed;
+  match.hunterBlue = settings.hunterBlue;
+  match.cageT = 3.0;
+  match.timer = 60;
+  match.lastTick = 60;
+  match.killfeed = [];
+  match.spectateTarget = null;
+  match.tagPop = null;
+  match.state = 'countdown';
+  match.cd = 3;
+  match.cdT = 0;
+
+  buildLevel();
+  match.players = activeSlots().map((slot, i) => makePlayer(i, slot, menu.slotColor[slot]));
+
+  sfx('count');
+
+  if(typeof NET !== 'undefined' && NET && NET.role !== null && NET.isHost){
+    const payload = {
+      it: match.it, itTeam: match.itTeam, cooldownN: 0, matchIndex: matchIndex,
+      currentThemeIdx: currentThemeIdx, lastStartIT: lastStartIT,
+      hunterMode: true, hunterRed: settings.hunterRed, hunterBlue: settings.hunterBlue,
+      hunterRound: match.hunterRound, hunterScores: match.hunterScores, cageT: match.cageT
+    };
+    netBroadcastReliable({
+      t: 'start',
+      settings: {
+        map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision,
+        teams: settings.teams, gameMode: settings.gameMode, hunterRed: settings.hunterRed,
+        hunterBlue: settings.hunterBlue, slotColor: menu.slotColor.slice(),
+        slotTeam: (menu.slotTeam ? menu.slotTeam.slice() : [])
+      },
+      mapData: MAPS[settings.map % MAPS.length],
+      payload: payload
+    });
+  }
+}
+
+function cycleHunterSpectate(team){
+  if(!match || !match.hunterMode) return;
+  const friendlyAlive = match.players.filter(p => p.team === team && !p.isEliminated);
+  if(friendlyAlive.length === 0) return;
+  let curIdx = friendlyAlive.findIndex(p => p.slot === match.spectateTarget);
+  curIdx = (curIdx + 1) % friendlyAlive.length;
+  match.spectateTarget = friendlyAlive[curIdx].slot;
+  sfx('ui');
+}
+
+function shouldRenderHunterPlayer(viewerSlot, targetPlayer){
+  if(typeof NET === 'undefined' || !NET || NET.role === null) return true; // Local couch: show all!
+  if(viewerSlot == null || viewerSlot < 0) return true; // Online spectator: show all!
+  if(targetPlayer.slot === viewerSlot) return true; // Always show self!
+  if(targetPlayer.isEliminated) return false;
+
+  const myP = match.players.find(p => p.slot === viewerSlot);
+  if(!myP) return true;
+
+  const isMyTeamRed = (myP.team === 0);
+  const isMeHunter = (myP.slot === (isMyTeamRed ? match.hunterRed : match.hunterBlue));
+
+  if(isMeHunter){
+    // Hunter ONLY sees opposing runners!
+    return (targetPlayer.team !== myP.team && targetPlayer.slot !== (isMyTeamRed ? match.hunterBlue : match.hunterRed));
+  } else {
+    // Runner sees opposing hunter + friendly runners!
+    const isEnemyHunter = (targetPlayer.slot === (isMyTeamRed ? match.hunterBlue : match.hunterRed));
+    const isFriendlyRunner = (targetPlayer.team === myP.team && targetPlayer.slot !== (isMyTeamRed ? match.hunterRed : match.hunterBlue));
+    return isEnemyHunter || isFriendlyRunner;
+  }
+}
+
+function drawHunterCage(p){
+  const cx = p.x + p.w / 2;
+  const cy = p.y + p.h / 2;
+  const rad = p.w * 0.95;
+  const cageCol = (p.team === 0 ? '#ff4757' : '#38bdf8');
+
+  g.save();
+  // Forcefield glow dome
+  g.beginPath();
+  g.arc(cx, cy, rad, 0, TAU);
+  g.fillStyle = p.team === 0 ? 'rgba(255, 71, 87, 0.20)' : 'rgba(56, 189, 248, 0.20)';
+  g.fill();
+  g.lineWidth = 2.5;
+  g.strokeStyle = cageCol;
+  g.stroke();
+
+  // Animated revolving electric spark nodes
+  for(let a = 0; a < 6; a++){
+    const ang = tGlobal * 3.5 + a * (TAU / 6);
+    const ax = cx + Math.cos(ang) * rad;
+    const ay = cy + Math.sin(ang) * rad;
+    g.beginPath();
+    g.arc(ax, ay, 3, 0, TAU);
+    g.fillStyle = '#ffffff';
+    g.fill();
+  }
+
+  // 3-2-1 Countdown number above cage
+  const cdSec = Math.max(1, Math.ceil(match.cageT));
+  ptxt(cdSec + '', cx, p.y - 28, FT(22), '#ffd166');
+  txt('⚡ CAGED', cx, p.y - 12, FN(9.5, 900), cageCol);
+  g.restore();
+}
+
+function drawHunterHUD(){
+  const P = match.players;
+  const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
+  const mySlot = (isOnline && NET.mySlot >= 0) ? NET.mySlot : 0;
+  const myP = P.find(p => p.slot === mySlot);
+
+  // 1. Center Timer Pill
+  const tw = Math.min(150, CW * 0.26), th = 42;
+  const cx = CW / 2, cy = 8;
+  const isCaged = match.cageT > 0;
+  const urgent = !isCaged && match.timer <= 10 && match.state === 'playing';
+
+  rr(g, cx - tw/2, cy, tw, th, 10);
+  g.fillStyle = isCaged ? 'rgba(139, 92, 246, 0.92)' : (urgent ? 'rgba(190, 24, 24, 0.92)' : 'rgba(20, 28, 42, 0.94)');
+  g.fill();
+  g.lineWidth = 2.5;
+  g.strokeStyle = isCaged ? '#c084fc' : (urgent ? '#ef4444' : INK);
+  g.stroke();
+
+  if(isCaged){
+    ptxt('⚡ ' + Math.ceil(match.cageT) + 's', cx, cy + th * 0.40, FT(16), '#ffd166');
+    txt('CAGED', cx, cy + th * 0.78, FN(9, 900), '#ffffff');
+  } else {
+    ptxt(fmtTime(match.timer), cx, cy + th * 0.40, FT(Math.min(22, th * 0.52)), urgent ? '#fff0f0' : '#ffffff');
+    txt('ROUND ' + (match.hunterRound || 1) + '/' + (match.hunterMaxRounds || 3), cx, cy + th * 0.78, FN(9, 900), '#cbd5e1');
+  }
+
+  // 2. Control bar on the far right (Pause, Mute, Fullscreen, Voice, Chat)
+  const btnSize = 34;
+  const xPause = CW - btnSize - 12;
+  const xMute = xPause - btnSize - 6;
+  const xFull = xMute - btnSize - 6;
+  const rightBtnsLeftEdge = isOnline ? (xFull - btnSize * 2 - 12) : (xFull - 6);
+
+  // 3. Team Status Panels
+  const availW = Math.max(160, Math.min(320, (cx - tw/2 - 20)));
+  const panelH = 46;
+  const panelY = 8;
+
+  // --- RED TEAM PANEL (Left) ---
+  const redHunterP = P.find(p => p.team === 0 && p.slot === match.hunterRed);
+  const redRunners = P.filter(p => p.team === 0 && p.slot !== match.hunterRed);
+  const redX = 12;
+  rr(g, redX, panelY, availW, panelH, 8);
+  g.fillStyle = 'rgba(20, 28, 42, 0.92)'; g.fill();
+  g.lineWidth = 1.5; g.strokeStyle = '#ff4757'; g.stroke();
+
+  // Red Team Header
+  const redHunterName = redHunterP ? getPlayerDisplayName(redHunterP) : 'Red Hunter';
+  txt('👑 ' + redHunterName, redX + 8, panelY + 12, FN(10, 900), '#ff6b81', 'left');
+  txt((match.hunterScores ? match.hunterScores[0] : 0) + ' PTS', redX + availW - 8, panelY + 12, FN(10, 900), '#ffd166', 'right');
+
+  // Red Runners Row
+  const redChipW = Math.floor((availW - 12) / Math.max(1, redRunners.length));
+  for(let ri = 0; ri < redRunners.length; ri++){
+    const r = redRunners[ri];
+    const rx = redX + 6 + ri * redChipW;
+    const ry = panelY + 24;
+    const rw = redChipW - 4;
+    const rcol = getPlayerColor(r);
+    const alive = !r.isEliminated;
+
+    rr(g, rx, ry, rw, 16, 3);
+    g.fillStyle = alive ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.4)'; g.fill();
+    g.lineWidth = 1; g.strokeStyle = alive ? rcol : '#475569'; g.stroke();
+
+    // Swatch dot
+    g.beginPath(); g.arc(rx + 8, ry + 8, 4, 0, TAU);
+    g.fillStyle = rcol; g.fill();
+
+    const rName = getPlayerDisplayName(r).slice(0, 5);
+    const rStat = alive ? '●' : '☠';
+    txt(rName + ' ' + rStat, rx + 14, ry + 9, FN(8.5, 900), alive ? '#ffffff' : '#64748b', 'left');
+  }
+
+  // --- BLUE TEAM PANEL (Right, before utility buttons) ---
+  const blueHunterP = P.find(p => p.team === 1 && p.slot === match.hunterBlue);
+  const blueRunners = P.filter(p => p.team === 1 && p.slot !== match.hunterBlue);
+  const blueX = Math.max(cx + tw/2 + 8, rightBtnsLeftEdge - availW - 8);
+  rr(g, blueX, panelY, availW, panelH, 8);
+  g.fillStyle = 'rgba(20, 28, 42, 0.92)'; g.fill();
+  g.lineWidth = 1.5; g.strokeStyle = '#38bdf8'; g.stroke();
+
+  // Blue Team Header
+  const blueHunterName = blueHunterP ? getPlayerDisplayName(blueHunterP) : 'Blue Hunter';
+  txt('👑 ' + blueHunterName, blueX + 8, panelY + 12, FN(10, 900), '#38bdf8', 'left');
+  txt((match.hunterScores ? match.hunterScores[1] : 0) + ' PTS', blueX + availW - 8, panelY + 12, FN(10, 900), '#ffd166', 'right');
+
+  // Blue Runners Row
+  const blueChipW = Math.floor((availW - 12) / Math.max(1, blueRunners.length));
+  for(let bi = 0; bi < blueRunners.length; bi++){
+    const r = blueRunners[bi];
+    const bx = blueX + 6 + bi * blueChipW;
+    const by = panelY + 24;
+    const bw = blueChipW - 4;
+    const bcol = getPlayerColor(r);
+    const alive = !r.isEliminated;
+
+    rr(g, bx, by, bw, 16, 3);
+    g.fillStyle = alive ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.4)'; g.fill();
+    g.lineWidth = 1; g.strokeStyle = alive ? bcol : '#475569'; g.stroke();
+
+    // Swatch dot
+    g.beginPath(); g.arc(bx + 8, by + 8, 4, 0, TAU);
+    g.fillStyle = bcol; g.fill();
+
+    const rName = getPlayerDisplayName(r).slice(0, 5);
+    const rStat = alive ? '●' : '☠';
+    txt(rName + ' ' + rStat, bx + 14, by + 9, FN(8.5, 900), alive ? '#ffffff' : '#64748b', 'left');
+  }
+
+  // 4. Floating Killfeed / Toast Banner
+  if(match.killfeed && match.killfeed.length > 0){
+    const kItem = match.killfeed[0];
+    if(kItem && kItem.t > 0){
+      const kAlpha = clamp(kItem.t, 0, 1);
+      g.save(); g.globalAlpha = kAlpha;
+      g.font = FN(11, 900);
+      const kw = g.measureText(kItem.msg).width + 36;
+      pill(cx - kw/2, 58, kw, 26, 'rgba(15, 23, 42, 0.94)', kItem.team === 0 ? '#ff4757' : '#38bdf8');
+      txt(kItem.msg, cx, 58 + 14, FN(10.5, 900), '#ffffff');
+      g.restore();
+    }
+  }
+
+  // 5. Spectator status footer if local player is eliminated
+  if(myP && myP.isEliminated){
+    let specTargetP = P.find(p => p.slot === match.spectateTarget);
+    const specName = specTargetP ? getPlayerDisplayName(specTargetP) : 'Teammate';
+    const specFooterW = Math.min(360, CW - 24);
+    const specFooterY = CH - 44;
+    pill(cx - specFooterW/2, specFooterY, specFooterW, 30, 'rgba(15, 23, 42, 0.92)', '#e056fd');
+    const specTxt = isTouch ? ('👁️ SPECTATING ' + specName + ' (TAP TO CYCLE)') : ('👁️ SPECTATING ' + specName + ' (SPACE TO CYCLE)');
+    txt(specTxt, cx, specFooterY + 16, FN(10.5, 900), '#ffffff');
+    if(isTouch){
+      zone(cx - specFooterW/2, specFooterY, specFooterW, 30, { fn: () => cycleHunterSpectate(myP.team) });
+    }
+  }
+
+  // 6. Action buttons (Pause, Mute, Fullscreen, Voice, Chat)
+  drawJuicyIconBtn(xPause, 10, btnSize, {
+    r: 8, depth: 2,
+    renderContent: (x, y, sz) => {
+      g.fillStyle = '#1e293b';
+      g.fillRect(x + 10, y + 8, 4, 16);
+      g.fillRect(x + 18, y + 8, 4, 16);
+    },
+    fn: togglePause
+  });
+
+  drawJuicyIconBtn(xMute, 10, btnSize, {
+    r: 8, depth: 2,
+    renderContent: (x, y, sz) => {
+      g.fillStyle = '#1e293b';
+      g.beginPath();
+      g.moveTo(x + 8, y + sz/2 - 3);
+      g.lineTo(x + 12, y + sz/2 - 3);
+      g.lineTo(x + 18, y + sz/2 - 8);
+      g.lineTo(x + 18, y + sz/2 + 8);
+      g.lineTo(x + 12, y + sz/2 + 3);
+      g.lineTo(x + 8, y + sz/2 + 3);
+      g.closePath();
+      g.fill();
+      if(!muted){
+        g.strokeStyle = '#1e293b'; g.lineWidth = 2;
+        g.beginPath(); g.arc(x + 17, y + sz/2, 5, -0.6, 0.6); g.stroke();
+      } else {
+        g.strokeStyle = '#ef4444'; g.lineWidth = 2.5;
+        g.beginPath(); g.moveTo(x + 7, y + 7); g.lineTo(x + sz - 7, y + sz - 7); g.stroke();
+      }
+    },
+    fn: toggleSound
+  });
+
+  drawJuicyIconBtn(xFull, 10, btnSize, {
+    r: 8, depth: 2,
+    renderContent: (x, y, sz) => {
+      g.strokeStyle = '#1e293b'; g.lineWidth = 2.2;
+      const isFull = !!(document.fullscreenElement||document.webkitFullscreenElement||document.mozFullScreenElement||document.msFullscreenElement||document.webkitIsFullScreen);
+      if(!isFull){
+        const m = 9;
+        g.beginPath(); g.moveTo(x + m, y + m + 4); g.lineTo(x + m, y + m); g.lineTo(x + m + 4, y + m); g.stroke();
+        g.beginPath(); g.moveTo(x + sz - m - 4, y + m); g.lineTo(x + sz - m, y + m); g.lineTo(x + sz - m, y + m + 4); g.stroke();
+        g.beginPath(); g.moveTo(x + m, y + sz - m - 4); g.lineTo(x + m, y + sz - m); g.lineTo(x + m + 4, y + sz - m); g.stroke();
+        g.beginPath(); g.moveTo(x + sz - m - 4, y + sz - m); g.lineTo(x + sz - m, y + sz - m); g.lineTo(x + sz - m, y + sz - m - 4); g.stroke();
+      } else {
+        const m = 10;
+        g.strokeRect(x + m, y + m, sz - 2 * m, sz - 2 * m);
+      }
+    },
+    fn: toggleFullscreen
+  });
+
+  if(isOnline){
+    const xVoice = xFull - btnSize - 6;
+    const xChat = xVoice - btnSize - 6;
+    const vOn = (typeof VOICE !== 'undefined' && VOICE.enabled);
+    const vMuted = (typeof VOICE !== 'undefined' && VOICE.muted);
+    drawJuicyIconBtn(xVoice, 10, btnSize, {
+      r: 8, depth: 2,
+      bg: vOn ? (vMuted ? '#e74c3c' : '#27ae60') : 'rgba(255, 255, 255, 0.92)',
+      darkBg: vOn ? (vMuted ? '#b91c1c' : '#166534') : 'rgba(203, 213, 225, 0.95)',
+      icon: vOn ? (vMuted ? '🔇' : '🎙️') : '🎙️',
+      iconColor: vOn ? '#ffffff' : '#1e293b',
+      iconSize: 13,
+      fn: voiceToggleMic
+    });
+
+    drawJuicyIconBtn(xChat, 10, btnSize, {
+      r: 8, depth: 2,
+      icon: '💬',
+      iconColor: '#1e293b',
+      iconSize: 13,
+      fn: () => { if(typeof chatToggle === 'function') chatToggle(); }
+    });
+  }
+}
+
+function drawHunterRoundResult(){
+  g.fillStyle = 'rgba(10, 16, 24, 0.82)';
+  g.fillRect(0, 0, CW, CH);
+
+  const summary = match.roundSummary;
+  if(!summary) return;
+
+  const t = match.resultT || 0;
+  const ap = easeBack(clamp(t * 2.5, 0, 1));
+  if(ap <= 0) return;
+
+  const pw = Math.min(680, CW - 24);
+  const ph = Math.min(420, CH - 28);
+  const px = CW / 2 - pw / 2;
+  const py = CH / 2 - ph / 2;
+
+  g.save();
+  g.translate(CW / 2, CH / 2);
+  g.scale(ap, ap);
+  g.translate(-CW / 2, -CH / 2);
+
+  rr(g, px, py, pw, ph, 16);
+  g.fillStyle = 'rgba(20, 28, 42, 0.98)';
+  g.fill();
+  g.lineWidth = 3.5;
+  g.strokeStyle = INK;
+  g.stroke();
+
+  // Header Title
+  let roundTitle = 'ROUND ' + summary.round + ' COMPLETE!';
+  let roundCol = '#ffd166';
+  if(summary.wiperTeam === 0){
+    roundTitle = '🔴 RED TEAM WIPED BLUE!';
+    roundCol = '#ff4757';
+  } else if(summary.wiperTeam === 1){
+    roundTitle = '🔵 BLUE TEAM WIPED RED!';
+    roundCol = '#38bdf8';
+  } else {
+    roundTitle = "⏱️ TIME'S UP - POINTS ROUND!";
+  }
+  ptxt(roundTitle, CW / 2, py + 34, FT(clamp(pw * 0.052, 18, 26)), roundCol);
+
+  // Split Scoring Breakdown (Side by Side)
+  const colW = (pw - 40) / 2;
+  const colH = ph * 0.54;
+  const colY = py + 56;
+
+  // --- RED TEAM CARD ---
+  const redX = px + 14;
+  rr(g, redX, colY, colW, colH, 10);
+  g.fillStyle = 'rgba(235, 60, 40, 0.08)'; g.fill();
+  g.lineWidth = 1.8; g.strokeStyle = '#ff4757'; g.stroke();
+
+  ptxt('🔴 RED TEAM', redX + colW/2, colY + 22, FT(16), '#ff6b81');
+  const rY0 = colY + 48;
+  txt('Capture Points: +' + summary.red.capture + ' / 50 pts', redX + 16, rY0, FN(11, 800), '#ffffff', 'left');
+  txt('Hunter Speed: +' + summary.red.speed + ' / 30 pts', redX + 16, rY0 + 24, FN(11, 800), '#ffffff', 'left');
+  txt('Runner Survival: +' + summary.red.survival + ' / 20 pts', redX + 16, rY0 + 48, FN(11, 800), '#ffffff', 'left');
+
+  rr(g, redX + 12, colY + colH - 42, colW - 24, 32, 6);
+  g.fillStyle = 'rgba(235, 60, 40, 0.22)'; g.fill();
+  ptxt('ROUND +' + summary.red.total + '  •  TOTAL: ' + summary.cumulative[0] + ' PTS', redX + colW/2, colY + colH - 25, FN(12, 900), '#ffd166');
+
+  // --- BLUE TEAM CARD ---
+  const blueX = px + 26 + colW;
+  rr(g, blueX, colY, colW, colH, 10);
+  g.fillStyle = 'rgba(56, 189, 248, 0.08)'; g.fill();
+  g.lineWidth = 1.8; g.strokeStyle = '#38bdf8'; g.stroke();
+
+  ptxt('🔵 BLUE TEAM', blueX + colW/2, colY + 22, FT(16), '#38bdf8');
+  const bY0 = colY + 48;
+  txt('Capture Points: +' + summary.blue.capture + ' / 50 pts', blueX + 16, bY0, FN(11, 800), '#ffffff', 'left');
+  txt('Hunter Speed: +' + summary.blue.speed + ' / 30 pts', blueX + 16, bY0 + 24, FN(11, 800), '#ffffff', 'left');
+  txt('Runner Survival: +' + summary.blue.survival + ' / 20 pts', blueX + 16, bY0 + 48, FN(11, 800), '#ffffff', 'left');
+
+  rr(g, blueX + 12, colY + colH - 42, colW - 24, 32, 6);
+  g.fillStyle = 'rgba(56, 189, 248, 0.22)'; g.fill();
+  ptxt('ROUND +' + summary.blue.total + '  •  TOTAL: ' + summary.cumulative[1] + ' PTS', blueX + colW/2, colY + colH - 25, FN(12, 900), '#ffd166');
+
+  // Buttons at bottom
+  const btnW = Math.min(180, (pw - 50) / 2);
+  const btnH = 38;
+  const btnY = py + ph - btnH - 14;
+
+  if(summary.isMatchOver){
+    const champ = summary.cumulative[0] > summary.cumulative[1]
+      ? '🔴 RED TEAM'
+      : (summary.cumulative[1] > summary.cumulative[0] ? '🔵 BLUE TEAM' : 'TIE MATCH');
+    ptxt('🏆 ' + champ + ' WINS THE TOURNAMENT!', CW / 2, btnY - 14, FT(15), '#ffd166');
+
+    simpleButton(CW / 2 - btnW - 8, btnY, btnW, btnH, '🏆 PLAY AGAIN', () => {
+      advanceHunterRound();
+    }, null, '#2ecc71');
+
+    simpleButton(CW / 2 + 8, btnY, btnW, btnH, '🚪 MENU', () => {
+      quitToMenu();
+    }, null, '#475569');
+  } else {
+    simpleButton(CW / 2 - btnW - 8, btnY, btnW, btnH, '▶ NEXT ROUND (' + (summary.round + 1) + '/' + match.hunterMaxRounds + ')', () => {
+      advanceHunterRound();
+    }, null, '#8b5cf6');
+
+    simpleButton(CW / 2 + 8, btnY, btnW, btnH, '🚪 MENU', () => {
+      quitToMenu();
+    }, null, '#475569');
+  }
+
+  g.restore();
+}
+
 function checkTag(){
   if(!match || match.state !== 'playing' || match.cooldown > 0) return;
   const P = match.players;
@@ -3571,6 +4290,47 @@ function checkTag(){
 
   const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
   const isOnlineGuest = isOnline && !NET.isHost;
+
+  if(match.hunterMode){
+    if(match.cageT > 0) return; // Hunters caged during countdown!
+    const redHunter = P.find(p => p.team === 0 && p.slot === match.hunterRed);
+    if(redHunter && !redHunter.isEliminated){
+      const blueRunners = P.filter(p => p.team === 1 && p.slot !== match.hunterBlue && !p.isEliminated);
+      for(const runner of blueRunners){
+        if(hitRectInclusive(tagBox(redHunter), tagBox(runner))){
+          const popX = (redHunter.x + runner.x) / 2 + 23, popY = (redHunter.y + runner.y) / 2 + 10;
+          if(isOnlineGuest){
+            if(redHunter.slot === NET.mySlot){
+              netBroadcastReliable({ t: 'tag_claim', from: redHunter.slot, target: runner.slot, x: popX, y: popY, hx: Math.round(redHunter.x), hy: Math.round(redHunter.y), tx: Math.round(runner.x), ty: Math.round(runner.y) });
+              match.cooldown = 0.6;
+            }
+            return;
+          }
+          eliminateHunterRunner(redHunter, runner, popX, popY);
+          return;
+        }
+      }
+    }
+    const blueHunter = P.find(p => p.team === 1 && p.slot === match.hunterBlue);
+    if(blueHunter && !blueHunter.isEliminated){
+      const redRunners = P.filter(p => p.team === 0 && p.slot !== match.hunterRed && !p.isEliminated);
+      for(const runner of redRunners){
+        if(hitRectInclusive(tagBox(blueHunter), tagBox(runner))){
+          const popX = (blueHunter.x + runner.x) / 2 + 23, popY = (blueHunter.y + runner.y) / 2 + 10;
+          if(isOnlineGuest){
+            if(blueHunter.slot === NET.mySlot){
+              netBroadcastReliable({ t: 'tag_claim', from: blueHunter.slot, target: runner.slot, x: popX, y: popY, hx: Math.round(blueHunter.x), hy: Math.round(blueHunter.y), tx: Math.round(runner.x), ty: Math.round(runner.y) });
+              match.cooldown = 0.6;
+            }
+            return;
+          }
+          eliminateHunterRunner(blueHunter, runner, popX, popY);
+          return;
+        }
+      }
+    }
+    return;
+  }
 
   if(settings.teams && match.itTeam != null){
     // "Hunt Together": ALL players on the itTeam hunt together!
@@ -3650,13 +4410,39 @@ function updateCam(dt){
     tx=W/2;ty=H/2;ts=Math.min(CW/(W+160),CH/(H+160));
   }else{
     const P=match.players;
-    let mx=0,my=0,minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;
-    for(const p of P){mx+=p.x;my+=p.y;minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y);}
-    tx=mx/P.length+23;ty=my/P.length+23;
-    const dx=maxX-minX,dy=maxY-minY;
-    const needW=dx+640+(N-2)*220,needH=dy+500+(N-2)*120;
-    const minS=Math.min(CW/(W+140),CH/(H+140));
-    ts=clamp(Math.min(CW/needW,CH/needH),minS,N>=6?1.05:(N>=4?1.25:1.75));
+    const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
+    const myP = isOnline && NET.mySlot >= 0 ? P.find(p => p.slot === NET.mySlot) : null;
+
+    if(match.hunterMode && myP && myP.isEliminated){
+      let targetP = P.find(p => p.slot === match.spectateTarget && !p.isEliminated);
+      if(!targetP){
+        const hunterSlot = (myP.team === 0 ? match.hunterRed : match.hunterBlue);
+        targetP = P.find(p => p.slot === hunterSlot && !p.isEliminated) || P.find(p => p.team === myP.team && !p.isEliminated);
+        if(targetP) match.spectateTarget = targetP.slot;
+      }
+      if(targetP){
+        tx = targetP.x + targetP.w/2;
+        ty = targetP.y + targetP.h/2;
+        ts = 1.35;
+      } else {
+        tx = W/2; ty = H/2; ts = Math.min(CW/(W+140),CH/(H+140));
+      }
+    } else {
+      let mx=0,my=0,minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9,cnt=0;
+      for(const p of P){
+        if(p.isEliminated) continue;
+        mx+=p.x;my+=p.y;minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y);
+        cnt++;
+      }
+      if(cnt === 0){
+        mx = W/2; my = H/2; minX = W/2 - 100; maxX = W/2 + 100; minY = H/2 - 100; maxY = H/2 + 100; cnt = 1;
+      }
+      tx=mx/cnt+23;ty=my/cnt+23;
+      const dx=maxX-minX,dy=maxY-minY;
+      const needW=dx+640+(N-2)*220,needH=dy+500+(N-2)*120;
+      const minS=Math.min(CW/(W+140),CH/(H+140));
+      ts=clamp(Math.min(CW/needW,CH/needH),minS,N>=6?1.05:(N>=4?1.25:1.75));
+    }
   }
   const kp=1-Math.exp(-dt*5.5),ks=1-Math.exp(-dt*3.8);
   cam.x+=(tx-cam.x)*kp;cam.y+=(ty-cam.y)*kp;cam.s+=(ts-cam.s)*ks;
@@ -3820,6 +4606,21 @@ function updateGame(dt){
     updateParts(dt);updateCam(dt);match.shake*=Math.exp(-dt*7);match.flash=Math.max(0,match.flash-dt);
     return;
   }
+  if(match.state==='hunter_round_result'){
+    match.resultT = (match.resultT || 0) + dt;
+    if(anyPressed(['Enter','NumpadEnter','Space'])){
+      if(typeof NET!=='undefined' && NET && NET.role!==null && !NET.isHost) return;
+      advanceHunterRound();
+    }
+    for(let i=0;i<4;i++){
+      if(PAD[i]&&PAD[i].confirmE){
+        if(typeof NET!=='undefined' && NET && NET.role!==null && !NET.isHost) return;
+        advanceHunterRound();
+      }
+    }
+    updateParts(dt);updateCam(dt);match.shake*=Math.exp(-dt*7);match.flash=Math.max(0,match.flash-dt);
+    return;
+  }
   if(match.state==='tutorial'){
     updateParts(dt);updateCam(dt);
     return;
@@ -3837,6 +4638,25 @@ function updateGame(dt){
       else sfx('count');
     }
   }
+
+  // Spectator camera switching for eliminated runners
+  if(match.hunterMode && inPlay){
+    const myP = (typeof NET !== 'undefined' && NET && NET.mySlot >= 0) ? match.players.find(p => p.slot === NET.mySlot) : null;
+    if(myP && myP.isEliminated){
+      if(anyPressed(['Space', 'Enter'])){
+        cycleHunterSpectate(myP.team);
+      }
+    }
+  }
+
+  // Killfeed timer decay
+  if(match.hunterMode && match.killfeed && match.killfeed.length > 0){
+    for(let k = match.killfeed.length - 1; k >= 0; k--){
+      match.killfeed[k].t -= dt;
+      if(match.killfeed[k].t <= 0) match.killfeed.splice(k, 1);
+    }
+  }
+
   for(const p of match.players){
     if(typeof NET !== 'undefined' && NET && NET.role !== null && NET.isHost){
       if(p.slot === NET.mySlot || p.slot === 0){
@@ -3852,21 +4672,53 @@ function updateGame(dt){
   checkTag();
   pairCollide();
   if(inPlay){
-    if(match.cooldown>0){
-      const c0=Math.ceil(match.cooldown);
-      match.cooldown-=dt;
-      const c1=Math.ceil(Math.max(0,match.cooldown));
-      if(c1<c0&&c1>0)sfx('count');
-      if(match.cooldown<=0){match.cooldown=0;match.goFlash=0.8;sfx('go');}
-    }
-    match.timer-=dt;
-    if(settings.teams && match.itTeam != null){
-      if(!match.teamItTime) match.teamItTime = [0,0,0,0];
-      match.teamItTime[match.itTeam] += dt;
+    if(match.hunterMode){
+      if(match.cageT > 0){
+        const prevC = Math.ceil(match.cageT);
+        match.cageT -= dt;
+        const curC = Math.ceil(Math.max(0, match.cageT));
+        if(curC < prevC && curC > 0) sfx('count');
+        if(match.cageT <= 0){
+          match.cageT = 0;
+          sfx('boost');
+          match.goFlash = 0.8;
+          for(const p of match.players){
+            if(p.isHunter){
+              ringP(p.x + p.w/2, p.y + p.h/2, p.team === 0 ? '#ff4757' : '#38bdf8');
+              dust(p.x + p.w/2, p.y + p.h, 20, 160);
+            }
+          }
+        }
+      } else {
+        match.timer -= dt;
+        for(const p of match.players){
+          if(!p.isHunter && !p.isEliminated){
+            p.survivalT = (p.survivalT || 0) + dt;
+          }
+        }
+      }
+    } else {
+      if(match.cooldown>0){
+        const c0=Math.ceil(match.cooldown);
+        match.cooldown-=dt;
+        const c1=Math.ceil(Math.max(0,match.cooldown));
+        if(c1<c0&&c1>0)sfx('count');
+        if(match.cooldown<=0){match.cooldown=0;match.goFlash=0.8;sfx('go');}
+      }
+      match.timer-=dt;
+      if(settings.teams && match.itTeam != null){
+        if(!match.teamItTime) match.teamItTime = [0,0,0,0];
+        match.teamItTime[match.itTeam] += dt;
+      }
     }
     const s=Math.ceil(match.timer);
     if(s!==match.lastTick){if(s<=5&&s>0)sfx('tick');match.lastTick=s;}
-    if(match.timer<=0){match.timer=0;endMatch();return;}
+    if(match.timer<=0){
+      match.timer=0;
+      if(match.hunterMode) endHunterRound(null);
+      else endMatch();
+      return;
+    }
     match.hintT-=dt;
   }
   match.goFlash-=dt;
@@ -4273,12 +5125,15 @@ function drawJuicyChip(x, y, w, h, o){
   }
   
   if(o.badge){
-    const nbW = 28, nbH = 13;
+    const nbFs = (o.badge.length > 5 ? 6.5 : (o.badge.length > 3 ? 7 : 7.5));
+    g.font = FN(nbFs, 900);
+    const tw = g.measureText(o.badge).width;
+    const nbW = Math.max(26, Math.floor(tw + 8)), nbH = 13;
     const nbX = x + w - nbW - 2, nbY = y + pushY - 4;
     rr(g, nbX, nbY, nbW, nbH, 3);
-    g.fillStyle = '#ff4757'; g.fill();
+    g.fillStyle = o.badgeBg || '#ff4757'; g.fill();
     g.lineWidth = 1; g.strokeStyle = '#ffffff'; g.stroke();
-    txt(o.badge, nbX + nbW/2, nbY + nbH/2 + 1, FN(7.5, 900), '#ffffff');
+    txt(o.badge, nbX + nbW/2, nbY + nbH/2 + 1, FN(nbFs, 900), '#ffffff');
   }
   
   g.restore();
@@ -4610,10 +5465,18 @@ function drawITArrow(p){
 
 function drawPlayers(){
   const P=match.players;
+  const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
+  const viewerSlot = (isOnline && NET.mySlot >= 0) ? NET.mySlot : 0;
+
   for(let i=0;i<P.length;i++){
     const p=P[i];
+    if(p.isEliminated) continue;
+    if(match.hunterMode && !shouldRenderHunterPlayer(viewerSlot, p)) continue;
+
     const col=getPlayerColor(p);
-    const isIt=settings.teams ? (p.team === match.itTeam && match.state !== 'result') : (match.it===i&&match.state!=='result');
+    const isIt=match.hunterMode
+      ? false
+      : (settings.teams ? (p.team === match.itTeam && match.state !== 'result') : (match.it===i&&match.state!=='result'));
     
     /* 1. Dynamic Contact Shadow on Ground/Platform */
     g.fillStyle='rgba(0,0,0,0.28)';
@@ -4639,15 +5502,42 @@ function drawPlayers(){
       g.strokeStyle='rgba(255, 200, 40, 0.55)';
       g.lineWidth=2.5;
       rr(g,p.x-4,p.y-4,p.w+8,p.h+8,11);g.stroke();
+    } else if(match.hunterMode && p.isHunter && match.cageT <= 0){
+      /* Pulsing Hunter Aura */
+      const hPulse = 0.25 + 0.15 * Math.sin(tGlobal * 10);
+      const hCol = p.team === 0 ? ('rgba(235, 60, 40, ' + hPulse.toFixed(2) + ')') : ('rgba(56, 189, 248, ' + hPulse.toFixed(2) + ')');
+      const hBorder = p.team === 0 ? 'rgba(255, 107, 129, 0.75)' : 'rgba(56, 189, 248, 0.75)';
+      g.fillStyle = hCol;
+      rr(g, p.x - 8, p.y - 8, p.w + 16, p.h + 16, 14); g.fill();
+      g.strokeStyle = hBorder;
+      g.lineWidth = 2.5;
+      rr(g, p.x - 4, p.y - 4, p.w + 8, p.h + 8, 11); g.stroke();
     }
+
     drawChar(g,p.x,p.y,p.w,col,{
       face:faceFor(p),sx:p.sx,sy:p.sy,tilt:clamp(p.vx*0.00025,-0.1,0.1),
       lookX:clamp(p.vx/300,-1,1)*0.7+p.face*0.3,lookY:!p.grounded?(p.vy<0?-0.8:0.8):0,
       fdir:p.face,blink:p.blink>0,shake:p.tagT>0.45?4:0,
       moving:Math.abs(p.vx)>60,grounded:p.grounded,seed:p.seed
     });
-    const teamBadge = settings.teams ? ((p.team === 0 ? ' [RED]' : (p.team === 1 ? ' [BLUE]' : ' [GRN]'))) : '';
-    ptxt('P'+(p.slot+1)+teamBadge,p.x+p.w/2,p.y-12,FN(11,900),col);
+
+    if(match.hunterMode){
+      if(p.isHunter){
+        if(match.cageT > 0){
+          drawHunterCage(p);
+        } else {
+          const hTitle = p.team === 0 ? '👑 RED HUNTER' : '👑 BLUE HUNTER';
+          ptxt(hTitle, p.x + p.w/2, p.y - 14, FN(10.5, 900), p.team === 0 ? '#ff6b81' : '#38bdf8');
+        }
+      } else {
+        const rName = getPlayerDisplayName(p);
+        ptxt(rName, p.x + p.w/2, p.y - 12, FN(10, 900), col);
+      }
+    } else {
+      const teamBadge = settings.teams ? ((p.team === 0 ? ' [RED]' : (p.team === 1 ? ' [BLUE]' : ' [GRN]'))) : '';
+      ptxt('P'+(p.slot+1)+teamBadge,p.x+p.w/2,p.y-12,FN(11,900),col);
+    }
+
     // Proximity voice speaking indicator
     if(typeof isPlayerSpeaking==='function' && isPlayerSpeaking(p.slot!=null?p.slot:i)){
       const spkY=p.y-26, spkX=p.x+p.w/2;
@@ -4664,7 +5554,7 @@ function drawPlayers(){
       g.beginPath();g.arc(0,0,15,Math.PI-0.6,Math.PI+0.6);g.stroke();
       g.restore();
     }
-    if(match.state==='playing'&&match.cooldown>0){
+    if(match.state==='playing'&&match.cooldown>0&&!match.hunterMode){
       g.save();
       g.globalAlpha=0.3+0.2*Math.sin(tGlobal*8);
       g.strokeStyle='#ffffff';g.lineWidth=3;
@@ -4672,7 +5562,7 @@ function drawPlayers(){
       g.restore();
     }
   }
-  if(match.state!=='result'){
+  if(match.state!=='result'&&match.state!=='hunter_round_result'&&!match.hunterMode){
     if(settings.teams && match.itTeam != null){
       for(const p of P){
         if(p.team === match.itTeam) drawITArrow(p);
@@ -5411,7 +6301,8 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
       // Team Badge if teams active
       if(settings.teams){
         const tm = (menu.slotTeam && menu.slotTeam[s] != null) ? menu.slotTeam[s] : (s % 2);
-        const tmIcon = (TEAMS[tm] ? TEAMS[tm].icon : '🔴');
+        const isHunterSlot = (settings.gameMode === 'hunter') && ((tm === 0 && settings.hunterRed === s) || (tm === 1 && settings.hunterBlue === s));
+        const tmIcon = isHunterSlot ? '👑' : (TEAMS[tm] ? TEAMS[tm].icon : '🔴');
         ptxt(tmIcon, leftX + leftW - (hasHostControls ? 56 : 24), ry + rowH/2 + 1, FN(clamp(rowH * 0.35, 8.5, 10.5), 900), '#ffffff');
       }
 
@@ -5562,7 +6453,16 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
   g.fillStyle = isTeamLockedForMe ? 'rgba(230, 126, 34, 0.20)' : 'rgba(0,0,0,0.55)'; g.fill();
   g.lineWidth = 1.2; g.strokeStyle = isTeamLockedForMe ? '#e67e22' : 'rgba(255,255,255,0.3)'; g.stroke();
   const teamFontSize = clamp(teamH * 0.42, 10, 12.5);
-  if(settings.teams){
+  if(settings.gameMode === 'hunter'){
+    const myTeam = (menu.slotTeam && NET.mySlot >= 0 && menu.slotTeam[NET.mySlot] != null) ? menu.slotTeam[NET.mySlot] : ((NET.mySlot >= 0 ? NET.mySlot : 0) % 2);
+    const isMeHunter = (myTeam === 0 && settings.hunterRed === NET.mySlot) || (myTeam === 1 && settings.hunterBlue === NET.mySlot);
+    const teamDef = TEAMS[myTeam] || TEAMS[0];
+    const roleStr = isMeHunter ? ('👑 ' + teamDef.name + ' HUNTER') : ('🏃 ' + teamDef.name + ' RUNNER (SET 👑)');
+    ptxt(roleStr, cx, teamY + teamH/2 + 1, FN(teamFontSize, 900), isMeHunter ? '#ffd166' : '#ffffff');
+    if(NET.mySlot >= 0){
+      zone(cx - btnW/2, teamY, btnW, teamH, { fn: () => selectHunterRole(NET.mySlot) });
+    }
+  } else if(settings.teams){
     const myTeam = (menu.slotTeam && NET.mySlot >= 0 && menu.slotTeam[NET.mySlot] != null) ? menu.slotTeam[NET.mySlot] : ((NET.mySlot >= 0 ? NET.mySlot : 0) % 2);
     const teamDef = TEAMS[myTeam] || TEAMS[0];
     const teamLabel = isTeamLockedForMe ? ('🔒 ' + teamDef.icon + ' ' + teamDef.name) : ('‹  ' + teamDef.icon + ' ' + teamDef.name + '  ›');
@@ -6089,13 +6989,34 @@ function drawMenu(){
       });
     }
   } else {
+    const isHunterMode = (settings.gameMode === 'hunter');
     // Touch: P3/P4 have no on-screen controls, so only 2-player is offered.
-    const countOpts = (typeof isTouch !== 'undefined' && isTouch) ? [2] : [2, 3, 4];
+    const countOpts = (typeof isTouch !== 'undefined' && isTouch)
+      ? (isHunterMode ? [4] : [2])
+      : (isHunterMode ? [4, 6, 8] : [2, 3, 4]);
     const pw = clamp(CW * 0.16, 56, 84);
     const totalPillsW = countOpts.length * pw + (countOpts.length - 1) * 6;
     const pillsStartX = Math.floor(CW / 2 - totalPillsW / 2);
 
-    if(isTeams){
+    if(isHunterMode){
+      let redCount = 0, blueCount = 0;
+      for(const s of actSlots){
+        const t = (menu.slotTeam && menu.slotTeam[s] != null) ? (menu.slotTeam[s] % 2) : (s % 2);
+        if(t === 0) redCount++; else blueCount++;
+      }
+      const isUneven = (redCount !== blueCount);
+      const isLow = (actSlots.length < 4);
+      let statusStr = '🎯 HUNTER (REC 6 OR 8):';
+      let statusCol = '#e056fd';
+      if(isLow){
+        statusStr = '⚠️ MIN 4 PLAYERS NEEDED:';
+        statusCol = '#ff6b81';
+      } else if(isUneven){
+        statusStr = '⚠️ UNEVEN (' + redCount + 'R v ' + blueCount + 'B) - REC 6-8:';
+        statusCol = '#ffd166';
+      }
+      txt(statusStr, pillsStartX - 10, pillY + ph/2 + 1, FN(clamp(CW * 0.024, 9.5, 11.5), 900), statusCol, 'right');
+    } else if(isTeams){
       let redCount = 0, blueCount = 0;
       for(const s of actSlots){
         const t = (menu.slotTeam && menu.slotTeam[s] != null) ? (menu.slotTeam[s] % 2) : (s % 2);
@@ -6119,9 +7040,11 @@ function drawMenu(){
         activeText: '#ffffff',
         fontSize: 10.5,
         fn: () => {
-          if(numP === 2){ menu.slotColor[2] = -1; menu.slotColor[3] = -1; sfx('ui'); }
-          else if(numP === 3){ menu.slotColor[2] = 2; menu.slotColor[3] = -1; sfx('ok'); }
-          else if(numP === 4){ menu.slotColor[2] = 2; menu.slotColor[3] = 3; sfx('ok'); }
+          for(let s = 0; s < 8; s++){
+            menu.slotColor[s] = (s < numP) ? s : -1;
+          }
+          if(isHunterMode) validateHunterRoles();
+          sfx(numP === 2 ? 'ui' : 'ok');
         }
       });
     }
@@ -6235,17 +7158,16 @@ function drawMenu(){
     zone(stickX - 6, stickY - 6, stickW + 12, stickH + 12, { fn: () => { setMenuTab('online'); sfx('ok'); } });
   }
 
-  // 4c. SOLO v BOT BETA Sticker
-  // On mobile: Moved to the RIGHT side and scaled down small & sleek so it doesn't crowd P1 or the screen!
-  // On desktop/laptop: Left side animated sticker
+  // 4c. Interactive Promo Sticker (Alternates between 🎯 HUNTER MODE: TRY NOW! and 🤖 1P SOLO v BOT)
   if(menu.tab !== 'solo'){
+    const isPromoHunter = (settings.gameMode !== 'hunter');
     let soloW, soloH, soloX, soloY, soloTilt;
     if(isMobilePhone){
-      soloW = clamp(CW * 0.24, 114, 138);
+      soloW = clamp(CW * 0.25, 120, 144);
       soloH = clamp(CH * 0.14, 48, 62);
       soloX = CW - soloW - 8;
       soloY = headY + headH + 6;
-      soloTilt = -0.05; // tilt slightly towards center on right side
+      soloTilt = -0.05;
     } else if(CW >= 880){
       soloW = 240; soloH = 118;
       soloX = 20;
@@ -6276,12 +7198,12 @@ function drawMenu(){
 
     // Inner card body (deep arcade violet/indigo)
     rr(g, 0, 0, soloW, soloH, isMobilePhone ? 9 : 13);
-    g.fillStyle = '#1c1335'; g.fill();
+    g.fillStyle = isPromoHunter ? '#220e36' : '#1c1335'; g.fill();
 
     // Animated warm glowing pulse
     const soloPulse = 0.55 + 0.35 * Math.sin(tGlobal * 6);
     g.lineWidth = isMobilePhone ? 1.5 : 2;
-    g.strokeStyle = 'rgba(255, 107, 129, ' + soloPulse + ')';
+    g.strokeStyle = isPromoHunter ? ('rgba(224, 86, 253, ' + soloPulse + ')') : ('rgba(255, 107, 129, ' + soloPulse + ')');
     g.stroke();
 
     // Live expression & slight movement cycle every 3s
@@ -6303,12 +7225,13 @@ function drawMenu(){
       charTilt = Math.sin((cycleT - 2.1) / 0.45 * Math.PI) * 0.10;
     }
 
+    const charCol = isPromoHunter ? '#a855f7' : '#ff4757';
+
     if(isMobilePhone){
-      // Compact, sleek mobile layout on the right side
       const charSz = clamp(soloH * 0.38, 17, 23);
       const charX = 14;
       const charY = Math.floor(soloH * 0.32 + charHopY);
-      drawChar(g, charX, charY, charSz, '#ff4757', {
+      drawChar(g, charX, charY, charSz, charCol, {
         face: charFace,
         tilt: charTilt,
         blink: charBlink,
@@ -6318,26 +7241,26 @@ function drawMenu(){
       });
 
       const soloTxtX = charX + charSz + 5;
-      txt('🤖 1P SOLO', soloTxtX, soloH * 0.22, FT(clamp(soloH * 0.18, 9, 11.5)), '#ffd166', 'left');
+      const titleTxt = isPromoHunter ? '🎯 HUNTER' : '🤖 1P SOLO';
+      txt(titleTxt, soloTxtX, soloH * 0.22, FT(clamp(soloH * 0.18, 9, 11.5)), '#ffd166', 'left');
 
       const betaW = soloW - soloTxtX - 7;
       const betaH = Math.floor(soloH * 0.20);
-      pill(soloTxtX, soloH * 0.37, betaW, betaH, 'rgba(255, 71, 87, 0.22)', '#ff4757');
-      txt('⚡ BETA', soloTxtX + betaW / 2, soloH * 0.37 + betaH / 2 + 1, FN(clamp(betaH * 0.55, 7.5, 9), 900), '#ff6b81');
+      pill(soloTxtX, soloH * 0.37, betaW, betaH, isPromoHunter ? 'rgba(224, 86, 253, 0.22)' : 'rgba(255, 71, 87, 0.22)', isPromoHunter ? '#e056fd' : '#ff4757');
+      txt(isPromoHunter ? '⚡ NEW MODE' : '⚡ BETA', soloTxtX + betaW / 2, soloH * 0.37 + betaH / 2 + 1, FN(clamp(betaH * 0.55, 7.5, 9), 900), isPromoHunter ? '#f368e0' : '#ff6b81');
 
       const tryBtnW = soloW - 14;
       const tryBtnH = Math.floor(soloH * 0.26);
       const tryBtnY = soloH - tryBtnH - 5;
       rr(g, 7, tryBtnY, tryBtnW, tryBtnH, 6);
-      g.fillStyle = '#2ed573'; g.fill();
+      g.fillStyle = isPromoHunter ? '#9b59b6' : '#2ed573'; g.fill();
       g.lineWidth = 1.2; g.strokeStyle = '#ffffff'; g.stroke();
-      txt('▶ TRY NOW !', soloW / 2, tryBtnY + tryBtnH / 2 + 1, FT(clamp(tryBtnH * 0.58, 8.5, 11)), '#ffffff');
+      txt(isPromoHunter ? '▶ TRY NOW !' : '▶ PLAY SOLO !', soloW / 2, tryBtnY + tryBtnH / 2 + 1, FT(clamp(tryBtnH * 0.58, 8.5, 11)), '#ffffff');
     } else {
-      // Full Desktop / Laptop layout on the left side
       const charSz = clamp(soloH * 0.38, 32, 44);
       const charX = 22;
       const charY = Math.floor(soloH * 0.34 + charHopY);
-      drawChar(g, charX, charY, charSz, '#ff4757', {
+      drawChar(g, charX, charY, charSz, charCol, {
         face: charFace,
         tilt: charTilt,
         blink: charBlink,
@@ -6347,29 +7270,35 @@ function drawMenu(){
       });
 
       const soloTxtX = charX + charSz + 10;
-      txt('🤖 1P SOLO v BOT', soloTxtX, soloH * 0.22, FT(clamp(soloH * 0.155, 12, 16)), '#ffd166', 'left');
+      const titleTxt = isPromoHunter ? '🎯 HUNTER MODE' : '🤖 1P SOLO v BOT';
+      txt(titleTxt, soloTxtX, soloH * 0.22, FT(clamp(soloH * 0.155, 12, 16)), '#ffd166', 'left');
 
       const betaW = soloW - soloTxtX - 12;
       const betaH = Math.floor(soloH * 0.21);
-      pill(soloTxtX, soloH * 0.38, betaW, betaH, 'rgba(255, 71, 87, 0.22)', '#ff4757');
-      txt('⚡ BETA TESTING', soloTxtX + betaW / 2, soloH * 0.38 + betaH / 2 + 1, FN(clamp(betaH * 0.52, 9, 11), 900), '#ff6b81');
+      pill(soloTxtX, soloH * 0.38, betaW, betaH, isPromoHunter ? 'rgba(224, 86, 253, 0.22)' : 'rgba(255, 71, 87, 0.22)', isPromoHunter ? '#e056fd' : '#ff4757');
+      txt(isPromoHunter ? '⚡ NEW GAME MODE' : '⚡ BETA TESTING', soloTxtX + betaW / 2, soloH * 0.38 + betaH / 2 + 1, FN(clamp(betaH * 0.52, 9, 11), 900), isPromoHunter ? '#f368e0' : '#ff6b81');
 
       const tryBtnW = soloW - 22;
       const tryBtnH = Math.floor(soloH * 0.26);
       const tryBtnY = soloH - tryBtnH - 8;
       rr(g, 11, tryBtnY, tryBtnW, tryBtnH, 8);
-      g.fillStyle = '#2ed573'; g.fill();
+      g.fillStyle = isPromoHunter ? '#9b59b6' : '#2ed573'; g.fill();
       g.lineWidth = 1.5; g.strokeStyle = '#ffffff'; g.stroke();
-      txt('▶ TRY NOW !', soloW / 2, tryBtnY + tryBtnH / 2 + 1, FT(clamp(tryBtnH * 0.56, 12, 15)), '#ffffff');
+      txt(isPromoHunter ? '▶ TRY NOW !' : '▶ PLAY SOLO !', soloW / 2, tryBtnY + tryBtnH / 2 + 1, FT(clamp(tryBtnH * 0.56, 12, 15)), '#ffffff');
     }
 
     g.restore();
 
-    // Click zone for SOLO v BOT sticker
+    // Click zone for promo sticker
     zone(soloX - 6, soloY - 6, soloW + 12, soloH + 12, { fn: () => {
-      setMenuTab('solo');
-      toast('🤖 1P SOLO vs BOT ACTIVE');
-      sfx('go');
+      if(isPromoHunter){
+        setGameMode('hunter');
+        sfx('go');
+      } else {
+        setMenuTab('solo');
+        toast('🤖 1P SOLO vs BOT ACTIVE');
+        sfx('go');
+      }
     }});
   }
   }
@@ -6459,19 +7388,43 @@ function drawMenu(){
       }
     });
 
-    // Chip 3: NEW GAMEMODE: Teams
+    // Chip 3: Game Mode (Party -> Teams -> Hunter)
     const chip3X = stripX + 18 + chipW * 2;
+    const curGM_mob = settings.gameMode || (settings.teams ? 'teams' : 'party');
+    let gmLabel_mob = '👥 PARTY', gmBadge_mob = null, gmBadgeBg_mob = '#ff4757';
+    let gmActive_mob = false, gmBg_mob = '#f39c12', gmDarkBg_mob = '#b45309';
+    let gmText_mob = '#cbd5e1', gmBorder_mob = 'rgba(255,255,255,0.2)';
+
+    if(curGM_mob === 'hunter'){
+      gmLabel_mob = '🎯 HUNTER';
+      gmBadge_mob = 'TRY NOW!';
+      gmBadgeBg_mob = '#e056fd';
+      gmActive_mob = true;
+      gmBg_mob = '#8b5cf6';
+      gmDarkBg_mob = '#4c1d95';
+      gmText_mob = '#ffffff';
+      gmBorder_mob = '#e056fd';
+    } else if(curGM_mob === 'teams'){
+      gmLabel_mob = '⚔️ TEAMS';
+      gmActive_mob = true;
+      gmBg_mob = '#f39c12';
+      gmDarkBg_mob = '#b45309';
+      gmText_mob = '#0f172a';
+      gmBorder_mob = '#ffffff';
+    }
+
     drawJuicyChip(chip3X, chipsY, chipW, chipH, {
-      label: settings.teams ? '⚔️ TEAMS (ON)' : '⚔️ TEAMS',
-      active: settings.teams,
-      activeBg: '#f39c12',
-      activeDarkBg: '#b45309',
-      activeText: '#0f172a',
-      activeBorder: '#ffffff',
-      textColor: '#ffd166',
+      label: gmLabel_mob,
+      active: gmActive_mob,
+      activeBg: gmBg_mob,
+      activeDarkBg: gmDarkBg_mob,
+      activeText: gmText_mob,
+      activeBorder: gmBorder_mob,
+      textColor: curGM_mob === 'hunter' ? '#ffffff' : (curGM_mob === 'teams' ? '#ffd166' : '#cbd5e1'),
       fontSize: 10.5,
-      badge: 'NEW',
-      fn: () => toggleTeams()
+      badge: gmBadge_mob,
+      badgeBg: gmBadgeBg_mob,
+      fn: () => cycleGameMode(1)
     });
 
   } else {
@@ -6554,19 +7507,43 @@ function drawMenu(){
       }
     });
 
-    // Chip 3: NEW GAMEMODE: Teams
+    // Chip 3: Game Mode (Party -> Teams -> Hunter)
     const chip3X = chipsX + chipW * 2 + 12;
+    const curGM_desk = settings.gameMode || (settings.teams ? 'teams' : 'party');
+    let gmLabel_desk = '👥 FFA PARTY', gmBadge_desk = null, gmBadgeBg_desk = '#ff4757';
+    let gmActive_desk = false, gmBg_desk = '#f39c12', gmDarkBg_desk = '#b45309';
+    let gmText_desk = '#cbd5e1', gmBorder_desk = 'rgba(255,255,255,0.2)';
+
+    if(curGM_desk === 'hunter'){
+      gmLabel_desk = '🎯 HUNTER MODE';
+      gmBadge_desk = 'TRY NOW!';
+      gmBadgeBg_desk = '#e056fd';
+      gmActive_desk = true;
+      gmBg_desk = '#8b5cf6';
+      gmDarkBg_desk = '#4c1d95';
+      gmText_desk = '#ffffff';
+      gmBorder_desk = '#e056fd';
+    } else if(curGM_desk === 'teams'){
+      gmLabel_desk = '⚔️ TEAMS';
+      gmActive_desk = true;
+      gmBg_desk = '#f39c12';
+      gmDarkBg_desk = '#b45309';
+      gmText_desk = '#0f172a';
+      gmBorder_desk = '#ffffff';
+    }
+
     drawJuicyChip(chip3X, itemY, chipW, itemH, {
-      label: settings.teams ? '⚔️ TEAMS (ON)' : '⚔️ TEAMS',
-      active: settings.teams,
-      activeBg: '#f39c12',
-      activeDarkBg: '#b45309',
-      activeText: '#0f172a',
-      activeBorder: '#ffffff',
-      textColor: '#ffd166',
+      label: gmLabel_desk,
+      active: gmActive_desk,
+      activeBg: gmBg_desk,
+      activeDarkBg: gmDarkBg_desk,
+      activeText: gmText_desk,
+      activeBorder: gmBorder_desk,
+      textColor: curGM_desk === 'hunter' ? '#ffffff' : (curGM_desk === 'teams' ? '#ffd166' : '#cbd5e1'),
       fontSize: 11.5,
-      badge: 'NEW',
-      fn: () => toggleTeams()
+      badge: gmBadge_desk,
+      badgeBg: gmBadgeBg_desk,
+      fn: () => cycleGameMode(1)
     });
   }
   }
@@ -6620,20 +7597,28 @@ function drawMenu(){
   } else {
     const startBtnX = Math.floor(CW/2 - startBtnW/2);
     let startLabel = isTouch ? '▶ START MATCH' : '▶ START MATCH  (SPACE / ENTER)';
-    if(isTeams) startLabel = isTouch ? '⚔️ START TEAM MATCH' : '⚔️ START TEAM MATCH (SPACE)';
+    if(settings.gameMode === 'hunter') startLabel = isTouch ? '🎯 START HUNTER MATCH' : '🎯 START HUNTER MATCH (SPACE)';
+    else if(isTeams) startLabel = isTouch ? '⚔️ START TEAM MATCH' : '⚔️ START TEAM MATCH (SPACE)';
     const labelFs = clamp(startBtnH * 0.38, 12.5, 16.5);
     drawJuicyBtn(startBtnX, startBtnY, startBtnW, startBtnH, {
       label: startLabel,
-      bg: isTeams ? '#f1c40f' : '#2ecc71',
-      darkBg: isTeams ? '#b45309' : '#166534',
-      textColor: isTeams ? '#0f172a' : '#ffffff',
-      textShadow: isTeams ? 'rgba(255, 255, 255, 0.65)' : 'rgba(0, 0, 0, 0.45)',
+      bg: settings.gameMode === 'hunter' ? '#8b5cf6' : (isTeams ? '#f1c40f' : '#2ecc71'),
+      darkBg: settings.gameMode === 'hunter' ? '#4c1d95' : (isTeams ? '#b45309' : '#166534'),
+      textColor: (settings.gameMode === 'hunter' || !isTeams) ? '#ffffff' : '#0f172a',
+      textShadow: (settings.gameMode === 'hunter' || !isTeams) ? 'rgba(0, 0, 0, 0.45)' : 'rgba(255, 255, 255, 0.65)',
       depth: 5,
       shine: true,
       boldFont: true,
       fontSize: labelFs,
       fn: () => {
-        if(activeSlots().length < 2){
+        if(settings.gameMode === 'hunter'){
+          validateHunterRoles();
+          if(activeSlots().length < 4){
+            toast('🎯 HUNTER MODE REQUIRES AT LEAST 4 PLAYERS!');
+            sfx('back');
+            return;
+          }
+        } else if(activeSlots().length < 2){
           menu.slotColor[0] = 0; menu.slotColor[1] = 1;
         }
         sfx('go');
@@ -6661,12 +7646,14 @@ function drawMenu(){
 function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
   const col = getSlotColor(slotIdx, menu.slotColor, menu.slotTeam);
   const centerX = cx + cardW / 2;
+  const slotTeam = (menu.slotTeam && menu.slotTeam[slotIdx] != null) ? (menu.slotTeam[slotIdx] % 2) : (slotIdx % 2);
+  const isHunter = (settings.gameMode === 'hunter') && ((slotTeam === 0 && settings.hunterRed === slotIdx) || (slotTeam === 1 && settings.hunterBlue === slotIdx));
 
   rr(g, cx - 2, cardY - 2, cardW + 4, cardH + 4, 14);
   g.fillStyle = '#ffffff'; g.fill(); g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
   rr(g, cx, cardY, cardW, cardH, 12);
   g.fillStyle = 'rgba(16, 22, 34, 0.90)'; g.fill();
-  g.lineWidth = 2; g.strokeStyle = isBot ? '#ff4757' : col; g.stroke();
+  g.lineWidth = 2; g.strokeStyle = isBot ? '#ff4757' : (isHunter ? '#ffd166' : col); g.stroke();
 
   // Header Title
   const headTitleH = clamp(cardH * 0.16, 16, 24);
@@ -6688,15 +7675,37 @@ function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
       fn: () => {
         menu.slotColor[slotIdx] = -1;
         if(slotIdx === 2) menu.slotColor[3] = -1;
+        if(settings.gameMode === 'hunter') validateHunterRoles();
         sfx('back');
       }
     });
   }
 
   // Avatar in middle
-  const avY = cardY + cardH * 0.42;
-  const charSz = clamp(cardH * 0.28, 20, 42);
+  const avY = cardY + cardH * 0.40;
+  const charSz = clamp(cardH * 0.27, 20, 40);
   drawChar(g, centerX, avY, charSz, col, { face: isBot ? 'cool' : 'happy', grounded: true, seed: slotIdx * 3 });
+
+  // Hunter Mode Role Badge / Picker
+  if(settings.gameMode === 'hunter'){
+    const roleH = clamp(cardH * 0.11, 15, 19);
+    const roleY = cardY + cardH * 0.54;
+    const roleW = cardW - 14;
+    const roleX = cx + 7;
+    if(isHunter){
+      rr(g, roleX, roleY, roleW, roleH, 5);
+      g.fillStyle = slotTeam === 0 ? 'rgba(235, 60, 40, 0.88)' : 'rgba(47, 155, 232, 0.88)';
+      g.fill();
+      g.lineWidth = 1.2; g.strokeStyle = '#ffd166'; g.stroke();
+      txt('👑 HUNTER', centerX, roleY + roleH/2 + 1, FN(clamp(roleH * 0.55, 8.5, 10.5), 900), '#ffffff');
+    } else {
+      rr(g, roleX, roleY, roleW, roleH, 5);
+      g.fillStyle = 'rgba(255, 255, 255, 0.08)'; g.fill();
+      g.lineWidth = 1; g.strokeStyle = 'rgba(255, 255, 255, 0.22)'; g.stroke();
+      txt('🏃 RUNNER (SET 👑)', centerX, roleY + roleH/2 + 1, FN(clamp(roleH * 0.50, 7.5, 9), 800), '#cbd5e1');
+      zone(roleX, roleY, roleW, roleH, { fn: () => selectHunterRole(slotIdx) });
+    }
+  }
 
   // Control Selector Bar (WASD / Arrows / IJKL / TFGH / Gamepads)
   const ctrlH = clamp(cardH * 0.14, 18, 24);
@@ -7177,6 +8186,10 @@ function drawLocalTutorialCard(){
 }
 
 function drawHUD(){
+  if(match && match.hunterMode){
+    drawHunterHUD();
+    return;
+  }
   const urgent=match.timer<=10&&match.state==='playing';
   const tw=Math.min(150,CW*0.28),th=40;
   rr(g,CW/2-tw/2,8,tw,th,10);
@@ -7504,6 +8517,7 @@ function drawGame(){
   drawHUD();
   if(match.state==='paused'||match.hostMenu)drawPause();
   else if(match.state==='result')drawResult();
+  else if(match.state==='hunter_round_result')drawHunterRoundResult();
   else if(isTouch)drawTouchButtons();
 }
 
@@ -7809,7 +8823,8 @@ function packPlayer(p){
     po: p.padOn ? 1 : 0,
     lt: Math.round((p.landT || 0) * 100) / 100,
     tt: Math.round((p.tagT || 0) * 100) / 100,
-    b: p.blink > 0 ? 1 : 0
+    b: p.blink > 0 ? 1 : 0,
+    el: p.isEliminated ? 1 : 0
   };
 }
 
@@ -7829,6 +8844,7 @@ function unpackPlayer(d){
     landT: d.lt != null ? d.lt : (d.landT || 0),
     tagT: d.tt != null ? d.tt : (d.tagT || 0),
     blink: d.b != null ? (d.b ? 0.12 : 0) : (d.blink || 0),
+    isEliminated: d.el != null ? !!d.el : false,
     seq: d.seq || 0
   };
 }
@@ -8919,6 +9935,10 @@ function netOnData(m, c){
         doubleJump: settings.doubleJump,
         collision: settings.collision,
         teams: settings.teams,
+        gameMode: settings.gameMode,
+        hunterRed: settings.hunterRed,
+        hunterBlue: settings.hunterBlue,
+        hunterRotate: settings.hunterRotate,
         slotColor: menu.slotColor.slice(0, 8),
         slotTeam: (menu.slotTeam ? menu.slotTeam.slice(0, 8) : []),
         ready: NET.slotsReady.slice(0, 8),
@@ -8945,11 +9965,17 @@ function netOnData(m, c){
         cd: match.cd,
         cdT: match.cdT,
         tags: match.tags.slice(),
+        hunterMode: !!match.hunterMode,
+        hunterRed: settings.hunterRed,
+        hunterBlue: settings.hunterBlue,
+        hunterScores: match.hunterScores,
+        hunterRound: match.hunterRound,
+        cageT: match.cageT,
         players: match.players.map(p => packPlayer(p))
       };
       netSendRel(c, {
         t: 'midgame_start',
-        settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, slotColor: menu.slotColor.slice(0, 8), slotTeam: (menu.slotTeam ? menu.slotTeam.slice(0, 8) : []) },
+        settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, gameMode: settings.gameMode, hunterRed: settings.hunterRed, hunterBlue: settings.hunterBlue, slotColor: menu.slotColor.slice(0, 8), slotTeam: (menu.slotTeam ? menu.slotTeam.slice(0, 8) : []) },
         mapData: MAPS[settings.map % MAPS.length],
         payload: payload,
         isSpectator: true
@@ -9005,7 +10031,7 @@ function netOnData(m, c){
       c.send({
         t: 'assign',
         slot: reqSlot,
-        settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, slotColor: menu.slotColor.slice(), slotTeam: menu.slotTeam.slice() },
+        settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, gameMode: settings.gameMode, hunterRed: settings.hunterRed, hunterBlue: settings.hunterBlue, hunterRotate: settings.hunterRotate, slotColor: menu.slotColor.slice(), slotTeam: menu.slotTeam.slice() },
         mapData: MAPS[settings.map % MAPS.length],
         slotsCtrl: NET.slotsCtrl.slice(),
         slotsReady: NET.slotsReady.slice(),
@@ -9038,6 +10064,9 @@ function netOnData(m, c){
       settings.doubleJump = !!m.settings.doubleJump;
       settings.collision = !!m.settings.collision;
       if(m.settings.teams != null) settings.teams = !!m.settings.teams;
+      if(m.settings.gameMode) settings.gameMode = m.settings.gameMode;
+      if(m.settings.hunterRed != null) settings.hunterRed = m.settings.hunterRed;
+      if(m.settings.hunterBlue != null) settings.hunterBlue = m.settings.hunterBlue;
       if(m.settings.slotColor) menu.slotColor = m.settings.slotColor.slice(0, 8);
       if(m.settings.slotTeam) menu.slotTeam = m.settings.slotTeam.slice(0, 8);
     }
@@ -9051,6 +10080,9 @@ function netOnData(m, c){
     settings.doubleJump = !!m.settings.doubleJump;
     settings.collision = !!m.settings.collision;
     if(m.settings.teams != null) settings.teams = !!m.settings.teams;
+    if(m.settings.gameMode) settings.gameMode = m.settings.gameMode;
+    if(m.settings.hunterRed != null) settings.hunterRed = m.settings.hunterRed;
+    if(m.settings.hunterBlue != null) settings.hunterBlue = m.settings.hunterBlue;
     if(m.settings.slotColor) menu.slotColor = m.settings.slotColor.slice(0, 8);
     if(m.settings.slotTeam) menu.slotTeam = m.settings.slotTeam.slice(0, 8);
     if(m.mapData) MAPS[settings.map % MAPS.length] = m.mapData;
@@ -9064,6 +10096,9 @@ function netOnData(m, c){
       if(m.payload.itTeam !== undefined) match.itTeam = m.payload.itTeam;
       if(m.payload.teamItTime) match.teamItTime = m.payload.teamItTime.slice();
       if(m.payload.tags) match.tags = m.payload.tags.slice();
+      if(m.payload.cageT != null) match.cageT = m.payload.cageT;
+      if(m.payload.hunterScores) match.hunterScores = { ...m.payload.hunterScores };
+      if(m.payload.hunterRound != null) match.hunterRound = m.payload.hunterRound;
       if(m.payload.players && Array.isArray(m.payload.players)){
         for(const rawP of m.payload.players){
           const pData = unpackPlayer(rawP);
@@ -9073,6 +10108,7 @@ function netOnData(m, c){
             pObj.y = pData.y;
             pObj.vx = pData.vx;
             pObj.vy = pData.vy;
+            if(pData.isEliminated !== undefined) pObj.isEliminated = !!pData.isEliminated;
             if(pData.slot !== NET.mySlot){
               netUpdateRemoteTarget(pData.slot, pData, pObj);
             }
@@ -9090,6 +10126,9 @@ function netOnData(m, c){
       settings.doubleJump = !!m.settings.doubleJump;
       settings.collision = !!m.settings.collision;
       if(m.settings.teams != null) settings.teams = !!m.settings.teams;
+      if(m.settings.gameMode) settings.gameMode = m.settings.gameMode;
+      if(m.settings.hunterRed != null) settings.hunterRed = m.settings.hunterRed;
+      if(m.settings.hunterBlue != null) settings.hunterBlue = m.settings.hunterBlue;
       if(m.settings.slotColor) menu.slotColor = m.settings.slotColor.slice(0, 8);
       if(m.settings.slotTeam) menu.slotTeam = m.settings.slotTeam.slice(0, 8);
     }
@@ -9123,6 +10162,8 @@ function netOnData(m, c){
       buildLevel();
     }
     if(m.slotTeam) menu.slotTeam = m.slotTeam.slice(0, 8);
+    if(m.hunterRed != null) settings.hunterRed = m.hunterRed;
+    if(m.hunterBlue != null) settings.hunterBlue = m.hunterBlue;
     try{
       if(!NET.isHost && typeof CG !== 'undefined' && CG && typeof CG.updateRoom === 'function' && NET.room){
         const pCount = (m.slotsName ? m.slotsName.filter(Boolean).length : 2);
@@ -9183,6 +10224,10 @@ function netOnData(m, c){
     settings.doubleJump = !!m.settings.doubleJump;
     settings.collision = !!m.settings.collision;
     if(m.settings.teams != null) settings.teams = !!m.settings.teams;
+    if(m.settings.gameMode) settings.gameMode = m.settings.gameMode;
+    if(m.settings.hunterRed != null) settings.hunterRed = m.settings.hunterRed;
+    if(m.settings.hunterBlue != null) settings.hunterBlue = m.settings.hunterBlue;
+    if(m.settings.hunterRotate != null) settings.hunterRotate = !!m.settings.hunterRotate;
     if(m.settings.slotColor) menu.slotColor = m.settings.slotColor.slice(0, 8);
     if(m.settings.slotTeam) menu.slotTeam = m.settings.slotTeam.slice(0, 8);
     buildLevel();
@@ -9206,46 +10251,110 @@ function netOnData(m, c){
       const hunterIdx = P.findIndex(p => p.slot === m.from);
       if(hunterIdx !== -1){
         const hunterP = P[hunterIdx];
-        const isHunter = settings.teams ? (hunterP.team === match.itTeam) : (hunterIdx === match.it);
-        if(isHunter){
-          const targetIdx = P.findIndex(p => p.slot === m.target);
-          if(targetIdx !== -1){
-            const tgtP = P[targetIdx];
-            const canTag = settings.teams ? (tgtP.team !== match.itTeam) : (targetIdx !== match.it);
-            if(canTag && tgtP){
-              // Claimer-view overlap check (kills >150px phantom tags): test the positions
-              // the claimer actually saw, plus slack scaled by measured RTT. Legacy
-              // claims without coords fall back to the old radius check.
-              let okClaim = false;
-              try{
-                if(Number.isFinite(m.hx) && Number.isFinite(m.hy) && Number.isFinite(m.tx) && Number.isFinite(m.ty)){
-                  let rtt = 0;
-                  try{
-                    rtt = (typeof NET.pings.get === 'function' ? (NET.pings.get(c.peer) || 0) : 0);
-                    if(!rtt && NET.peerSlots && typeof NET.peerSlots.forEach === 'function'){
-                      NET.peerSlots.forEach((sl, pid)=>{ if(sl === m.from && !rtt) rtt = NET.pings.get(pid) || 0; });
-                    }
-                  }catch(eRtt){}
-                  const slack = 40 + 582 * Math.min(500, Math.max(0, rtt)) / 2000; // 40px + IT_SPEED*RTT/2
-                  const pad = 5 + slack;
-                  const hb = { x: m.hx - pad, y: m.hy - pad, w: 46 + 2 * pad, h: 46 + 2 * pad };
-                  const tb = { x: m.tx - pad, y: m.ty - pad, w: 46 + 2 * pad, h: 46 + 2 * pad };
-                  okClaim = hitRectInclusive(hb, tb);
-                } else {
+        if(match.hunterMode){
+          if(hunterP.isHunter){
+            const targetIdx = P.findIndex(p => p.slot === m.target);
+            if(targetIdx !== -1){
+              const tgtP = P[targetIdx];
+              if(tgtP && tgtP.team !== hunterP.team && !tgtP.isHunter && !tgtP.isEliminated){
+                let okClaim = false;
+                try{
+                  if(Number.isFinite(m.hx) && Number.isFinite(m.hy) && Number.isFinite(m.tx) && Number.isFinite(m.ty)){
+                    let rtt = 0;
+                    try{
+                      rtt = (typeof NET.pings.get === 'function' ? (NET.pings.get(c.peer) || 0) : 0);
+                      if(!rtt && NET.peerSlots && typeof NET.peerSlots.forEach === 'function'){
+                        NET.peerSlots.forEach((sl, pid)=>{ if(sl === m.from && !rtt) rtt = NET.pings.get(pid) || 0; });
+                      }
+                    }catch(eRtt){}
+                    const slack = 40 + 582 * Math.min(500, Math.max(0, rtt)) / 2000;
+                    const pad = 5 + slack;
+                    const hb = { x: m.hx - pad, y: m.hy - pad, w: 46 + 2 * pad, h: 46 + 2 * pad };
+                    const tb = { x: m.tx - pad, y: m.ty - pad, w: 46 + 2 * pad, h: 46 + 2 * pad };
+                    okClaim = hitRectInclusive(hb, tb);
+                  } else {
+                    const distSq = (hunterP.x - tgtP.x)**2 + (hunterP.y - tgtP.y)**2;
+                    okClaim = (distSq < 45000);
+                  }
+                }catch(eClaim){
                   const distSq = (hunterP.x - tgtP.x)**2 + (hunterP.y - tgtP.y)**2;
                   okClaim = (distSq < 45000);
                 }
-              }catch(eClaim){
-                const distSq = (hunterP.x - tgtP.x)**2 + (hunterP.y - tgtP.y)**2;
-                okClaim = (distSq < 45000);
+                if(okClaim){
+                  eliminateHunterRunner(hunterP, tgtP, m.x, m.y);
+                }
               }
-              if(okClaim){
-                applyTag(targetIdx, m.x, m.y);
+            }
+          }
+        } else {
+          const isHunter = settings.teams ? (hunterP.team === match.itTeam) : (hunterIdx === match.it);
+          if(isHunter){
+            const targetIdx = P.findIndex(p => p.slot === m.target);
+            if(targetIdx !== -1){
+              const tgtP = P[targetIdx];
+              const canTag = settings.teams ? (tgtP.team !== match.itTeam) : (targetIdx !== match.it);
+              if(canTag && tgtP){
+                // Claimer-view overlap check (kills >150px phantom tags): test the positions
+                // the claimer actually saw, plus slack scaled by measured RTT. Legacy
+                // claims without coords fall back to the old radius check.
+                let okClaim = false;
+                try{
+                  if(Number.isFinite(m.hx) && Number.isFinite(m.hy) && Number.isFinite(m.tx) && Number.isFinite(m.ty)){
+                    let rtt = 0;
+                    try{
+                      rtt = (typeof NET.pings.get === 'function' ? (NET.pings.get(c.peer) || 0) : 0);
+                      if(!rtt && NET.peerSlots && typeof NET.peerSlots.forEach === 'function'){
+                        NET.peerSlots.forEach((sl, pid)=>{ if(sl === m.from && !rtt) rtt = NET.pings.get(pid) || 0; });
+                      }
+                    }catch(eRtt){}
+                    const slack = 40 + 582 * Math.min(500, Math.max(0, rtt)) / 2000; // 40px + IT_SPEED*RTT/2
+                    const pad = 5 + slack;
+                    const hb = { x: m.hx - pad, y: m.hy - pad, w: 46 + 2 * pad, h: 46 + 2 * pad };
+                    const tb = { x: m.tx - pad, y: m.ty - pad, w: 46 + 2 * pad, h: 46 + 2 * pad };
+                    okClaim = hitRectInclusive(hb, tb);
+                  } else {
+                    const distSq = (hunterP.x - tgtP.x)**2 + (hunterP.y - tgtP.y)**2;
+                    okClaim = (distSq < 45000);
+                  }
+                }catch(eClaim){
+                  const distSq = (hunterP.x - tgtP.x)**2 + (hunterP.y - tgtP.y)**2;
+                  okClaim = (distSq < 45000);
+                }
+                if(okClaim){
+                  applyTag(targetIdx, m.x, m.y);
+                }
               }
             }
           }
         }
       }
+    }
+  } else if(m.t === 'set_hunter' && NET.isHost){
+    if(!NET.teamsLocked && m.slot >= 0 && m.slot < 8 && menu.slotColor[m.slot] >= 0){
+      const t = (m.team != null ? m.team : ((menu.slotTeam ? menu.slotTeam[m.slot] : m.slot) % 2));
+      if(t === 0) settings.hunterRed = m.slot;
+      else settings.hunterBlue = m.slot;
+      netBroadcastSettings();
+      netBroadcastRoster();
+    }
+  } else if(m.t === 'hunter_catch' && !NET.isHost){
+    if(match && match.hunterMode && match.players){
+      const hunter = match.players.find(p => p.slot === m.hunterSlot);
+      const runner = match.players.find(p => p.slot === m.runnerSlot);
+      if(hunter && runner){
+        eliminateHunterRunner(hunter, runner, m.x, m.y);
+      }
+    }
+  } else if(m.t === 'hunter_score' && !NET.isHost){
+    if(match){
+      match.roundSummary = m.summary;
+      if(m.summary && m.summary.cumulative){
+        match.hunterScores = { ...m.summary.cumulative };
+      }
+      match.state = 'hunter_round_result';
+      match.resultT = 0;
+      confetti();
+      sfx('win');
     }
   } else if(m.t === 'input' && NET.isHost){
     const ent = NET.hostInputs.get(m.slot);
@@ -9270,8 +10379,13 @@ function netOnData(m, c){
     if(m.settings){
       settings.map = m.settings.map; settings.doubleJump = m.settings.doubleJump; settings.collision = m.settings.collision;
       if(m.settings.teams != null) settings.teams = !!m.settings.teams;
+      if(m.settings.gameMode) settings.gameMode = m.settings.gameMode;
     }
     if(match){
+      if(m.hunterScores) match.hunterScores = { ...m.hunterScores };
+      if(m.hunterRound != null) match.hunterRound = m.hunterRound;
+      if(m.cageT != null) match.cageT = m.cageT;
+      if(m.roundSummary) match.roundSummary = m.roundSummary;
       if(m.state){
         if(match.state === 'paused' && match.pausedFrom){
           // Guest is in the pause menu (e.g. about to leave): hold the screen,
@@ -9318,7 +10432,11 @@ function netOnData(m, c){
           const slot = (pData.slot != null) ? pData.slot : i;
 
           if(slot === NET.mySlot){
-            // Local player is self-authoritative
+            // Local player is self-authoritative, but sync elimination from host!
+            let myP = match.players.find(p => p.slot === slot);
+            if(myP && pData.isEliminated !== undefined && pData.isEliminated !== myP.isEliminated){
+              myP.isEliminated = !!pData.isEliminated;
+            }
           } else {
             activeRemoteSlots.add(slot);
             let pObj = match.players.find(p => p.slot === slot);
@@ -9330,6 +10448,7 @@ function netOnData(m, c){
               match.players.push(pObj);
               if(match.tags.length < match.players.length) match.tags.push(0);
             }
+            if(pData.isEliminated !== undefined) pObj.isEliminated = !!pData.isEliminated;
             if(m.tick != null) pData.seq = m.tick;
             netUpdateRemoteTarget(slot, pData, pObj);
           }
@@ -9344,6 +10463,9 @@ function netOnData(m, c){
     settings.doubleJump = !!m.settings.doubleJump;
     settings.collision = !!m.settings.collision;
     if(m.settings.teams != null) settings.teams = !!m.settings.teams;
+    if(m.settings.gameMode) settings.gameMode = m.settings.gameMode;
+    if(m.settings.hunterRed != null) settings.hunterRed = m.settings.hunterRed;
+    if(m.settings.hunterBlue != null) settings.hunterBlue = m.settings.hunterBlue;
     if(m.settings.slotColor) menu.slotColor = m.settings.slotColor.slice(0, 8);
     if(m.settings.slotTeam) menu.slotTeam = m.settings.slotTeam.slice(0, 8);
     if(m.mapData) MAPS[settings.map % MAPS.length] = m.mapData;
@@ -9593,7 +10715,7 @@ function netAdmitSpectator(peerId, targetSlot){
     netSendRel(pair, {
       t: 'assign',
       slot: slot,
-      settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, slotColor: menu.slotColor.slice(), slotTeam: (menu.slotTeam ? menu.slotTeam.slice() : []) },
+      settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, gameMode: settings.gameMode, hunterRed: settings.hunterRed, hunterBlue: settings.hunterBlue, hunterRotate: settings.hunterRotate, slotColor: menu.slotColor.slice(), slotTeam: (menu.slotTeam ? menu.slotTeam.slice() : []) },
       mapData: MAPS[settings.map % MAPS.length],
       slotsCtrl: NET.slotsCtrl.slice(),
       slotsReady: NET.slotsReady.slice(),
@@ -9694,6 +10816,10 @@ function netMovePlayerToWaitlist(slot){
         doubleJump: settings.doubleJump,
         collision: settings.collision,
         teams: settings.teams,
+        gameMode: settings.gameMode,
+        hunterRed: settings.hunterRed,
+        hunterBlue: settings.hunterBlue,
+        hunterRotate: settings.hunterRotate,
         slotColor: menu.slotColor.slice(0, 8),
         slotTeam: menu.slotTeam.slice(0, 8),
         ready: NET.slotsReady.slice(0, 8),
@@ -9797,7 +10923,7 @@ function netAutoDemoteAndStart(){
             t: 'spectator_init',
             room: NET.room,
             hostName: NET.slotsName[0] || 'Host',
-            settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, slotColor: menu.slotColor.slice(), slotTeam: (menu.slotTeam ? menu.slotTeam.slice() : []) },
+            settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, gameMode: settings.gameMode, hunterRed: settings.hunterRed, hunterBlue: settings.hunterBlue, hunterRotate: settings.hunterRotate, slotColor: menu.slotColor.slice(), slotTeam: (menu.slotTeam ? menu.slotTeam.slice() : []) },
             mapData: MAPS[settings.map % MAPS.length],
             spectating: true
           });
@@ -9817,7 +10943,13 @@ function netAutoDemoteAndStart(){
 function netForceStart(){
   if(!NET.isHost) return;
   const activeCount = menu.slotColor.filter(c => c >= 0).length;
-  if(activeCount < 2){
+  if(settings.gameMode === 'hunter'){
+    validateHunterRoles();
+    if(activeCount < 4){
+      netToast('🎯 HUNTER MODE REQUIRES AT LEAST 4 PLAYERS!');
+      return;
+    }
+  } else if(activeCount < 2){
     netToast('Need at least 2 players to start');
     return;
   }
@@ -9828,7 +10960,7 @@ function netForceStart(){
 
 function netBroadcastSettings(){
   if(!NET.isHost) return;
-  const payload = { settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, slotColor: menu.slotColor.slice(), slotTeam: (menu.slotTeam ? menu.slotTeam.slice() : []) }, mapData: MAPS[settings.map % MAPS.length] };
+  const payload = { settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, gameMode: settings.gameMode, hunterRed: settings.hunterRed, hunterBlue: settings.hunterBlue, hunterRotate: settings.hunterRotate, slotColor: menu.slotColor.slice(), slotTeam: (menu.slotTeam ? menu.slotTeam.slice() : []) }, mapData: MAPS[settings.map % MAPS.length] };
   netBroadcastReliable({ t: 'settings', settings: payload.settings, mapData: payload.mapData });
 }
 
@@ -9856,6 +10988,8 @@ function netBroadcastRoster(){
     lobbyLocked: !!NET.lobbyLocked,
     teamsLocked: !!NET.teamsLocked,
     readyCountdown: NET.readyCountdown,
+    hunterRed: settings.hunterRed,
+    hunterBlue: settings.hunterBlue,
     pings: pingsObj
   };
   netBroadcastReliable(msg);
@@ -10131,19 +11265,33 @@ function startMatchNetGuest(p){
   buildLevel();
   const players = act.map((slot, i) => makePlayer(i, slot, menu.slotColor[slot]));
   const initState = p.state || 'countdown';
+  const isHunter = !!(p.hunterMode || settings.gameMode === 'hunter');
+  if(p.hunterRed != null) settings.hunterRed = p.hunterRed;
+  if(p.hunterBlue != null) settings.hunterBlue = p.hunterBlue;
   match = {
     state: initState,
     cd: p.cd != null ? p.cd : 3,
     cdT: p.cdT != null ? p.cdT : 0,
-    timer: p.timer != null ? p.timer : settings.time,
-    lastTick: Math.ceil(p.timer != null ? p.timer : settings.time),
+    timer: p.timer != null ? p.timer : (isHunter ? 60 : settings.time),
+    lastTick: Math.ceil(p.timer != null ? p.timer : (isHunter ? 60 : settings.time)),
     it: p.it != null ? p.it : 0,
     itTeam: p.itTeam != null ? p.itTeam : (players[p.it || 0] ? players[p.it || 0].team : null),
+    hunterMode: isHunter,
+    hunterRed: settings.hunterRed,
+    hunterBlue: settings.hunterBlue,
+    hunterScores: p.hunterScores ? { ...p.hunterScores } : { 0: 0, 1: 0 },
+    hunterRound: p.hunterRound != null ? p.hunterRound : 1,
+    hunterMaxRounds: 3,
+    hunterWipeTime: { 0: null, 1: null },
+    cageT: p.cageT != null ? p.cageT : (isHunter ? 3.0 : 0),
+    killfeed: [],
+    killfeedT: 0,
+    spectateTarget: null,
     teamItTime: p.teamItTime ? p.teamItTime.slice() : [0, 0, 0, 0],
     cooldown: p.cooldownN != null ? p.cooldownN : 0,
     goFlash: 0, freeze: 0, shake: 0, flash: 0, fade: 0.6, tagPop: null, resultT: 0,
     tags: p.tags ? p.tags.slice() : players.map(() => 0),
-    hintT: 7, players: players, result: null, pausedFrom: null, pauseSel: 0,
+    hintT: 7, players: players, result: null, roundSummary: null, pausedFrom: null, pauseSel: 0,
     mapToast: MAPS[settings.map % MAPS.length].name, mapToastT: 2.5
   };
   screen = 'game';
@@ -10185,7 +11333,11 @@ function netTick(dt){
         resultT: match.resultT != null ? Math.round(match.resultT * 100) / 100 : 0,
         tags: match.tags.slice(),
         tick: NET.tick++,
-        settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams }
+        settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, gameMode: settings.gameMode },
+        hunterScores: match.hunterMode ? match.hunterScores : null,
+        hunterRound: match.hunterMode ? match.hunterRound : null,
+        cageT: match.hunterMode ? Math.round(match.cageT * 100) / 100 : null,
+        roundSummary: match.roundSummary || null
       });
     }
   } else {
