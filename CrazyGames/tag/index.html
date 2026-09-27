@@ -2592,110 +2592,6 @@ function botFindSpeedPadMeta(p, target, dx, dy){
 
   return best;
 }
-
-/* ================= BREADCRUMB SHADOW SYSTEM =================
-   Allows hunting bots to retrace the human player's exact path,
-   shortcut corner loops, and replicate successful platforming actions
-   (jumps, double-jumps, wall-kicks, and pink platform drops).
-   Activates especially when the player is standing on one platform
-   or in one place and the bot cannot catch them directly. */
-function botFindBreadcrumbWaypoint(bot, target, cx, cy, forceReplay){
-  if(!target || !target.navTrail || target.navTrail.length < 2) return null;
-  const trail = target.navTrail;
-  const botFeet = bot.y + bot.h;
-
-  // 1. Find closest breadcrumb to bot, prioritizing accessible crumbs on the same tier
-  let closestIdx = 0;
-  let minScore = 1e9;
-  for(let i = 0; i < trail.length; i++){
-    const cr = trail[i];
-    const dx = Math.abs(cr.x - cx);
-    const dy = Math.abs(cr.y - botFeet);
-    let score = dx * dx + dy * dy;
-
-    // Heavily penalize crumbs through solid barriers / ceilings (e.g. above bot through brown slab)
-    if(botSolidBetween(cx, cy, cr.x, cr.y - 12, bot.gp)){
-      score += 450000;
-    }
-    // If bot is on the ground and crumb is on the ground near elevation, prefer it
-    if(bot.grounded && cr.grounded && dy < 45){
-      score -= 25000;
-    }
-
-    if(score < minScore){
-      minScore = score;
-      closestIdx = i;
-    }
-  }
-
-  // 2. Shortcut ahead along the trail towards the player:
-  let bestCrumb = trail[closestIdx];
-  let bestIdx = closestIdx;
-  const maxAhead = Math.min(trail.length - 1, closestIdx + (forceReplay ? 12 : 18));
-  for(let i = maxAhead; i >= closestIdx; i--){
-    const cr = trail[i];
-    if(!botSolidBetween(cx, cy, cr.x, cr.y - 12, bot.gp)){
-      bestCrumb = cr;
-      bestIdx = i;
-      break;
-    }
-  }
-
-  if(!bestCrumb && closestIdx < trail.length - 1){
-    bestCrumb = trail[closestIdx + 1];
-    bestIdx = closestIdx + 1;
-  }
-
-  if(!bestCrumb) return null;
-
-  // 3. Scan crumbs between closestIdx and bestIdx + 2 for any jump/drop platforming triggers
-  let triggerJump = false;
-  let triggerDrop = false;
-  let triggerWallJump = false;
-  let triggerDoubleJump = false;
-
-  const triggerLimit = Math.min(trail.length - 1, bestIdx + 2);
-  for(let i = closestIdx; i <= triggerLimit; i++){
-    const cr = trail[i];
-    const dxCrumb = Math.abs(cr.x - cx);
-
-    if(cr.action === 'jump'){
-      if(dxCrumb < 70 && (bot.grounded || bot.coyote > 0)){
-        triggerJump = true;
-      }
-    }else if(cr.action === 'wallJump'){
-      if(bot.sideT > 0 && bot.wallJumps < 2){
-        triggerWallJump = true;
-      }
-    }else if(cr.action === 'doubleJump'){
-      if(!bot.grounded && bot.airJumps > 0 && bot.vy > -130){
-        triggerDoubleJump = true;
-      }
-    }else if(cr.action === 'drop'){
-      if(botFullyOnDrop(bot) && dxCrumb < 80){
-        triggerDrop = true;
-      }
-    }
-  }
-
-  const crumbDy = bestCrumb.y - botFeet;
-  if(crumbDy < -45 && (bot.grounded || bot.coyote > 0)){
-    triggerJump = true;
-  }
-
-  return {
-    crumb: bestCrumb,
-    idx: bestIdx,
-    closestIdx: closestIdx,
-    dx: bestCrumb.x - cx,
-    dy: crumbDy,
-    triggerJump: triggerJump,
-    triggerDrop: triggerDrop,
-    triggerWallJump: triggerWallJump,
-    triggerDoubleJump: triggerDoubleJump
-  };
-}
-
 function botInputFor(p,dt){
   let S=BOT.st[p.slot];
   if(!S){S=BOT.st[p.slot]={dir:0,jumpQ:false,jumpHoldT:0,decideT:0,px:p.x,py:p.y,stuckT:0,unstuckT:0,unstuckDir:0,bonks:0,bonkT:0,airT:0,dropHold:0,descLockT:0,descDir:0,airT2:0,exitX:0,hasExit:false,exitLockT:0,exitDir:0,exitGp:null,climbPlat:null,climbOut:0,climbT:0,bannedSide:0,banT:0,banTierY:0,dropNoJumpT:0,pinkJukePhase:0,pinkJukeT:0,pinkJukeCooldown:0,pinkJukePlat:null,pinkJukeDir:0,airBrakeT:0,airBrakeCooldown:0};}
@@ -2736,7 +2632,7 @@ function botInputFor(p,dt){
   const isStuckBlocked=far||wallAheadNow||nearPerimeter;
   if(isStuckBlocked&&moved<14){S.stuckT+=stepDt;}else{S.stuckT=0;S.px=p.x;S.py=p.y;}
   if(moved>=14){S.px=p.x;S.py=p.y;}
-  if(S.stuckT>0.45&&S.unstuckT<=0&&!S.isReplayingPath){
+  if(S.stuckT>0.45&&S.unstuckT<=0){
     S.unstuckT=0.7;S.unstuckDir=(S.dir!==0?-S.dir:(Math.random()<0.5?-1:1));
     S.stuckT=0;S.bonks=0;
     S.exitLockT=0;S.exitDir=0;S.exitGp=null;S.hasExit=false;
@@ -2914,51 +2810,12 @@ function botInputFor(p,dt){
     // Mode B: Ceiling / Obstacle Detour Router if a solid brown platform or wall is in the line of sight
     const solidInPath = isIt ? botSolidBetween(cx, cy, tx, ty, p.gp) : null;
     const isDirectPath = isIt && !solidInPath;
-    const distTarget = Math.hypot(dx, dy);
 
-    // Target camping / platform standing & bot struggling detection:
-    const isTargetCamping = target.grounded && ((target._campT || 0) > 0.6 || (target._standStillT || 0) > 0.6);
-    const isBotSeparated = (p.gp !== target.gp) || !!solidInPath || Math.abs(dy) > 40;
-    if(isIt && isBotSeparated){
-      S.cantCatchT = (S.cantCatchT || 0) + stepDt;
-    } else {
-      S.cantCatchT = 0;
-    }
-    const isBotStruggling = (S.cantCatchT > 0.6 || S.stuckT > 0.15);
-
-    // BREADCRUMB SHADOW SYSTEM:
-    // Activates when bot is hunting in HARD mode (or solo mode) with target trail.
-    // Especially when the player is standing on one platform or in one place and the bot can't catch them!
-    const forceReplay = isTargetCamping && isBotStruggling;
-    const useBreadcrumbs = isIt && !isEasy && target.navTrail && target.navTrail.length >= 2;
-    let trailNav = null;
-    if(useBreadcrumbs){
-      // Only bypass trail if bot is in close-quarters strike range (< 160px) with direct line-of-sight AND not struggling:
-      const inStrikeRange = isDirectPath && distTarget < 160 && !forceReplay;
-      if(!inStrikeRange){
-        trailNav = botFindBreadcrumbWaypoint(p, target, cx, cy, forceReplay);
-      }
-    }
-
-    if(trailNav){
-      S.isReplayingPath = true;
-      // TIER 0: BREADCRUMB SHADOW / REPLAY NAVIGATION
-      // Retrace human platforming path, cut corners across loops, and solve complex tiers
-      S.exitLockT = 0; S.exitDir = 0; S.exitGp = null; S.hasExit = false;
-      const tdx = trailNav.dx;
-      if(Math.abs(tdx) > 14){
-        want = Math.sign(tdx);
-      } else {
-        want = (trailNav.crumb.vx !== 0 ? Math.sign(trailNav.crumb.vx) : (Math.sign(dx) || S.dir || 1));
-      }
-      detour = want;
-    }else if(isDirectPath){
-      S.isReplayingPath = false;
+    if(isDirectPath){
       // TIER 1: DIRECT GREEDY BEELINE (clear air or through pink platforms)
       S.exitLockT=0;S.exitDir=0;S.exitGp=null;S.hasExit=false;
       want=chaseWant;
     }else if(isIt&&aboveBy>50){
-      S.isReplayingPath = false;
       // TIER 2: CEILING / OBSTACLE DETOUR ROUTER (solid platform in way)
       const gp=p.grounded?p.gp:null;
       // 1. Hold existing lock while on this platform to reach exitX without boundary oscillation
@@ -3076,18 +2933,7 @@ function botInputFor(p,dt){
           }
         }
 
-        if(trailNav){
-          if(trailNav.triggerJump){
-            S.jumpQ = true; S.jumpHoldT = 0.16;
-          } else if(trailNav.dy < -45 && !headBlocked && (p.grounded || p.coyote > 0)){
-            S.jumpQ = true; S.jumpHoldT = 0.16;
-          } else if(isJumpableWall){
-            S.descLockT = 0; S.descDir = 0; S.jumpQ = true;
-          } else if(!botGroundAhead(p, want, fastGround ? 125 : 80) && far){
-            S.jumpQ = true;
-          }
-        }
-        else if(policyJump){
+        if(policyJump){
           S.jumpQ=true; S.jumpHoldT=0.16;
         }
         else if(isTargetDescending && isTouchdownFrame && inTagRange && !headBlocked && !ceilAbove){
@@ -3202,11 +3048,6 @@ function botInputFor(p,dt){
       if(isDropEscape){S.dropNoJumpT=0.85;}
       const belowGap=ty-(p.y+p.h);
       const sameTier=Math.abs(belowGap)<60&&Math.abs(dx)<200;
-      if(trailNav && botFullyOnDrop(p)){
-        if(trailNav.triggerDrop || trailNav.dy > 45){
-          down = true;
-        }
-      }
       if(isIt&&belowGap>60&&!sameTier){
         const onPink=botFullyOnDrop(p);
         if(isDirectPath&&belowGap>50&&onPink){
@@ -3272,18 +3113,12 @@ function botInputFor(p,dt){
         if(p.vy<0&&!onOuterWall&&S.climbOut)S.dir=S.climbOut;
         if(S.climbT<=0||(p.y+p.h)<(S.climbPlat?S.climbPlat.y:1e9))S.climbPlat=null;
       }
-      if(trailNav && trailNav.triggerWallJump && p.sideT > 0 && p.wallJumps < 2){
-        S.jumpQ = true; S.jumpHoldT = 0.15;
-      }
-      else if(p.sideT>0&&p.wallJumps<2){
+      if(p.sideT>0&&p.wallJumps<2){
         // Outer walls OK, interior only when climbing.
         if(onOuterWall||isClimbing||!isIt){
           if(belowGapAir<=60||!isIt){S.jumpQ=true;S.jumpHoldT=0.14;}
           else S.jumpQ=false;
         }else S.jumpQ=false;
-      }
-      else if(trailNav && trailNav.triggerDoubleJump && p.airJumps > 0 && p.vy > -130){
-        S.jumpQ = true; S.jumpHoldT = 0.14;
       }
       else if(p.airJumps>0){
         if(S._policyDjDelay > 0){
@@ -3558,7 +3393,6 @@ function physUpdate(p,dt,allow){
     p.jbuf = 0;
     const dropPlat=planted?p.gp:hoverPlat;
     if(dropPlat){
-      p.lastNavAction = 'drop';
       p.dropT=0.35;
       p.grounded=false;
       p.gp=null;
@@ -3578,7 +3412,6 @@ function physUpdate(p,dt,allow){
      full hold rises just past the old fixed jump height. */
   if(p.jbuf>0 && !downHeld){
     if(p.grounded||p.coyote>0){
-      p.lastNavAction = 'jump';
       const boost=(p.grounded&&zoneAtFeet(p,'boost'))?BOOST_MULT:1;
       p.vy=-JUMP_V*boost;
       p.vx=clamp(p.vx,-baseMax*1.1,baseMax*1.1);
@@ -3587,7 +3420,6 @@ function physUpdate(p,dt,allow){
       p.sy=1.10;p.sx=0.93;dust(p.x+p.w/2,p.y+p.h,5,70);
     }else if(onWall&&p.wallJumps<2){
       /* KICK OFF WALL! (Wall-Jump: Max 2 consecutive) */
-      p.lastNavAction = 'wallJump';
       p.wallJumps++;
       p.vy=-JUMP_V*0.96;
       p.vx=-p.wallSide*480;
@@ -3598,7 +3430,6 @@ function physUpdate(p,dt,allow){
       sfx('walljump');
       dust(p.x+(p.wallSide<0?0:p.w),p.y+p.h/2,4,80);
     }else if(p.airJumps>0){
-      p.lastNavAction = 'doubleJump';
       p.vy=-JUMP_V*0.95;p.airJumps--;p.jbuf=0;p.holdT=HOLD_LIFT_T;p.vx=clamp(p.vx,-baseMax*1.1,baseMax*1.1);sfx('djump');
       ringP(p.x+p.w/2,p.y+p.h/2,'#ffffff');p.sy=1.08;p.sx=0.94;
     }
@@ -3783,60 +3614,6 @@ function physUpdate(p,dt,allow){
   for(let tr of p.trail)tr.alpha-=dt*1.8;
   
   if(p.grounded&&Math.abs(p.vx)>240&&Math.random()<dt*14)dust(p.x+p.w/2-p.face*16,p.y+p.h-2,1,30);
-
-  /* Track standing in one place or camping on one platform */
-  if(p.gp && p.grounded){
-    if(p.gp === p._lastCampGp){
-      p._campT = (p._campT || 0) + dt;
-    } else {
-      p._lastCampGp = p.gp;
-      p._campT = 0;
-    }
-  } else if(!p.grounded){
-    p._campT = 0;
-  }
-  if(Math.hypot(p.vx, p.vy) < 40 && p.grounded){
-    p._standStillT = (p._standStillT || 0) + dt;
-  } else {
-    p._standStillT = 0;
-  }
-
-  /* Record player breadcrumb trail for hunting bot navigation */
-  if(match && (match.state === 'playing' || match.state === 'countdown')){
-    if(!p.navTrail) p.navTrail = [];
-    const footX = p.x + p.w / 2;
-    const footY = p.y + p.h;
-    const lastCrumb = p.navTrail.length > 0 ? p.navTrail[p.navTrail.length - 1] : null;
-    const distSq = lastCrumb ? ((footX - lastCrumb.x) ** 2 + (footY - lastCrumb.y) ** 2) : 9999;
-    const act = p.lastNavAction || null;
-    p.lastNavAction = null;
-
-    const hasLanded = (!wasG && p.grounded);
-    const timeDelta = lastCrumb ? (tGlobal - lastCrumb.t) : 999;
-    if(act || hasLanded || distSq > 360 || (timeDelta > 0.10 && distSq > 25)){
-      p.navTrail.push({
-        x: footX,
-        y: footY,
-        vx: p.vx || 0,
-        vy: p.vy || 0,
-        grounded: !!p.grounded,
-        gp: p.gp || null,
-        wallSide: p.wallSide || 0,
-        action: act || (hasLanded ? 'land' : 'move'),
-        t: tGlobal
-      });
-      if(p.navTrail.length > 140) p.navTrail.shift();
-    }
-    // Prune stale crumbs, BUT if player is standing on one platform or in one place,
-    // preserve the trail leading up to this platform for up to 35 seconds!
-    const isPlayerCamping = ((p._campT || 0) > 0.6 || (p._standStillT || 0) > 0.6);
-    const maxTrailAge = isPlayerCamping ? 35.0 : 5.0;
-    const maxTrailLen = isPlayerCamping ? 140 : 85;
-    if(p.navTrail.length > maxTrailLen) p.navTrail.shift();
-    while(p.navTrail.length > 0 && (tGlobal - p.navTrail[0].t) > maxTrailAge){
-      p.navTrail.shift();
-    }
-  }
 }
 
 function pairCollide(){
@@ -3872,10 +3649,6 @@ function applyTag(newItIdx, popX, popY){
   }
   match.cooldown = 3;
   match.tags[newItIdx]++;
-  // Clear navigation breadcrumb trails on tag change so new pursuit starts fresh
-  for(const pl of P){
-    if(pl && pl.navTrail) pl.navTrail.length = 0;
-  }
   match.freeze = 0.09; match.shake = 13; match.flash = 0.14;
   match.tagPop = { t: 0.55, x: popX != null ? popX : (oldIt.x + newIt.x) / 2 + 23, y: popY != null ? popY : (oldIt.y + newIt.y) / 2 + 10 };
   oldIt.tagT = 0.7; newIt.tagT = 0.7;
@@ -4401,30 +4174,6 @@ function drawJuicyIconBtn(x, y, sz, o){
   }
 }
 
-/* Crisp vector refresh glyph — resolution-independent circular arrow, no emoji-font lottery */
-function drawRefreshGlyph(cx, cy, r, col){
-  g.save();
-  g.strokeStyle = col; g.fillStyle = col;
-  g.lineCap = 'round'; g.lineJoin = 'round';
-  g.lineWidth = Math.max(1.6, r * 0.36);
-  const a1 = -Math.PI / 2;              // arc ends at top...
-  const a0 = a1 - Math.PI * 1.62;       // ...sweeping ~292deg clockwise (gap upper-right)
-  g.beginPath();
-  g.arc(cx, cy, r, a0, a1);
-  g.stroke();
-  // arrowhead at arc end, pointing clockwise along tangent
-  const ex = cx + Math.cos(a1) * r, ey = cy + Math.sin(a1) * r;
-  const tx = -Math.sin(a1), ty = Math.cos(a1);
-  const px = -ty, py = tx, s = r * 1.05, k = s * 0.62;
-  g.beginPath();
-  g.moveTo(ex + tx * s, ey + ty * s);
-  g.lineTo(ex + px * k, ey + py * k);
-  g.lineTo(ex - px * k, ey - py * k);
-  g.closePath();
-  g.fill();
-  g.restore();
-}
-
 function drawJuicyChip(x, y, w, h, o){
   o = o || {};
   const r = o.r || 6;
@@ -4471,20 +4220,12 @@ function drawJuicyChip(x, y, w, h, o){
     g.font = FN(fs, 900);
     g.textAlign = 'center';
     g.textBaseline = 'middle';
-    let txC = x + w/2;
-    if(o.icon === 'refresh'){
-      // vector glyph + optically centered icon+text group (no emoji)
-      const tw = g.measureText(o.label).width;
-      const gs = fs * 1.05, gap = 5;
-      drawRefreshGlyph(txC - (tw + gap + gs) / 2 + gs / 2, y + pushY + h/2 + 1, gs / 2, col);
-      txC += (gs + gap) / 2;
-    }
     if(active && col === '#ffffff'){
       g.fillStyle = 'rgba(0, 0, 0, 0.35)';
-      g.fillText(o.label, txC, y + pushY + h/2 + 2);
+      g.fillText(o.label, x + w/2, y + pushY + h/2 + 2);
     }
     g.fillStyle = col;
-    g.fillText(o.label, txC, y + pushY + h/2 + 1);
+    g.fillText(o.label, x + w/2, y + pushY + h/2 + 1);
   }
   
   if(o.badge){
@@ -5362,8 +5103,7 @@ function drawOnlineHub(stageY, stageH){
   const refBtnW = 84, refBtnH = 25;
   const refBtnX = rightX + rightW - refBtnW - 10, refBtnY = rightY + 8;
   drawJuicyChip(refBtnX, refBtnY, refBtnW, refBtnH, {
-    label: 'Refresh',
-    icon: 'refresh',
+    label: '🔄 Refresh',
     active: true,
     activeBg: 'rgba(56, 189, 248, 0.22)',
     activeDarkBg: 'rgba(2, 132, 199, 0.45)',
