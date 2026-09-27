@@ -759,6 +759,7 @@ let AC=null,master=null,muted=false,sdkMuted=false;
 let _cg=null;
 let _cgBoot=null;
 let lastAdTime = Date.now();
+const ADS_ENABLED = false; // TEMP: ads off for current build — set true before CrazyGames submission
 const CG={
   ready:false,env:'',
   _user:null, // cached async CrazyGames profile {name, avatar}
@@ -962,8 +963,10 @@ const CG={
     return null;
   },
   /* -------- Ad (midgame + reserved rewarded) -------- */
+  /* TEMP KILL-SWITCH: flip ADS_ENABLED back to true before CrazyGames submission. */
   /* Midgame: UI break between matches. Throttled to 3 minutes. */
   requestMidgame(cb){
+    if(!ADS_ENABLED){if(cb)cb(false);return;}
     const sdk=window.CrazyGames&&window.CrazyGames.SDK;
     if(!sdk||!sdk.ad||!sdk.ad.requestAd){if(cb)cb(false);return;}
     try{
@@ -992,6 +995,7 @@ const CG={
   },
   /* Rewarded: wired but no UI invites it — reserved in case QA wants a rewarded entry. */
   requestRewarded(cb){
+    if(!ADS_ENABLED){if(cb)cb(false);return;}
     const sdk=window.CrazyGames&&window.CrazyGames.SDK;
     if(!sdk||!sdk.ad||!sdk.ad.requestAd){if(cb)cb(false);return;}
     try{
@@ -1021,6 +1025,7 @@ const CG={
   /* -------- Banner — rectangular divs outside the canvas -------- */
   /* Single banner at a given container id + size (e.g. "728x90", "300x250", "970x90") */
   requestBanner(containerId,size){
+    if(!ADS_ENABLED)return false;
     const sdk=window.CrazyGames&&window.CrazyGames.SDK;
     if(!sdk||!sdk.banner)return false;
     try{
@@ -1040,6 +1045,7 @@ const CG={
   },
   /* Responsive banner — scales to container width; best for the thin top bar on menu. */
   requestResponsiveBanner(containerId){
+    if(!ADS_ENABLED)return false;
     const sdk=window.CrazyGames&&window.CrazyGames.SDK;
     if(!sdk||!sdk.banner)return false;
     try{
@@ -3760,7 +3766,7 @@ function checkTag(){
 }
 function endMatch(){
   try{CG.happytime();}catch(e){}try{CG.gameplayStop();}catch(e){}
-  try{CG.requestResponsiveBanner('cg-banner-responsive');const el=document.getElementById('cg-banner-resp');if(el)el.style.display='flex';}catch(e){}
+  try{if(CG.requestResponsiveBanner('cg-banner-responsive')){const el=document.getElementById('cg-banner-resp');if(el)el.style.display='flex';}}catch(e){}
   try{
     const now = Date.now();
     if(now - lastAdTime >= 180000){ // 3 minutes throttle
