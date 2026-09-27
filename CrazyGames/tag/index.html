@@ -4174,6 +4174,30 @@ function drawJuicyIconBtn(x, y, sz, o){
   }
 }
 
+/* Crisp vector refresh glyph — resolution-independent circular arrow, no emoji-font lottery */
+function drawRefreshGlyph(cx, cy, r, col){
+  g.save();
+  g.strokeStyle = col; g.fillStyle = col;
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  g.lineWidth = Math.max(1.6, r * 0.36);
+  const a1 = -Math.PI / 2;              // arc ends at top...
+  const a0 = a1 - Math.PI * 1.62;       // ...sweeping ~292deg clockwise (gap upper-right)
+  g.beginPath();
+  g.arc(cx, cy, r, a0, a1);
+  g.stroke();
+  // arrowhead at arc end, pointing clockwise along tangent
+  const ex = cx + Math.cos(a1) * r, ey = cy + Math.sin(a1) * r;
+  const tx = -Math.sin(a1), ty = Math.cos(a1);
+  const px = -ty, py = tx, s = r * 1.05, k = s * 0.62;
+  g.beginPath();
+  g.moveTo(ex + tx * s, ey + ty * s);
+  g.lineTo(ex + px * k, ey + py * k);
+  g.lineTo(ex - px * k, ey - py * k);
+  g.closePath();
+  g.fill();
+  g.restore();
+}
+
 function drawJuicyChip(x, y, w, h, o){
   o = o || {};
   const r = o.r || 6;
@@ -4220,12 +4244,20 @@ function drawJuicyChip(x, y, w, h, o){
     g.font = FN(fs, 900);
     g.textAlign = 'center';
     g.textBaseline = 'middle';
+    let txC = x + w/2;
+    if(o.icon === 'refresh'){
+      // vector glyph + optically centered icon+text group (no emoji)
+      const tw = g.measureText(o.label).width;
+      const gs = fs * 1.05, gap = 5;
+      drawRefreshGlyph(txC - (tw + gap + gs) / 2 + gs / 2, y + pushY + h/2 + 1, gs / 2, col);
+      txC += (gs + gap) / 2;
+    }
     if(active && col === '#ffffff'){
       g.fillStyle = 'rgba(0, 0, 0, 0.35)';
-      g.fillText(o.label, x + w/2, y + pushY + h/2 + 2);
+      g.fillText(o.label, txC, y + pushY + h/2 + 2);
     }
     g.fillStyle = col;
-    g.fillText(o.label, x + w/2, y + pushY + h/2 + 1);
+    g.fillText(o.label, txC, y + pushY + h/2 + 1);
   }
   
   if(o.badge){
@@ -5103,7 +5135,8 @@ function drawOnlineHub(stageY, stageH){
   const refBtnW = 84, refBtnH = 25;
   const refBtnX = rightX + rightW - refBtnW - 10, refBtnY = rightY + 8;
   drawJuicyChip(refBtnX, refBtnY, refBtnW, refBtnH, {
-    label: '🔄 Refresh',
+    label: 'Refresh',
+    icon: 'refresh',
     active: true,
     activeBg: 'rgba(56, 189, 248, 0.22)',
     activeDarkBg: 'rgba(2, 132, 199, 0.45)',
