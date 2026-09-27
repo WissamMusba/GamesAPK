@@ -2117,9 +2117,54 @@ function validateHunterRoles(){
   updateElectedHuntersFromVotes();
 }
 
+function setTeamHunterChoice(teamIdx, cand){
+  const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
+  if(!isOnline){
+    const teamSlots = activeSlots().filter(s => ((menu.slotTeam ? menu.slotTeam[s] : s) % 2) === teamIdx);
+    if(cand === 'random'){
+      const pick = teamSlots[Math.floor(Math.random() * teamSlots.length)];
+      if(teamIdx === 0) settings.hunterRed = pick; else settings.hunterBlue = pick;
+      if(!menu.hunterVotes) menu.hunterVotes = {};
+      menu.hunterVotes[teamIdx === 0 ? 'red' : 'blue'] = 'random';
+      toast('🎲 ' + (teamIdx === 0 ? 'RED' : 'BLUE') + ' HUNTER: RANDOM (' + ('P' + (pick + 1)) + ')');
+    } else {
+      if(teamIdx === 0) settings.hunterRed = cand; else settings.hunterBlue = cand;
+      if(!menu.hunterVotes) menu.hunterVotes = {};
+      menu.hunterVotes[teamIdx === 0 ? 'red' : 'blue'] = cand;
+      toast('👑 ' + ('P' + (cand + 1)) + ' IS ' + (teamIdx === 0 ? 'RED' : 'BLUE') + ' HUNTER!');
+    }
+    if(match){
+      match.hunterRed = settings.hunterRed;
+      match.hunterBlue = settings.hunterBlue;
+    }
+    sfx('ok');
+    return;
+  }
+
+  // Online Multiplayer
+  const mySlot = NET.mySlot;
+  const myTeam = (menu.slotTeam && mySlot >= 0 && menu.slotTeam[mySlot] != null) ? (menu.slotTeam[mySlot] % 2) : ((mySlot >= 0 ? mySlot : 0) % 2);
+
+  if(NET.isHost || myTeam === teamIdx){
+    if(NET.isHost && (cand !== 'random')){
+      if(teamIdx === 0) settings.hunterRed = cand; else settings.hunterBlue = cand;
+      if(match){
+        match.hunterRed = settings.hunterRed;
+        match.hunterBlue = settings.hunterBlue;
+      }
+      netBroadcastSettings();
+    }
+    const voter = (mySlot >= 0) ? mySlot : (cand !== 'random' ? cand : 0);
+    castHunterVote(voter, cand);
+  } else {
+    toast('⚠️ You can only choose the hunter for your own team!');
+    sfx('back');
+  }
+}
+
 function selectHunterRole(slot){
-  const myVoter = (typeof NET !== 'undefined' && NET && NET.role !== null && NET.mySlot >= 0) ? NET.mySlot : slot;
-  castHunterVote(myVoter, slot);
+  const sTeam = (menu.slotTeam ? menu.slotTeam[slot] : slot) % 2;
+  setTeamHunterChoice(sTeam, slot);
 }
 
 function setGameMode(newMode){
@@ -2557,7 +2602,7 @@ function startMatch(){
     hunterScores:(match && match.hunterScores)?match.hunterScores:{0:0,1:0},
     hunterRound:(match && match.hunterRound)?match.hunterRound:1,
     hunterMaxRounds:3,hunterWipeTime:{0:null,1:null},hunterHistory:hHistory,
-    cageT:isHunter?3.0:0,killfeed:[],killfeedT:0,spectateTarget:null,
+    cageT:0,killfeed:[],killfeedT:0,spectateTarget:null,
     teamItTime:[0,0,0,0],cooldown:0,
     goFlash:0,freeze:0,shake:0,flash:0,fade:0.6,tagPop:null,resultT:0,
     tags:players.map(()=>0),hintT:7,players:players,result:null,roundSummary:null,pausedFrom:null,pauseSel:0,
@@ -3644,9 +3689,6 @@ function inputFor(p,dt){
 
 function physUpdate(p,dt,allow){
   if(p.isEliminated){ p.vx = 0; p.vy = 0; return; }
-  if(match && match.hunterMode && match.cageT > 0 && p.isHunter){
-    p.vx = 0; p.vy = 0; allow = false;
-  }
   const wasG=p.grounded;
   if(wasG)p.coyote=0.11;else p.coyote-=dt;
   let dir=0,jumpP=false,jumpHeld=false,downHeld=false;
@@ -3924,7 +3966,6 @@ function pairCollide(){
   for(let i=0;i<P.length;i++)for(let j=i+1;j<P.length;j++){
     const a=P[i],b=P[j];
     if(a.isEliminated || b.isEliminated) continue;
-    if(match.hunterMode && match.cageT > 0 && (a.isHunter || b.isHunter)) continue;
     if(!hitRect(a,b))continue;
     const ox=Math.min(a.x+a.w-b.x,b.x+b.w-a.x),oy=Math.min(a.y+a.h-b.y,b.y+b.h-a.y);
     if(ox<oy){
@@ -4135,7 +4176,7 @@ function advanceHunterRound(){
 
   match.hunterRed = settings.hunterRed;
   match.hunterBlue = settings.hunterBlue;
-  match.cageT = 3.0;
+  match.cageT = 0;
   match.timer = 60;
   match.lastTick = 60;
   match.killfeed = [];
@@ -4205,64 +4246,6 @@ function shouldRenderHunterPlayer(viewerSlot, targetPlayer){
   }
 }
 
-function drawHunterCage(p){
-  const cx = p.x + p.w / 2;
-  const cy = p.y + p.h / 2;
-  const rad = p.w * 0.95;
-  const cageCol = (p.team === 0 ? '#ff4757' : '#38bdf8');
-  const glowAlpha = 0.18 + 0.10 * Math.sin(tGlobal * 14);
-
-  g.save();
-  // Forcefield glow dome with dynamic voltage pulsation
-  g.beginPath();
-  g.arc(cx, cy, rad, 0, TAU);
-  g.fillStyle = p.team === 0 ? ('rgba(255, 71, 87, ' + glowAlpha.toFixed(2) + ')') : ('rgba(56, 189, 248, ' + glowAlpha.toFixed(2) + ')');
-  g.fill();
-  g.lineWidth = 2.5;
-  g.strokeStyle = cageCol;
-  g.stroke();
-
-  // Animated revolving electric spark nodes & laser barrier cage
-  g.beginPath();
-  g.lineWidth = 1.2;
-  g.strokeStyle = p.team === 0 ? 'rgba(255, 140, 155, 0.7)' : 'rgba(147, 222, 255, 0.7)';
-  for(let a = 0; a < 6; a++){
-    const ang = tGlobal * 3.5 + a * (TAU / 6);
-    const ax = cx + Math.cos(ang) * rad;
-    const ay = cy + Math.sin(ang) * rad;
-    if(a === 0) g.moveTo(ax, ay); else g.lineTo(ax, ay);
-  }
-  g.closePath();
-  g.stroke();
-
-  // Draw node sparks
-  for(let a = 0; a < 6; a++){
-    const ang = tGlobal * 3.5 + a * (TAU / 6);
-    const ax = cx + Math.cos(ang) * rad;
-    const ay = cy + Math.sin(ang) * rad;
-    g.beginPath();
-    g.arc(ax, ay, 3, 0, TAU);
-    g.fillStyle = '#ffffff';
-    g.fill();
-  }
-
-  // Internal electric spark arc
-  const arcJitter = (Math.sin(tGlobal * 28) * 8);
-  g.beginPath();
-  g.strokeStyle = '#ffffff';
-  g.lineWidth = 1.2;
-  g.moveTo(cx - 14, cy - 14);
-  g.lineTo(cx + arcJitter, cy);
-  g.lineTo(cx + 14, cy + 14);
-  g.stroke();
-
-  // 3-2-1 Countdown number above cage
-  const cdSec = Math.max(1, Math.ceil(match.cageT));
-  ptxt(cdSec + '', cx, p.y - 28, FT(22), '#ffd166');
-  txt('⚡ CAGED', cx, p.y - 12, FN(9.5, 900), cageCol);
-  g.restore();
-}
-
 function drawHunterHUD(){
   const P = match.players;
   const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
@@ -4272,23 +4255,17 @@ function drawHunterHUD(){
   // 1. Center Timer Pill
   const tw = Math.min(150, CW * 0.26), th = 42;
   const cx = CW / 2, cy = 8;
-  const isCaged = match.cageT > 0;
-  const urgent = !isCaged && match.timer <= 10 && match.state === 'playing';
+  const urgent = match.timer <= 10 && match.state === 'playing';
 
   rr(g, cx - tw/2, cy, tw, th, 10);
-  g.fillStyle = isCaged ? 'rgba(139, 92, 246, 0.92)' : (urgent ? 'rgba(190, 24, 24, 0.92)' : 'rgba(20, 28, 42, 0.94)');
+  g.fillStyle = urgent ? 'rgba(190, 24, 24, 0.92)' : 'rgba(20, 28, 42, 0.94)';
   g.fill();
   g.lineWidth = 2.5;
-  g.strokeStyle = isCaged ? '#c084fc' : (urgent ? '#ef4444' : INK);
+  g.strokeStyle = urgent ? '#ef4444' : INK;
   g.stroke();
 
-  if(isCaged){
-    ptxt('⚡ ' + Math.ceil(match.cageT) + 's', cx, cy + th * 0.40, FT(16), '#ffd166');
-    txt('CAGED', cx, cy + th * 0.78, FN(9, 900), '#ffffff');
-  } else {
-    ptxt(fmtTime(match.timer), cx, cy + th * 0.40, FT(Math.min(22, th * 0.52)), urgent ? '#fff0f0' : '#ffffff');
-    txt('ROUND ' + (match.hunterRound || 1) + '/' + (match.hunterMaxRounds || 3), cx, cy + th * 0.78, FN(9, 900), '#cbd5e1');
-  }
+  ptxt(fmtTime(match.timer), cx, cy + th * 0.40, FT(Math.min(22, th * 0.52)), urgent ? '#fff0f0' : '#ffffff');
+  txt('ROUND ' + (match.hunterRound || 1) + '/' + (match.hunterMaxRounds || 3), cx, cy + th * 0.78, FN(9, 900), '#cbd5e1');
 
   // 2. Control bar on the far right (Pause, Mute, Fullscreen, Voice, Chat)
   const btnSize = 34;
@@ -4630,7 +4607,7 @@ function drawHunterRoundResult(){
     ptxt('👑 Elected: ' + curRedName, redX + colW/2, voteY + 31, FN(9.5, 800), '#ffd166');
 
     const redSlots = activeSlots().filter(s => ((menu.slotTeam ? menu.slotTeam[s] : s) % 2) === 0);
-    const canVoteRed = !isOnline || (NET.mySlot >= 0 && myTeam === 0);
+    const canVoteRed = !isOnline || (NET && NET.isHost) || (NET.mySlot >= 0 && myTeam === 0);
     const redItems = redSlots.concat(['random']);
 
     // 2. Blue Election Box
@@ -4644,7 +4621,7 @@ function drawHunterRoundResult(){
     ptxt('👑 Elected: ' + curBlueName, blueX + colW/2, voteY + 31, FN(9.5, 800), '#ffd166');
 
     const blueSlots = activeSlots().filter(s => ((menu.slotTeam ? menu.slotTeam[s] : s) % 2) === 1);
-    const canVoteBlue = !isOnline || (NET.mySlot >= 0 && myTeam === 1);
+    const canVoteBlue = !isOnline || (NET && NET.isHost) || (NET.mySlot >= 0 && myTeam === 1);
     const blueItems = blueSlots.concat(['random']);
 
     // Reusable 2-row chip wrapping renderer
@@ -4694,8 +4671,7 @@ function drawHunterRoundResult(){
             sfx('back');
             return;
           }
-          const voter = isOnline ? NET.mySlot : (cand !== 'random' ? cand : teamSlots[0]);
-          castHunterVote(voter, cand);
+          setTeamHunterChoice(teamIdx, cand);
         }});
       });
     }
@@ -4736,7 +4712,6 @@ function checkTag(){
   const isOnlineGuest = isOnline && !NET.isHost;
 
   if(match.hunterMode){
-    if(match.cageT > 0) return; // Hunters caged during countdown!
     const redHunter = P.find(p => p.team === 0 && p.slot === match.hunterRed);
     if(redHunter && !redHunter.isEliminated){
       const blueRunners = P.filter(p => p.team === 1 && p.slot !== match.hunterBlue && !p.isEliminated);
@@ -5121,49 +5096,10 @@ function updateGame(dt){
   pairCollide();
   if(inPlay){
     if(match.hunterMode){
-      if(match.cageT > 0){
-        const prevC = Math.ceil(match.cageT);
-        match.cageT -= dt;
-        const curC = Math.ceil(Math.max(0, match.cageT));
-        if(curC < prevC && curC > 0) sfx('count');
-        if(match.cageT <= 0){
-          match.cageT = 0;
-          sfx('boost');
-          match.goFlash = 0.8;
-          for(const p of match.players){
-            if(p.isHunter){
-              ringP(p.x + p.w/2, p.y + p.h/2, p.team === 0 ? '#ff4757' : '#38bdf8');
-              dust(p.x + p.w/2, p.y + p.h, 20, 160);
-            }
-          }
-        }
-      } else {
-        match.timer -= dt;
-        for(const p of match.players){
-          if(!p.isHunter && !p.isEliminated){
-            p.survivalT = (p.survivalT || 0) + dt;
-          }
-        }
-        // Heartbeat tick when opposing hunter is nearby
-        const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
-        const mySlot = (isOnline && NET.mySlot >= 0) ? NET.mySlot : 0;
-        const me = match.players.find(p => p.slot === mySlot);
-        if(me && !me.isHunter && !me.isEliminated){
-          let closestDist = 999999;
-          for(const h of match.players){
-            if(h.isHunter && h.team !== me.team && !h.isEliminated){
-              const d = Math.hypot((h.x + h.w/2) - (me.x + me.w/2), (h.y + h.h/2) - (me.y + me.h/2));
-              if(d < closestDist) closestDist = d;
-            }
-          }
-          if(closestDist < 260){
-            const proximity = 1 - (closestDist / 260);
-            match.heartbeatTimer = (match.heartbeatTimer || 0) - dt;
-            if(match.heartbeatTimer <= 0){
-              sfx('count');
-              match.heartbeatTimer = Math.max(0.20, 0.65 - proximity * 0.40);
-            }
-          }
+      match.timer -= dt;
+      for(const p of match.players){
+        if(!p.isHunter && !p.isEliminated){
+          p.survivalT = (p.survivalT || 0) + dt;
         }
       }
     } else {
@@ -5971,7 +5907,7 @@ function drawPlayers(){
       g.strokeStyle='rgba(255, 200, 40, 0.55)';
       g.lineWidth=2.5;
       rr(g,p.x-4,p.y-4,p.w+8,p.h+8,11);g.stroke();
-    } else if(match.hunterMode && p.isHunter && match.cageT <= 0){
+    } else if(match.hunterMode && p.isHunter){
       /* Pulsing Hunter Aura */
       const hPulse = 0.25 + 0.15 * Math.sin(tGlobal * 10);
       const hCol = p.team === 0 ? ('rgba(235, 60, 40, ' + hPulse.toFixed(2) + ')') : ('rgba(56, 189, 248, ' + hPulse.toFixed(2) + ')');
@@ -5992,12 +5928,8 @@ function drawPlayers(){
 
     if(match.hunterMode){
       if(p.isHunter){
-        if(match.cageT > 0){
-          drawHunterCage(p);
-        } else {
-          const hTitle = p.team === 0 ? '👑 RED HUNTER' : '👑 BLUE HUNTER';
-          ptxt(hTitle, p.x + p.w/2, p.y - 14, FN(10.5, 900), p.team === 0 ? '#ff6b81' : '#38bdf8');
-        }
+        const hTitle = p.team === 0 ? '👑 RED HUNTER' : '👑 BLUE HUNTER';
+        ptxt(hTitle, p.x + p.w/2, p.y - 14, FN(10.5, 900), p.team === 0 ? '#ff6b81' : '#38bdf8');
       } else {
         const rName = getPlayerDisplayName(p);
         ptxt(rName, p.x + p.w/2, p.y - 12, FN(10, 900), col);
@@ -6715,97 +6647,223 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
 
   const headH = isShortH ? 24 : clamp(Math.floor(panelH * 0.09), 26, 32);
 
-  // --- 1. LEFT PANEL: People who are playing (8-slot Roster) ---
-  rr(g, leftX, panelY, leftW, panelH, 10);
-  g.fillStyle = 'rgba(14, 20, 32, 0.92)'; g.fill();
-  g.lineWidth = 1.5; g.strokeStyle = 'rgba(255,255,255,0.2)'; g.stroke();
+  // --- 1. LEFT PANEL: People who are playing (8-slot Roster or Hunter Mode Split Teams) ---
+  if(settings.gameMode === 'hunter'){
+    const gap = 8;
+    const teamBoxH = Math.floor((panelH - gap) / 2);
+    const teamHeadH = isShortH ? 24 : clamp(Math.floor(teamBoxH * 0.19), 26, 30);
 
-  rr(g, leftX, panelY, leftW, headH, 8);
-  g.fillStyle = 'rgba(24, 32, 48, 0.96)'; g.fill();
-  const act = activeSlots();
-  ptxt('🎮 PLAYING (' + act.length + '/8)', leftX + leftW/2, panelY + headH/2 + 1, FN(clamp(headH * 0.42, 10, 12), 900), '#2ecc71');
+    function drawLobbyHunterTeam(teamIdx, boxY){
+      const isRed = (teamIdx === 0);
+      const teamColor = isRed ? '#ff4757' : '#38bdf8';
+      const teamSlots = [0, 1, 2, 3, 4, 5, 6, 7].filter(s => ((menu.slotTeam ? menu.slotTeam[s] : s) % 2) === teamIdx);
+      const teamActive = teamSlots.filter(s => (s === 0 ? true : (NET.isHost ? (NET.hostInputs.has(s) || menu.slotColor[s] >= 0) : menu.slotColor[s] >= 0)));
+      const electedHunter = isRed ? settings.hunterRed : settings.hunterBlue;
+      const isRandElected = (menu.hunterVotes && menu.hunterVotes[isRed ? 'red' : 'blue'] === 'random');
 
-  // 8 Slot Rows
-  const rowAvailH = panelH - headH - 4;
-  const rowH = Math.floor(rowAvailH / 8);
-  for(let s = 0; s < 8; s++){
-    const ry = panelY + headH + 2 + s * rowH;
-    const isConn = (s === 0 ? true : (NET.isHost ? (NET.hostInputs.has(s) || menu.slotColor[s] >= 0) : menu.slotColor[s] >= 0));
-    const isMe = (s === NET.mySlot);
-    const col = getSlotColor(s, menu.slotColor, menu.slotTeam);
-    const isRdy = !!NET.slotsReady[s];
+      // Box frame
+      rr(g, leftX, boxY, leftW, teamBoxH, 10);
+      g.fillStyle = 'rgba(14, 20, 32, 0.94)'; g.fill();
+      g.lineWidth = 1.5; g.strokeStyle = isRed ? 'rgba(255, 71, 87, 0.55)' : 'rgba(56, 189, 248, 0.55)'; g.stroke();
 
-    rr(g, leftX + 4, ry, leftW - 8, rowH - 2, 5);
-    g.fillStyle = isMe ? 'rgba(56, 189, 248, 0.20)' : (isConn ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.25)');
-    g.fill();
-    if(isMe){ g.lineWidth = 1.5; g.strokeStyle = '#38bdf8'; g.stroke(); }
+      // Team Header
+      rr(g, leftX, boxY, leftW, teamHeadH, 8);
+      g.fillStyle = isRed ? 'rgba(235, 60, 40, 0.35)' : 'rgba(56, 189, 248, 0.35)'; g.fill();
 
-    if(isConn){
-      // Mini avatar swatch
-      const swSz = clamp(rowH - 8, 12, 18);
-      rr(g, leftX + 7, ry + (rowH - swSz)/2, swSz, swSz, 3);
-      g.fillStyle = col; g.fill(); g.lineWidth = 1; g.strokeStyle = INK; g.stroke();
-
-      // Player name - dynamically measured to avoid cutoffs
-      const defaultName = (s === 0 ? 'Host' : ('Guest ' + (s+1)));
-      let who = NET.slotsName[s] || defaultName;
-      if(isMe) who += ' (YOU)';
-      else if(s === 0) who += ' 👑';
-
-      const hasHostControls = (NET.isHost && !isMe);
-      const rightIconsW = (hasHostControls ? 56 : (settings.teams ? 36 : 22));
-      const maxTextW = Math.max(40, leftW - (swSz + rightIconsW + 18));
-      g.font = FN(clamp(rowH * 0.38, 9, 11.5), 900);
+      // Team Title
       g.textAlign = 'left';
-      g.fillStyle = isMe ? '#38bdf8' : '#ffffff';
-      let dispWho = who;
-      if(g.measureText(dispWho).width > maxTextW){
-        while(dispWho.length > 3 && g.measureText(dispWho + '…').width > maxTextW){
-          dispWho = dispWho.slice(0, -1);
+      const teamTitle = (isRed ? '🔴 RED (' : '🔵 BLUE (') + teamActive.length + '/4)';
+      txt(teamTitle, leftX + 8, boxY + teamHeadH/2 + 1, FN(clamp(teamHeadH * 0.42, 9.5, 11.5), 900), teamColor, 'left');
+
+      // 🎲 Random Button in header
+      const randW = clamp(leftW * 0.36, 52, 68);
+      const randH = teamHeadH - 6;
+      const randX = leftX + leftW - randW - 4;
+      const randY = boxY + 3;
+      rr(g, randX, randY, randW, randH, 4);
+      g.fillStyle = isRandElected ? 'rgba(255, 209, 102, 0.35)' : 'rgba(0, 0, 0, 0.4)'; g.fill();
+      g.lineWidth = 1; g.strokeStyle = isRandElected ? '#ffd166' : 'rgba(255, 255, 255, 0.25)'; g.stroke();
+      txt((isRandElected ? '👑 ' : '') + '🎲 Rand', randX + randW/2, randY + randH/2 + 1, FN(clamp(randH * 0.46, 8, 10), 900), isRandElected ? '#ffd166' : '#ffffff');
+      zone(randX, randY, randW, randH, { fn: () => setTeamHunterChoice(teamIdx, 'random') });
+
+      // 4 Player Rows per team
+      const rowAvailH = teamBoxH - teamHeadH - 4;
+      const rowH = Math.floor(rowAvailH / 4);
+
+      for(let i = 0; i < 4; i++){
+        const s = teamSlots[i];
+        const ry = boxY + teamHeadH + 2 + i * rowH;
+        const isConn = (s === 0 ? true : (NET.isHost ? (NET.hostInputs.has(s) || menu.slotColor[s] >= 0) : menu.slotColor[s] >= 0));
+        const isMe = (s === NET.mySlot);
+        const col = getSlotColor(s, menu.slotColor, menu.slotTeam);
+        const isHunterSlot = (electedHunter === s && !isRandElected);
+        const votes = getCandidateVoteCount(s, teamIdx);
+
+        rr(g, leftX + 4, ry, leftW - 8, rowH - 2, 5);
+        g.fillStyle = isHunterSlot ? (isRed ? 'rgba(235, 60, 40, 0.30)' : 'rgba(56, 189, 248, 0.30)') : (isMe ? 'rgba(56, 189, 248, 0.16)' : (isConn ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.25)'));
+        g.fill();
+        if(isHunterSlot){
+          g.lineWidth = 1.5; g.strokeStyle = '#ffd166'; g.stroke();
+        } else if(isMe){
+          g.lineWidth = 1.2; g.strokeStyle = '#38bdf8'; g.stroke();
         }
-        dispWho += '…';
+
+        if(isConn){
+          const swSz = clamp(rowH - 8, 12, 16);
+          rr(g, leftX + 6, ry + (rowH - swSz)/2, swSz, swSz, 3);
+          g.fillStyle = col; g.fill(); g.lineWidth = 1; g.strokeStyle = INK; g.stroke();
+
+          const defaultName = (s === 0 ? 'Host' : ('Guest ' + (s+1)));
+          let who = NET.slotsName[s] || defaultName;
+          if(isMe) who += ' (YOU)';
+
+          const hasHostControls = (NET.isHost && !isMe);
+          const rightIconsW = hasHostControls ? 70 : 48;
+          const maxTextW = Math.max(28, leftW - (swSz + rightIconsW + 16));
+
+          g.font = FN(clamp(rowH * 0.38, 8.5, 11), 900);
+          g.textAlign = 'left';
+          g.fillStyle = isHunterSlot ? '#ffd166' : (isMe ? '#38bdf8' : '#ffffff');
+          let dispWho = who;
+          if(g.measureText(dispWho).width > maxTextW){
+            while(dispWho.length > 3 && g.measureText(dispWho + '…').width > maxTextW){
+              dispWho = dispWho.slice(0, -1);
+            }
+            dispWho += '…';
+          }
+          g.fillText(dispWho, leftX + 6 + swSz + 4, ry + rowH/2 + 3);
+
+          // Role Badge / Pick indicator
+          const badgeX = leftX + leftW - (hasHostControls ? 50 : 26);
+          if(isHunterSlot){
+            ptxt('👑 HUNTER', badgeX, ry + rowH/2 + 1, FN(clamp(rowH * 0.34, 7.5, 9.5), 900), '#ffd166');
+          } else {
+            const vLabel = votes > 0 ? (votes + ' 🗳️') : '🎯 PICK';
+            ptxt(vLabel, badgeX, ry + rowH/2 + 1, FN(clamp(rowH * 0.32, 7, 9), 800), '#94a3b8');
+          }
+
+          // Host quick kick
+          if(hasHostControls){
+            const qSz = clamp(rowH - 8, 12, 16);
+            const qY = ry + (rowH - qSz)/2;
+            const kickX = leftX + leftW - qSz - 4;
+            rr(g, kickX, qY, qSz, qSz, 3);
+            g.fillStyle = '#e74c3c'; g.fill();
+            txt('✕', kickX + qSz/2, qY + qSz/2 + 1, FN(clamp(qSz * 0.55, 7, 9), 900), '#ffffff');
+            zone(kickX, qY, qSz, qSz, { fn: () => netKickPlayer(s) });
+          }
+
+          // Clicking row chooses this player as hunter!
+          zone(leftX + 4, ry, leftW - (hasHostControls ? 26 : 8), rowH - 2, { fn: () => {
+            setTeamHunterChoice(teamIdx, s);
+          }});
+        } else {
+          // Open slot: click to join this team slot
+          g.font = FN(clamp(rowH * 0.36, 8.5, 10.5), 800); g.textAlign = 'left'; g.fillStyle = '#64748b';
+          g.fillText('+ P' + (s+1) + ' OPEN', leftX + 8, ry + rowH/2 + 3);
+          zone(leftX + 4, ry, leftW - 8, rowH - 2, { fn: () => {
+            netClaimSlot(s);
+            if(menu.slotTeam) menu.slotTeam[s] = teamIdx;
+            if(NET.isHost) netBroadcastRoster();
+          }});
+        }
       }
-      g.fillText(dispWho, leftX + 7 + swSz + 5, ry + rowH/2 + 3.5);
+    }
 
-      // Team Badge if teams active
-      if(settings.teams){
-        const tm = (menu.slotTeam && menu.slotTeam[s] != null) ? menu.slotTeam[s] : (s % 2);
-        const isHunterSlot = (settings.gameMode === 'hunter') && ((tm === 0 && settings.hunterRed === s) || (tm === 1 && settings.hunterBlue === s));
-        const tmIcon = isHunterSlot ? '👑' : (TEAMS[tm] ? TEAMS[tm].icon : '🔴');
-        ptxt(tmIcon, leftX + leftW - (hasHostControls ? 56 : 24), ry + rowH/2 + 1, FN(clamp(rowH * 0.35, 8.5, 10.5), 900), '#ffffff');
+    drawLobbyHunterTeam(0, panelY);
+    drawLobbyHunterTeam(1, panelY + teamBoxH + gap);
+  } else {
+    // --- 1. LEFT PANEL: People who are playing (8-slot Roster) ---
+    rr(g, leftX, panelY, leftW, panelH, 10);
+    g.fillStyle = 'rgba(14, 20, 32, 0.92)'; g.fill();
+    g.lineWidth = 1.5; g.strokeStyle = 'rgba(255,255,255,0.2)'; g.stroke();
+
+    rr(g, leftX, panelY, leftW, headH, 8);
+    g.fillStyle = 'rgba(24, 32, 48, 0.96)'; g.fill();
+    const act = activeSlots();
+    ptxt('🎮 PLAYING (' + act.length + '/8)', leftX + leftW/2, panelY + headH/2 + 1, FN(clamp(headH * 0.42, 10, 12), 900), '#2ecc71');
+
+    // 8 Slot Rows
+    const rowAvailH = panelH - headH - 4;
+    const rowH = Math.floor(rowAvailH / 8);
+    for(let s = 0; s < 8; s++){
+      const ry = panelY + headH + 2 + s * rowH;
+      const isConn = (s === 0 ? true : (NET.isHost ? (NET.hostInputs.has(s) || menu.slotColor[s] >= 0) : menu.slotColor[s] >= 0));
+      const isMe = (s === NET.mySlot);
+      const col = getSlotColor(s, menu.slotColor, menu.slotTeam);
+      const isRdy = !!NET.slotsReady[s];
+
+      rr(g, leftX + 4, ry, leftW - 8, rowH - 2, 5);
+      g.fillStyle = isMe ? 'rgba(56, 189, 248, 0.20)' : (isConn ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.25)');
+      g.fill();
+      if(isMe){ g.lineWidth = 1.5; g.strokeStyle = '#38bdf8'; g.stroke(); }
+
+      if(isConn){
+        // Mini avatar swatch
+        const swSz = clamp(rowH - 8, 12, 18);
+        rr(g, leftX + 7, ry + (rowH - swSz)/2, swSz, swSz, 3);
+        g.fillStyle = col; g.fill(); g.lineWidth = 1; g.strokeStyle = INK; g.stroke();
+
+        // Player name - dynamically measured to avoid cutoffs
+        const defaultName = (s === 0 ? 'Host' : ('Guest ' + (s+1)));
+        let who = NET.slotsName[s] || defaultName;
+        if(isMe) who += ' (YOU)';
+        else if(s === 0) who += ' 👑';
+
+        const hasHostControls = (NET.isHost && !isMe);
+        const rightIconsW = (hasHostControls ? 56 : (settings.teams ? 36 : 22));
+        const maxTextW = Math.max(40, leftW - (swSz + rightIconsW + 18));
+        g.font = FN(clamp(rowH * 0.38, 9, 11.5), 900);
+        g.textAlign = 'left';
+        g.fillStyle = isMe ? '#38bdf8' : '#ffffff';
+        let dispWho = who;
+        if(g.measureText(dispWho).width > maxTextW){
+          while(dispWho.length > 3 && g.measureText(dispWho + '…').width > maxTextW){
+            dispWho = dispWho.slice(0, -1);
+          }
+          dispWho += '…';
+        }
+        g.fillText(dispWho, leftX + 7 + swSz + 5, ry + rowH/2 + 3.5);
+
+        // Team Badge if teams active
+        if(settings.teams){
+          const tm = (menu.slotTeam && menu.slotTeam[s] != null) ? menu.slotTeam[s] : (s % 2);
+          const tmIcon = (TEAMS[tm] ? TEAMS[tm].icon : '🔴');
+          ptxt(tmIcon, leftX + leftW - (hasHostControls ? 56 : 24), ry + rowH/2 + 1, FN(clamp(rowH * 0.35, 8.5, 10.5), 900), '#ffffff');
+        }
+
+        // Ready icon
+        ptxt(isRdy ? '✓' : '⏳', leftX + leftW - (hasHostControls ? 44 : 12), ry + rowH/2 + 1, FN(clamp(rowH * 0.38, 9.5, 11.5), 900), isRdy ? '#2ecc71' : '#e67e22');
+
+        // Host Quick Actions on other players (Swap Team, Waitlist, Kick)
+        if(hasHostControls){
+          // Quick Move to Waitlist (⏳)
+          const qSz = clamp(rowH - 10, 13, 18);
+          const qY = ry + (rowH - qSz)/2;
+          const wlBtnX = leftX + leftW - qSz * 2 - 8;
+          rr(g, wlBtnX, qY, qSz, qSz, 3);
+          g.fillStyle = 'rgba(56, 189, 248, 0.35)'; g.fill();
+          txt('⏳', wlBtnX + qSz/2, qY + qSz/2 + 1, FN(clamp(qSz * 0.55, 7.5, 9.5), 900), '#38bdf8');
+          zone(wlBtnX, qY, qSz, qSz, { fn: () => netMovePlayerToWaitlist(s) });
+
+          // Quick Kick (✕)
+          const kickX = leftX + leftW - qSz - 4;
+          rr(g, kickX, qY, qSz, qSz, 3);
+          g.fillStyle = '#e74c3c'; g.fill();
+          txt('✕', kickX + qSz/2, qY + qSz/2 + 1, FN(clamp(qSz * 0.55, 7.5, 9.5), 900), '#ffffff');
+          zone(kickX, qY, qSz, qSz, { fn: () => netKickPlayer(s) });
+
+          // Clicking the player row opens the full management dialog!
+          zone(leftX + 4, ry, leftW - 36, rowH - 2, { fn: () => {
+            NET.manageSlot = (NET.manageSlot === s ? null : s);
+            sfx('ui');
+          } });
+        }
+      } else {
+        g.font = FN(clamp(rowH * 0.38, 9, 11), 800); g.textAlign = 'left'; g.fillStyle = '#64748b';
+        g.fillText('+ P' + (s+1) + ' OPEN', leftX + 10, ry + rowH/2 + 3);
+        zone(leftX + 4, ry, leftW - 8, rowH - 2, { fn: () => netClaimSlot(s) });
       }
-
-      // Ready icon
-      ptxt(isRdy ? '✓' : '⏳', leftX + leftW - (hasHostControls ? 44 : 12), ry + rowH/2 + 1, FN(clamp(rowH * 0.38, 9.5, 11.5), 900), isRdy ? '#2ecc71' : '#e67e22');
-
-      // Host Quick Actions on other players (Swap Team, Waitlist, Kick)
-      if(hasHostControls){
-        // Quick Move to Waitlist (⏳)
-        const qSz = clamp(rowH - 10, 13, 18);
-        const qY = ry + (rowH - qSz)/2;
-        const wlBtnX = leftX + leftW - qSz * 2 - 8;
-        rr(g, wlBtnX, qY, qSz, qSz, 3);
-        g.fillStyle = 'rgba(56, 189, 248, 0.35)'; g.fill();
-        txt('⏳', wlBtnX + qSz/2, qY + qSz/2 + 1, FN(clamp(qSz * 0.55, 7.5, 9.5), 900), '#38bdf8');
-        zone(wlBtnX, qY, qSz, qSz, { fn: () => netMovePlayerToWaitlist(s) });
-
-        // Quick Kick (✕)
-        const kickX = leftX + leftW - qSz - 4;
-        rr(g, kickX, qY, qSz, qSz, 3);
-        g.fillStyle = '#e74c3c'; g.fill();
-        txt('✕', kickX + qSz/2, qY + qSz/2 + 1, FN(clamp(qSz * 0.55, 7.5, 9.5), 900), '#ffffff');
-        zone(kickX, qY, qSz, qSz, { fn: () => netKickPlayer(s) });
-
-        // Clicking the player row opens the full management dialog!
-        zone(leftX + 4, ry, leftW - 36, rowH - 2, { fn: () => {
-          NET.manageSlot = (NET.manageSlot === s ? null : s);
-          sfx('ui');
-        } });
-      }
-    } else {
-      g.font = FN(clamp(rowH * 0.38, 9, 11), 800); g.textAlign = 'left'; g.fillStyle = '#64748b';
-      g.fillText('+ P' + (s+1) + ' OPEN', leftX + 10, ry + rowH/2 + 3);
-      zone(leftX + 4, ry, leftW - 8, rowH - 2, { fn: () => netClaimSlot(s) });
     }
   }
 
@@ -6926,12 +6984,16 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
     const myTeam = (menu.slotTeam && NET.mySlot >= 0 && menu.slotTeam[NET.mySlot] != null) ? menu.slotTeam[NET.mySlot] : ((NET.mySlot >= 0 ? NET.mySlot : 0) % 2);
     const isMeHunter = (myTeam === 0 && settings.hunterRed === NET.mySlot) || (myTeam === 1 && settings.hunterBlue === NET.mySlot);
     const teamDef = TEAMS[myTeam] || TEAMS[0];
-    const myVotes = getCandidateVoteCount(NET.mySlot, myTeam);
-    const voteBadge = myVotes > 0 ? (' (' + myVotes + ' 🗳️)') : '';
-    const roleStr = isMeHunter ? ('👑 ' + teamDef.name + ' HUNTER' + voteBadge) : ('🗳️ ' + teamDef.name + ' VOTE HUNTER' + voteBadge);
-    ptxt(roleStr, cx, teamY + teamH/2 + 1, FN(teamFontSize, 900), isMeHunter ? '#ffd166' : '#ffffff');
+    const roleBadge = isMeHunter ? ' (👑 HUNTER)' : ' (RUNNER)';
+    const teamLabel = isTeamLockedForMe ? ('🔒 ' + teamDef.icon + ' ' + teamDef.name + roleBadge) : ('‹  ' + teamDef.icon + ' ' + teamDef.name + roleBadge + '  ›');
+    ptxt(teamLabel, cx, teamY + teamH/2 + 1, FN(teamFontSize, 900), isMeHunter ? '#ffd166' : '#ffffff');
     if(NET.mySlot >= 0){
-      zone(cx - btnW/2, teamY, btnW, teamH, { fn: () => selectHunterRole(NET.mySlot) });
+      if(isTeamLockedForMe){
+        zone(cx - btnW/2, teamY, btnW, teamH, { fn: () => { toast('TEAMS ARE LOCKED BY THE HOST'); sfx('back'); } });
+      } else {
+        zone(cx - btnW/2, teamY, btnW * 0.45, teamH, { fn: () => cycleTeam(NET.mySlot, -1) });
+        zone(cx + btnW * 0.05, teamY, btnW * 0.45, teamH, { fn: () => cycleTeam(NET.mySlot, 1) });
+      }
     }
   } else if(settings.teams){
     const myTeam = (menu.slotTeam && NET.mySlot >= 0 && menu.slotTeam[NET.mySlot] != null) ? menu.slotTeam[NET.mySlot] : ((NET.mySlot >= 0 ? NET.mySlot : 0) % 2);
@@ -8969,34 +9031,6 @@ function drawResult(){
   g.restore();
 }
 
-function drawHunterThreatEffect(){
-  if(!match || !match.hunterMode || match.state !== 'playing' || match.cageT > 0) return;
-  const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
-  const mySlot = (isOnline && NET.mySlot >= 0) ? NET.mySlot : 0;
-  const me = match.players.find(p => p.slot === mySlot);
-  if(!me || me.isHunter || me.isEliminated) return;
-
-  let closestDist = 999999;
-  for(const h of match.players){
-    if(h.isHunter && h.team !== me.team && !h.isEliminated){
-      const d = Math.hypot((h.x + h.w/2) - (me.x + me.w/2), (h.y + h.h/2) - (me.y + me.h/2));
-      if(d < closestDist) closestDist = d;
-    }
-  }
-
-  if(closestDist < 320){
-    const proximity = 1 - (closestDist / 320); // 0 to 1
-    const pulse = 0.5 + 0.5 * Math.sin(tGlobal * (6 + proximity * 8));
-    const alpha = proximity * 0.42 * pulse;
-    const threatCol = me.team === 0 ? 'rgba(56, 189, 248, ' : 'rgba(255, 71, 87, ';
-    const gr = g.createRadialGradient(CW / 2, CH / 2, Math.min(CW, CH) * 0.35, CW / 2, CH / 2, Math.max(CW, CH) * 0.85);
-    gr.addColorStop(0, 'rgba(0,0,0,0)');
-    gr.addColorStop(1, threatCol + alpha.toFixed(3) + ')');
-    g.fillStyle = gr;
-    g.fillRect(0, 0, CW, CH);
-  }
-}
-
 function drawGame(){
   g.save();
   g.translate(CW/2,CH/2);g.scale(cam.s,cam.s);g.translate(-cam.x,-cam.y);
@@ -9020,7 +9054,6 @@ function drawGame(){
     g.fillStyle='rgba(255,255,255,'+(match.fade*1.2).toFixed(3)+')';
     g.fillRect(0,0,CW,CH);
   }
-  drawHunterThreatEffect();
   drawHUD();
   if(match.state==='paused'||match.hostMenu)drawPause();
   else if(match.state==='result')drawResult();
@@ -11893,7 +11926,7 @@ function startMatchNetGuest(p){
     hunterMaxRounds: 3,
     hunterWipeTime: { 0: null, 1: null },
     hunterHistory: p.hunterHistory ? { ...p.hunterHistory } : {},
-    cageT: p.cageT != null ? p.cageT : (isHunter ? 3.0 : 0),
+    cageT: 0,
     killfeed: [],
     killfeedT: 0,
     spectateTarget: null,
