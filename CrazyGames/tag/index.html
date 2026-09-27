@@ -393,6 +393,20 @@ function inputDown(x,y,id){
     return;
   }
 
+  // Pause / host menu open: every touch goes to menu zones, never game controls.
+  // (Otherwise the floating joystick/slider captures menu taps on touch devices.)
+  if(match && (match.state === 'paused' || match.hostMenu)){
+    const pz = zoneAt(x, y, false);
+    if(pz){
+      touchPts.set(id, pz);
+      if(pz.hold){keys.add(pz.hold);}
+      if(pz.press){for(const c of pz.press){pressed.add(c);glow[c]=tGlobal;}}
+      if(pz.touchAction){applyTouchAction(pz.touchAction,true);}
+      if(pz.fn)pz.fn();
+    }
+    return;
+  }
+
   const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
   const isPlaying = (match && (match.state === 'playing' || match.state === 'countdown'));
   const isSplitLocal = (!isOnline && match && screen === 'game' && isPlaying && match.players && match.players.length === 2 && isTouch && !menu.botOn && menu.tab !== 'solo');
@@ -3833,13 +3847,27 @@ function toggleSound(){
   if(match){match.mapToast='SOUND: '+(muted?'OFF':'ON');match.mapToastT=1.8;}
   sfx('ui');
 }
+function clearTouchCaptures(){
+  try{
+    if(typeof JOY!=='undefined'&&JOY){JOY.leftId=null;JOY.leftX=0;JOY.rightId=null;JOY.rightY=0;}
+    if(typeof TOUCH!=='undefined'&&TOUCH){TOUCH.left=false;TOUCH.right=false;TOUCH.jumpHeld=false;TOUCH.downHeld=false;TOUCH.jumpEdge=false;}
+    if(typeof LOCAL_TOUCH!=='undefined'&&LOCAL_TOUCH){
+      for(const k of ['p1','p2']){
+        const p=LOCAL_TOUCH[k];if(!p)continue;
+        p.joyId=null;p.active=false;p.offX=0;p.left=false;p.right=false;
+        p.sldId=null;if('sldV' in p)p.sldV=0;p.jumpHeld=false;p.jumpEdge=false;p.downHeld=false;
+      }
+    }
+    if(typeof touchPts!=='undefined'&&touchPts)touchPts.clear();
+  }catch(e){}
+}
 function togglePause(){
   if(!match)return;
   // Online host menu is LOCAL ONLY: an overlay for the host while the match
   // continues live for everyone (pausing for real would freeze all guests).
   if(typeof NET!=='undefined'&&NET&&NET.role!==null&&NET.isHost){
     if(match.hostMenu){ match.hostMenu=false; sfx('ok'); }
-    else if(match.state==='playing'||match.state==='countdown'){ match.hostMenu=true; match.pauseSel=0; sfx('back'); }
+    else if(match.state==='playing'||match.state==='countdown'){ match.hostMenu=true; match.pauseSel=0; clearTouchCaptures(); sfx('back'); }
     return;
   }
   if(match.state==='paused'){
@@ -3854,6 +3882,7 @@ function togglePause(){
     match.pausedFrom=match.state;
     match.state='paused';
     match.pauseSel=0;
+    clearTouchCaptures();
     try{CG.gameplayStop();}catch(e){}
     sfx('back');
   }
@@ -8972,8 +9001,10 @@ function netOnData(m, c){
     const author = cleanText(m.name || 'Player').slice(0, 16);
     const text = cleanText(m.text || '').slice(0, 120);
     if(text){
-      const myProfile = netGetMyProfile();
-      const isFromMe = (m.sender === NET.myId || (!NET.isHost && author === myProfile.name));
+      // Echo suppression by unique peer id only — never by name. (Name comparison
+      // wrongly hid the host's messages whenever two devices shared a guest name,
+      // e.g. same browser tabs or identical random Guest picks.)
+      const isFromMe = !!(m.sender && NET.myId && m.sender === NET.myId);
       if(!isFromMe){
         netAddChatMessage(author, text, m.color || '#38bdf8');
       }
