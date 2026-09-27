@@ -7311,13 +7311,12 @@ function drawHUD(){
     g.restore();
   }
   
-  /* In-game control bar: Pause, Sound, Fullscreen, Next Map, Voice */
+  /* In-game control bar: Pause, Sound, Fullscreen, Voice */
   const btnSize=38;
   const xPause=CW-btnSize-12;
   const xMute=xPause-btnSize-8;
   const xFull=xMute-btnSize-8;
-  const xNext=xFull-btnSize-8;
-  const xVoice=xNext-btnSize-8;
+  const xVoice=xFull-btnSize-8;
   const xChat=xVoice-btnSize-8;
   
   // Pause button
@@ -7379,15 +7378,6 @@ function drawHUD(){
     upFn: toggleFullscreen
   });
   
-  // Next map quick button
-  drawJuicyIconBtn(xNext, 10, btnSize, {
-    r: 9,
-    depth: 3,
-    icon: '▶',
-    iconColor: '#1c6b38',
-    fn: () => selectMapQuick(settings.map + 1)
-  });
-
   // Proximity Voice Chat button (online) or Help/Tutorial button (2-player local touch)
   if(typeof NET !== 'undefined' && NET && NET.role !== null){
     const vOn = (typeof VOICE !== 'undefined' && VOICE.enabled);
