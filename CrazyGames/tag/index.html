@@ -88,13 +88,6 @@ canvas{position:fixed;top:0;left:0;width:100%;height:100%;height:100dvh;display:
   </div>
 </div>
 <div id="netToast"></div>
-<!-- SDK Banners: rendered DOM containers so CrazyGames can inject without painting over the canvas -->
-<div id="cg-banners" style="position:fixed;left:50%;top:0;transform:translateX(-50%);z-index:10;display:none;pointer-events:none">
-  <div id="cg-banner-top" style="min-height:50px;min-width:320px;pointer-events:none"></div>
-</div>
-<div id="cg-banner-resp" style="position:fixed;bottom:0;left:0;right:0;z-index:10;display:none;pointer-events:none;justify-content:center;padding:4px 0;background:rgba(10,10,16,0.92);border-top:1px solid #2a2c3d">
-  <div id="cg-banner-responsive" style="min-height:50px;min-width:320px;max-width:728px;width:100%;pointer-events:none"></div>
-</div>
 <script>
 "use strict";
 const TAU=Math.PI*2;
@@ -758,16 +751,12 @@ if(window.PointerEvent){
 let AC=null,master=null,muted=false,sdkMuted=false;
 let _cg=null;
 let _cgBoot=null;
-let lastAdTime = Date.now();
-const ADS_ENABLED = false; // TEMP: ads off for current build — set true before CrazyGames submission
 const CG={
   ready:false,env:'',
   _user:null, // cached async CrazyGames profile {name, avatar}
   chatDisabled:false, // mirrors sdk.game.settings.disableChat
   _joinListenerOn:false,
   _joinListenerFn:null,
-  /* Banner bookkeeping: remember placed containers so we can clear one or all */
-  _bannerIds:new Set(),
   boot(){
     return new Promise(res=>{
       let _done=false;
@@ -962,145 +951,10 @@ const CG={
     }catch(e){}
     return null;
   },
-  /* -------- Ad (midgame + reserved rewarded) -------- */
-  /* TEMP KILL-SWITCH: flip ADS_ENABLED back to true before CrazyGames submission. */
-  /* Midgame: UI break between matches. Throttled to 3 minutes. */
-  requestMidgame(cb){
-    if(!ADS_ENABLED){if(cb)cb(false);return;}
-    const sdk=window.CrazyGames&&window.CrazyGames.SDK;
-    if(!sdk||!sdk.ad||!sdk.ad.requestAd){if(cb)cb(false);return;}
-    try{
-      const callbacks = {
-        adStarted: () => {
-          try{ if(master) master.gain.value = 0; }catch(e){}
-          try{ if(match && match.state === 'playing'){ match.pausedFrom = 'playing'; match.state = 'paused'; match.pauseSel = 0; } }catch(e){}
-          try{ CG.gameplayStop(); }catch(e){}
-        },
-        adFinished: () => {
-          applyEffectiveMute();
-          try{ if(match && match.state === 'paused' && match.pausedFrom){ match.state = match.pausedFrom; match.pausedFrom = null; CG.gameplayStart(); } }catch(e){}
-          if(cb) cb(true);
-        },
-        adError: (err) => {
-          applyEffectiveMute();
-          try{ if(match && match.state === 'paused' && match.pausedFrom){ match.state = match.pausedFrom; match.pausedFrom = null; CG.gameplayStart(); } }catch(e){}
-          if(cb) cb(false);
-        }
-      };
-      const p = sdk.ad.requestAd('midgame', callbacks);
-      if(p && p.then){
-        p.then(r=>{ applyEffectiveMute(); if(cb)cb(!!(r&&r.adShown)); }).catch(()=>{ applyEffectiveMute(); if(cb)cb(false); });
-      }
-    }catch(e){ applyEffectiveMute(); if(cb)cb(false); }
-  },
-  /* Rewarded: wired but no UI invites it — reserved in case QA wants a rewarded entry. */
-  requestRewarded(cb){
-    if(!ADS_ENABLED){if(cb)cb(false);return;}
-    const sdk=window.CrazyGames&&window.CrazyGames.SDK;
-    if(!sdk||!sdk.ad||!sdk.ad.requestAd){if(cb)cb(false);return;}
-    try{
-      const callbacks = {
-        adStarted: () => {
-          try{ if(master) master.gain.value = 0; }catch(e){}
-          try{ if(match && match.state === 'playing'){ match.pausedFrom = 'playing'; match.state = 'paused'; match.pauseSel = 0; } }catch(e){}
-          try{ CG.gameplayStop(); }catch(e){}
-        },
-        adFinished: () => {
-          applyEffectiveMute();
-          try{ if(match && match.state === 'paused' && match.pausedFrom){ match.state = match.pausedFrom; match.pausedFrom = null; CG.gameplayStart(); } }catch(e){}
-          if(cb) cb(true);
-        },
-        adError: () => {
-          applyEffectiveMute();
-          try{ if(match && match.state === 'paused' && match.pausedFrom){ match.state = match.pausedFrom; match.pausedFrom = null; CG.gameplayStart(); } }catch(e){}
-          if(cb) cb(false);
-        }
-      };
-      const p = sdk.ad.requestAd('rewarded', callbacks);
-      if(p && p.then){
-        p.then(r=>{ applyEffectiveMute(); if(cb)cb(!!(r&&r.adShown)); }).catch(()=>{ applyEffectiveMute(); if(cb)cb(false); });
-      }
-    }catch(e){ applyEffectiveMute(); if(cb)cb(false); }
-  },
-  /* -------- Banner — rectangular divs outside the canvas -------- */
-  /* Single banner at a given container id + size (e.g. "728x90", "300x250", "970x90") */
-  requestBanner(containerId,size){
-    if(!ADS_ENABLED)return false;
-    const sdk=window.CrazyGames&&window.CrazyGames.SDK;
-    if(!sdk||!sdk.banner)return false;
-    try{
-      let [w,h] = [728,90];
-      if(typeof size === 'string' && size.includes('x')){
-        const parts = size.split('x').map(Number);
-        w = parts[0]||728; h = parts[1]||90;
-      }
-      if(sdk.banner.requestBanner){
-        sdk.banner.requestBanner({ id: containerId, width: w, height: h }).catch(()=>{});
-      }
-      this._bannerIds.add(containerId);
-      return true;
-    }catch(e){
-      try{ sdk.banner.requestBanner(containerId,size); this._bannerIds.add(containerId); return true; }catch(e2){ return false; }
-    }
-  },
-  /* Responsive banner — scales to container width; best for the thin top bar on menu. */
-  requestResponsiveBanner(containerId){
-    if(!ADS_ENABLED)return false;
-    const sdk=window.CrazyGames&&window.CrazyGames.SDK;
-    if(!sdk||!sdk.banner)return false;
-    try{
-      if(sdk.banner.requestResponsiveBanner) sdk.banner.requestResponsiveBanner(containerId);
-      else if(sdk.banner.requestBanner) sdk.banner.requestBanner({ id: containerId, responsive: true });
-      this._bannerIds.add(containerId);return true;
-    }catch(e){return false;}
-  },
-  clearBanner(containerId){
-    const sdk=window.CrazyGames&&window.CrazyGames.SDK;
-    if(!sdk||!sdk.banner||!sdk.banner.clearBanner)return false;
-    try{sdk.banner.clearBanner(containerId);this._bannerIds.delete(containerId);return true;}catch(e){return false;}
-  },
-  clearAllBanners(){
-    const sdk=window.CrazyGames&&window.CrazyGames.SDK;
-    if(!sdk||!sdk.banner||!sdk.banner.clearAllBanners){
-      // Fallback: clear each tracked id individually
-      for(const id of [...this._bannerIds])this.clearBanner(id);
-      return;
-    }
-    try{sdk.banner.clearAllBanners();this._bannerIds.clear();}catch(e){}
-  },
+  /* Ads removed for Basic Launch submission (no midgame/rewarded/banner SDK calls). */
+  /* (rewarded entry removed — see note above) */
+  /* (banner API removed — see note above) */
 };
-/* Banner click-through guard: empty ad containers must never swallow canvas taps.
-   Inners stay pointer-events:none until the SDK actually renders an ad (child node).
-   A MutationObserver reveals/hides each wrapper on render/clear, plus a 2s sweep
-   as backup. Real ads stay clickable (portal compliance); empty boxes stay inert. */
-let _cgBannerGuardOn=false;
-function cgBannerClickGuard(){
-  if(_cgBannerGuardOn) return; _cgBannerGuardOn=true;
-  try{
-    const pairs=[['cg-banners','cg-banner-top','block'],['cg-banner-resp','cg-banner-responsive','flex']];
-    const sync=(wrapId,innerId,showDisp)=>{
-      try{
-        const wrap=document.getElementById(wrapId),inner=document.getElementById(innerId);
-        if(!wrap||!inner) return;
-        const hasAd=!!(inner.children&&inner.children.length);
-        inner.style.pointerEvents=hasAd?'auto':'none';
-        if(hasAd){ if(wrap.style.display==='none')wrap.style.display=showDisp; }
-        else { if(wrap.style.display!=='none')wrap.style.display='none'; }
-      }catch(e){}
-    };
-    for(const pr of pairs){
-      try{
-        const inner=document.getElementById(pr[1]);
-        if(inner&&typeof MutationObserver!=='undefined'){
-          const mo=new MutationObserver(()=>sync(pr[0],pr[1],pr[2]));
-          mo.observe(inner,{childList:true,subtree:false});
-        }
-      }catch(e){}
-      sync(pr[0],pr[1],pr[2]);
-    }
-    try{setInterval(()=>{for(const pr of pairs)sync(pr[0],pr[1],pr[2]);},2000);}catch(e){}
-  }catch(e){}
-}
 function applySdkMute(m){sdkMuted=!!m;applyEffectiveMute();}
 function applySdkChatDisabled(v){try{if(typeof CG!=='undefined'&&CG)CG.chatDisabled=!!v;}catch(e){}}
 function applyEffectiveMute(){const eff=muted||sdkMuted;try{if(master)master.gain.value=eff?0:0.5;}catch(e){}}
@@ -2290,11 +2144,7 @@ function startMatch(){
     sfx('back');
     return;
   }
-  // Clear any result/menu banners so the arena is clean
-  try{CG.clearAllBanners();}catch(e){}
   try{parts.length = 0;}catch(e){}
-  try{const a=document.getElementById('cg-banner-resp');if(a)a.style.display='none';}catch(e){}
-  try{const b=document.getElementById('cg-banners');if(b)b.style.display='none';}catch(e){}
   try{CG.gameplayStart();}catch(e){}
   matchIndex++;
   /* AUTOMATIC CLEAN GRADIENT BACKGROUND CHANGE ON EVERY MATCH */
@@ -3766,14 +3616,6 @@ function checkTag(){
 }
 function endMatch(){
   try{CG.happytime();}catch(e){}try{CG.gameplayStop();}catch(e){}
-  try{if(CG.requestResponsiveBanner('cg-banner-responsive')){const el=document.getElementById('cg-banner-resp');if(el)el.style.display='flex';}}catch(e){}
-  try{
-    const now = Date.now();
-    if(now - lastAdTime >= 180000){ // 3 minutes throttle
-      lastAdTime = now;
-      CG.requestMidgame();
-    }
-  }catch(e){}
   match.state='result';
   match.hostMenu=false;
   if(settings.teams && match.teamItTime){
@@ -6081,32 +5923,6 @@ function drawScoreboardOverlay(){
 /* ================= MODERN RESPONSIVE ARENA MENU ================= */
 function drawMenu(){
   if(menu.tab !== 'solo' && menu.tab !== '2p' && menu.tab !== 'online') menu.tab = '2p';
-
-  // CrazyGames banner request guard
-  try{
-    if(!drawMenu._bannersAt || Date.now() - drawMenu._bannersAt > 1500){
-      drawMenu._bannersAt = Date.now();
-      const sdk = window.CrazyGames && window.CrazyGames.SDK;
-      if(sdk && sdk.banner){
-        const resp = document.getElementById('cg-banner-resp');
-        const top = document.getElementById('cg-banners');
-        if(!isTouch && CH >= 550 && resp && !CG._bannerIds.has('cg-banner-responsive')){
-          try{ CG.requestResponsiveBanner('cg-banner-responsive'); }catch(e){}
-        } else if((isTouch || CH < 550) && resp && resp.style.display !== 'none'){
-          resp.style.display = 'none';
-        }
-        if(top && !CG._bannerIds.has('cg-banner-top')){
-          try{
-            if(!isTouch && CW >= 700){
-              CG.requestBanner('cg-banner-top', '728x90');
-            }
-          }catch(e){}
-        }
-        /* Reveal only happens via cgBannerClickGuard when an ad actually renders —
-           empty containers stay display:none so they never cover menu tabs/buttons. */
-      }
-    }
-  }catch(e){}
 
   // 1. Render live arena map in background!
   g.save();
@@ -10631,7 +10447,6 @@ try{
 }catch(e){/* normal menu boot */}
 buildLevel();
 netInitUI();
-try{if(typeof cgBannerClickGuard==='function')cgBannerClickGuard();}catch(e){}
 
 /* Training harness launch: ?train (map 0) or ?train=N (map N) or ?harness=N */
 try{
