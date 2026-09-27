@@ -2596,31 +2596,44 @@ function botFindSpeedPadMeta(p, target, dx, dy){
 /* ================= BREADCRUMB SHADOW SYSTEM =================
    Allows hunting bots to retrace the human player's exact path,
    shortcut corner loops, and replicate successful platforming actions
-   (jumps, double-jumps, wall-kicks, and pink platform drops). */
-function botFindBreadcrumbWaypoint(bot, target, cx, cy){
+   (jumps, double-jumps, wall-kicks, and pink platform drops).
+   Activates especially when the player is standing on one platform
+   or in one place and the bot cannot catch them directly. */
+function botFindBreadcrumbWaypoint(bot, target, cx, cy, forceReplay){
   if(!target || !target.navTrail || target.navTrail.length < 2) return null;
   const trail = target.navTrail;
   const botFeet = bot.y + bot.h;
 
-  // 1. Find closest breadcrumb to bot
+  // 1. Find closest breadcrumb to bot, prioritizing accessible crumbs on the same tier
   let closestIdx = 0;
-  let minDSq = 1e9;
+  let minScore = 1e9;
   for(let i = 0; i < trail.length; i++){
     const cr = trail[i];
-    const dSq = (cr.x - cx) ** 2 + (cr.y - botFeet) ** 2;
-    if(dSq < minDSq){
-      minDSq = dSq;
+    const dx = Math.abs(cr.x - cx);
+    const dy = Math.abs(cr.y - botFeet);
+    let score = dx * dx + dy * dy;
+
+    // Heavily penalize crumbs through solid barriers / ceilings (e.g. above bot through brown slab)
+    if(botSolidBetween(cx, cy, cr.x, cr.y - 12, bot.gp)){
+      score += 450000;
+    }
+    // If bot is on the ground and crumb is on the ground near elevation, prefer it
+    if(bot.grounded && cr.grounded && dy < 45){
+      score -= 25000;
+    }
+
+    if(score < minScore){
+      minScore = score;
       closestIdx = i;
     }
   }
 
-  // 2. Shortcut ahead along the trail: find the furthest waypoint visible without brown obstacles
+  // 2. Shortcut ahead along the trail towards the player:
   let bestCrumb = trail[closestIdx];
   let bestIdx = closestIdx;
-  const maxAhead = Math.min(trail.length - 1, closestIdx + 18);
+  const maxAhead = Math.min(trail.length - 1, closestIdx + (forceReplay ? 12 : 18));
   for(let i = maxAhead; i >= closestIdx; i--){
     const cr = trail[i];
-    // Check line of sight from bot center to crumb
     if(!botSolidBetween(cx, cy, cr.x, cr.y - 12, bot.gp)){
       bestCrumb = cr;
       bestIdx = i;
@@ -2628,7 +2641,6 @@ function botFindBreadcrumbWaypoint(bot, target, cx, cy){
     }
   }
 
-  // If even closest isn't directly visible, step 1 crumb forward from closest
   if(!bestCrumb && closestIdx < trail.length - 1){
     bestCrumb = trail[closestIdx + 1];
     bestIdx = closestIdx + 1;
@@ -2648,7 +2660,7 @@ function botFindBreadcrumbWaypoint(bot, target, cx, cy){
     const dxCrumb = Math.abs(cr.x - cx);
 
     if(cr.action === 'jump'){
-      if(dxCrumb < 65 && (bot.grounded || bot.coyote > 0)){
+      if(dxCrumb < 70 && (bot.grounded || bot.coyote > 0)){
         triggerJump = true;
       }
     }else if(cr.action === 'wallJump'){
@@ -2666,12 +2678,17 @@ function botFindBreadcrumbWaypoint(bot, target, cx, cy){
     }
   }
 
+  const crumbDy = bestCrumb.y - botFeet;
+  if(crumbDy < -45 && (bot.grounded || bot.coyote > 0)){
+    triggerJump = true;
+  }
+
   return {
     crumb: bestCrumb,
     idx: bestIdx,
     closestIdx: closestIdx,
     dx: bestCrumb.x - cx,
-    dy: bestCrumb.y - botFeet,
+    dy: crumbDy,
     triggerJump: triggerJump,
     triggerDrop: triggerDrop,
     triggerWallJump: triggerWallJump,
@@ -2719,7 +2736,7 @@ function botInputFor(p,dt){
   const isStuckBlocked=far||wallAheadNow||nearPerimeter;
   if(isStuckBlocked&&moved<14){S.stuckT+=stepDt;}else{S.stuckT=0;S.px=p.x;S.py=p.y;}
   if(moved>=14){S.px=p.x;S.py=p.y;}
-  if(S.stuckT>0.45&&S.unstuckT<=0){
+  if(S.stuckT>0.45&&S.unstuckT<=0&&!S.isReplayingPath){
     S.unstuckT=0.7;S.unstuckDir=(S.dir!==0?-S.dir:(Math.random()<0.5?-1:1));
     S.stuckT=0;S.bonks=0;
     S.exitLockT=0;S.exitDir=0;S.exitGp=null;S.hasExit=false;
@@ -2899,19 +2916,32 @@ function botInputFor(p,dt){
     const isDirectPath = isIt && !solidInPath;
     const distTarget = Math.hypot(dx, dy);
 
+    // Target camping / platform standing & bot struggling detection:
+    const isTargetCamping = target.grounded && ((target._campT || 0) > 0.6 || (target._standStillT || 0) > 0.6);
+    const isBotSeparated = (p.gp !== target.gp) || !!solidInPath || Math.abs(dy) > 40;
+    if(isIt && isBotSeparated){
+      S.cantCatchT = (S.cantCatchT || 0) + stepDt;
+    } else {
+      S.cantCatchT = 0;
+    }
+    const isBotStruggling = (S.cantCatchT > 0.6 || S.stuckT > 0.15);
+
     // BREADCRUMB SHADOW SYSTEM:
-    // If bot is hunting (IT) and HARD mode (or solo mode), consult target's path history:
+    // Activates when bot is hunting in HARD mode (or solo mode) with target trail.
+    // Especially when the player is standing on one platform or in one place and the bot can't catch them!
+    const forceReplay = isTargetCamping && isBotStruggling;
     const useBreadcrumbs = isIt && !isEasy && target.navTrail && target.navTrail.length >= 2;
     let trailNav = null;
     if(useBreadcrumbs){
-      // Only bypass trail if bot is in close-quarters strike range (< 160px) with direct line-of-sight!
-      const inStrikeRange = isDirectPath && distTarget < 160;
+      // Only bypass trail if bot is in close-quarters strike range (< 160px) with direct line-of-sight AND not struggling:
+      const inStrikeRange = isDirectPath && distTarget < 160 && !forceReplay;
       if(!inStrikeRange){
-        trailNav = botFindBreadcrumbWaypoint(p, target, cx, cy);
+        trailNav = botFindBreadcrumbWaypoint(p, target, cx, cy, forceReplay);
       }
     }
 
     if(trailNav){
+      S.isReplayingPath = true;
       // TIER 0: BREADCRUMB SHADOW / REPLAY NAVIGATION
       // Retrace human platforming path, cut corners across loops, and solve complex tiers
       S.exitLockT = 0; S.exitDir = 0; S.exitGp = null; S.hasExit = false;
@@ -2923,10 +2953,12 @@ function botInputFor(p,dt){
       }
       detour = want;
     }else if(isDirectPath){
+      S.isReplayingPath = false;
       // TIER 1: DIRECT GREEDY BEELINE (clear air or through pink platforms)
       S.exitLockT=0;S.exitDir=0;S.exitGp=null;S.hasExit=false;
       want=chaseWant;
     }else if(isIt&&aboveBy>50){
+      S.isReplayingPath = false;
       // TIER 2: CEILING / OBSTACLE DETOUR ROUTER (solid platform in way)
       const gp=p.grounded?p.gp:null;
       // 1. Hold existing lock while on this platform to reach exitX without boundary oscillation
@@ -3752,6 +3784,23 @@ function physUpdate(p,dt,allow){
   
   if(p.grounded&&Math.abs(p.vx)>240&&Math.random()<dt*14)dust(p.x+p.w/2-p.face*16,p.y+p.h-2,1,30);
 
+  /* Track standing in one place or camping on one platform */
+  if(p.gp && p.grounded){
+    if(p.gp === p._lastCampGp){
+      p._campT = (p._campT || 0) + dt;
+    } else {
+      p._lastCampGp = p.gp;
+      p._campT = 0;
+    }
+  } else if(!p.grounded){
+    p._campT = 0;
+  }
+  if(Math.hypot(p.vx, p.vy) < 40 && p.grounded){
+    p._standStillT = (p._standStillT || 0) + dt;
+  } else {
+    p._standStillT = 0;
+  }
+
   /* Record player breadcrumb trail for hunting bot navigation */
   if(match && (match.state === 'playing' || match.state === 'countdown')){
     if(!p.navTrail) p.navTrail = [];
@@ -3776,9 +3825,15 @@ function physUpdate(p,dt,allow){
         action: act || (hasLanded ? 'land' : 'move'),
         t: tGlobal
       });
-      if(p.navTrail.length > 85) p.navTrail.shift();
+      if(p.navTrail.length > 140) p.navTrail.shift();
     }
-    while(p.navTrail.length > 0 && (tGlobal - p.navTrail[0].t) > 4.5){
+    // Prune stale crumbs, BUT if player is standing on one platform or in one place,
+    // preserve the trail leading up to this platform for up to 35 seconds!
+    const isPlayerCamping = ((p._campT || 0) > 0.6 || (p._standStillT || 0) > 0.6);
+    const maxTrailAge = isPlayerCamping ? 35.0 : 5.0;
+    const maxTrailLen = isPlayerCamping ? 140 : 85;
+    if(p.navTrail.length > maxTrailLen) p.navTrail.shift();
+    while(p.navTrail.length > 0 && (tGlobal - p.navTrail[0].t) > maxTrailAge){
       p.navTrail.shift();
     }
   }
