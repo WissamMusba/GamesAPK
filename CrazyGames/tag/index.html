@@ -1889,7 +1889,7 @@ function toggleBotDifficulty(){
 }
 
 function setMenuTab(tab){
-  if(tab !== 'solo' && tab !== '2p' && tab !== 'online') tab = '2p';
+  if(tab !== 'solo' && tab !== '2p' && tab !== 'online' && tab !== 'bots') tab = '2p';
   menu.tab = tab;
   if(tab === 'solo'){
     menu.botOn = true;
@@ -1897,6 +1897,13 @@ function setMenuTab(tab){
     settings.gameMode = 'party';
     menu.gameMode = 'party';
     menu.slotColor = [0, 1, -1, -1, -1, -1, -1, -1];
+  } else if(tab === 'bots'){
+    menu.botOn = true;
+    settings.teams = false;
+    settings.gameMode = 'party';
+    menu.gameMode = 'party';
+    menu.slotColor = [0, 1, -1, -1, -1, -1, -1, -1];
+    if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
   } else if(tab === '2p'){
     menu.botOn = false;
     if(menu.slotColor[0] < 0) menu.slotColor[0] = 0;
@@ -1927,6 +1934,85 @@ function cycleTeam(i, d){
 
   if(settings.gameMode === 'hunter'){
     // Disallow 3v1, 6v2, 5v3, etc. Keep team count difference max ±1!
+    const act = activeSlots();
+    let redCount = 0, blueCount = 0;
+    for(const s of act){
+      const t = (s === i ? targetTeam : (menu.slotTeam[s] || 0) % 2);
+      if(t === 0) redCount++; else blueCount++;
+    }
+    if(Math.abs(redCount - blueCount) > 1){
+      toast('⚠️ TEAMS MUST BE BALANCED (MAX ±1 DIFFERENCE)');
+      sfx('back');
+      return;
+    }
+  }
+
+  menu.slotTeam[i] = targetTeam;
+  sfx('ui');
+  if(settings.gameMode === 'hunter') updateElectedHuntersFromVotes();
+  if(typeof NET !== 'undefined' && NET && NET.role !== null){
+    if(NET.isHost) netBroadcastRoster();
+    else {
+      for(const pair of NET.conns.values()){
+        netSendRel(pair, { t: 'team', slot: i, team: menu.slotTeam[i] });
+      }
+    }
+  }
+}
+
+// First free player slot (1..7) from my current roster view
+function firstFreeSlot(){
+  for(let s = 1; s < 8; s++){
+    const takenHost = (typeof NET !== 'undefined' && NET && NET.isHost && NET.hostInputs) ? NET.hostInputs.has(s) : false;
+    if(!takenHost && menu.slotColor[s] === -1) return s;
+  }
+  return -1;
+}
+
+// Tap-a-team-panel = join THAT team (first free slot). Returns true if handled.
+function joinTeamFromPanel(teamIdx){
+  const teamName = teamIdx === 0 ? 'RED' : 'BLUE';
+  const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
+  if(!isOnline){
+    // Local setup: activate the first free slot straight into this team
+    const free = firstFreeSlot();
+    if(free < 0){ toast('No free slots!'); sfx('back'); return true; }
+    const taken = menu.slotColor.filter(v => v >= 0);
+    let pick = -1;
+    for(let pi = 0; pi < PALETTE.length; pi++){ if(!taken.includes(pi)){ pick = pi; break; } }
+    menu.slotColor[free] = (pick >= 0 ? pick : free % PALETTE.length);
+    if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+    menu.slotTeam[free] = teamIdx;
+    if(settings.gameMode === 'hunter'){ enforceHunterBalance(); validateHunterRoles(); }
+    sfx('ok');
+    toast('P' + (free + 1) + ' joined ' + teamName + '!');
+    return true;
+  }
+  if(NET.mySlot >= 0){
+    // Already playing: move MY slot to the tapped team (balance-guarded)
+    setPlayerTeam(NET.mySlot, teamIdx);
+    return true;
+  }
+  // Spectator: claim the first free slot FOR the tapped team
+  if(NET.lobbyLocked){ netToast('Lobby is locked by the host.'); return true; }
+  const free = firstFreeSlot();
+  if(free < 0){ netToast('All player slots are full!'); return true; }
+  netClaimSlot(free, teamIdx);
+  return true;
+}
+// Same lock + hunter-balance rules as cycleTeam.
+function setPlayerTeam(i, teamIdx){
+  if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost && NET.teamsLocked){
+    toast('TEAMS ARE LOCKED BY THE HOST');
+    sfx('back');
+    return;
+  }
+  if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+  const targetTeam = ((teamIdx % TEAMS.length) + TEAMS.length) % TEAMS.length;
+  const curTeam = (menu.slotTeam[i] || 0) % TEAMS.length;
+  if(curTeam === targetTeam){ sfx('ui'); return; }
+
+  if(settings.gameMode === 'hunter'){
     const act = activeSlots();
     let redCount = 0, blueCount = 0;
     for(const s of act){
@@ -2098,11 +2184,11 @@ function castHunterVote(voterSlot, candSlot){
     updateElectedHuntersFromVotes();
   }
 
-  let candName = 'Random';
+  let candName = 'Fair pick';
   if(candSlot !== 'random' && candSlot >= 0){
     candName = (typeof NET !== 'undefined' && NET && NET.slotsName && NET.slotsName[candSlot]) ? (('P' + (candSlot + 1)) + ' ' + NET.slotsName[candSlot]) : ('P' + (candSlot + 1));
   }
-  toast('🗳️ Voted for ' + candName + ' as Hunter!');
+  toast(candSlot === 'random' ? '🎲 Fair pick: fewest hunts first!' : ('✓ Your tap: ' + candName + ' hunts next!'));
 
   if(typeof NET !== 'undefined' && NET && NET.role !== null){
     if(NET.isHost){
@@ -2142,12 +2228,12 @@ function setTeamHunterChoice(teamIdx, cand){
       if(teamIdx === 0) settings.hunterRed = pick; else settings.hunterBlue = pick;
       if(!menu.hunterVotes) menu.hunterVotes = {};
       for(const s of teamSlots) menu.hunterVotes[s] = { team: teamIdx, cand: 'random' };
-      toast('🎲 ' + (teamIdx === 0 ? 'RED' : 'BLUE') + ' HUNTER: RANDOM (' + ('P' + (pick + 1)) + ')');
+      toast('🎲 Fair pick: ' + ('P' + (pick + 1)) + ' hunts for ' + (teamIdx === 0 ? 'RED' : 'BLUE') + ' (fewest hunts first)');
     } else {
       if(teamIdx === 0) settings.hunterRed = cand; else settings.hunterBlue = cand;
       if(!menu.hunterVotes) menu.hunterVotes = {};
       for(const s of teamSlots) menu.hunterVotes[s] = { team: teamIdx, cand: cand };
-      toast('👑 ' + ('P' + (cand + 1)) + ' IS ' + (teamIdx === 0 ? 'RED' : 'BLUE') + ' HUNTER!');
+      toast('👑 ' + ('P' + (cand + 1)) + ' hunts for ' + (teamIdx === 0 ? 'RED' : 'BLUE') + ' next!');
     }
     if(match){
       match.hunterRed = settings.hunterRed;
@@ -2161,28 +2247,16 @@ function setTeamHunterChoice(teamIdx, cand){
   const mySlot = NET.mySlot;
   const myTeam = (menu.slotTeam && mySlot >= 0 && menu.slotTeam[mySlot] != null) ? (menu.slotTeam[mySlot] % 2) : ((mySlot >= 0 ? mySlot : 0) % 2);
 
-  if(NET.isHost || myTeam === teamIdx){
-    if(NET.isHost){
-      if(cand !== 'random'){
-        if(teamIdx === 0) settings.hunterRed = cand; else settings.hunterBlue = cand;
-      } else {
-        const hist = (match && match.hunterHistory) ? match.hunterHistory : (menu.hunterHistory || {});
-        let minR = 1e9;
-        for(const s of teamSlots){ const r = hist[s] || 0; if(r < minR) minR = r; }
-        const leastR = teamSlots.filter(s => (hist[s] || 0) === minR);
-        const pick = leastR[Math.floor(Math.random() * leastR.length)];
-        if(teamIdx === 0) settings.hunterRed = pick; else settings.hunterBlue = pick;
-      }
-      if(match){
-        match.hunterRed = settings.hunterRed;
-        match.hunterBlue = settings.hunterBlue;
-      }
-      netBroadcastSettings();
-    }
-    const voter = (mySlot >= 0) ? mySlot : 0;
+  if(mySlot < 0){
+    toast('⚠️ Spectators watch — players tap their own team!');
+    sfx('back');
+    return;
+  }
+  if(myTeam === teamIdx){
+    const voter = mySlot;
     castHunterVote(voter, cand);
   } else {
-    toast('⚠️ You can only choose the hunter for your own team!');
+    toast('⚠️ Tap YOUR team box — you hunt with them!');
     sfx('back');
   }
 }
@@ -2193,7 +2267,7 @@ function selectHunterRole(slot){
 }
 
 function setGameMode(newMode){
-  if(menu.tab === 'solo'){
+  if(menu.tab === 'solo' || menu.tab === 'bots'){
     if(newMode !== 'party'){
       toast('🤖 SOLO MODE IS FREE-FOR-ALL ONLY');
       sfx('back');
@@ -2227,7 +2301,7 @@ function setGameMode(newMode){
 }
 
 function cycleGameMode(d){
-  if(menu.tab === 'solo'){
+  if(menu.tab === 'solo' || menu.tab === 'bots'){
     toast('🤖 SOLO MODE IS FREE-FOR-ALL ONLY');
     sfx('back');
     return;
@@ -2346,7 +2420,7 @@ function menuConfirm(){
 }
 function updateMenu(dt){
   if(anyPressed(['KeyM'])){muted=!muted;applyEffectiveMute();}
-  if(anyPressed(['KeyB'])){
+  if(anyPressed(['KeyB']) && menu.tab !== 'bots'){
     menu.botOn=!menu.botOn;
     sfx('ui');
     toast(menu.botOn?'BOT: ON':'BOT: OFF');
@@ -2535,19 +2609,23 @@ function makePlayer(i,slot,colIdx){
     slot:slot,colIdx:colIdx,team:team,trail:[],isHunter:roleHunter,isEliminated:false,survivalT:0};
 }
 function startMatch(){
-  if(menu.tab === 'solo'){
+  if(menu.tab === 'solo' || menu.tab === 'bots'){
     settings.teams = false;
     settings.gameMode = 'party';
     menu.gameMode = 'party';
+    if(menu.tab === 'bots'){
+      menu.botOn = true;
+      menu.slotColor = [0, 1, -1, -1, -1, -1, -1, -1];
+    }
   } else if(menu.tab === 'teams') settings.teams = true;
   if(settings.randomMap){
     settings.map = Math.floor(rand(MAPS.length));
   }
   // Starting a solo/bot or local-party match while in an online room:
   // leave the room first (any role), then start offline. Online-tab guests stay blocked.
-  if(typeof NET!=='undefined' && NET && NET.role!==null && (menu.tab==='solo' || menu.tab==='2p')){
+  if(typeof NET!=='undefined' && NET && NET.role!==null && (menu.tab==='solo' || menu.tab==='2p' || menu.tab==='bots')){
     try{if(NET.isHost) netBroadcastReliable({t:'to_menu'});}catch(e){}
-    try{if(typeof netLeaveRoom==='function')netLeaveRoom(menu.tab==='solo'?'Solo mode — left online room':'Local mode — left online room');}catch(e){}
+    try{if(typeof netLeaveRoom==='function')netLeaveRoom(menu.tab==='solo'?'Solo mode — left online room':(menu.tab==='bots'?'Watch bots — left online room':'Local mode — left online room'));}catch(e){}
   }
   if(typeof NET!=='undefined' && NET && NET.role!==null && !NET.isHost){
     toast('HOST RESTARTS THE MATCH');
@@ -2793,6 +2871,7 @@ function isBotSlot(p){
     if(!menu.botOn)return false;
     if(!match||!match.players||match.players.length!==2)return false;
     if(activeSlots().length!==2)return false;
+    if(menu.tab === 'bots') return (p.slot === 0 || p.slot === 1);
     return p.slot===1;
   }catch(e){return false;}
 }
@@ -4108,7 +4187,7 @@ function endHunterRound(wiperTeam){
 
   match.state = 'hunter_round_result';
   match.resultT = 0;
-  match.intermissionTimer = 30.0;
+  match.intermissionTimer = 15.0;
 
   const P = match.players;
   const redRunners = P.filter(p => p.team === 0 && !p.isHunter);
@@ -4172,6 +4251,29 @@ function endHunterRound(wiperTeam){
     tournamentStats: match.tournamentStats,
     isMatchOver: isMatchOver
   };
+
+  // Career: best single-round survival + tournament titles (this device)
+  try{
+    const isOnlineH = (typeof NET !== 'undefined' && NET && NET.role !== null);
+    const mySlotH = isOnlineH ? NET.mySlot : 0;
+    if(mySlotH != null && mySlotH >= 0){
+      const me = P.find(p => p.slot === mySlotH);
+      if(me && !me.isHunter){
+        const mySurv = me.isEliminated ? (me.survivalT || 0) : elapsed;
+        if(mySurv > CAREER.surv){ CAREER.surv = Math.round(mySurv * 10) / 10; }
+      }
+      if(isMatchOver){
+        const s = match.roundSummary.cumulative;
+        const myTeam = me ? me.team : ((menu.slotTeam && menu.slotTeam[mySlotH] != null) ? menu.slotTeam[mySlotH] : (mySlotH % 2));
+        const tied = (s[0] === s[1]);
+        const wonT = !tied && ((s[0] > s[1] ? 0 : 1) === myTeam);
+        CAREER.m++;
+        if(wonT){ CAREER.w++; CAREER.titles++; CAREER.streak++; if(CAREER.streak > CAREER.bestStreak) CAREER.bestStreak = CAREER.streak; }
+        else if(!tied){ CAREER.streak = 0; }
+      }
+      saveCareer();
+    }
+  }catch(e){}
 
   confetti();
   sfx('win');
@@ -4647,12 +4749,15 @@ function drawHunterRoundResult(){
     const curRedElected = resolveTeamHunter(0);
     const curRedPName = (isOnline && NET.slotsName && NET.slotsName[curRedElected]) || ('P' + (curRedElected + 1));
     const curRedName = ('P' + (curRedElected + 1)) + ' • ' + curRedPName;
-    ptxt('🔴 ELECT RED HUNTER (ROUND ' + (summary.round + 1) + ')', redX + colW/2, voteY + 15, FN(11, 900), '#ff6b81');
-    ptxt('👑 Elected: ' + curRedName, redX + colW/2, voteY + 30, FN(9.5, 800), '#ffd166');
+    ptxt(redHeader, redX + colW/2, voteY + 15, FN(11, 900), '#ff6b81');
+    ptxt(redSub, redX + colW/2, voteY + 30, FN(9.5, 800), '#ffd166');
 
     const redSlots = activeSlots().filter(s => ((menu.slotTeam ? menu.slotTeam[s] : s) % 2) === 0);
-    const canVoteRed = !isOnline || (NET && NET.isHost) || (NET.mySlot >= 0 && myTeam === 0);
+    const canVoteRed = !isOnline || (NET.mySlot >= 0 && myTeam === 0);
     const redItems = redSlots.concat(['random']);
+    const isMyRed = !isOnline || (isOnline && myTeam === 0);
+    const redHeader = !isOnline ? '🔴 RED: TAP TO CHOOSE HUNTER' : (isMyRed ? '🔴 RED — YOUR TEAM: TAP ONE' : '🔴 RED — OTHER TEAM 🔒');
+    const redSub = '👑 Now hunting: ' + curRedName;
 
     // 2. Blue Election Box
     rr(g, blueX, voteY, colW, voteH, 8);
@@ -4662,12 +4767,15 @@ function drawHunterRoundResult(){
     const curBlueElected = resolveTeamHunter(1);
     const curBluePName = (isOnline && NET.slotsName && NET.slotsName[curBlueElected]) || ('P' + (curBlueElected + 1));
     const curBlueName = ('P' + (curBlueElected + 1)) + ' • ' + curBluePName;
-    ptxt('🔵 ELECT BLUE HUNTER (ROUND ' + (summary.round + 1) + ')', blueX + colW/2, voteY + 15, FN(11, 900), '#38bdf8');
-    ptxt('👑 Elected: ' + curBlueName, blueX + colW/2, voteY + 30, FN(9.5, 800), '#ffd166');
+    ptxt(blueHeader, blueX + colW/2, voteY + 15, FN(11, 900), '#38bdf8');
+    ptxt(blueSub, blueX + colW/2, voteY + 30, FN(9.5, 800), '#ffd166');
 
     const blueSlots = activeSlots().filter(s => ((menu.slotTeam ? menu.slotTeam[s] : s) % 2) === 1);
-    const canVoteBlue = !isOnline || (NET && NET.isHost) || (NET.mySlot >= 0 && myTeam === 1);
+    const canVoteBlue = !isOnline || (NET.mySlot >= 0 && myTeam === 1);
     const blueItems = blueSlots.concat(['random']);
+    const isMyBlue = !isOnline || (isOnline && myTeam === 1);
+    const blueHeader = !isOnline ? '🔵 BLUE: TAP TO CHOOSE HUNTER' : (isMyBlue ? '🔵 BLUE — YOUR TEAM: TAP ONE' : '🔵 BLUE — OTHER TEAM 🔒');
+    const blueSub = '👑 Now hunting: ' + curBlueName;
 
     // Reusable 2-row chip wrapping renderer
     function drawElectionChips(items, curElected, canVote, teamIdx, boxX, teamSlots){
@@ -4695,30 +4803,36 @@ function drawHunterRoundResult(){
         const isCandElected = (cand !== 'random' && curElected === cand);
         const isRand = (cand === 'random');
         const votes = getCandidateVoteCount(cand, teamIdx);
-        const rds = isRand ? '' : ((hist[cand] || 0) + 'rd');
+        const hunts = isRand ? 0 : (hist[cand] || 0);
+        const isMe = !isRand && isOnline && NET && NET.mySlot === cand;
         const slotTag = isRand ? '' : ('P' + (cand + 1));
         const pName = isRand ? '' : (((isOnline && NET.slotsName && NET.slotsName[cand]) || slotTag));
-        const rawName = isRand ? '🎲 Random' : (slotTag + ' • ' + pName);
-        const name = isRand ? (itemW < 58 ? '🎲 Rand' : '🎲 Random') : (itemW < 78 ? (slotTag + ' ' + pName.slice(0, 5)) : rawName);
+        const baseName = isRand ? (itemW < 70 ? '🎲 Fair pick' : '🎲 Fair pick') : (slotTag + (isMe ? ' (YOU)' : '') + ' • ' + pName);
+        const name = isRand ? baseName : (itemW < 78 && !isMe ? (slotTag + ' ' + String(pName).slice(0, 5)) : baseName);
         const myVote = (menu.hunterVotes && menu.hunterVotes[mySlot]);
         const myCand = (myVote && typeof myVote === 'object') ? myVote.cand : myVote;
         const isVotedByMe = (myCand === cand);
 
+        g.save();
+        if(!canVote) g.globalAlpha = 0.45;
         rr(g, ix, iy, itemW, itemH, 5);
-        g.fillStyle = isCandElected ? (teamIdx === 0 ? 'rgba(235, 60, 40, 0.35)' : 'rgba(56, 189, 248, 0.35)') : (isVotedByMe ? 'rgba(255, 209, 102, 0.2)' : 'rgba(255, 255, 255, 0.07)');
+        g.fillStyle = isCandElected ? (teamIdx === 0 ? 'rgba(235, 60, 40, 0.35)' : 'rgba(56, 189, 248, 0.35)') : (isVotedByMe ? 'rgba(255, 209, 102, 0.30)' : 'rgba(255, 255, 255, 0.07)');
         g.fill();
-        g.lineWidth = isCandElected ? 1.5 : (isVotedByMe ? 1.2 : 0.8);
-        g.strokeStyle = isCandElected ? '#ffd166' : (isVotedByMe ? '#ffd166' : 'rgba(255,255,255,0.25)');
+        g.lineWidth = (isCandElected || isVotedByMe) ? 1.5 : 0.8;
+        g.strokeStyle = (isCandElected || isVotedByMe) ? '#ffd166' : 'rgba(255,255,255,0.25)';
         g.stroke();
 
-        const label = (isCandElected ? '👑 ' : '') + name;
-        const subLabel = votes + ' 🗳️' + (rds ? (' • ' + rds) : '');
+        const check = isVotedByMe ? '✓ ' : '';
+        const label = check + (isCandElected ? '👑 ' : '') + name;
+        const tapWord = votes === 1 ? '1 tap' : (votes + ' taps');
+        const subLabel = isRand ? (tapWord + ' • fair') : (tapWord + ' • H×' + hunts);
         ptxt(label, ix + itemW/2, iy + itemH * 0.38, FN(clamp(itemW * 0.11, 8, 10), 900), isCandElected ? '#ffd166' : '#ffffff');
         ptxt(subLabel, ix + itemW/2, iy + itemH * 0.76, FN(clamp(itemW * 0.095, 7, 8.5), 800), isVotedByMe ? '#ffd166' : '#cbd5e1');
+        g.restore();
 
         zone(ix, iy, itemW, itemH, { fn: () => {
           if(!canVote){
-            toast('⚠️ You can only vote for your own team!');
+            toast('⚠️ Tap YOUR team box — you hunt with them!');
             sfx('back');
             return;
           }
@@ -4730,8 +4844,12 @@ function drawHunterRoundResult(){
     drawElectionChips(redItems, curRedElected, canVoteRed, 0, redX, redSlots);
     drawElectionChips(blueItems, curBlueElected, canVoteBlue, 1, blueX, blueSlots);
 
-    // 30s AFK Intermission Countdown
-    const afkSec = Math.max(0, Math.ceil(match.intermissionTimer != null ? match.intermissionTimer : 30));
+    // One-line how voting works (plain language, always visible)
+    const ruleHint = !isOnline ? 'Tap a player = they hunt • 🎲 Fair pick = fewest hunts first' : (isMyRed && !isMyBlue ? 'You are RED: tap a red box • most taps hunts • tie → fewest hunts' : (!isMyRed && isMyBlue ? 'You are BLUE: tap a blue box • most taps hunts • tie → fewest hunts' : 'Tap YOUR team box • most taps hunts • tie → fewest hunts'));
+    txt(ruleHint, CW / 2, btnY - 10, FN(9, 800), 'rgba(203,213,225,0.9)');
+
+    // 15s AFK Intermission Countdown
+    const afkSec = Math.max(0, Math.ceil(match.intermissionTimer != null ? match.intermissionTimer : 15));
 
     // Next Round Action Button
     if(isOnline && !NET.isHost){
@@ -4856,6 +4974,49 @@ function checkTag(){
     }
   }
 }
+/* ================= career persistence (retention: wins, tags, streaks, titles) ================= */
+const CAREER_KEY = 'tag_career_v1';
+function defaultCareer(){ return { m:0, w:0, tags:0, best:0, streak:0, bestStreak:0, titles:0, surv:0 }; }
+function loadCareer(){
+  try{
+    const raw = localStorage.getItem(CAREER_KEY);
+    if(!raw) return defaultCareer();
+    const c = JSON.parse(raw), d = defaultCareer();
+    for(const k of Object.keys(d)){
+      if(typeof c[k] === 'number' && isFinite(c[k]) && c[k] >= 0) d[k] = (k === 'surv') ? Math.round(c[k] * 10) / 10 : Math.floor(c[k]);
+    }
+    return d;
+  }catch(e){ return defaultCareer(); }
+}
+function saveCareer(){ try{ localStorage.setItem(CAREER_KEY, JSON.stringify(CAREER)); }catch(e){} }
+let CAREER = loadCareer();
+function myMatchIndex(){
+  if(!match || !match.players) return -1;
+  if(menu.tab === 'bots') return -1; // bot-vs-bot watch mode: no human career
+  const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
+  const mySlot = isOnline ? NET.mySlot : 0;
+  if(mySlot == null || mySlot < 0) return -1;
+  return match.players.findIndex(p => p.slot === mySlot);
+}
+function careerRecordMatch(won, myTags, mySurv){
+  CAREER.m++;
+  myTags = Math.max(0, myTags | 0);
+  CAREER.tags += myTags;
+  if(myTags > CAREER.best) CAREER.best = myTags;
+  if(mySurv != null && mySurv > CAREER.surv) CAREER.surv = Math.round(mySurv * 10) / 10;
+  if(won){ CAREER.w++; CAREER.streak++; if(CAREER.streak > CAREER.bestStreak) CAREER.bestStreak = CAREER.streak; }
+  else CAREER.streak = 0;
+  saveCareer();
+}
+function careerLine(){
+  if(!CAREER || CAREER.m <= 0) return '';
+  let s = '🏆 ' + CAREER.w + 'W/' + CAREER.m + ' • 🏷️ ' + CAREER.tags + ' tags';
+  if(CAREER.best > 0) s += ' (best ' + CAREER.best + ')';
+  if(CAREER.streak >= 2) s += ' • 🔥 x' + CAREER.streak;
+  if(CAREER.titles > 0) s += ' • 👑 ' + CAREER.titles;
+  return s;
+}
+
 function endMatch(){
   try{CG.happytime();}catch(e){}try{CG.gameplayStop();}catch(e){}
   match.state='result';
@@ -4876,6 +5037,21 @@ function endMatch(){
   } else {
     match.result={loser:match.it};
   }
+  // Career persistence (this device: P1 offline, my slot online; spectators skipped)
+  try{
+    const mi = myMatchIndex();
+    if(mi >= 0){
+      const myTags = (match.tags[mi] != null) ? match.tags[mi] : 0;
+      let won = false;
+      if(match.result.winningTeam != null){
+        const mp = match.players[mi];
+        won = !!mp && mp.team === match.result.winningTeam;
+      } else {
+        won = (mi !== match.result.loser);
+      }
+      careerRecordMatch(won, myTags, null);
+    }
+  }catch(e){}
   match.resultT=0;
   confetti();
   sfx('win');
@@ -5071,7 +5247,7 @@ function updateGame(dt){
   if(match.state==='hunter_round_result'){
     match.resultT = (match.resultT || 0) + dt;
     if(match.roundSummary && !match.roundSummary.isMatchOver){
-      match.intermissionTimer = Math.max(0, (match.intermissionTimer != null ? match.intermissionTimer : 30.0) - dt);
+      match.intermissionTimer = Math.max(0, (match.intermissionTimer != null ? match.intermissionTimer : 15.0) - dt);
       if(match.intermissionTimer <= 0){
         if(typeof NET === 'undefined' || !NET || NET.role === null || NET.isHost){
           advanceHunterRound();
@@ -6720,10 +6896,23 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
     function drawLobbyHunterTeam(teamIdx, boxY){
       const isRed = (teamIdx === 0);
       const teamColor = isRed ? '#ff4757' : '#38bdf8';
-      const teamSlots = [0, 1, 2, 3, 4, 5, 6, 7].filter(s => ((menu.slotTeam ? menu.slotTeam[s] : s) % 2) === teamIdx);
-      const teamActive = teamSlots.filter(s => (s === 0 ? true : (NET.isHost ? (NET.hostInputs.has(s) || menu.slotColor[s] >= 0) : menu.slotColor[s] >= 0)));
+      const isConnSlot = (s) => (s === 0 ? true : (NET.isHost ? (NET.hostInputs.has(s) || menu.slotColor[s] >= 0) : menu.slotColor[s] >= 0));
+      const allTeam = [0, 1, 2, 3, 4, 5, 6, 7].filter(s => ((menu.slotTeam ? menu.slotTeam[s] : s) % 2) === teamIdx);
+      const connTeam = allTeam.filter(isConnSlot).slice(0, 4);
+      const teamActive = connTeam;
       const electedHunter = isRed ? settings.hunterRed : settings.hunterBlue;
-      const isRandElected = (menu.hunterVotes && menu.hunterVotes[isRed ? 'red' : 'blue'] === 'random');
+      // 'Fair pick' highlight: every connected voter on this team voted random
+      let isRandElected = false;
+      if(menu.hunterVotes){
+        const tv = [];
+        for(const [v, voteVal] of Object.entries(menu.hunterVotes)){
+          const voter = parseInt(v);
+          if(!connTeam.includes(voter)) continue;
+          const cc = (voteVal && typeof voteVal === 'object') ? voteVal.cand : voteVal;
+          tv.push(cc);
+        }
+        isRandElected = tv.length > 0 && tv.every(x => x === 'random' || x === -1 || x === '-1');
+      }
 
       // Box frame
       rr(g, leftX, boxY, leftW, teamBoxH, 10);
@@ -6755,9 +6944,9 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
       const rowH = Math.floor(rowAvailH / 4);
 
       for(let i = 0; i < 4; i++){
-        const s = teamSlots[i];
+        const s = (i < connTeam.length) ? connTeam[i] : null;
         const ry = boxY + teamHeadH + 2 + i * rowH;
-        const isConn = (s === 0 ? true : (NET.isHost ? (NET.hostInputs.has(s) || menu.slotColor[s] >= 0) : menu.slotColor[s] >= 0));
+        const isConn = (s !== null && isConnSlot(s));
         const isMe = (s === NET.mySlot);
         const col = getSlotColor(s, menu.slotColor, menu.slotTeam);
         const isHunterSlot = (electedHunter === s && !isRandElected);
@@ -6817,18 +7006,25 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
             zone(kickX, qY, qSz, qSz, { fn: () => netKickPlayer(s) });
           }
 
-          // Clicking row chooses this player as hunter!
+          // Tapping a row joins THAT team. The 👑/🎯 badge picks the hunter.
           zone(leftX + 4, ry, leftW - (hasHostControls ? 26 : 8), rowH - 2, { fn: () => {
+            if(typeof NET !== 'undefined' && NET && NET.role !== null){
+              joinTeamFromPanel(teamIdx);
+            } else {
+              setTeamHunterChoice(teamIdx, s);
+            }
+          }});
+          // Hunter-pick badge (registered last = wins the tap on the badge)
+          zone(badgeX - 24, ry + 1, 46, rowH - 4, { fn: () => {
             setTeamHunterChoice(teamIdx, s);
           }});
         } else {
-          // Open slot: click to join this team slot
-          g.font = FN(clamp(rowH * 0.36, 8.5, 10.5), 800); g.textAlign = 'left'; g.fillStyle = '#64748b';
-          g.fillText('+ P' + (s+1) + ' OPEN', leftX + 8, ry + rowH/2 + 3);
+          // Open row: tap to join THIS team (first free slot)
+          const joinLabel = isRed ? '+ JOIN RED' : '+ JOIN BLUE';
+          g.font = FN(clamp(rowH * 0.36, 8.5, 10.5), 800); g.textAlign = 'left'; g.fillStyle = isRed ? 'rgba(255,107,129,0.9)' : 'rgba(56,189,248,0.9)';
+          g.fillText(joinLabel, leftX + 8, ry + rowH/2 + 3);
           zone(leftX + 4, ry, leftW - 8, rowH - 2, { fn: () => {
-            netClaimSlot(s);
-            if(menu.slotTeam) menu.slotTeam[s] = teamIdx;
-            if(NET.isHost) netBroadcastRoster();
+            joinTeamFromPanel(teamIdx);
           }});
         }
       }
@@ -7047,29 +7243,27 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
   if(settings.gameMode === 'hunter'){
     const myTeam = (menu.slotTeam && NET.mySlot >= 0 && menu.slotTeam[NET.mySlot] != null) ? menu.slotTeam[NET.mySlot] : ((NET.mySlot >= 0 ? NET.mySlot : 0) % 2);
     const isMeHunter = (myTeam === 0 && settings.hunterRed === NET.mySlot) || (myTeam === 1 && settings.hunterBlue === NET.mySlot);
-    const teamDef = TEAMS[myTeam] || TEAMS[0];
-    const roleBadge = isMeHunter ? ' (👑 HUNTER)' : ' (RUNNER)';
-    const teamLabel = isTeamLockedForMe ? ('🔒 ' + teamDef.icon + ' ' + teamDef.name + roleBadge) : ('‹  ' + teamDef.icon + ' ' + teamDef.name + roleBadge + '  ›');
+    const crown = isMeHunter ? '  👑' : '';
+    const teamLabel = isTeamLockedForMe ? ('🔒 ' + (myTeam === 0 ? '🔴 RED' : '🔵 BLUE') + crown) : ((myTeam === 0 ? '[🔴 RED]' : '🔴 RED') + '  ' + (myTeam === 1 ? '[🔵 BLUE]' : '🔵 BLUE') + crown);
     ptxt(teamLabel, cx, teamY + teamH/2 + 1, FN(teamFontSize, 900), isMeHunter ? '#ffd166' : '#ffffff');
     if(NET.mySlot >= 0){
       if(isTeamLockedForMe){
         zone(cx - btnW/2, teamY, btnW, teamH, { fn: () => { toast('TEAMS ARE LOCKED BY THE HOST'); sfx('back'); } });
       } else {
-        zone(cx - btnW/2, teamY, btnW * 0.45, teamH, { fn: () => cycleTeam(NET.mySlot, -1) });
-        zone(cx + btnW * 0.05, teamY, btnW * 0.45, teamH, { fn: () => cycleTeam(NET.mySlot, 1) });
+        zone(cx - btnW/2, teamY, btnW * 0.45, teamH, { fn: () => setPlayerTeam(NET.mySlot, 0) });
+        zone(cx + btnW * 0.05, teamY, btnW * 0.45, teamH, { fn: () => setPlayerTeam(NET.mySlot, 1) });
       }
     }
   } else if(settings.teams){
     const myTeam = (menu.slotTeam && NET.mySlot >= 0 && menu.slotTeam[NET.mySlot] != null) ? menu.slotTeam[NET.mySlot] : ((NET.mySlot >= 0 ? NET.mySlot : 0) % 2);
-    const teamDef = TEAMS[myTeam] || TEAMS[0];
-    const teamLabel = isTeamLockedForMe ? ('🔒 ' + teamDef.icon + ' ' + teamDef.name) : ('‹  ' + teamDef.icon + ' ' + teamDef.name + '  ›');
+    const teamLabel = isTeamLockedForMe ? ('🔒 ' + (myTeam === 0 ? '🔴 RED' : '🔵 BLUE')) : ((myTeam === 0 ? '[🔴 RED]' : '🔴 RED') + '  ' + (myTeam === 1 ? '[🔵 BLUE]' : '🔵 BLUE'));
     ptxt(teamLabel, cx, teamY + teamH/2 + 1, FN(teamFontSize, 900), isTeamLockedForMe ? '#ffd166' : '#ffffff');
     if(NET.mySlot >= 0){
       if(isTeamLockedForMe){
         zone(cx - btnW/2, teamY, btnW, teamH, { fn: () => { toast('TEAMS ARE LOCKED BY THE HOST'); sfx('back'); } });
       } else {
-        zone(cx - btnW/2, teamY, btnW * 0.45, teamH, { fn: () => cycleTeam(NET.mySlot, -1) });
-        zone(cx + btnW * 0.05, teamY, btnW * 0.45, teamH, { fn: () => cycleTeam(NET.mySlot, 1) });
+        zone(cx - btnW/2, teamY, btnW * 0.45, teamH, { fn: () => setPlayerTeam(NET.mySlot, 0) });
+        zone(cx + btnW * 0.05, teamY, btnW * 0.45, teamH, { fn: () => setPlayerTeam(NET.mySlot, 1) });
       }
     }
   } else {
@@ -7419,7 +7613,7 @@ function drawScoreboardOverlay(){
 
 /* ================= MODERN RESPONSIVE ARENA MENU ================= */
 function drawMenu(){
-  if(menu.tab !== 'solo' && menu.tab !== '2p' && menu.tab !== 'online') menu.tab = '2p';
+  if(menu.tab !== 'solo' && menu.tab !== '2p' && menu.tab !== 'online' && menu.tab !== 'bots') menu.tab = '2p';
 
   // 1. Render live arena map in background!
   g.save();
@@ -7436,8 +7630,9 @@ function drawMenu(){
   const isNarrowW = (CW < 560);
   const isMobile = (CW < 700 || CH < 500);
   const isSolo = (menu.tab === 'solo');
-  const isTeams = (settings.teams && !isSolo);
-  if(isSolo) settings.teams = false;
+  const isBots = (menu.tab === 'bots');
+  const isTeams = (settings.teams && !isSolo && !isBots);
+  if(isSolo || isBots) settings.teams = false;
 
   // 2. Header Bar
   const headY = isShortH ? 6 : 10;
@@ -7489,9 +7684,10 @@ function drawMenu(){
   const modeTabs = [
     { id: '2p', label: '👥 2-4P PARTY', short: '👥 PARTY' },
     { id: 'solo', label: '🤖 1P SOLO', short: '🤖 SOLO', badge: 'BETA' },
+    { id: 'bots', label: '⚔️ WATCH BOTS', short: '⚔️ BOTS' },
     { id: 'online', label: '🌐 ONLINE HUB', short: '🌐 ONLINE' }
   ];
-  const tabW = clamp((themeX - 14 - logoW - 20) / modeTabs.length, isNarrowW ? 85 : 120, 160);
+  const tabW = clamp((themeX - 14 - logoW - 20) / modeTabs.length, isNarrowW ? 62 : 90, 150);
   const tabH = clamp(headH * 0.84, 28, 36);
   const tabsTotalW = tabW * modeTabs.length + (modeTabs.length - 1) * 8;
   const tabsX = Math.max(14 + logoW + 8, Math.floor(CW / 2 - tabsTotalW / 2));
@@ -7524,12 +7720,14 @@ function drawMenu(){
   const startBtnH = clamp(CH * 0.080, isShortH ? 32 : 36, 44);
   const startBtnW = Math.min(CW - 28, 340);
   const startBtnY = CH - startBtnH - bottomMargin;
+  // Career band (retention line) sits between settings strip and start button; 0 for first-timers
+  const careerBandH = (typeof CAREER !== 'undefined' && CAREER && CAREER.m > 0) ? 18 : 0;
 
   // Settings strip directly above start button
   const stripH = isNarrowW ? (isShortH ? 56 : 64) : clamp(CH * 0.075, isShortH ? 30 : 34, 40);
   const stripW = Math.min(CW - 24, 880);
   const stripX = Math.floor(CW/2 - stripW/2);
-  const stripY = startBtnY - stripH - (isShortH ? 4 : 8);
+  const stripY = startBtnY - careerBandH - stripH - (isShortH ? 4 : 8);
 
   // Center Stage Area
   const stageY = headerBottom;
@@ -7543,8 +7741,8 @@ function drawMenu(){
   // 4. Center Stage Content (1P SOLO, 2-4 PLAYERS & TEAMS)
   // Determine active slots
   let actSlots = [0];
-  if(isSolo){
-    actSlots = [0, 1]; // P1 Human, P2 BOT
+  if(isSolo || isBots){
+    actSlots = [0, 1]; // P1 Human, P2 BOT (bots tab: BOT 1, BOT 2)
   } else {
     if(menu.slotColor[0] < 0) menu.slotColor[0] = 0;
     if(menu.slotColor[1] < 0) menu.slotColor[1] = 1;
@@ -7560,7 +7758,7 @@ function drawMenu(){
   const pillY = stageY + 2;
   const ph = stageTopPad - 4;
 
-  if(isSolo){
+  if(isSolo || isBots){
     const diffOpts = [
       { id: 'easy', label: '⚡ EASY', col: '#2ed573' },
       { id: 'hard', label: '🔥 HARD (DEF)', col: '#ff4757' }
@@ -7651,8 +7849,8 @@ function drawMenu(){
   const cardsAreaH = stageH - stageTopPad;
 
   // Check if 4 cards should wrap to 2x2 grid on small mobile
-  const use2x2 = (!isSolo && actSlots.length === 4 && CW < 680);
-  const showAddCard = (!isSolo && actSlots.length < 4 && CW >= 580 && !use2x2 && !isTouch);
+  const use2x2 = (!isSolo && !isBots && actSlots.length === 4 && CW < 680);
+  const showAddCard = (!isSolo && !isBots && actSlots.length < 4 && CW >= 580 && !use2x2 && !isTouch);
   const totalItems = actSlots.length + (showAddCard ? 1 : 0);
 
   const cardGap = clamp(CW * 0.016, 6, 14);
@@ -7680,8 +7878,8 @@ function drawMenu(){
     for(let k = 0; k < actSlots.length; k++){
       const slot = actSlots[k];
       const cx = startX + k * (cardW + cardGap);
-      const isBot = (isSolo && slot === 1);
-      drawPlayerCard(cx, cardY, cardW, cardH, slot, isBot, !isSolo && slot >= 2);
+      const isBot = (isSolo && slot === 1) || (isBots && (slot === 0 || slot === 1));
+      drawPlayerCard(cx, cardY, cardW, cardH, slot, isBot, !isSolo && !isBots && slot >= 2);
     }
 
     // Draw "+ ADD PLAYER" card if slots available
@@ -8194,7 +8392,8 @@ function drawMenu(){
   } else {
     const startBtnX = Math.floor(CW/2 - startBtnW/2);
     let startLabel = isTouch ? '▶ START MATCH' : '▶ START MATCH  (SPACE / ENTER)';
-    if(settings.gameMode === 'hunter') startLabel = isTouch ? '🎯 START HUNTER MATCH' : '🎯 START HUNTER MATCH (SPACE)';
+    if(isBots) startLabel = '▶ WATCH MATCH';
+    else if(settings.gameMode === 'hunter') startLabel = isTouch ? '🎯 START HUNTER MATCH' : '🎯 START HUNTER MATCH (SPACE)';
     else if(isTeams) startLabel = isTouch ? '⚔️ START TEAM MATCH' : '⚔️ START TEAM MATCH (SPACE)';
     const labelFs = clamp(startBtnH * 0.38, 12.5, 16.5);
     drawJuicyBtn(startBtnX, startBtnY, startBtnW, startBtnH, {
@@ -8223,6 +8422,9 @@ function drawMenu(){
       }
     });
   }
+  // Career line (retention: reason to come back) — centered in its reserved band
+  const _mcl = (typeof careerLine === 'function') ? careerLine() : '';
+  if(_mcl && careerBandH > 0) txt(_mcl, CW/2, startBtnY - careerBandH/2 + 1, FN(10, 800), 'rgba(255,209,102,0.85)');
   // 7. Toast Message
   if(menu.toastT > 0 && menu.toast){
     const a = clamp(menu.toastT, 0, 1);
@@ -8254,7 +8456,7 @@ function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
 
   // Header Title
   const headTitleH = clamp(cardH * 0.16, 16, 24);
-  const pTitle = isBot ? '🤖 BOT' : ('PLAYER ' + (slotIdx + 1));
+  const pTitle = isBot ? ('🤖 BOT' + ((menu.tab === 'bots') ? ' ' + (slotIdx + 1) : '')) : ('PLAYER ' + (slotIdx + 1));
   ptxt(pTitle, centerX, cardY + headTitleH * 0.62, FT(clamp(cardW * 0.082, 10.5, 13.5)), isBot ? '#ff6b81' : col);
 
   // Remove Button (✕) on P3 / P4 cards
@@ -8290,19 +8492,21 @@ function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
     const roleW = cardW - 14;
     const roleX = cx + 7;
     const candVotes = getCandidateVoteCount(slotIdx, slotTeam);
-    const voteBadge = candVotes > 0 ? (' (' + candVotes + ' 🗳️)') : '';
+    const isMeCard = (typeof NET !== 'undefined' && NET && NET.role !== null && NET.mySlot === slotIdx);
+    const youTag = isMeCard ? ' (YOU)' : '';
+    const tapBadge = candVotes === 1 ? ' • 1 tap' : (candVotes > 1 ? (' • ' + candVotes + ' taps') : '');
     if(isHunter){
       rr(g, roleX, roleY, roleW, roleH, 5);
       g.fillStyle = slotTeam === 0 ? 'rgba(235, 60, 40, 0.88)' : 'rgba(47, 155, 232, 0.88)';
       g.fill();
       g.lineWidth = 1.2; g.strokeStyle = '#ffd166'; g.stroke();
-      txt('👑 HUNTER' + voteBadge, centerX, roleY + roleH/2 + 1, FN(clamp(roleH * 0.55, 8.5, 10.5), 900), '#ffffff');
+      txt('👑 HUNTS NEXT' + youTag + tapBadge, centerX, roleY + roleH/2 + 1, FN(clamp(roleH * 0.55, 8.5, 10.5), 900), '#ffffff');
       zone(roleX, roleY, roleW, roleH, { fn: () => selectHunterRole(slotIdx) });
     } else {
       rr(g, roleX, roleY, roleW, roleH, 5);
       g.fillStyle = 'rgba(255, 255, 255, 0.08)'; g.fill();
       g.lineWidth = 1; g.strokeStyle = 'rgba(255, 255, 255, 0.22)'; g.stroke();
-      txt('🗳️ VOTE HUNTER' + voteBadge, centerX, roleY + roleH/2 + 1, FN(clamp(roleH * 0.50, 7.5, 9), 800), '#cbd5e1');
+      txt('👆 TAP = HUNTER' + youTag + tapBadge, centerX, roleY + roleH/2 + 1, FN(clamp(roleH * 0.50, 7.5, 9), 800), '#cbd5e1');
       zone(roleX, roleY, roleW, roleH, { fn: () => selectHunterRole(slotIdx) });
     }
   }
@@ -8361,17 +8565,17 @@ function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
   g.fillStyle = 'rgba(0,0,0,0.5)'; g.fill();
   g.lineWidth = 1; g.strokeStyle = 'rgba(255,255,255,0.2)'; g.stroke();
 
-  // Left Arrow
-  const arrowSz = barH;
-  ptxt('‹', barX + 8, barY + barH/2 + 1, FT(12), '#ffffff');
+  // Left = RED, Right = BLUE (direct pick, no toggle)
+  const cardTeam = settings.teams ? ((menu.slotTeam && menu.slotTeam[slotIdx] != null) ? (menu.slotTeam[slotIdx] % TEAMS.length) : (slotIdx % 2)) : -1;
+  ptxt('🔴', barX + 8, barY + barH/2 + 1, FT(12), (!settings.teams || cardTeam === 0) ? '#ffd166' : 'rgba(255,255,255,0.45)');
   zone(barX, barY, 20, barH, { fn: () => {
-    if(settings.teams) cycleTeam(slotIdx, -1); else cycleSlot(slotIdx, -1);
+    if(settings.teams) setPlayerTeam(slotIdx, 0); else cycleSlot(slotIdx, -1);
   }});
 
   // Right Arrow
-  ptxt('›', barX + barW - 8, barY + barH/2 + 1, FT(12), '#ffffff');
+  ptxt('🔵', barX + barW - 8, barY + barH/2 + 1, FT(12), (!settings.teams || cardTeam === 1) ? '#ffd166' : 'rgba(255,255,255,0.45)');
   zone(barX + barW - 20, barY, 20, barH, { fn: () => {
-    if(settings.teams) cycleTeam(slotIdx, 1); else cycleSlot(slotIdx, 1);
+    if(settings.teams) setPlayerTeam(slotIdx, 1); else cycleSlot(slotIdx, 1);
   }});
 
   // Color / Team Name in Middle
@@ -8385,9 +8589,11 @@ function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
     colName = (PALETTE[curCol % PALETTE.length] || PALETTE[0]).name;
   }
   ptxt(colName, centerX, barY + barH/2 + 1, FN(clamp(cardW * 0.068, 8.5, 10.5), 900), '#ffffff');
-  zone(barX + 20, barY, barW - 40, barH, { fn: () => {
-    if(settings.teams) cycleTeam(slotIdx, 1); else cycleSlot(slotIdx, 1);
-  }});
+  if(!settings.teams){
+    zone(barX + 20, barY, barW - 40, barH, { fn: () => {
+      cycleSlot(slotIdx, 1);
+    }});
+  }
 }
 
 /* Helper to render "+ ADD PLAYER" card */
@@ -9069,6 +9275,12 @@ function drawResult(){
   txt('TAGS - '+P.map((p,i)=>'P'+(i+1)+': '+match.tags[i]).join('  •  '),CW/2,py+ph*0.66,FN(13,900),'#cfe9d6');
   const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
   const lobbySec = Math.max(0, Math.ceil(match.matchOverTimer != null ? match.matchOverTimer : 5));
+  const btnH = (CH < 540) ? 34 : 38;
+  const btnY = py + ph - btnH - 12;
+  const b3 = Math.min(180, (pw - 56) / 3);
+  const sx0 = CW / 2 - (3 * b3 + 28) / 2;
+  const _cl = (typeof careerLine === 'function') ? careerLine() : '';
+  if(_cl) txt(_cl, CW/2, py+ph*0.66 + 22, FN(11, 800), '#ffd166');
   if(isOnline){
     const btnW = Math.min(220, (pw - 40) / 2);
     simpleButton(CW / 2 - btnW - 8, btnY, btnW, btnH, '⏳ LOBBY (' + lobbySec + 's)', () => {
@@ -9130,7 +9342,14 @@ function drawGame(){
   if(match.state==='paused'||match.hostMenu)drawPause();
   else if(match.state==='result')drawResult();
   else if(match.state==='hunter_round_result')drawHunterRoundResult();
-  else if(isTouch)drawTouchButtons();
+  else if(isTouch && !isBotVsBotWatch())drawTouchButtons();
+}
+
+function isBotVsBotWatch(){
+  try{
+    return menu.tab === 'bots' && !!match && !!match.players && match.players.length === 2 &&
+      match.players.every(p => isBotSlot(p));
+  }catch(e){ return false; }
 }
 
 /* ================= netplay (host-authoritative P2P) ================= */
@@ -10586,7 +10805,7 @@ function netOnData(m, c){
     netBroadcastRoster();
     netUpdateHostDirectory();
 
-    const isMidgame = (match && screen === 'game' && match.state === 'playing');
+    const isMidgame = (match && screen === 'game' && (match.state === 'playing' || match.state === 'countdown'));
     if(isMidgame){
       const payload = {
         it: match.it,
@@ -10621,8 +10840,19 @@ function netOnData(m, c){
       c.send({ t: 'toast', msg: 'Lobby is locked by the host.' });
       return;
     }
-    const reqSlot = m.slot | 0;
-    if(reqSlot >= 1 && reqSlot < 8 && !NET.hostInputs.has(reqSlot) && menu.slotColor[reqSlot] === -1){
+    let reqSlot = m.slot | 0;
+    if(!(reqSlot >= 1 && reqSlot < 8 && !NET.hostInputs.has(reqSlot) && menu.slotColor[reqSlot] === -1)){
+      // Requested slot taken in a race: fall back to the first free slot
+      reqSlot = -1;
+      for(let s = 1; s < 8; s++){
+        if(!NET.hostInputs.has(s) && menu.slotColor[s] === -1){ reqSlot = s; break; }
+      }
+      if(reqSlot < 0){
+        c.send({ t: 'toast', msg: 'Lobby is full.' });
+        return;
+      }
+    }
+    {
       const guestName = NET.peerNames.get(c.peer) || 'Player';
       if(NET.spectators){
         NET.spectators = NET.spectators.filter(sp => sp.peerId !== c.peer);
@@ -10655,7 +10885,15 @@ function netOnData(m, c){
           if(menu.slotTeam[s] === 0) redCount++; else blueCount++;
         }
       }
-      menu.slotTeam[reqSlot] = (redCount <= blueCount) ? 0 : 1;
+      // Honor the team panel the guest tapped (falls back to minority on ±1 clash)
+      let want = (m.team === 0 || m.team === 1) ? m.team : -1;
+      if(want < 0){
+        want = (redCount <= blueCount) ? 0 : 1;
+      } else if(settings.gameMode === 'hunter' && Math.abs((redCount + (want === 0 ? 1 : 0)) - (blueCount + (want === 1 ? 1 : 0))) > 1){
+        want = (redCount <= blueCount) ? 0 : 1;
+        c.send({ t: 'toast', msg: 'That team is full (±1 balance) — joined ' + (want === 0 ? 'RED' : 'BLUE') });
+      }
+      menu.slotTeam[reqSlot] = want;
 
       const slotsPeer = [NET.myId || '', '', '', '', '', '', '', ''];
       for(let i=1; i<8; i++){
@@ -11023,6 +11261,21 @@ function netOnData(m, c){
       }
       match.state = 'hunter_round_result';
       match.resultT = 0;
+      // Career (guest device, one-shot): tournament titles/wins
+      try{
+        const s = m.summary;
+        if(s && s.isMatchOver && !match._careerRecorded && NET.mySlot >= 0){
+          const cum = s.cumulative || {};
+          const myTeamG = (menu.slotTeam && menu.slotTeam[NET.mySlot] != null) ? menu.slotTeam[NET.mySlot] : (NET.mySlot % 2);
+          const tiedG = (cum[0] === cum[1]);
+          const wonG = !tiedG && ((cum[0] > cum[1] ? 0 : 1) === myTeamG);
+          match._careerRecorded = true;
+          CAREER.m++;
+          if(wonG){ CAREER.w++; CAREER.titles++; CAREER.streak++; if(CAREER.streak > CAREER.bestStreak) CAREER.bestStreak = CAREER.streak; }
+          else if(!tiedG){ CAREER.streak = 0; }
+          saveCareer();
+        }
+      }catch(e){}
       confetti();
       sfx('win');
     }
@@ -11127,6 +11380,20 @@ function netOnData(m, c){
           match.players = match.players.filter(p => p.slot === NET.mySlot || activeRemoteSlots.has(p.slot));
         }
       }
+      // Career (guest device, one-shot): party/teams result
+      try{
+        if(match.state === 'result' && !match._careerRecorded && match.result && NET.mySlot >= 0 && match.tags){
+          const mi2 = match.players.findIndex(p => p.slot === NET.mySlot);
+          if(mi2 >= 0){
+            match._careerRecorded = true;
+            const tg = match.tags[mi2] || 0;
+            let won2 = false;
+            if(match.result.winningTeam != null){ won2 = match.players[mi2].team === match.result.winningTeam; }
+            else { won2 = (mi2 !== match.result.loser); }
+            careerRecordMatch(won2, tg, null);
+          }
+        }
+      }catch(e){}
     }
   } else if(m.t === 'start' && !NET.isHost){
     settings.map = m.settings.map | 0;
@@ -11348,7 +11615,7 @@ function netKickPlayer(slotOrPeer){
   netToast('Player removed');
 }
 
-function netAdmitSpectator(peerId, targetSlot){
+function netAdmitSpectator(peerId, targetSlot, teamIdx){
   if(!NET.isHost) return;
   const specIdx = NET.spectators.findIndex(s => s.peerId === peerId);
   if(specIdx === -1) return;
@@ -11385,6 +11652,21 @@ function netAdmitSpectator(peerId, targetSlot){
   }
   if(pick === -1) pick = slot % PALETTE.length;
   menu.slotColor[slot] = pick;
+  // Honor the requested team panel (falls back to minority on ±1 clash)
+  if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+  let wantAdmit = (teamIdx === 0 || teamIdx === 1) ? teamIdx : -1;
+  if(wantAdmit < 0){
+    let r0 = 0, b0 = 0;
+    for(const s of activeSlots()){ if(s === slot) continue; (((menu.slotTeam ? menu.slotTeam[s] : s) % 2) === 0) ? r0++ : b0++; }
+    wantAdmit = (r0 <= b0) ? 0 : 1;
+  } else if(settings.gameMode === 'hunter'){
+    let r0 = 0, b0 = 0;
+    for(const s of activeSlots()){ if(s === slot) continue; (((menu.slotTeam ? menu.slotTeam[s] : s) % 2) === 0) ? r0++ : b0++; }
+    if(Math.abs((r0 + (wantAdmit === 0 ? 1 : 0)) - (b0 + (wantAdmit === 1 ? 1 : 0))) > 1){
+      wantAdmit = (r0 <= b0) ? 0 : 1;
+    }
+  }
+  menu.slotTeam[slot] = wantAdmit;
   if(settings.gameMode === 'hunter'){
     enforceHunterBalance();
     validateHunterRoles();
@@ -11415,11 +11697,11 @@ function netAdmitSpectator(peerId, targetSlot){
   netToast((spec.name || 'Spectator') + ' admitted as P' + (slot+1));
 }
 
-function netClaimSlot(s){
+function netClaimSlot(s, teamIdx){
   if(s < 1 || s >= 8) return;
   if(NET.isHost){
     if(NET.spectators && NET.spectators.length > 0){
-      netAdmitSpectator(NET.spectators[0].peerId, s);
+      netAdmitSpectator(NET.spectators[0].peerId, s, teamIdx);
     } else {
       netCopyLink();
     }
@@ -11430,10 +11712,10 @@ function netClaimSlot(s){
     return;
   }
   for(const pair of NET.conns.values()){
-    netSendRel(pair, { t: 'claim_slot', slot: s });
+    netSendRel(pair, { t: 'claim_slot', slot: s, team: (teamIdx === 0 || teamIdx === 1) ? teamIdx : undefined });
   }
   sfx('go');
-  netToast('Joining slot P' + (s + 1) + '...');
+  netToast('Joining ' + (teamIdx === 0 ? 'RED...' : (teamIdx === 1 ? 'BLUE...' : ('slot P' + (s + 1) + '...'))));
 }
 
 function netRequestJoinGame(){
