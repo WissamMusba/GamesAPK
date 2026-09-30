@@ -1425,7 +1425,1230 @@ function harnessResetTrial(){
 function harnessStart(mapIdx){
   if(mapIdx === undefined) mapIdx = settings.map || 0;
   settings.map = ((mapIdx % MAPS.length) + MAPS.length) % MAPS.length;
-  
+  buildLevel();
+  HARNESS.active = true;
+  HARNESS.mode = 'record';
+  harnessBuildCases(settings.map);
+
+  menu.botOn = true;
+  menu.slotColor = [0, 1, -1, -1, -1, -1, -1, -1];
+  startMatch();
+  match.state = 'playing';
+  match.cooldown = 0;
+  match.it = 0;
+  match.timer = 9999;
+  harnessResetTrial();
+  toast('🎯 HARNESS: Jump to glowing platform! [T] Test Bot [K] Keep [D] Discard [E] Restart');
+}
+
+function harnessFeetOn(p, s){
+  if(!p || !s) return false;
+  const feet = p.y + p.h;
+  const sTop = s.dy ? s.y + (clamp(p.x + p.w / 2, s.x, s.x + s.w) - s.x) * (s.dy / s.w) : s.y;
+  const onX = (p.x + p.w > s.x + 4) && (p.x < s.x + s.w - 4);
+  const onY = (feet >= sTop - 6) && (feet <= sTop + 24);
+  return onX && onY && (p.grounded || Math.abs(p.vy) < 80);
+}
+
+function harnessStageRecordedSample(){
+  const c = harnessCurCase();
+  if(!c || !HARNESS.trace.length) return;
+  const key = c.from + '->' + c.to;
+
+  const launchStep = HARNESS.trace.find(s => s.je) || HARNESS.trace[0];
+  const djStep = HARNESS.trace.find((s, idx) => idx > 0 && s.je);
+
+  HARNESS.stagedSample = {
+    key: key,
+    from: c.from,
+    to: c.to,
+    map: HARNESS.map,
+    time: +HARNESS.t.toFixed(2),
+    startX: HARNESS.startX || HARNESS.trace[0].x,
+    startY: HARNESS.startY || HARNESS.trace[0].y,
+    startVx: HARNESS.startVx || HARNESS.trace[0].vx,
+    launchX: launchStep ? launchStep.x : 0,
+    hasDoubleJump: !!djStep,
+    doubleJumpDelay: djStep ? +(djStep.t - (launchStep ? launchStep.t : 0)).toFixed(2) : 0,
+    trace: HARNESS.trace.map(s => ({
+      t: +s.t.toFixed(3),
+      x: s.x, y: s.y,
+      vx: s.vx, vy: s.vy,
+      d: s.d, je: s.je, jh: s.jh, dn: s.dn
+    }))
+  };
+}
+
+function harnessCommitStagedSample(){
+  const sample = HARNESS.stagedSample;
+  if(!sample) return false;
+  const mapKey = 'map' + HARNESS.map;
+  if(!HARNESS.transitions[mapKey]) HARNESS.transitions[mapKey] = {};
+  HARNESS.transitions[mapKey][sample.key] = sample;
+
+  // Auto-mirror if bilateral symmetry exists
+  const mFrom = HARNESS.mirrorMap.get(sample.from), mTo = HARNESS.mirrorMap.get(sample.to);
+  if(mFrom !== undefined && mTo !== undefined){
+    const mirrorKey = mFrom + '->' + mTo;
+    const mirroredSample = {
+      key: mirrorKey,
+      from: mFrom,
+      to: mTo,
+      map: HARNESS.map,
+      time: sample.time,
+      startX: Math.round(W - sample.startX - 46),
+      startY: sample.startY,
+      startVx: -sample.startVx,
+      launchX: Math.round(W - sample.launchX - 46),
+      hasDoubleJump: sample.hasDoubleJump,
+      doubleJumpDelay: sample.doubleJumpDelay,
+      trace: sample.trace.map(s => ({
+        t: s.t,
+        x: Math.round(W - s.x - 46),
+        y: s.y,
+        vx: -s.vx,
+        vy: s.vy,
+        d: -s.d,
+        je: s.je,
+        jh: s.jh,
+        dn: s.dn
+      }))
+    };
+    HARNESS.transitions[mapKey][mirrorKey] = mirroredSample;
+  }
+
+  harnessSaveStored();
+  HARNESS.stagedSample = null;
+  HARNESS.done++;
+  HARNESS.okN++;
+  return true;
+}
+
+function harnessDiscardCurrent(andRetry){
+  const c = harnessCurCase();
+  if(!c) return;
+  const key = c.from + '->' + c.to;
+  const mapKey = 'map' + HARNESS.map;
+  let discardedSomething = false;
+
+  if(HARNESS.stagedSample){
+    HARNESS.stagedSample = null;
+    discardedSomething = true;
+  }
+
+  if(HARNESS.transitions[mapKey] && HARNESS.transitions[mapKey][key]){
+    delete HARNESS.transitions[mapKey][key];
+    const mFrom = HARNESS.mirrorMap.get(c.from), mTo = HARNESS.mirrorMap.get(c.to);
+    if(mFrom !== undefined && mTo !== undefined){
+      const mirrorKey = mFrom + '->' + mTo;
+      if(HARNESS.transitions[mapKey][mirrorKey]) delete HARNESS.transitions[mapKey][mirrorKey];
+    }
+    harnessSaveStored();
+    discardedSomething = true;
+  }
+
+  if(HARNESS.mode === 'playback' || andRetry){
+    HARNESS.mode = 'record';
+  }
+
+  harnessResetTrial();
+  sfx('back');
+
+  if(andRetry){
+    toast('🔄 REMOVED & RETRYING — Jump when ready!');
+  } else if(discardedSomething){
+    toast('🗑️ CASE DATA REMOVED (Back to Record Mode)');
+  } else {
+    toast('🔄 RESET (No saved data on this case)');
+  }
+}
+
+function harnessExportJSON(){
+  try{
+    const mapKey = 'map' + HARNESS.map;
+    const data = {
+      game: 'tag-arena',
+      map: HARNESS.map,
+      mapName: MAPS[HARNESS.map].name,
+      transitions: HARNESS.transitions[mapKey] || {}
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'tag_jump_policy_map' + HARNESS.map + '.json';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { try{ URL.revokeObjectURL(a.href); a.remove(); }catch(e){} }, 800);
+    toast('💾 Saved policy for ' + MAPS[HARNESS.map].name);
+  }catch(e){
+    toast('Error saving JSON');
+  }
+}
+
+function harnessToggleBotTest(){
+  const c = harnessCurCase();
+  if(!c) return;
+  const key = c.from + '->' + c.to;
+  const mapKey = 'map' + HARNESS.map;
+  const savedSample = HARNESS.transitions[mapKey] && HARNESS.transitions[mapKey][key];
+  const activeSample = HARNESS.stagedSample || savedSample;
+
+  if(HARNESS.mode === 'record'){
+    if(!activeSample){
+      toast('⚠️ Jump successfully first (or choose a saved case) to test bot!');
+      sfx('back');
+      return;
+    }
+    HARNESS.mode = 'playback';
+    harnessResetTrial();
+    toast('🤖 BOT TEST MODE: Watch bot jump at you! [E] Restart [K] Keep [D] Remove [R] Remove & Retry');
+    sfx('go');
+  } else {
+    HARNESS.mode = 'record';
+    harnessResetTrial();
+    toast('🏃 RECORD MODE: Jump to glowing platform');
+    sfx('ui');
+  }
+}
+
+function harnessTick(dt){
+  if(!HARNESS.active || !match || screen !== 'game') return;
+  match.timer = 9999; match.lastTick = 9999;
+  if(match.state === 'paused') return;
+
+  const pl = match.players[0];
+  if(!pl) return;
+
+  // Key controls:
+  // E: Quick restart
+  if(pressed.has('KeyE')){
+    harnessResetTrial();
+    sfx('back');
+    toast('🔄 TRIAL RESTARTED (E)');
+    return;
+  }
+  // T: Toggle bot test mode
+  if(pressed.has('KeyT')){
+    harnessToggleBotTest();
+    return;
+  }
+  // K or Enter: Keep / Save
+  if(pressed.has('KeyK') || pressed.has('Enter')){
+    if(HARNESS.stagedSample){
+      harnessCommitStagedSample();
+      sfx('go');
+      toast('✅ JUMP SAVED & APPROVED! Moving to next case...');
+      HARNESS.ci = (HARNESS.ci + 1) % HARNESS.cases.length;
+      HARNESS.mode = 'record';
+      harnessResetTrial();
+      return;
+    } else {
+      const c = harnessCurCase();
+      const key = c ? (c.from + '->' + c.to) : '';
+      const mapKey = 'map' + HARNESS.map;
+      if(HARNESS.transitions[mapKey] && HARNESS.transitions[mapKey][key]){
+        toast('✅ Case already saved! Moving to next case...');
+        HARNESS.ci = (HARNESS.ci + 1) % HARNESS.cases.length;
+        HARNESS.mode = 'record';
+        harnessResetTrial();
+        return;
+      } else {
+        toast('⚠️ Complete a jump first before keeping!');
+      }
+    }
+  }
+  // R: Remove & Retry immediately in one button press
+  if(pressed.has('KeyR')){
+    harnessDiscardCurrent(true);
+    return;
+  }
+  // D / Delete / Backspace: Discard / Remove
+  if(pressed.has('KeyD') || pressed.has('Backspace') || pressed.has('Delete')){
+    harnessDiscardCurrent(false);
+    return;
+  }
+  // Browse cases: [ / P / ArrowLeft for Previous
+  if(pressed.has('BracketLeft') || pressed.has('KeyP') || (HARNESS.mode === 'playback' && pressed.has('ArrowLeft'))){
+    HARNESS.ci = (HARNESS.ci - 1 + HARNESS.cases.length) % HARNESS.cases.length;
+    HARNESS.stagedSample = null;
+    harnessResetTrial();
+    toast('◀ PREVIOUS CASE (' + (HARNESS.ci + 1) + '/' + HARNESS.cases.length + ')');
+    return;
+  }
+  // Browse cases: ] / N / ArrowRight for Next
+  if(pressed.has('BracketRight') || pressed.has('KeyN') || (HARNESS.mode === 'playback' && pressed.has('ArrowRight'))){
+    HARNESS.ci = (HARNESS.ci + 1) % HARNESS.cases.length;
+    HARNESS.stagedSample = null;
+    harnessResetTrial();
+    toast('▶ NEXT CASE (' + (HARNESS.ci + 1) + '/' + HARNESS.cases.length + ')');
+    return;
+  }
+  // Z: Save / Export
+  if(pressed.has('KeyZ')){
+    harnessExportJSON();
+    return;
+  }
+
+  // Switch map with number keys 1-9, 0
+  for(let k = 1; k <= 9; k++){
+    if(pressed.has('Digit' + k)){
+      harnessStart(k - 1);
+      return;
+    }
+  }
+  if(pressed.has('Digit0')){
+    harnessStart(9);
+    return;
+  }
+
+  const c = harnessCurCase();
+  if(!c) return;
+  const A = HARNESS.nodes[c.from], tgt = HARNESS.nodes[c.to];
+
+  if(HARNESS.mode === 'record'){
+    if(!HARNESS.started){
+      if(keys.has('KeyA') || keys.has('KeyD') || keys.has('KeyW') || keys.has('Space') ||
+         keys.has('ArrowLeft') || keys.has('ArrowRight') || keys.has('ArrowUp')){
+        HARNESS.started = true;
+        HARNESS.startX = Math.round(pl.x);
+        HARNESS.startY = Math.round(pl.y);
+        HARNESS.startVx = Math.round(pl.vx);
+        HARNESS.t = 0;
+      } else {
+        return;
+      }
+    }
+
+    HARNESS.t += dt;
+
+    // Check invalid landing: touched arena floor or unintended platform before target
+    if(pl.grounded && pl.gp && pl.gp !== A && pl.gp !== tgt){
+      toast('❌ TOUCHED OTHER FLOOR — [E] TO RETRY');
+      sfx('back');
+      harnessResetTrial();
+      return;
+    }
+
+    if(harnessFeetOn(pl, tgt)){
+      HARNESS.holdT += dt;
+      if(HARNESS.holdT >= 0.20 && !HARNESS.stagedSample){
+        harnessStageRecordedSample();
+        sfx('ok');
+        toast('🎯 JUMP RECORDED! [T] Test Bot | [K] Keep & Save | [D] Discard');
+      }
+    } else {
+      if(!HARNESS.stagedSample) HARNESS.holdT = 0;
+    }
+
+    if(HARNESS.t >= c.par && !HARNESS.stagedSample){
+      toast('⏰ TIME OVER PAR (' + c.par.toFixed(1) + 's) — [E] TO RETRY');
+      sfx('back');
+      harnessResetTrial();
+      return;
+    }
+  } else {
+    // Playback mode:
+    HARNESS.playbackT += dt;
+    const botP = match.players[1];
+    if(botP && harnessFeetOn(botP, tgt)){
+      HARNESS.holdT += dt;
+      if(HARNESS.holdT >= 0.4){
+        sfx('go');
+        toast('🎯 BOT REACHED YOU CLEANLY! [K] Keep & Save | [D] Discard | [E] Retry');
+        HARNESS.holdT = 0;
+      }
+    }
+  }
+}
+
+function harnessPushTrace(p, inp){
+  if(!HARNESS.active || HARNESS.mode !== 'record' || !HARNESS.started || p.slot !== 0) return;
+  if(HARNESS.stagedSample) return; // Stop recording once landed cleanly
+  HARNESS.trace.push({
+    t: +HARNESS.t.toFixed(3),
+    x: Math.round(p.x),
+    y: Math.round(p.y),
+    vx: Math.round(p.vx),
+    vy: Math.round(p.vy),
+    d: inp.dir,
+    je: inp.jumpEdge ? 1 : 0,
+    jh: inp.jumpHeld ? 1 : 0,
+    dn: inp.downHeld ? 1 : 0,
+    g: p.grounded ? 1 : 0
+  });
+}
+
+function harnessBotPlaybackInput(p, dt){
+  const c = harnessCurCase();
+  if(!c) return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
+  const key = c.from + '->' + c.to;
+  const mapKey = 'map' + HARNESS.map;
+  const sample = HARNESS.stagedSample || (HARNESS.transitions[mapKey] && HARNESS.transitions[mapKey][key]);
+  if(!sample || !sample.trace || !sample.trace.length){
+    return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
+  }
+
+  const curT = HARNESS.playbackT;
+  if(!p._pbStepIdx) p._pbStepIdx = 0;
+
+  let jumpEdge = false;
+  let step = sample.trace[Math.min(p._pbStepIdx, sample.trace.length - 1)];
+
+  // Scan all trace samples up to current playback time so jump edges are NEVER missed
+  while(p._pbStepIdx < sample.trace.length && sample.trace[p._pbStepIdx].t <= curT){
+    const s = sample.trace[p._pbStepIdx];
+    if(s.je === 1) jumpEdge = true;
+    step = s;
+    p._pbStepIdx++;
+  }
+
+  // Trajectory stabilization: nudge ground velocity toward recorded velocity to eliminate frame rate drift
+  if(p.grounded && Math.abs(p.x - step.x) > 3){
+    p.vx += clamp((step.x - p.x) * 4, -50, 50);
+  }
+
+  return {
+    dir: step.d,
+    jumpEdge: jumpEdge,
+    jumpHeld: !!step.jh,
+    downHeld: !!step.dn
+  };
+}
+
+function harnessOverlay(){
+  if(!HARNESS.active || !match || screen !== 'game') return;
+  const c = harnessCurCase();
+  if(!c) return;
+  const A = HARNESS.nodes[c.from], B = HARNESS.nodes[c.to];
+
+  // Draw glowing box on target platform B
+  const bx = (B.x + B.w / 2 - cam.x) * cam.s + CW / 2;
+  const by = (B.y + (B.dy ? B.dy / 2 : B.h / 2) - cam.y) * cam.s + CH / 2;
+  const bw = B.w * cam.s + 18, bh = 46 * cam.s + 18;
+  const pulse = 0.6 + 0.4 * Math.sin(tGlobal * 6);
+
+  g.save();
+  g.globalAlpha = 0.4 + 0.4 * pulse;
+  g.strokeStyle = '#2ecc71';
+  g.lineWidth = 4;
+  rr(g, bx - bw / 2, by - bh / 2, bw, bh, 10);
+  g.stroke();
+  g.restore();
+
+  // Floating chevron above target
+  ptxt('▼', bx, by - bh / 2 - 20 - Math.abs(Math.sin(tGlobal * 5)) * 10, FN(22, 900), '#2ecc71');
+
+  // Case Status
+  const key = c.from + '->' + c.to;
+  const mapKey = 'map' + HARNESS.map;
+  const isSaved = !!(HARNESS.transitions[mapKey] && HARNESS.transitions[mapKey][key]);
+  const isStaged = !!HARNESS.stagedSample;
+
+  const statusText = isStaged ? '🟡 RECORDED (Ready to Test/Save)' : (isSaved ? '✅ SAVED & APPROVED' : '⭕ UNRECORDED');
+  const statusCol = isStaged ? '#f5d76e' : (isSaved ? '#2ecc71' : '#bdc3c7');
+
+  const mapName = MAPS[HARNESS.map] ? MAPS[HARNESS.map].name : 'MAP ' + HARNESS.map;
+  const modeTag = HARNESS.mode === 'playback' ? '🤖 BOT TEST MODE' : '🏃 RECORDING';
+
+  ptxt(mapName + ' • CASE ' + (HARNESS.ci + 1) + '/' + HARNESS.cases.length + ' • ' + modeTag, CW / 2, 30, FT(20), '#ffffff');
+  ptxt('STATUS: ' + statusText + '  |  Rise: ' + (-c.dy) + 'px  Gap: ' + c.gap + 'px', CW / 2, 54, FN(14, 800), statusCol);
+
+  if(HARNESS.mode === 'record'){
+    if(isStaged){
+      ptxt('🎯 JUMP RECORDED! [T] Test Bot  |  [K] Keep & Save  |  [D] Remove  |  [R] Remove & Retry', CW / 2, 78, FN(15, 900), '#2ecc71');
+    } else {
+      const timeCol = HARNESS.t > c.par * 0.75 ? '#ff4757' : '#2ed573';
+      ptxt(HARNESS.started ? HARNESS.t.toFixed(1) + 's / ' + c.par.toFixed(1) + 's par' : 'PRESS WASD / ARROWS TO START JUMP', CW / 2, 78, FN(15, 800), timeCol);
+    }
+  } else {
+    ptxt('WATCHING BOT REPLAY! [K] Keep & Save  |  [D] Remove  |  [R] Remove & Retry  |  [E] Re-run Bot', CW / 2, 78, FN(15, 900), '#38ef7d');
+  }
+
+  // Bottom action bar
+  ptxt('[T] TEST BOT   [K] KEEP & SAVE   [D] REMOVE   [R] REMOVE & RETRY   [E] RESTART   [←/→] BROWSE', CW / 2, CH - 22, FN(12, 800), 'rgba(255,255,255,0.92)');
+}
+
+function demoOverlay(){ harnessOverlay(); }
+window.HARNESS = HARNESS;
+window.harnessStart = harnessStart;
+let screen='menu',tGlobal=0;
+const menu={tab:'2p',mode:'rows',slotColor:[0,1,-1,-1,-1,-1,-1,-1],slotTeam:[0,1,0,1,0,1,0,1],slotCtrl:[0,1,2,3],row:4,rule:0,toast:null,toastT:0,botOn:false,botDifficulty:'hard',mapModal:false,onlineModal:false,slotIsBot:[false,false,false,false,false,false,false,false],botSlots:null};
+function isSlotBot(slotIdx){
+  if(menu.tab === 'solo') return slotIdx === 1;
+  if(menu.tab === 'bots') return slotIdx === 0 || slotIdx === 1;
+  if(typeof NET !== 'undefined' && NET && NET.role !== null) return false;
+  if(menu.botSlots){
+    if(Array.isArray(menu.botSlots)) return menu.botSlots.includes(slotIdx);
+    if(menu.botSlots.has) return menu.botSlots.has(slotIdx);
+  }
+  if(menu.slotIsBot && menu.slotIsBot[slotIdx] !== undefined) return !!menu.slotIsBot[slotIdx];
+  return false;
+}
+const ROWS=['CHANGE PLAYERS','MAP','TIMER','RULES','START'];
+const RULE_NAMES=['DOUBLE JUMP'];
+function toast(m){menu.toast=m;menu.toastT=2.2;}
+
+function setBotDifficulty(diff){
+  if(diff !== 'easy' && diff !== 'hard') diff = 'hard';
+  menu.botDifficulty = diff;
+  settings.botDifficulty = diff;
+  toast('BOT DIFFICULTY: ' + diff.toUpperCase() + (diff === 'hard' ? ' (DEFAULT)' : ''));
+  sfx('ok');
+}
+function toggleBotDifficulty(){
+  setBotDifficulty(menu.botDifficulty === 'easy' ? 'hard' : 'easy');
+}
+
+function setMenuTab(tab){
+  if(tab !== 'solo' && tab !== '2p' && tab !== 'online' && tab !== 'bots') tab = '2p';
+  menu.tab = tab;
+  if(tab === 'solo'){
+    menu.botOn = true;
+    settings.teams = false;
+    settings.gameMode = 'party';
+    menu.gameMode = 'party';
+    menu.slotColor = [0, 1, -1, -1, -1, -1, -1, -1];
+  } else if(tab === 'bots'){
+    menu.botOn = true;
+    settings.teams = false;
+    settings.gameMode = 'party';
+    menu.gameMode = 'party';
+    menu.slotColor = [0, 1, -1, -1, -1, -1, -1, -1];
+    if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+  } else if(tab === '2p'){
+    menu.botOn = false;
+    if(menu.slotColor[0] < 0) menu.slotColor[0] = 0;
+    if(menu.slotColor[1] < 0) menu.slotColor[1] = 1;
+  } else if(tab === 'online'){
+    menu.botOn = false;
+    if(typeof netRefreshPublicRooms === 'function') netRefreshPublicRooms();
+  }
+  sfx('ui');
+}
+function activeSlots(){
+  const max = (typeof NET !== 'undefined' && NET && NET.role !== null) ? 8 : 4;
+  const r = [];
+  for(let i = 0; i < max; i++){
+    if(menu.slotColor[i] >= 0) r.push(i);
+  }
+  return r;
+}
+function cycleTeam(i, d){
+  if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost && NET.teamsLocked){
+    toast('TEAMS ARE LOCKED BY THE HOST');
+    sfx('back');
+    return;
+  }
+  if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+  const curTeam = (menu.slotTeam[i] || 0) % TEAMS.length;
+  const targetTeam = (curTeam + d + TEAMS.length) % TEAMS.length;
+
+  if(settings.gameMode === 'hunter'){
+    // Disallow 3v1, 6v2, 5v3, etc. Keep team count difference max ±1!
+    const act = activeSlots();
+    let redCount = 0, blueCount = 0;
+    for(const s of act){
+      const t = (s === i ? targetTeam : (menu.slotTeam[s] || 0) % 2);
+      if(t === 0) redCount++; else blueCount++;
+    }
+    if(Math.abs(redCount - blueCount) > 1){
+      toast('⚠️ TEAMS MUST BE BALANCED (MAX ±1 DIFFERENCE)');
+      sfx('back');
+      return;
+    }
+  }
+
+  menu.slotTeam[i] = targetTeam;
+  sfx('ui');
+  if(settings.gameMode === 'hunter') updateElectedHuntersFromVotes();
+  if(typeof NET !== 'undefined' && NET && NET.role !== null){
+    if(NET.isHost) netBroadcastRoster();
+    else {
+      for(const pair of NET.conns.values()){
+        netSendRel(pair, { t: 'team', slot: i, team: menu.slotTeam[i] });
+      }
+    }
+  }
+}
+
+// First free player slot (1..7) from my current roster view
+function firstFreeSlot(){
+  for(let s = 1; s < 8; s++){
+    const takenHost = (typeof NET !== 'undefined' && NET && NET.isHost && NET.hostInputs) ? NET.hostInputs.has(s) : false;
+    if(!takenHost && menu.slotColor[s] === -1) return s;
+  }
+  return -1;
+}
+
+// Tap-a-team-panel = join THAT team (first free slot). Returns true if handled.
+function joinTeamFromPanel(teamIdx){
+  const teamName = teamIdx === 0 ? 'RED' : 'BLUE';
+  const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
+  if(!isOnline){
+    // Local setup: activate the first free slot straight into this team
+    const free = firstFreeSlot();
+    if(free < 0){ toast('No free slots!'); sfx('back'); return true; }
+    const taken = menu.slotColor.filter(v => v >= 0);
+    let pick = -1;
+    for(let pi = 0; pi < PALETTE.length; pi++){ if(!taken.includes(pi)){ pick = pi; break; } }
+    menu.slotColor[free] = (pick >= 0 ? pick : free % PALETTE.length);
+    if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+    menu.slotTeam[free] = teamIdx;
+    if(settings.gameMode === 'hunter'){ enforceHunterBalance(); validateHunterRoles(); }
+    sfx('ok');
+    toast('P' + (free + 1) + ' joined ' + teamName + '!');
+    return true;
+  }
+  if(NET.mySlot >= 0){
+    // Already playing: move MY slot to the tapped team (balance-guarded)
+    setPlayerTeam(NET.mySlot, teamIdx);
+    return true;
+  }
+  // Spectator: claim the first free slot FOR the tapped team
+  if(NET.lobbyLocked){ netToast('Lobby is locked by the host.'); return true; }
+  const free = firstFreeSlot();
+  if(free < 0){ netToast('All player slots are full!'); return true; }
+  netClaimSlot(free, teamIdx);
+  return true;
+}
+// Same lock + hunter-balance rules as cycleTeam.
+function setPlayerTeam(i, teamIdx){
+  if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost && NET.teamsLocked){
+    toast('TEAMS ARE LOCKED BY THE HOST');
+    sfx('back');
+    return;
+  }
+  if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+  const targetTeam = ((teamIdx % TEAMS.length) + TEAMS.length) % TEAMS.length;
+  const curTeam = (menu.slotTeam[i] || 0) % TEAMS.length;
+  if(curTeam === targetTeam){ sfx('ui'); return; }
+
+  if(settings.gameMode === 'hunter'){
+    const act = activeSlots();
+    let redCount = 0, blueCount = 0;
+    for(const s of act){
+      const t = (s === i ? targetTeam : (menu.slotTeam[s] || 0) % 2);
+      if(t === 0) redCount++; else blueCount++;
+    }
+    if(Math.abs(redCount - blueCount) > 1){
+      toast('⚠️ TEAMS MUST BE BALANCED (MAX ±1 DIFFERENCE)');
+      sfx('back');
+      return;
+    }
+  }
+
+  menu.slotTeam[i] = targetTeam;
+  sfx('ui');
+  if(settings.gameMode === 'hunter') updateElectedHuntersFromVotes();
+  if(typeof NET !== 'undefined' && NET && NET.role !== null){
+    if(NET.isHost) netBroadcastRoster();
+    else {
+      for(const pair of NET.conns.values()){
+        netSendRel(pair, { t: 'team', slot: i, team: menu.slotTeam[i] });
+      }
+    }
+  }
+}
+
+if(!menu.hunterVotes) menu.hunterVotes = {};
+if(!menu.hunterHistory) menu.hunterHistory = {};
+
+function getHunterTeamCounts(){
+  const act = activeSlots();
+  let red = 0, blue = 0;
+  for(const s of act){
+    const t = (menu.slotTeam ? menu.slotTeam[s] : s) % 2;
+    if(t === 0) red++; else blue++;
+  }
+  return { red: red, blue: blue, diff: Math.abs(red - blue) };
+}
+
+function enforceHunterBalance(){
+  const act = activeSlots();
+  if(act.length < 2) return;
+  let red = 0, blue = 0;
+  for(const s of act){
+    const t = (menu.slotTeam ? menu.slotTeam[s] : s) % 2;
+    if(t === 0) red++; else blue++;
+  }
+  if(Math.abs(red - blue) > 1){
+    if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+    let r = 0, b = 0;
+    for(let k = 0; k < act.length; k++){
+      const s = act[k];
+      if(r <= b){ menu.slotTeam[s] = 0; r++; }
+      else { menu.slotTeam[s] = 1; b++; }
+    }
+  }
+}
+
+function getCandidateVoteCount(slot, team){
+  if(!menu.hunterVotes) return 0;
+  const act = activeSlots();
+  let cnt = 0;
+  for(const [voter, voteVal] of Object.entries(menu.hunterVotes)){
+    const v = parseInt(voter);
+    if(!act.includes(v)) continue;
+    const cand = (voteVal && typeof voteVal === 'object') ? voteVal.cand : voteVal;
+    const candTeam = (voteVal && typeof voteVal === 'object' && voteVal.team != null) ? voteVal.team : ((menu.slotTeam ? menu.slotTeam[v] : v) % 2);
+    if(team != null && candTeam !== team) continue;
+    if(slot === 'random'){
+      if(cand === 'random' || cand === -1 || cand === '-1') cnt++;
+    } else {
+      if(parseInt(cand) === slot) cnt++;
+    }
+  }
+  return cnt;
+}
+
+function resolveTeamHunter(team){
+  const act = activeSlots();
+  const teamSlots = act.filter(s => ((menu.slotTeam ? menu.slotTeam[s] : s) % 2) === team);
+  if(teamSlots.length === 0) return 0;
+  if(teamSlots.length === 1) return teamSlots[0];
+
+  const hist = (match && match.hunterHistory) ? match.hunterHistory : (menu.hunterHistory || {});
+
+  // 1. Tally votes for each candidate on this team, and random votes
+  const votes = {};
+  for(const s of teamSlots) votes[s] = 0;
+  let randomVotes = 0;
+
+  if(menu.hunterVotes){
+    for(const [voter, voteVal] of Object.entries(menu.hunterVotes)){
+      const v = parseInt(voter);
+      if(!act.includes(v)) continue;
+      const cand = (voteVal && typeof voteVal === 'object') ? voteVal.cand : voteVal;
+      const vTeam = (voteVal && typeof voteVal === 'object' && voteVal.team != null) ? voteVal.team : ((menu.slotTeam ? menu.slotTeam[v] : v) % 2);
+      if(vTeam === team){
+        if(cand === 'random' || cand === -1 || cand === '-1'){
+          randomVotes++;
+        } else {
+          const c = parseInt(cand);
+          if(teamSlots.includes(c)){
+            votes[c] = (votes[c] || 0) + 1;
+          }
+        }
+      }
+    }
+  }
+
+  // 2. Find maximum vote count among candidates
+  let maxCandidateVotes = -1;
+  for(const s of teamSlots){
+    if((votes[s] || 0) > maxCandidateVotes) maxCandidateVotes = votes[s] || 0;
+  }
+
+  // If random strictly won
+  if(randomVotes > maxCandidateVotes && randomVotes > 0){
+    let minR = 1e9;
+    for(const s of teamSlots){
+      const r = hist[s] || 0;
+      if(r < minR) minR = r;
+    }
+    const leastRounds = teamSlots.filter(s => (hist[s] || 0) === minR);
+    const curHunter = (team === 0 ? settings.hunterRed : settings.hunterBlue);
+    if(leastRounds.includes(curHunter)) return curHunter;
+    return leastRounds[0];
+  }
+
+  const topCandidates = teamSlots.filter(s => (votes[s] || 0) === maxCandidateVotes);
+  if(topCandidates.length === 1 && maxCandidateVotes > randomVotes){
+    return topCandidates[0];
+  }
+
+  // 3. Tie breaker: pick candidate(s) with LEAST hunter rounds played
+  let minRounds = 1e9;
+  for(const s of topCandidates){
+    const r = hist[s] || 0;
+    if(r < minRounds) minRounds = r;
+  }
+  const leastRoundCandidates = topCandidates.filter(s => (hist[s] || 0) === minRounds);
+
+  // 4. Stable tie breaker: if currently configured hunter is in leastRoundCandidates, keep it!
+  const curHunter = (team === 0 ? settings.hunterRed : settings.hunterBlue);
+  if(leastRoundCandidates.includes(curHunter)) return curHunter;
+  return leastRoundCandidates[0];
+}
+
+function updateElectedHuntersFromVotes(){
+  settings.hunterRed = resolveTeamHunter(0);
+  settings.hunterBlue = resolveTeamHunter(1);
+  if(match){
+    match.hunterRed = settings.hunterRed;
+    match.hunterBlue = settings.hunterBlue;
+  }
+}
+
+function castHunterVote(voterSlot, candSlot){
+  if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost && NET.teamsLocked){
+    toast('VOTING LOCKED BY HOST');
+    sfx('back');
+    return;
+  }
+  if(!menu.hunterVotes) menu.hunterVotes = {};
+  const vTeam = (menu.slotTeam && voterSlot >= 0 && menu.slotTeam[voterSlot] != null) ? (menu.slotTeam[voterSlot] % 2) : ((voterSlot >= 0 ? voterSlot : 0) % 2);
+  menu.hunterVotes[voterSlot] = { team: vTeam, cand: candSlot };
+  sfx('ok');
+
+  if(typeof NET === 'undefined' || !NET || NET.role === null || NET.isHost){
+    updateElectedHuntersFromVotes();
+  }
+
+  let candName = 'Fair pick';
+  if(candSlot !== 'random' && candSlot >= 0){
+    candName = (typeof NET !== 'undefined' && NET && NET.slotsName && NET.slotsName[candSlot]) ? (('P' + (candSlot + 1)) + ' ' + NET.slotsName[candSlot]) : ('P' + (candSlot + 1));
+  }
+  toast(candSlot === 'random' ? '🎲 Fair pick: fewest hunts first!' : ('✓ Your tap: ' + candName + ' hunts next!'));
+
+  if(typeof NET !== 'undefined' && NET && NET.role !== null){
+    if(NET.isHost){
+      netBroadcastReliable({
+        t: 'hunter_votes_sync',
+        hunterVotes: menu.hunterVotes,
+        hunterRed: settings.hunterRed,
+        hunterBlue: settings.hunterBlue
+      });
+      netBroadcastSettings();
+      netBroadcastRoster();
+    } else {
+      for(const pair of NET.conns.values()){
+        netSendRel(pair, { t: 'hunter_vote', voter: voterSlot, team: vTeam, candidate: candSlot });
+      }
+    }
+  }
+}
+
+function validateHunterRoles(){
+  enforceHunterBalance();
+  updateElectedHuntersFromVotes();
+}
+
+function setTeamHunterChoice(teamIdx, cand){
+  const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
+  const teamSlots = activeSlots().filter(s => ((menu.slotTeam ? menu.slotTeam[s] : s) % 2) === teamIdx);
+  if(teamSlots.length === 0) return;
+
+  if(!isOnline){
+    if(cand === 'random'){
+      const hist = (match && match.hunterHistory) ? match.hunterHistory : (menu.hunterHistory || {});
+      let minR = 1e9;
+      for(const s of teamSlots){ const r = hist[s] || 0; if(r < minR) minR = r; }
+      const leastR = teamSlots.filter(s => (hist[s] || 0) === minR);
+      const pick = leastR[Math.floor(Math.random() * leastR.length)];
+      if(teamIdx === 0) settings.hunterRed = pick; else settings.hunterBlue = pick;
+      if(!menu.hunterVotes) menu.hunterVotes = {};
+      for(const s of teamSlots) menu.hunterVotes[s] = { team: teamIdx, cand: 'random' };
+      toast('🎲 Fair pick: ' + ('P' + (pick + 1)) + ' hunts for ' + (teamIdx === 0 ? 'RED' : 'BLUE') + ' (fewest hunts first)');
+    } else {
+      if(teamIdx === 0) settings.hunterRed = cand; else settings.hunterBlue = cand;
+      if(!menu.hunterVotes) menu.hunterVotes = {};
+      for(const s of teamSlots) menu.hunterVotes[s] = { team: teamIdx, cand: cand };
+      toast('👑 ' + ('P' + (cand + 1)) + ' hunts for ' + (teamIdx === 0 ? 'RED' : 'BLUE') + ' next!');
+    }
+    if(match){
+      match.hunterRed = settings.hunterRed;
+      match.hunterBlue = settings.hunterBlue;
+    }
+    sfx('ok');
+    return;
+  }
+
+  // Online Multiplayer
+  const mySlot = NET.mySlot;
+  const myTeam = (menu.slotTeam && mySlot >= 0 && menu.slotTeam[mySlot] != null) ? (menu.slotTeam[mySlot] % 2) : ((mySlot >= 0 ? mySlot : 0) % 2);
+
+  if(mySlot < 0){
+    toast('⚠️ Spectators watch — players tap their own team!');
+    sfx('back');
+    return;
+  }
+  if(myTeam === teamIdx){
+    const voter = mySlot;
+    castHunterVote(voter, cand);
+  } else {
+    toast('⚠️ Tap YOUR team box — you hunt with them!');
+    sfx('back');
+  }
+}
+
+function selectHunterRole(slot){
+  const sTeam = (menu.slotTeam ? menu.slotTeam[slot] : slot) % 2;
+  setTeamHunterChoice(sTeam, slot);
+}
+
+function setGameMode(newMode){
+  if(menu.tab === 'solo'){
+    const soloModes = ['party', 'freeze', 'infection', 'bomb', 'crown'];
+    if(soloModes.indexOf(newMode) < 0){
+      toast('🤖 SOLO SUPPORTS FFA, FREEZE, INFECTION, BOMB & CROWN');
+      sfx('back');
+      return;
+    }
+  }
+  if(menu.tab === 'bots'){
+    const botModes = ['party', 'freeze', 'infection', 'bomb', 'crown'];
+    if(botModes.indexOf(newMode) < 0){
+      toast('🤖 WATCH MODE: FFA, FREEZE, INFECTION, BOMB OR CROWN ONLY');
+      sfx('back');
+      return;
+    }
+  }
+  settings.gameMode = newMode;
+  menu.gameMode = newMode;
+
+  if(newMode === 'party'){
+    settings.teams = false;
+    toast('👥 FREE-FOR-ALL PARTY MODE');
+    sfx('ui');
+  } else if(newMode === 'teams'){
+    settings.teams = true;
+    if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+    toast('⚔️ TEAM TAG MODE: ON (RED VS BLUE)');
+    sfx('ok');
+  } else if(newMode === 'hunter'){
+    settings.teams = true;
+    if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+    validateHunterRoles();
+    toast('🎯 HUNTER MODE: CROSS-HUNT ELIMINATION (TRY NOW!)');
+    sfx('ok');
+  } else if(newMode === 'freeze'){
+    settings.teams = true;
+    if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+    toast('❄️ FREEZE TAG: FREEZE ENEMY RUNNERS!');
+    sfx('ok');
+  } else if(newMode === 'infection'){
+    settings.teams = false;
+    toast('🧟 INFECTION: OUTRUN THE OUTBREAK!');
+    sfx('ok');
+  } else if(newMode === 'bomb'){
+    settings.teams = false;
+    toast('💣 BOMB TAG: HOT POTATO PASS!');
+    sfx('ok');
+  } else if(newMode === 'crown'){
+    settings.teams = false;
+    toast('👑 CROWN KING: TOUCH CROWN, HOLD TO 100 PTS!');
+    sfx('ok');
+  }
+
+  if(typeof NET !== 'undefined' && NET && NET.isHost){
+    netBroadcastSettings();
+    netBroadcastRoster();
+  }
+}
+
+function cycleGameMode(d){
+  if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){
+    toast('HOST SELECTS GAME MODE');
+    sfx('back');
+    return;
+  }
+  const modes = (menu.tab === 'bots' || menu.tab === 'solo')
+    ? ['party', 'freeze', 'infection', 'bomb', 'crown']
+    : ['party', 'teams', 'hunter', 'freeze', 'infection', 'bomb', 'crown'];
+  let curIdx = modes.indexOf(settings.gameMode || (settings.teams ? 'teams' : 'party'));
+  if(curIdx < 0) curIdx = 0;
+  const nextIdx = (curIdx + (d || 1) + modes.length) % modes.length;
+  setGameMode(modes[nextIdx]);
+}
+
+function toggleTeams(){
+  cycleGameMode(1);
+}
+function cycleSlot(i,d){
+  const taken=menu.slotColor.filter((c,k)=>c>=0&&k!==i);
+  const list=[-1].concat(PALETTE.map((p,idx)=>idx).filter(idx=>taken.indexOf(idx)<0));
+  let cur=list.indexOf(menu.slotColor[i]);
+  cur=(cur+d+list.length)%list.length;
+  menu.slotColor[i]=list[cur];
+  if(settings.gameMode === 'hunter'){
+    enforceHunterBalance();
+    validateHunterRoles();
+  }
+  if(menu.mode==='rows'&&activeSlots().length<2){
+    menu.mode='slots';
+    menu.row=0;
+    toast('CHOOSE AT LEAST 2 PLAYERS!');
+  }
+  sfx('ui');
+}
+function ruleValue(){return settings.doubleJump;}
+function toggleRule(){
+  settings.doubleJump = !settings.doubleJump;
+  sfx('ui');
+  if(typeof NET!=='undefined' && NET && NET.isHost) netBroadcastSettings();
+}
+function rowEdit(d){
+  if(typeof NET!=='undefined' && NET && NET.role!==null && !NET.isHost){
+    toast('HOST CONTROLS MAP & RULES');
+    sfx('back');
+    return;
+  }
+  switch(menu.row){
+    case 1:settings.map=(settings.map+d+MAPS.length)%MAPS.length;buildLevel();sfx('ui');break;
+    case 2:settings.timeIdx=(settings.timeIdx+d+TIMES.length)%TIMES.length;sfx('ui');break;
+    case 3:menu.rule=(menu.rule+d+2)%2;sfx('ui');break;
+  }
+  if(typeof NET!=='undefined' && NET && NET.isHost && typeof netBroadcastSettings==='function') netBroadcastSettings();
+}
+function rowEnter(){
+  if(menu.row===0){
+    if(typeof NET!=='undefined' && NET && NET.role!==null){
+      // in online mode, row 0 is online roster status
+      if(NET.isHost && activeSlots().length<2){
+        netCopyInviteToClipboard('Invite link copied! Share with your friend.');
+      }
+      return;
+    }
+    menu.mode='slots';sfx('ok');
+  }
+  else if(menu.row===4){
+    if(typeof NET!=='undefined' && NET && NET.role!==null){
+      if(!NET.isHost){
+        toast('WAITING FOR HOST TO START');
+        sfx('back');
+        return;
+      }
+      const act=activeSlots();
+      if(act.length<2){
+        netCopyInviteToClipboard('Invite link copied! Send it to your friend.');
+        toast('WAITING FOR A FRIEND TO JOIN!');
+        sfx('back');
+        return;
+      }
+      const allReady=act.every(s=>NET.slotsReady[s]);
+      if(!allReady){
+        toast('WAITING FOR ALL PLAYERS TO HIT READY!');
+        sfx('back');
+        return;
+      }
+      sfx('go');
+      startMatch();
+      return;
+    }
+    if(activeSlots().length<2){
+      menu.mode='slots';
+      menu.row=0;
+      toast('CHOOSE AT LEAST 2 PLAYERS!');
+      sfx('back');
+    }else{
+      sfx('go');
+      startMatch();
+    }
+  }
+  else if(menu.row===3){
+    if(typeof NET!=='undefined' && NET && NET.role!==null && !NET.isHost){
+      toast('HOST CONTROLS MAP & RULES');
+      sfx('back');
+      return;
+    }
+    toggleRule();
+  }
+  else rowEdit(1);
+}
+function menuConfirm(){
+  if(menu.mode==='slots'){
+    if(activeSlots().length<2){toast('CHOOSE AT LEAST 2 PLAYERS!');sfx('back');}
+    else{menu.mode='rows';menu.row=1;sfx('ok');}
+  }else rowEnter();
+}
+function updateMenu(dt){
+  if(anyPressed(['KeyM'])){muted=!muted;applyEffectiveMute();}
+  if(anyPressed(['KeyB']) && menu.tab !== 'bots'){
+    menu.botOn=!menu.botOn;
+    sfx('ui');
+    toast(menu.botOn?'BOT: ON':'BOT: OFF');
+  }
+  menu.toastT-=dt;
+
+  // Map hotkeys: 1-9, 0
+  const digits = ['Digit1','Digit2','Digit3','Digit4','Digit5','Digit6','Digit7','Digit8','Digit9','Digit0'];
+  for(let i=0; i<digits.length; i++){
+    if(pressed.has(digits[i])){
+      settings.map = i % MAPS.length;
+      buildLevel();
+      sfx('ok');
+    }
+  }
+
+  // Escape closes modals
+  if(pressed.has('Escape')){
+    if(menu.onlineModal){
+      menu.onlineModal = false;
+      sfx('back');
+      return;
+    }
+    if(menu.mapModal){
+      menu.mapModal = false;
+      sfx('back');
+      return;
+    }
+  }
+
+  // Space or Enter starts match immediately
+  if(anyPressed(['Enter','NumpadEnter','Space'])){
+    if(menu.mapModal){
+      menu.mapModal = false;
+    } else if(menu.tab !== 'online'){
+      if(activeSlots().length < 2){
+        menu.slotColor[0] = 0; menu.slotColor[1] = 1;
+      }
+      sfx('go');
+      startMatch();
+    }
+  }
+}
+
+/* ================= match ================= */
+let matchIndex=0,lastStartIT=0;
+let match=null;
+const cam={x:W/2,y:H/2,s:0.5};
+
+function findSafeSpawn(team, isHunter, playerIndex, totalPlayers){
+  const P_W = 46, P_H = 46;
+
+  function isSpotSafe(sx, sy){
+    if(sx < WALL + 10 || sx + P_W > W - WALL - 10) return false;
+    if(sy < WALL + 10 || sy + P_H > H - WALL) return false;
+    const body = { x: sx + 2, y: sy + 2, w: P_W - 4, h: P_H - 4 };
+    if(SOLIDS.some(s => hitRect(body, s))) return false;
+    const head = { x: sx + 4, y: sy - 20, w: P_W - 8, h: 20 };
+    if(SOLIDS.some(s => hitRect(head, s))) return false;
+    return true;
+  }
+
+  // 1. Collect all valid flat platforms from SOLIDS
+  const candidateSpots = [];
+  for(const s of SOLIDS){
+    if(s.dy || s.w < 60) continue; // Skip slopes and thin vertical walls
+    if(s.t === 'speed' || s.t === 'boost' || s.t === 'drop') continue; // Exclude speed/boost pads and hazards
+    const surfaceY = s.y;
+    const testY = surfaceY - P_H;
+
+    // Try center, left edge, and right edge of platform
+    const spots = [
+      Math.round(s.x + s.w / 2 - P_W / 2),
+      Math.round(s.x + 16),
+      Math.round(s.x + s.w - P_W - 16)
+    ];
+    for(const testX of spots){
+      if(isSpotSafe(testX, testY)){
+        candidateSpots.push({ x: testX, y: testY, platY: surfaceY, plat: s });
+      }
+    }
+  }
+
+  // 2. Also check the arena floor (accounting for any boost/speed pads on floor)
+  for(let fx = WALL + 80; fx < W - WALL - 80; fx += 80){
+    let floorSurfaceY = H - WALL;
+    let onHazard = false;
+    for(const s of SOLIDS){
+      if(!s.dy && fx + P_W > s.x && fx < s.x + s.w){
+        if(s.t === 'speed' || s.t === 'boost' || s.t === 'drop'){
+          onHazard = true;
+          break;
+        }
+        if(s.y < floorSurfaceY && s.y >= H - WALL - 120){
+          floorSurfaceY = s.y;
+        }
+      }
+    }
+    if(onHazard) continue;
+    const fy = floorSurfaceY - P_H;
+    if(isSpotSafe(fx, fy)){
+      candidateSpots.push({ x: fx, y: fy, platY: floorSurfaceY, isFloor: true });
+    }
+  }
+
+  if(isHunter){
+    if(team === 0){
+      // Red Hunter: leftmost bottom spot
+      const leftSpots = candidateSpots.filter(p => p.x < W * 0.45).sort((a,b) => b.y - a.y || a.x - b.x);
+      if(leftSpots.length > 0) return { x: leftSpots[0].x, y: leftSpots[0].y, face: 1 };
+    } else {
+      // Blue Hunter: rightmost bottom spot
+      const rightSpots = candidateSpots.filter(p => p.x > W * 0.55).sort((a,b) => b.y - a.y || b.x - a.x);
+      if(rightSpots.length > 0) return { x: rightSpots[0].x, y: rightSpots[0].y, face: -1 };
+    }
+  } else {
+    if(team === 0){
+      // Red Runners: upper platforms on right half
+      const rightRunners = candidateSpots.filter(p => p.x > W * 0.40 && p.y < H * 0.85).sort((a,b) => a.y - b.y);
+      if(rightRunners.length > 0){
+        const pick = rightRunners[playerIndex % rightRunners.length];
+        return { x: pick.x, y: pick.y, face: -1 };
+      }
+    } else {
+      // Blue Runners: upper platforms on left half
+      const leftRunners = candidateSpots.filter(p => p.x < W * 0.60 && p.y < H * 0.85).sort((a,b) => a.y - b.y);
+      if(leftRunners.length > 0){
+        const pick = leftRunners[playerIndex % leftRunners.length];
+        return { x: pick.x, y: pick.y, face: 1 };
+      }
+    }
+  }
+
+  // Fallback: pick any safe spot
+  if(candidateSpots.length > 0){
+    const pick = candidateSpots[playerIndex % candidateSpots.length];
+    return { x: pick.x, y: pick.y, face: pick.x < W/2 ? 1 : -1 };
+  }
+
+  // Absolute fallback: center of arena
+  return { x: W/2 - 23, y: H/2 - 23, face: 1 };
+}
+
+function makePlayer(i,slot,colIdx){
+  const N=activeSlots().length;
+  const s=SLOTS[slot] || SLOTS[0];
+  const team = (menu.slotTeam && menu.slotTeam[slot] != null) ? menu.slotTeam[slot] : (slot % 2);
+  let x, y, face;
+
+  const isHunterMode = (settings.gameMode === 'hunter');
+  let roleHunter = false;
+
+  if(isHunterMode){
+    roleHunter = (team === 0 && slot === settings.hunterRed) || (team === 1 && slot === settings.hunterBlue);
+    const safeSpawn = findSafeSpawn(team, roleHunter, i, N);
+    x = safeSpawn.x;
+    y = safeSpawn.y;
+    face = safeSpawn.face;
+  } else {
+    // Normal party / teams spawn: verify and safe-snap to avoid platform clipping
+    let candidateX = Math.round(WALL + (W - 2 * WALL) * ((i + 0.5) / N)) - 23;
+    let surfaceY = H - WALL;
+    for(const s of SOLIDS){
+      if(!s.dy && candidateX + 46 > s.x && candidateX < s.x + s.w){
+        if(s.y < surfaceY && s.y >= H - WALL - 120){
+          surfaceY = s.y;
+        }
+      }
+    }
+    x = candidateX;
+    y = surfaceY - 46;
+    face = (i % 2 === 0 ? 1 : -1);
+  }
+
+  // Emergency safety guard: verify 0 solid overlap
+  for(let pass = 0; pass < 5; pass++){
+    const pBox = { x: x + 2, y: y + 2, w: 42, h: 42 };
+    const coll = SOLIDS.find(s => hitRect(pBox, s));
+    if(!coll) break;
+    y = coll.y - 46;
+  }
+
+  return {x:x,y:y,w:46,h:46,vx:0,vy:0,grounded:true,gp:SOLIDS[1],lastGp:SOLIDS[1],
+    face:face,airJumps:settings.doubleJump?1:0,wallJumps:0,coyote:0,jbuf:0,holdT:0,dropT:0,sideT:0,wallSide:0,
+    sx:1,sy:1,landT:0,tagT:0,padOn:false,blinkT:rand(1.5,4),blink:0,seed:i*3.7,
+    slot:slot,colIdx:colIdx,team:team,trail:[],cosmeticTrail:[],isHunter:roleHunter,isEliminated:false,survivalT:0,isFrozen:false};
+}
+/* ==========================================================================
+   BUNDLED MODES: INFECTION, BOMB TAG, CROWN KING (GLOBAL WIRING)
+   ========================================================================== */
+var initInfectionMode, updateInfection, checkInfectionTag, drawInfectionUI, drawInfectionPlayer, infectionBotThink, getInfectionPlayerSpeed, getInfectionHoldLift, drawInfectionShockwaves, drawInfectionSlime, triggerRepulsorPulse, infectionState, INFECTION_CONFIG, InfectionMode;
+var initBombMode, updateBombMode, checkBombTag, drawBombUI, drawBombPlayer, bombBotThink, BOMB_MODE, BOMB_CONFIG, ModeBomb;
+var initCrownMode, updateCrownMode, checkCrownTag, drawCrownUI, drawCrownPlayer, crownBotThink, getCrownPlayerSpeed, drawCrownEntity, drawCrownWorldFX, spawnCrownShockwave, CROWN_CONFIG, crownState, CrownMode;
+
 /* ==========================================================================
    BUNDLED MODE: INFECTION / ZOMBIE OUTBREAK
    ========================================================================== */
@@ -2776,6 +3999,21 @@ function harnessStart(mapIdx){
   function hookInfectionMode() {
     // Expose functions globally for direct use by index.html
     gScope.initInfectionMode = initInfectionMode;
+    if(typeof globalThis !== "undefined"){
+      globalThis.initInfectionMode = initInfectionMode;
+      globalThis.updateInfection = updateInfection;
+      globalThis.checkInfectionTag = checkInfectionTag;
+      globalThis.drawInfectionUI = drawInfectionUI;
+      globalThis.drawInfectionPlayer = drawInfectionPlayer;
+      globalThis.infectionBotThink = infectionBotThink;
+      globalThis.getInfectionPlayerSpeed = getInfectionPlayerSpeed;
+      globalThis.getInfectionHoldLift = getInfectionHoldLift;
+      globalThis.drawInfectionShockwaves = drawInfectionShockwaves;
+      globalThis.drawInfectionSlime = drawInfectionSlime;
+      globalThis.triggerRepulsorPulse = triggerRepulsorPulse;
+      globalThis.infectionState = infectionState;
+      globalThis.INFECTION_CONFIG = INFECTION_CONFIG;
+    }
     gScope.updateInfection = updateInfection;
     gScope.checkInfectionTag = checkInfectionTag;
     gScope.drawInfectionUI = drawInfectionUI;
@@ -4173,6 +5411,18 @@ function harnessStart(mapIdx){
   };
 
   // Attach to global window scope in browser
+  const bScope = (typeof window !== "undefined") ? window : (typeof globalThis !== "undefined" ? globalThis : root);
+  if (bScope) {
+    bScope.initBombMode = initBombMode;
+    bScope.updateBombMode = updateBombMode;
+    bScope.checkBombTag = checkBombTag;
+    bScope.drawBombUI = drawBombUI;
+    bScope.drawBombPlayer = drawBombPlayer;
+    bScope.bombBotThink = bombBotThink;
+    bScope.BOMB_MODE = BOMB_MODE;
+    bScope.BOMB_CONFIG = BOMB_CONFIG;
+    bScope.ModeBomb = ModeBomb;
+  }
   if (typeof root !== 'undefined') {
     root.initBombMode = initBombMode;
     root.updateBombMode = updateBombMode;
@@ -5791,6 +7041,21 @@ function harnessStart(mapIdx){
      17. AUTO-INTEGRATION HOOKS (Clean Browser Bridge)
      ========================================================================== */
   function attachCrownModeHooks() {
+    const cScope = (typeof window !== "undefined") ? window : (typeof globalThis !== "undefined" ? globalThis : null);
+    if(cScope){
+      cScope.initCrownMode = initCrownMode;
+      cScope.updateCrownMode = updateCrownMode;
+      cScope.checkCrownTag = checkCrownTag;
+      cScope.drawCrownUI = drawCrownUI;
+      cScope.drawCrownPlayer = drawCrownPlayer;
+      cScope.crownBotThink = crownBotThink;
+      cScope.getCrownPlayerSpeed = getCrownPlayerSpeed;
+      cScope.drawCrownEntity = drawCrownEntity;
+      cScope.drawCrownWorldFX = drawCrownWorldFX;
+      cScope.spawnCrownShockwave = spawnCrownShockwave;
+      cScope.CROWN_CONFIG = CROWN_CONFIG;
+      cScope.crownState = crownState;
+    }
     if (typeof window === 'undefined') return;
 
     // Expose main interface onto global window
@@ -5858,1233 +7123,55 @@ function harnessStart(mapIdx){
   return crownModuleExports;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
+/* Export live mode references to top-level lexical scope */
+var initInfectionMode = (typeof window !== "undefined" && window.initInfectionMode) || (typeof globalThis !== "undefined" ? globalThis.initInfectionMode : null);
+var updateInfection = (typeof window !== "undefined" && window.updateInfection) || (typeof globalThis !== "undefined" ? globalThis.updateInfection : null);
+var checkInfectionTag = (typeof window !== "undefined" && window.checkInfectionTag) || (typeof globalThis !== "undefined" ? globalThis.checkInfectionTag : null);
+var drawInfectionUI = (typeof window !== "undefined" && window.drawInfectionUI) || (typeof globalThis !== "undefined" ? globalThis.drawInfectionUI : null);
+var drawInfectionPlayer = (typeof window !== "undefined" && window.drawInfectionPlayer) || (typeof globalThis !== "undefined" ? globalThis.drawInfectionPlayer : null);
+var infectionBotThink = (typeof window !== "undefined" && window.infectionBotThink) || (typeof globalThis !== "undefined" ? globalThis.infectionBotThink : null);
+var getInfectionPlayerSpeed = (typeof window !== "undefined" && window.getInfectionPlayerSpeed) || (typeof globalThis !== "undefined" ? globalThis.getInfectionPlayerSpeed : null);
+var getInfectionHoldLift = (typeof window !== "undefined" && window.getInfectionHoldLift) || (typeof globalThis !== "undefined" ? globalThis.getInfectionHoldLift : null);
+var drawInfectionShockwaves = (typeof window !== "undefined" && window.drawInfectionShockwaves) || (typeof globalThis !== "undefined" ? globalThis.drawInfectionShockwaves : null);
+var drawInfectionSlime = (typeof window !== "undefined" && window.drawInfectionSlime) || (typeof globalThis !== "undefined" ? globalThis.drawInfectionSlime : null);
+var triggerRepulsorPulse = (typeof window !== "undefined" && window.triggerRepulsorPulse) || (typeof globalThis !== "undefined" ? globalThis.triggerRepulsorPulse : null);
+var infectionState = (typeof window !== "undefined" && window.infectionState) || (typeof globalThis !== "undefined" ? globalThis.infectionState : null);
+var INFECTION_CONFIG = (typeof window !== "undefined" && window.INFECTION_CONFIG) || (typeof globalThis !== "undefined" ? globalThis.INFECTION_CONFIG : null);
+var InfectionMode = (typeof window !== "undefined" && window.InfectionMode) || (typeof globalThis !== "undefined" ? globalThis.InfectionMode : null);
+
+var initBombMode = (typeof window !== "undefined" && window.initBombMode) || (typeof globalThis !== "undefined" ? globalThis.initBombMode : null);
+var updateBombMode = (typeof window !== "undefined" && window.updateBombMode) || (typeof globalThis !== "undefined" ? globalThis.updateBombMode : null);
+var checkBombTag = (typeof window !== "undefined" && window.checkBombTag) || (typeof globalThis !== "undefined" ? globalThis.checkBombTag : null);
+var drawBombUI = (typeof window !== "undefined" && window.drawBombUI) || (typeof globalThis !== "undefined" ? globalThis.drawBombUI : null);
+var drawBombPlayer = (typeof window !== "undefined" && window.drawBombPlayer) || (typeof globalThis !== "undefined" ? globalThis.drawBombPlayer : null);
+var bombBotThink = (typeof window !== "undefined" && window.bombBotThink) || (typeof globalThis !== "undefined" ? globalThis.bombBotThink : null);
+var BOMB_MODE = (typeof window !== "undefined" && window.BOMB_MODE) || (typeof globalThis !== "undefined" ? globalThis.BOMB_MODE : null);
+var BOMB_CONFIG = (typeof window !== "undefined" && window.BOMB_CONFIG) || (typeof globalThis !== "undefined" ? globalThis.BOMB_CONFIG : null);
+var ModeBomb = (typeof window !== "undefined" && window.ModeBomb) || (typeof globalThis !== "undefined" ? globalThis.ModeBomb : null);
+
+var initCrownMode = (typeof window !== "undefined" && window.initCrownMode) || (typeof globalThis !== "undefined" ? globalThis.initCrownMode : null);
+var updateCrownMode = (typeof window !== "undefined" && window.updateCrownMode) || (typeof globalThis !== "undefined" ? globalThis.updateCrownMode : null);
+var checkCrownTag = (typeof window !== "undefined" && window.checkCrownTag) || (typeof globalThis !== "undefined" ? globalThis.checkCrownTag : null);
+var drawCrownUI = (typeof window !== "undefined" && window.drawCrownUI) || (typeof globalThis !== "undefined" ? globalThis.drawCrownUI : null);
+var drawCrownPlayer = (typeof window !== "undefined" && window.drawCrownPlayer) || (typeof globalThis !== "undefined" ? globalThis.drawCrownPlayer : null);
+var crownBotThink = (typeof window !== "undefined" && window.crownBotThink) || (typeof globalThis !== "undefined" ? globalThis.crownBotThink : null);
+var getCrownPlayerSpeed = (typeof window !== "undefined" && window.getCrownPlayerSpeed) || (typeof globalThis !== "undefined" ? globalThis.getCrownPlayerSpeed : null);
+var drawCrownEntity = (typeof window !== "undefined" && window.drawCrownEntity) || (typeof globalThis !== "undefined" ? globalThis.drawCrownEntity : null);
+var drawCrownWorldFX = (typeof window !== "undefined" && window.drawCrownWorldFX) || (typeof globalThis !== "undefined" ? globalThis.drawCrownWorldFX : null);
+var spawnCrownShockwave = (typeof window !== "undefined" && window.spawnCrownShockwave) || (typeof globalThis !== "undefined" ? globalThis.spawnCrownShockwave : null);
+var CROWN_CONFIG = (typeof window !== "undefined" && window.CROWN_CONFIG) || (typeof globalThis !== "undefined" ? globalThis.CROWN_CONFIG : null);
+var crownState = (typeof window !== "undefined" && window.crownState) || (typeof globalThis !== "undefined" ? globalThis.crownState : null);
+var CrownMode = (typeof window !== "undefined" && window.CrownMode) || (typeof globalThis !== "undefined" ? globalThis.CrownMode : null);
 
-buildLevel();
-  HARNESS.active = true;
-  HARNESS.mode = 'record';
-  harnessBuildCases(settings.map);
 
-  menu.botOn = true;
-  menu.slotColor = [0, 1, -1, -1, -1, -1, -1, -1];
-  startMatch();
-  match.state = 'playing';
-  match.cooldown = 0;
-  match.it = 0;
-  match.timer = 9999;
-  harnessResetTrial();
-  toast('🎯 HARNESS: Jump to glowing platform! [T] Test Bot [K] Keep [D] Discard [E] Restart');
-}
-
-function harnessFeetOn(p, s){
-  if(!p || !s) return false;
-  const feet = p.y + p.h;
-  const sTop = s.dy ? s.y + (clamp(p.x + p.w / 2, s.x, s.x + s.w) - s.x) * (s.dy / s.w) : s.y;
-  const onX = (p.x + p.w > s.x + 4) && (p.x < s.x + s.w - 4);
-  const onY = (feet >= sTop - 6) && (feet <= sTop + 24);
-  return onX && onY && (p.grounded || Math.abs(p.vy) < 80);
-}
-
-function harnessStageRecordedSample(){
-  const c = harnessCurCase();
-  if(!c || !HARNESS.trace.length) return;
-  const key = c.from + '->' + c.to;
-
-  const launchStep = HARNESS.trace.find(s => s.je) || HARNESS.trace[0];
-  const djStep = HARNESS.trace.find((s, idx) => idx > 0 && s.je);
-
-  HARNESS.stagedSample = {
-    key: key,
-    from: c.from,
-    to: c.to,
-    map: HARNESS.map,
-    time: +HARNESS.t.toFixed(2),
-    startX: HARNESS.startX || HARNESS.trace[0].x,
-    startY: HARNESS.startY || HARNESS.trace[0].y,
-    startVx: HARNESS.startVx || HARNESS.trace[0].vx,
-    launchX: launchStep ? launchStep.x : 0,
-    hasDoubleJump: !!djStep,
-    doubleJumpDelay: djStep ? +(djStep.t - (launchStep ? launchStep.t : 0)).toFixed(2) : 0,
-    trace: HARNESS.trace.map(s => ({
-      t: +s.t.toFixed(3),
-      x: s.x, y: s.y,
-      vx: s.vx, vy: s.vy,
-      d: s.d, je: s.je, jh: s.jh, dn: s.dn
-    }))
-  };
-}
-
-function harnessCommitStagedSample(){
-  const sample = HARNESS.stagedSample;
-  if(!sample) return false;
-  const mapKey = 'map' + HARNESS.map;
-  if(!HARNESS.transitions[mapKey]) HARNESS.transitions[mapKey] = {};
-  HARNESS.transitions[mapKey][sample.key] = sample;
-
-  // Auto-mirror if bilateral symmetry exists
-  const mFrom = HARNESS.mirrorMap.get(sample.from), mTo = HARNESS.mirrorMap.get(sample.to);
-  if(mFrom !== undefined && mTo !== undefined){
-    const mirrorKey = mFrom + '->' + mTo;
-    const mirroredSample = {
-      key: mirrorKey,
-      from: mFrom,
-      to: mTo,
-      map: HARNESS.map,
-      time: sample.time,
-      startX: Math.round(W - sample.startX - 46),
-      startY: sample.startY,
-      startVx: -sample.startVx,
-      launchX: Math.round(W - sample.launchX - 46),
-      hasDoubleJump: sample.hasDoubleJump,
-      doubleJumpDelay: sample.doubleJumpDelay,
-      trace: sample.trace.map(s => ({
-        t: s.t,
-        x: Math.round(W - s.x - 46),
-        y: s.y,
-        vx: -s.vx,
-        vy: s.vy,
-        d: -s.d,
-        je: s.je,
-        jh: s.jh,
-        dn: s.dn
-      }))
-    };
-    HARNESS.transitions[mapKey][mirrorKey] = mirroredSample;
-  }
-
-  harnessSaveStored();
-  HARNESS.stagedSample = null;
-  HARNESS.done++;
-  HARNESS.okN++;
-  return true;
-}
-
-function harnessDiscardCurrent(andRetry){
-  const c = harnessCurCase();
-  if(!c) return;
-  const key = c.from + '->' + c.to;
-  const mapKey = 'map' + HARNESS.map;
-  let discardedSomething = false;
-
-  if(HARNESS.stagedSample){
-    HARNESS.stagedSample = null;
-    discardedSomething = true;
-  }
-
-  if(HARNESS.transitions[mapKey] && HARNESS.transitions[mapKey][key]){
-    delete HARNESS.transitions[mapKey][key];
-    const mFrom = HARNESS.mirrorMap.get(c.from), mTo = HARNESS.mirrorMap.get(c.to);
-    if(mFrom !== undefined && mTo !== undefined){
-      const mirrorKey = mFrom + '->' + mTo;
-      if(HARNESS.transitions[mapKey][mirrorKey]) delete HARNESS.transitions[mapKey][mirrorKey];
-    }
-    harnessSaveStored();
-    discardedSomething = true;
-  }
-
-  if(HARNESS.mode === 'playback' || andRetry){
-    HARNESS.mode = 'record';
-  }
-
-  harnessResetTrial();
-  sfx('back');
-
-  if(andRetry){
-    toast('🔄 REMOVED & RETRYING — Jump when ready!');
-  } else if(discardedSomething){
-    toast('🗑️ CASE DATA REMOVED (Back to Record Mode)');
-  } else {
-    toast('🔄 RESET (No saved data on this case)');
-  }
-}
-
-function harnessExportJSON(){
-  try{
-    const mapKey = 'map' + HARNESS.map;
-    const data = {
-      game: 'tag-arena',
-      map: HARNESS.map,
-      mapName: MAPS[HARNESS.map].name,
-      transitions: HARNESS.transitions[mapKey] || {}
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'tag_jump_policy_map' + HARNESS.map + '.json';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => { try{ URL.revokeObjectURL(a.href); a.remove(); }catch(e){} }, 800);
-    toast('💾 Saved policy for ' + MAPS[HARNESS.map].name);
-  }catch(e){
-    toast('Error saving JSON');
-  }
-}
-
-function harnessToggleBotTest(){
-  const c = harnessCurCase();
-  if(!c) return;
-  const key = c.from + '->' + c.to;
-  const mapKey = 'map' + HARNESS.map;
-  const savedSample = HARNESS.transitions[mapKey] && HARNESS.transitions[mapKey][key];
-  const activeSample = HARNESS.stagedSample || savedSample;
-
-  if(HARNESS.mode === 'record'){
-    if(!activeSample){
-      toast('⚠️ Jump successfully first (or choose a saved case) to test bot!');
-      sfx('back');
-      return;
-    }
-    HARNESS.mode = 'playback';
-    harnessResetTrial();
-    toast('🤖 BOT TEST MODE: Watch bot jump at you! [E] Restart [K] Keep [D] Remove [R] Remove & Retry');
-    sfx('go');
-  } else {
-    HARNESS.mode = 'record';
-    harnessResetTrial();
-    toast('🏃 RECORD MODE: Jump to glowing platform');
-    sfx('ui');
-  }
-}
-
-function harnessTick(dt){
-  if(!HARNESS.active || !match || screen !== 'game') return;
-  match.timer = 9999; match.lastTick = 9999;
-  if(match.state === 'paused') return;
-
-  const pl = match.players[0];
-  if(!pl) return;
-
-  // Key controls:
-  // E: Quick restart
-  if(pressed.has('KeyE')){
-    harnessResetTrial();
-    sfx('back');
-    toast('🔄 TRIAL RESTARTED (E)');
-    return;
-  }
-  // T: Toggle bot test mode
-  if(pressed.has('KeyT')){
-    harnessToggleBotTest();
-    return;
-  }
-  // K or Enter: Keep / Save
-  if(pressed.has('KeyK') || pressed.has('Enter')){
-    if(HARNESS.stagedSample){
-      harnessCommitStagedSample();
-      sfx('go');
-      toast('✅ JUMP SAVED & APPROVED! Moving to next case...');
-      HARNESS.ci = (HARNESS.ci + 1) % HARNESS.cases.length;
-      HARNESS.mode = 'record';
-      harnessResetTrial();
-      return;
-    } else {
-      const c = harnessCurCase();
-      const key = c ? (c.from + '->' + c.to) : '';
-      const mapKey = 'map' + HARNESS.map;
-      if(HARNESS.transitions[mapKey] && HARNESS.transitions[mapKey][key]){
-        toast('✅ Case already saved! Moving to next case...');
-        HARNESS.ci = (HARNESS.ci + 1) % HARNESS.cases.length;
-        HARNESS.mode = 'record';
-        harnessResetTrial();
-        return;
-      } else {
-        toast('⚠️ Complete a jump first before keeping!');
-      }
-    }
-  }
-  // R: Remove & Retry immediately in one button press
-  if(pressed.has('KeyR')){
-    harnessDiscardCurrent(true);
-    return;
-  }
-  // D / Delete / Backspace: Discard / Remove
-  if(pressed.has('KeyD') || pressed.has('Backspace') || pressed.has('Delete')){
-    harnessDiscardCurrent(false);
-    return;
-  }
-  // Browse cases: [ / P / ArrowLeft for Previous
-  if(pressed.has('BracketLeft') || pressed.has('KeyP') || (HARNESS.mode === 'playback' && pressed.has('ArrowLeft'))){
-    HARNESS.ci = (HARNESS.ci - 1 + HARNESS.cases.length) % HARNESS.cases.length;
-    HARNESS.stagedSample = null;
-    harnessResetTrial();
-    toast('◀ PREVIOUS CASE (' + (HARNESS.ci + 1) + '/' + HARNESS.cases.length + ')');
-    return;
-  }
-  // Browse cases: ] / N / ArrowRight for Next
-  if(pressed.has('BracketRight') || pressed.has('KeyN') || (HARNESS.mode === 'playback' && pressed.has('ArrowRight'))){
-    HARNESS.ci = (HARNESS.ci + 1) % HARNESS.cases.length;
-    HARNESS.stagedSample = null;
-    harnessResetTrial();
-    toast('▶ NEXT CASE (' + (HARNESS.ci + 1) + '/' + HARNESS.cases.length + ')');
-    return;
-  }
-  // Z: Save / Export
-  if(pressed.has('KeyZ')){
-    harnessExportJSON();
-    return;
-  }
-
-  // Switch map with number keys 1-9, 0
-  for(let k = 1; k <= 9; k++){
-    if(pressed.has('Digit' + k)){
-      harnessStart(k - 1);
-      return;
-    }
-  }
-  if(pressed.has('Digit0')){
-    harnessStart(9);
-    return;
-  }
-
-  const c = harnessCurCase();
-  if(!c) return;
-  const A = HARNESS.nodes[c.from], tgt = HARNESS.nodes[c.to];
-
-  if(HARNESS.mode === 'record'){
-    if(!HARNESS.started){
-      if(keys.has('KeyA') || keys.has('KeyD') || keys.has('KeyW') || keys.has('Space') ||
-         keys.has('ArrowLeft') || keys.has('ArrowRight') || keys.has('ArrowUp')){
-        HARNESS.started = true;
-        HARNESS.startX = Math.round(pl.x);
-        HARNESS.startY = Math.round(pl.y);
-        HARNESS.startVx = Math.round(pl.vx);
-        HARNESS.t = 0;
-      } else {
-        return;
-      }
-    }
-
-    HARNESS.t += dt;
-
-    // Check invalid landing: touched arena floor or unintended platform before target
-    if(pl.grounded && pl.gp && pl.gp !== A && pl.gp !== tgt){
-      toast('❌ TOUCHED OTHER FLOOR — [E] TO RETRY');
-      sfx('back');
-      harnessResetTrial();
-      return;
-    }
-
-    if(harnessFeetOn(pl, tgt)){
-      HARNESS.holdT += dt;
-      if(HARNESS.holdT >= 0.20 && !HARNESS.stagedSample){
-        harnessStageRecordedSample();
-        sfx('ok');
-        toast('🎯 JUMP RECORDED! [T] Test Bot | [K] Keep & Save | [D] Discard');
-      }
-    } else {
-      if(!HARNESS.stagedSample) HARNESS.holdT = 0;
-    }
-
-    if(HARNESS.t >= c.par && !HARNESS.stagedSample){
-      toast('⏰ TIME OVER PAR (' + c.par.toFixed(1) + 's) — [E] TO RETRY');
-      sfx('back');
-      harnessResetTrial();
-      return;
-    }
-  } else {
-    // Playback mode:
-    HARNESS.playbackT += dt;
-    const botP = match.players[1];
-    if(botP && harnessFeetOn(botP, tgt)){
-      HARNESS.holdT += dt;
-      if(HARNESS.holdT >= 0.4){
-        sfx('go');
-        toast('🎯 BOT REACHED YOU CLEANLY! [K] Keep & Save | [D] Discard | [E] Retry');
-        HARNESS.holdT = 0;
-      }
-    }
-  }
-}
-
-function harnessPushTrace(p, inp){
-  if(!HARNESS.active || HARNESS.mode !== 'record' || !HARNESS.started || p.slot !== 0) return;
-  if(HARNESS.stagedSample) return; // Stop recording once landed cleanly
-  HARNESS.trace.push({
-    t: +HARNESS.t.toFixed(3),
-    x: Math.round(p.x),
-    y: Math.round(p.y),
-    vx: Math.round(p.vx),
-    vy: Math.round(p.vy),
-    d: inp.dir,
-    je: inp.jumpEdge ? 1 : 0,
-    jh: inp.jumpHeld ? 1 : 0,
-    dn: inp.downHeld ? 1 : 0,
-    g: p.grounded ? 1 : 0
-  });
-}
-
-function harnessBotPlaybackInput(p, dt){
-  const c = harnessCurCase();
-  if(!c) return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
-  const key = c.from + '->' + c.to;
-  const mapKey = 'map' + HARNESS.map;
-  const sample = HARNESS.stagedSample || (HARNESS.transitions[mapKey] && HARNESS.transitions[mapKey][key]);
-  if(!sample || !sample.trace || !sample.trace.length){
-    return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
-  }
-
-  const curT = HARNESS.playbackT;
-  if(!p._pbStepIdx) p._pbStepIdx = 0;
-
-  let jumpEdge = false;
-  let step = sample.trace[Math.min(p._pbStepIdx, sample.trace.length - 1)];
-
-  // Scan all trace samples up to current playback time so jump edges are NEVER missed
-  while(p._pbStepIdx < sample.trace.length && sample.trace[p._pbStepIdx].t <= curT){
-    const s = sample.trace[p._pbStepIdx];
-    if(s.je === 1) jumpEdge = true;
-    step = s;
-    p._pbStepIdx++;
-  }
-
-  // Trajectory stabilization: nudge ground velocity toward recorded velocity to eliminate frame rate drift
-  if(p.grounded && Math.abs(p.x - step.x) > 3){
-    p.vx += clamp((step.x - p.x) * 4, -50, 50);
-  }
-
-  return {
-    dir: step.d,
-    jumpEdge: jumpEdge,
-    jumpHeld: !!step.jh,
-    downHeld: !!step.dn
-  };
-}
-
-function harnessOverlay(){
-  if(!HARNESS.active || !match || screen !== 'game') return;
-  const c = harnessCurCase();
-  if(!c) return;
-  const A = HARNESS.nodes[c.from], B = HARNESS.nodes[c.to];
-
-  // Draw glowing box on target platform B
-  const bx = (B.x + B.w / 2 - cam.x) * cam.s + CW / 2;
-  const by = (B.y + (B.dy ? B.dy / 2 : B.h / 2) - cam.y) * cam.s + CH / 2;
-  const bw = B.w * cam.s + 18, bh = 46 * cam.s + 18;
-  const pulse = 0.6 + 0.4 * Math.sin(tGlobal * 6);
-
-  g.save();
-  g.globalAlpha = 0.4 + 0.4 * pulse;
-  g.strokeStyle = '#2ecc71';
-  g.lineWidth = 4;
-  rr(g, bx - bw / 2, by - bh / 2, bw, bh, 10);
-  g.stroke();
-  g.restore();
-
-  // Floating chevron above target
-  ptxt('▼', bx, by - bh / 2 - 20 - Math.abs(Math.sin(tGlobal * 5)) * 10, FN(22, 900), '#2ecc71');
-
-  // Case Status
-  const key = c.from + '->' + c.to;
-  const mapKey = 'map' + HARNESS.map;
-  const isSaved = !!(HARNESS.transitions[mapKey] && HARNESS.transitions[mapKey][key]);
-  const isStaged = !!HARNESS.stagedSample;
-
-  const statusText = isStaged ? '🟡 RECORDED (Ready to Test/Save)' : (isSaved ? '✅ SAVED & APPROVED' : '⭕ UNRECORDED');
-  const statusCol = isStaged ? '#f5d76e' : (isSaved ? '#2ecc71' : '#bdc3c7');
-
-  const mapName = MAPS[HARNESS.map] ? MAPS[HARNESS.map].name : 'MAP ' + HARNESS.map;
-  const modeTag = HARNESS.mode === 'playback' ? '🤖 BOT TEST MODE' : '🏃 RECORDING';
-
-  ptxt(mapName + ' • CASE ' + (HARNESS.ci + 1) + '/' + HARNESS.cases.length + ' • ' + modeTag, CW / 2, 30, FT(20), '#ffffff');
-  ptxt('STATUS: ' + statusText + '  |  Rise: ' + (-c.dy) + 'px  Gap: ' + c.gap + 'px', CW / 2, 54, FN(14, 800), statusCol);
-
-  if(HARNESS.mode === 'record'){
-    if(isStaged){
-      ptxt('🎯 JUMP RECORDED! [T] Test Bot  |  [K] Keep & Save  |  [D] Remove  |  [R] Remove & Retry', CW / 2, 78, FN(15, 900), '#2ecc71');
-    } else {
-      const timeCol = HARNESS.t > c.par * 0.75 ? '#ff4757' : '#2ed573';
-      ptxt(HARNESS.started ? HARNESS.t.toFixed(1) + 's / ' + c.par.toFixed(1) + 's par' : 'PRESS WASD / ARROWS TO START JUMP', CW / 2, 78, FN(15, 800), timeCol);
-    }
-  } else {
-    ptxt('WATCHING BOT REPLAY! [K] Keep & Save  |  [D] Remove  |  [R] Remove & Retry  |  [E] Re-run Bot', CW / 2, 78, FN(15, 900), '#38ef7d');
-  }
-
-  // Bottom action bar
-  ptxt('[T] TEST BOT   [K] KEEP & SAVE   [D] REMOVE   [R] REMOVE & RETRY   [E] RESTART   [←/→] BROWSE', CW / 2, CH - 22, FN(12, 800), 'rgba(255,255,255,0.92)');
-}
-
-function demoOverlay(){ harnessOverlay(); }
-window.HARNESS = HARNESS;
-window.harnessStart = harnessStart;
-let screen='menu',tGlobal=0;
-const menu={tab:'2p',mode:'rows',slotColor:[0,1,-1,-1,-1,-1,-1,-1],slotTeam:[0,1,0,1,0,1,0,1],slotCtrl:[0,1,2,3],row:4,rule:0,toast:null,toastT:0,botOn:false,botDifficulty:'hard',mapModal:false,onlineModal:false,slotIsBot:[false,false,false,false,false,false,false,false],botSlots:null};
-function isSlotBot(slotIdx){
-  if(menu.tab === 'solo') return slotIdx === 1;
-  if(menu.tab === 'bots') return slotIdx === 0 || slotIdx === 1;
-  if(typeof NET !== 'undefined' && NET && NET.role !== null) return false;
-  if(menu.botSlots){
-    if(Array.isArray(menu.botSlots)) return menu.botSlots.includes(slotIdx);
-    if(menu.botSlots.has) return menu.botSlots.has(slotIdx);
-  }
-  if(menu.slotIsBot && menu.slotIsBot[slotIdx] !== undefined) return !!menu.slotIsBot[slotIdx];
-  return false;
-}
-const ROWS=['CHANGE PLAYERS','MAP','TIMER','RULES','START'];
-const RULE_NAMES=['DOUBLE JUMP'];
-function toast(m){menu.toast=m;menu.toastT=2.2;}
-
-function setBotDifficulty(diff){
-  if(diff !== 'easy' && diff !== 'hard') diff = 'hard';
-  menu.botDifficulty = diff;
-  settings.botDifficulty = diff;
-  toast('BOT DIFFICULTY: ' + diff.toUpperCase() + (diff === 'hard' ? ' (DEFAULT)' : ''));
-  sfx('ok');
-}
-function toggleBotDifficulty(){
-  setBotDifficulty(menu.botDifficulty === 'easy' ? 'hard' : 'easy');
-}
-
-function setMenuTab(tab){
-  if(tab !== 'solo' && tab !== '2p' && tab !== 'online' && tab !== 'bots') tab = '2p';
-  menu.tab = tab;
-  if(tab === 'solo'){
-    menu.botOn = true;
-    settings.teams = false;
-    settings.gameMode = 'party';
-    menu.gameMode = 'party';
-    menu.slotColor = [0, 1, -1, -1, -1, -1, -1, -1];
-  } else if(tab === 'bots'){
-    menu.botOn = true;
-    settings.teams = false;
-    settings.gameMode = 'party';
-    menu.gameMode = 'party';
-    menu.slotColor = [0, 1, -1, -1, -1, -1, -1, -1];
-    if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
-  } else if(tab === '2p'){
-    menu.botOn = false;
-    if(menu.slotColor[0] < 0) menu.slotColor[0] = 0;
-    if(menu.slotColor[1] < 0) menu.slotColor[1] = 1;
-  } else if(tab === 'online'){
-    menu.botOn = false;
-    if(typeof netRefreshPublicRooms === 'function') netRefreshPublicRooms();
-  }
-  sfx('ui');
-}
-function activeSlots(){
-  const max = (typeof NET !== 'undefined' && NET && NET.role !== null) ? 8 : 4;
-  const r = [];
-  for(let i = 0; i < max; i++){
-    if(menu.slotColor[i] >= 0) r.push(i);
-  }
-  return r;
-}
-function cycleTeam(i, d){
-  if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost && NET.teamsLocked){
-    toast('TEAMS ARE LOCKED BY THE HOST');
-    sfx('back');
-    return;
-  }
-  if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
-  const curTeam = (menu.slotTeam[i] || 0) % TEAMS.length;
-  const targetTeam = (curTeam + d + TEAMS.length) % TEAMS.length;
-
-  if(settings.gameMode === 'hunter'){
-    // Disallow 3v1, 6v2, 5v3, etc. Keep team count difference max ±1!
-    const act = activeSlots();
-    let redCount = 0, blueCount = 0;
-    for(const s of act){
-      const t = (s === i ? targetTeam : (menu.slotTeam[s] || 0) % 2);
-      if(t === 0) redCount++; else blueCount++;
-    }
-    if(Math.abs(redCount - blueCount) > 1){
-      toast('⚠️ TEAMS MUST BE BALANCED (MAX ±1 DIFFERENCE)');
-      sfx('back');
-      return;
-    }
-  }
-
-  menu.slotTeam[i] = targetTeam;
-  sfx('ui');
-  if(settings.gameMode === 'hunter') updateElectedHuntersFromVotes();
-  if(typeof NET !== 'undefined' && NET && NET.role !== null){
-    if(NET.isHost) netBroadcastRoster();
-    else {
-      for(const pair of NET.conns.values()){
-        netSendRel(pair, { t: 'team', slot: i, team: menu.slotTeam[i] });
-      }
-    }
-  }
-}
-
-// First free player slot (1..7) from my current roster view
-function firstFreeSlot(){
-  for(let s = 1; s < 8; s++){
-    const takenHost = (typeof NET !== 'undefined' && NET && NET.isHost && NET.hostInputs) ? NET.hostInputs.has(s) : false;
-    if(!takenHost && menu.slotColor[s] === -1) return s;
-  }
-  return -1;
-}
-
-// Tap-a-team-panel = join THAT team (first free slot). Returns true if handled.
-function joinTeamFromPanel(teamIdx){
-  const teamName = teamIdx === 0 ? 'RED' : 'BLUE';
-  const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
-  if(!isOnline){
-    // Local setup: activate the first free slot straight into this team
-    const free = firstFreeSlot();
-    if(free < 0){ toast('No free slots!'); sfx('back'); return true; }
-    const taken = menu.slotColor.filter(v => v >= 0);
-    let pick = -1;
-    for(let pi = 0; pi < PALETTE.length; pi++){ if(!taken.includes(pi)){ pick = pi; break; } }
-    menu.slotColor[free] = (pick >= 0 ? pick : free % PALETTE.length);
-    if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
-    menu.slotTeam[free] = teamIdx;
-    if(settings.gameMode === 'hunter'){ enforceHunterBalance(); validateHunterRoles(); }
-    sfx('ok');
-    toast('P' + (free + 1) + ' joined ' + teamName + '!');
-    return true;
-  }
-  if(NET.mySlot >= 0){
-    // Already playing: move MY slot to the tapped team (balance-guarded)
-    setPlayerTeam(NET.mySlot, teamIdx);
-    return true;
-  }
-  // Spectator: claim the first free slot FOR the tapped team
-  if(NET.lobbyLocked){ netToast('Lobby is locked by the host.'); return true; }
-  const free = firstFreeSlot();
-  if(free < 0){ netToast('All player slots are full!'); return true; }
-  netClaimSlot(free, teamIdx);
-  return true;
-}
-// Same lock + hunter-balance rules as cycleTeam.
-function setPlayerTeam(i, teamIdx){
-  if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost && NET.teamsLocked){
-    toast('TEAMS ARE LOCKED BY THE HOST');
-    sfx('back');
-    return;
-  }
-  if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
-  const targetTeam = ((teamIdx % TEAMS.length) + TEAMS.length) % TEAMS.length;
-  const curTeam = (menu.slotTeam[i] || 0) % TEAMS.length;
-  if(curTeam === targetTeam){ sfx('ui'); return; }
-
-  if(settings.gameMode === 'hunter'){
-    const act = activeSlots();
-    let redCount = 0, blueCount = 0;
-    for(const s of act){
-      const t = (s === i ? targetTeam : (menu.slotTeam[s] || 0) % 2);
-      if(t === 0) redCount++; else blueCount++;
-    }
-    if(Math.abs(redCount - blueCount) > 1){
-      toast('⚠️ TEAMS MUST BE BALANCED (MAX ±1 DIFFERENCE)');
-      sfx('back');
-      return;
-    }
-  }
-
-  menu.slotTeam[i] = targetTeam;
-  sfx('ui');
-  if(settings.gameMode === 'hunter') updateElectedHuntersFromVotes();
-  if(typeof NET !== 'undefined' && NET && NET.role !== null){
-    if(NET.isHost) netBroadcastRoster();
-    else {
-      for(const pair of NET.conns.values()){
-        netSendRel(pair, { t: 'team', slot: i, team: menu.slotTeam[i] });
-      }
-    }
-  }
-}
-
-if(!menu.hunterVotes) menu.hunterVotes = {};
-if(!menu.hunterHistory) menu.hunterHistory = {};
-
-function getHunterTeamCounts(){
-  const act = activeSlots();
-  let red = 0, blue = 0;
-  for(const s of act){
-    const t = (menu.slotTeam ? menu.slotTeam[s] : s) % 2;
-    if(t === 0) red++; else blue++;
-  }
-  return { red: red, blue: blue, diff: Math.abs(red - blue) };
-}
-
-function enforceHunterBalance(){
-  const act = activeSlots();
-  if(act.length < 2) return;
-  let red = 0, blue = 0;
-  for(const s of act){
-    const t = (menu.slotTeam ? menu.slotTeam[s] : s) % 2;
-    if(t === 0) red++; else blue++;
-  }
-  if(Math.abs(red - blue) > 1){
-    if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
-    let r = 0, b = 0;
-    for(let k = 0; k < act.length; k++){
-      const s = act[k];
-      if(r <= b){ menu.slotTeam[s] = 0; r++; }
-      else { menu.slotTeam[s] = 1; b++; }
-    }
-  }
-}
-
-function getCandidateVoteCount(slot, team){
-  if(!menu.hunterVotes) return 0;
-  const act = activeSlots();
-  let cnt = 0;
-  for(const [voter, voteVal] of Object.entries(menu.hunterVotes)){
-    const v = parseInt(voter);
-    if(!act.includes(v)) continue;
-    const cand = (voteVal && typeof voteVal === 'object') ? voteVal.cand : voteVal;
-    const candTeam = (voteVal && typeof voteVal === 'object' && voteVal.team != null) ? voteVal.team : ((menu.slotTeam ? menu.slotTeam[v] : v) % 2);
-    if(team != null && candTeam !== team) continue;
-    if(slot === 'random'){
-      if(cand === 'random' || cand === -1 || cand === '-1') cnt++;
-    } else {
-      if(parseInt(cand) === slot) cnt++;
-    }
-  }
-  return cnt;
-}
-
-function resolveTeamHunter(team){
-  const act = activeSlots();
-  const teamSlots = act.filter(s => ((menu.slotTeam ? menu.slotTeam[s] : s) % 2) === team);
-  if(teamSlots.length === 0) return 0;
-  if(teamSlots.length === 1) return teamSlots[0];
-
-  const hist = (match && match.hunterHistory) ? match.hunterHistory : (menu.hunterHistory || {});
-
-  // 1. Tally votes for each candidate on this team, and random votes
-  const votes = {};
-  for(const s of teamSlots) votes[s] = 0;
-  let randomVotes = 0;
-
-  if(menu.hunterVotes){
-    for(const [voter, voteVal] of Object.entries(menu.hunterVotes)){
-      const v = parseInt(voter);
-      if(!act.includes(v)) continue;
-      const cand = (voteVal && typeof voteVal === 'object') ? voteVal.cand : voteVal;
-      const vTeam = (voteVal && typeof voteVal === 'object' && voteVal.team != null) ? voteVal.team : ((menu.slotTeam ? menu.slotTeam[v] : v) % 2);
-      if(vTeam === team){
-        if(cand === 'random' || cand === -1 || cand === '-1'){
-          randomVotes++;
-        } else {
-          const c = parseInt(cand);
-          if(teamSlots.includes(c)){
-            votes[c] = (votes[c] || 0) + 1;
-          }
-        }
-      }
-    }
-  }
-
-  // 2. Find maximum vote count among candidates
-  let maxCandidateVotes = -1;
-  for(const s of teamSlots){
-    if((votes[s] || 0) > maxCandidateVotes) maxCandidateVotes = votes[s] || 0;
-  }
-
-  // If random strictly won
-  if(randomVotes > maxCandidateVotes && randomVotes > 0){
-    let minR = 1e9;
-    for(const s of teamSlots){
-      const r = hist[s] || 0;
-      if(r < minR) minR = r;
-    }
-    const leastRounds = teamSlots.filter(s => (hist[s] || 0) === minR);
-    const curHunter = (team === 0 ? settings.hunterRed : settings.hunterBlue);
-    if(leastRounds.includes(curHunter)) return curHunter;
-    return leastRounds[0];
-  }
-
-  const topCandidates = teamSlots.filter(s => (votes[s] || 0) === maxCandidateVotes);
-  if(topCandidates.length === 1 && maxCandidateVotes > randomVotes){
-    return topCandidates[0];
-  }
-
-  // 3. Tie breaker: pick candidate(s) with LEAST hunter rounds played
-  let minRounds = 1e9;
-  for(const s of topCandidates){
-    const r = hist[s] || 0;
-    if(r < minRounds) minRounds = r;
-  }
-  const leastRoundCandidates = topCandidates.filter(s => (hist[s] || 0) === minRounds);
-
-  // 4. Stable tie breaker: if currently configured hunter is in leastRoundCandidates, keep it!
-  const curHunter = (team === 0 ? settings.hunterRed : settings.hunterBlue);
-  if(leastRoundCandidates.includes(curHunter)) return curHunter;
-  return leastRoundCandidates[0];
-}
-
-function updateElectedHuntersFromVotes(){
-  settings.hunterRed = resolveTeamHunter(0);
-  settings.hunterBlue = resolveTeamHunter(1);
-  if(match){
-    match.hunterRed = settings.hunterRed;
-    match.hunterBlue = settings.hunterBlue;
-  }
-}
-
-function castHunterVote(voterSlot, candSlot){
-  if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost && NET.teamsLocked){
-    toast('VOTING LOCKED BY HOST');
-    sfx('back');
-    return;
-  }
-  if(!menu.hunterVotes) menu.hunterVotes = {};
-  const vTeam = (menu.slotTeam && voterSlot >= 0 && menu.slotTeam[voterSlot] != null) ? (menu.slotTeam[voterSlot] % 2) : ((voterSlot >= 0 ? voterSlot : 0) % 2);
-  menu.hunterVotes[voterSlot] = { team: vTeam, cand: candSlot };
-  sfx('ok');
-
-  if(typeof NET === 'undefined' || !NET || NET.role === null || NET.isHost){
-    updateElectedHuntersFromVotes();
-  }
-
-  let candName = 'Fair pick';
-  if(candSlot !== 'random' && candSlot >= 0){
-    candName = (typeof NET !== 'undefined' && NET && NET.slotsName && NET.slotsName[candSlot]) ? (('P' + (candSlot + 1)) + ' ' + NET.slotsName[candSlot]) : ('P' + (candSlot + 1));
-  }
-  toast(candSlot === 'random' ? '🎲 Fair pick: fewest hunts first!' : ('✓ Your tap: ' + candName + ' hunts next!'));
-
-  if(typeof NET !== 'undefined' && NET && NET.role !== null){
-    if(NET.isHost){
-      netBroadcastReliable({
-        t: 'hunter_votes_sync',
-        hunterVotes: menu.hunterVotes,
-        hunterRed: settings.hunterRed,
-        hunterBlue: settings.hunterBlue
-      });
-      netBroadcastSettings();
-      netBroadcastRoster();
-    } else {
-      for(const pair of NET.conns.values()){
-        netSendRel(pair, { t: 'hunter_vote', voter: voterSlot, team: vTeam, candidate: candSlot });
-      }
-    }
-  }
-}
-
-function validateHunterRoles(){
-  enforceHunterBalance();
-  updateElectedHuntersFromVotes();
-}
-
-function setTeamHunterChoice(teamIdx, cand){
-  const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
-  const teamSlots = activeSlots().filter(s => ((menu.slotTeam ? menu.slotTeam[s] : s) % 2) === teamIdx);
-  if(teamSlots.length === 0) return;
-
-  if(!isOnline){
-    if(cand === 'random'){
-      const hist = (match && match.hunterHistory) ? match.hunterHistory : (menu.hunterHistory || {});
-      let minR = 1e9;
-      for(const s of teamSlots){ const r = hist[s] || 0; if(r < minR) minR = r; }
-      const leastR = teamSlots.filter(s => (hist[s] || 0) === minR);
-      const pick = leastR[Math.floor(Math.random() * leastR.length)];
-      if(teamIdx === 0) settings.hunterRed = pick; else settings.hunterBlue = pick;
-      if(!menu.hunterVotes) menu.hunterVotes = {};
-      for(const s of teamSlots) menu.hunterVotes[s] = { team: teamIdx, cand: 'random' };
-      toast('🎲 Fair pick: ' + ('P' + (pick + 1)) + ' hunts for ' + (teamIdx === 0 ? 'RED' : 'BLUE') + ' (fewest hunts first)');
-    } else {
-      if(teamIdx === 0) settings.hunterRed = cand; else settings.hunterBlue = cand;
-      if(!menu.hunterVotes) menu.hunterVotes = {};
-      for(const s of teamSlots) menu.hunterVotes[s] = { team: teamIdx, cand: cand };
-      toast('👑 ' + ('P' + (cand + 1)) + ' hunts for ' + (teamIdx === 0 ? 'RED' : 'BLUE') + ' next!');
-    }
-    if(match){
-      match.hunterRed = settings.hunterRed;
-      match.hunterBlue = settings.hunterBlue;
-    }
-    sfx('ok');
-    return;
-  }
-
-  // Online Multiplayer
-  const mySlot = NET.mySlot;
-  const myTeam = (menu.slotTeam && mySlot >= 0 && menu.slotTeam[mySlot] != null) ? (menu.slotTeam[mySlot] % 2) : ((mySlot >= 0 ? mySlot : 0) % 2);
-
-  if(mySlot < 0){
-    toast('⚠️ Spectators watch — players tap their own team!');
-    sfx('back');
-    return;
-  }
-  if(myTeam === teamIdx){
-    const voter = mySlot;
-    castHunterVote(voter, cand);
-  } else {
-    toast('⚠️ Tap YOUR team box — you hunt with them!');
-    sfx('back');
-  }
-}
-
-function selectHunterRole(slot){
-  const sTeam = (menu.slotTeam ? menu.slotTeam[slot] : slot) % 2;
-  setTeamHunterChoice(sTeam, slot);
-}
-
-function setGameMode(newMode){
-  if(menu.tab === 'solo'){
-    if(newMode !== 'party'){
-      toast('🤖 SOLO MODE IS FREE-FOR-ALL ONLY');
-      sfx('back');
-      return;
-    }
-  }
-  if(menu.tab === 'bots'){
-    const botModes = ['party', 'freeze', 'infection', 'bomb', 'crown'];
-    if(botModes.indexOf(newMode) < 0){
-      toast('🤖 WATCH MODE: FFA, FREEZE, INFECTION, BOMB OR CROWN ONLY');
-      sfx('back');
-      return;
-    }
-  }
-  settings.gameMode = newMode;
-  menu.gameMode = newMode;
-
-  if(newMode === 'party'){
-    settings.teams = false;
-    toast('👥 FREE-FOR-ALL PARTY MODE');
-    sfx('ui');
-  } else if(newMode === 'teams'){
-    settings.teams = true;
-    if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
-    toast('⚔️ TEAM TAG MODE: ON (RED VS BLUE)');
-    sfx('ok');
-  } else if(newMode === 'hunter'){
-    settings.teams = true;
-    if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
-    validateHunterRoles();
-    toast('🎯 HUNTER MODE: CROSS-HUNT ELIMINATION (TRY NOW!)');
-    sfx('ok');
-  } else if(newMode === 'freeze'){
-    settings.teams = true;
-    if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
-    toast('❄️ FREEZE TAG: FREEZE ENEMY RUNNERS!');
-    sfx('ok');
-  } else if(newMode === 'infection'){
-    settings.teams = false;
-    toast('🧟 INFECTION: OUTRUN THE OUTBREAK!');
-    sfx('ok');
-  } else if(newMode === 'bomb'){
-    settings.teams = false;
-    toast('💣 BOMB TAG: HOT POTATO PASS!');
-    sfx('ok');
-  } else if(newMode === 'crown'){
-    settings.teams = false;
-    toast('👑 CROWN KING: TOUCH CROWN, HOLD TO 100 PTS!');
-    sfx('ok');
-  }
-
-  if(typeof NET !== 'undefined' && NET && NET.isHost){
-    netBroadcastSettings();
-    netBroadcastRoster();
-  }
-}
-
-function cycleGameMode(d){
-  if(menu.tab === 'solo'){
-    toast('🤖 SOLO MODE IS FREE-FOR-ALL ONLY');
-    sfx('back');
-    return;
-  }
-  if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){
-    toast('HOST SELECTS GAME MODE');
-    sfx('back');
-    return;
-  }
-  const modes = (menu.tab === 'bots')
-    ? ['party', 'freeze', 'infection', 'bomb', 'crown']
-    : ['party', 'teams', 'hunter', 'freeze', 'infection', 'bomb', 'crown'];
-  let curIdx = modes.indexOf(settings.gameMode || (settings.teams ? 'teams' : 'party'));
-  if(curIdx < 0) curIdx = 0;
-  const nextIdx = (curIdx + (d || 1) + modes.length) % modes.length;
-  setGameMode(modes[nextIdx]);
-}
-
-function toggleTeams(){
-  cycleGameMode(1);
-}
-function cycleSlot(i,d){
-  const taken=menu.slotColor.filter((c,k)=>c>=0&&k!==i);
-  const list=[-1].concat(PALETTE.map((p,idx)=>idx).filter(idx=>taken.indexOf(idx)<0));
-  let cur=list.indexOf(menu.slotColor[i]);
-  cur=(cur+d+list.length)%list.length;
-  menu.slotColor[i]=list[cur];
-  if(settings.gameMode === 'hunter'){
-    enforceHunterBalance();
-    validateHunterRoles();
-  }
-  if(menu.mode==='rows'&&activeSlots().length<2){
-    menu.mode='slots';
-    menu.row=0;
-    toast('CHOOSE AT LEAST 2 PLAYERS!');
-  }
-  sfx('ui');
-}
-function ruleValue(){return settings.doubleJump;}
-function toggleRule(){
-  settings.doubleJump = !settings.doubleJump;
-  sfx('ui');
-  if(typeof NET!=='undefined' && NET && NET.isHost) netBroadcastSettings();
-}
-function rowEdit(d){
-  if(typeof NET!=='undefined' && NET && NET.role!==null && !NET.isHost){
-    toast('HOST CONTROLS MAP & RULES');
-    sfx('back');
-    return;
-  }
-  switch(menu.row){
-    case 1:settings.map=(settings.map+d+MAPS.length)%MAPS.length;buildLevel();sfx('ui');break;
-    case 2:settings.timeIdx=(settings.timeIdx+d+TIMES.length)%TIMES.length;sfx('ui');break;
-    case 3:menu.rule=(menu.rule+d+2)%2;sfx('ui');break;
-  }
-  if(typeof NET!=='undefined' && NET && NET.isHost && typeof netBroadcastSettings==='function') netBroadcastSettings();
-}
-function rowEnter(){
-  if(menu.row===0){
-    if(typeof NET!=='undefined' && NET && NET.role!==null){
-      // in online mode, row 0 is online roster status
-      if(NET.isHost && activeSlots().length<2){
-        netCopyInviteToClipboard('Invite link copied! Share with your friend.');
-      }
-      return;
-    }
-    menu.mode='slots';sfx('ok');
-  }
-  else if(menu.row===4){
-    if(typeof NET!=='undefined' && NET && NET.role!==null){
-      if(!NET.isHost){
-        toast('WAITING FOR HOST TO START');
-        sfx('back');
-        return;
-      }
-      const act=activeSlots();
-      if(act.length<2){
-        netCopyInviteToClipboard('Invite link copied! Send it to your friend.');
-        toast('WAITING FOR A FRIEND TO JOIN!');
-        sfx('back');
-        return;
-      }
-      const allReady=act.every(s=>NET.slotsReady[s]);
-      if(!allReady){
-        toast('WAITING FOR ALL PLAYERS TO HIT READY!');
-        sfx('back');
-        return;
-      }
-      sfx('go');
-      startMatch();
-      return;
-    }
-    if(activeSlots().length<2){
-      menu.mode='slots';
-      menu.row=0;
-      toast('CHOOSE AT LEAST 2 PLAYERS!');
-      sfx('back');
-    }else{
-      sfx('go');
-      startMatch();
-    }
-  }
-  else if(menu.row===3){
-    if(typeof NET!=='undefined' && NET && NET.role!==null && !NET.isHost){
-      toast('HOST CONTROLS MAP & RULES');
-      sfx('back');
-      return;
-    }
-    toggleRule();
-  }
-  else rowEdit(1);
-}
-function menuConfirm(){
-  if(menu.mode==='slots'){
-    if(activeSlots().length<2){toast('CHOOSE AT LEAST 2 PLAYERS!');sfx('back');}
-    else{menu.mode='rows';menu.row=1;sfx('ok');}
-  }else rowEnter();
-}
-function updateMenu(dt){
-  if(anyPressed(['KeyM'])){muted=!muted;applyEffectiveMute();}
-  if(anyPressed(['KeyB']) && menu.tab !== 'bots'){
-    menu.botOn=!menu.botOn;
-    sfx('ui');
-    toast(menu.botOn?'BOT: ON':'BOT: OFF');
-  }
-  menu.toastT-=dt;
-
-  // Map hotkeys: 1-9, 0
-  const digits = ['Digit1','Digit2','Digit3','Digit4','Digit5','Digit6','Digit7','Digit8','Digit9','Digit0'];
-  for(let i=0; i<digits.length; i++){
-    if(pressed.has(digits[i])){
-      settings.map = i % MAPS.length;
-      buildLevel();
-      sfx('ok');
-    }
-  }
-
-  // Escape closes modals
-  if(pressed.has('Escape')){
-    if(menu.onlineModal){
-      menu.onlineModal = false;
-      sfx('back');
-      return;
-    }
-    if(menu.mapModal){
-      menu.mapModal = false;
-      sfx('back');
-      return;
-    }
-  }
-
-  // Space or Enter starts match immediately
-  if(anyPressed(['Enter','NumpadEnter','Space'])){
-    if(menu.mapModal){
-      menu.mapModal = false;
-    } else if(menu.tab !== 'online'){
-      if(activeSlots().length < 2){
-        menu.slotColor[0] = 0; menu.slotColor[1] = 1;
-      }
-      sfx('go');
-      startMatch();
-    }
-  }
-}
-
-/* ================= match ================= */
-let matchIndex=0,lastStartIT=0;
-let match=null;
-const cam={x:W/2,y:H/2,s:0.5};
-
-function findSafeSpawn(team, isHunter, playerIndex, totalPlayers){
-  const P_W = 46, P_H = 46;
-
-  function isSpotSafe(sx, sy){
-    if(sx < WALL + 10 || sx + P_W > W - WALL - 10) return false;
-    if(sy < WALL + 10 || sy + P_H > H - WALL) return false;
-    const body = { x: sx + 2, y: sy + 2, w: P_W - 4, h: P_H - 4 };
-    if(SOLIDS.some(s => hitRect(body, s))) return false;
-    const head = { x: sx + 4, y: sy - 20, w: P_W - 8, h: 20 };
-    if(SOLIDS.some(s => hitRect(head, s))) return false;
-    return true;
-  }
-
-  // 1. Collect all valid flat platforms from SOLIDS
-  const candidateSpots = [];
-  for(const s of SOLIDS){
-    if(s.dy || s.w < 60) continue; // Skip slopes and thin vertical walls
-    if(s.t === 'speed' || s.t === 'boost' || s.t === 'drop') continue; // Exclude speed/boost pads and hazards
-    const surfaceY = s.y;
-    const testY = surfaceY - P_H;
-
-    // Try center, left edge, and right edge of platform
-    const spots = [
-      Math.round(s.x + s.w / 2 - P_W / 2),
-      Math.round(s.x + 16),
-      Math.round(s.x + s.w - P_W - 16)
-    ];
-    for(const testX of spots){
-      if(isSpotSafe(testX, testY)){
-        candidateSpots.push({ x: testX, y: testY, platY: surfaceY, plat: s });
-      }
-    }
-  }
-
-  // 2. Also check the arena floor (accounting for any boost/speed pads on floor)
-  for(let fx = WALL + 80; fx < W - WALL - 80; fx += 80){
-    let floorSurfaceY = H - WALL;
-    let onHazard = false;
-    for(const s of SOLIDS){
-      if(!s.dy && fx + P_W > s.x && fx < s.x + s.w){
-        if(s.t === 'speed' || s.t === 'boost' || s.t === 'drop'){
-          onHazard = true;
-          break;
-        }
-        if(s.y < floorSurfaceY && s.y >= H - WALL - 120){
-          floorSurfaceY = s.y;
-        }
-      }
-    }
-    if(onHazard) continue;
-    const fy = floorSurfaceY - P_H;
-    if(isSpotSafe(fx, fy)){
-      candidateSpots.push({ x: fx, y: fy, platY: floorSurfaceY, isFloor: true });
-    }
-  }
-
-  if(isHunter){
-    if(team === 0){
-      // Red Hunter: leftmost bottom spot
-      const leftSpots = candidateSpots.filter(p => p.x < W * 0.45).sort((a,b) => b.y - a.y || a.x - b.x);
-      if(leftSpots.length > 0) return { x: leftSpots[0].x, y: leftSpots[0].y, face: 1 };
-    } else {
-      // Blue Hunter: rightmost bottom spot
-      const rightSpots = candidateSpots.filter(p => p.x > W * 0.55).sort((a,b) => b.y - a.y || b.x - a.x);
-      if(rightSpots.length > 0) return { x: rightSpots[0].x, y: rightSpots[0].y, face: -1 };
-    }
-  } else {
-    if(team === 0){
-      // Red Runners: upper platforms on right half
-      const rightRunners = candidateSpots.filter(p => p.x > W * 0.40 && p.y < H * 0.85).sort((a,b) => a.y - b.y);
-      if(rightRunners.length > 0){
-        const pick = rightRunners[playerIndex % rightRunners.length];
-        return { x: pick.x, y: pick.y, face: -1 };
-      }
-    } else {
-      // Blue Runners: upper platforms on left half
-      const leftRunners = candidateSpots.filter(p => p.x < W * 0.60 && p.y < H * 0.85).sort((a,b) => a.y - b.y);
-      if(leftRunners.length > 0){
-        const pick = leftRunners[playerIndex % leftRunners.length];
-        return { x: pick.x, y: pick.y, face: 1 };
-      }
-    }
-  }
-
-  // Fallback: pick any safe spot
-  if(candidateSpots.length > 0){
-    const pick = candidateSpots[playerIndex % candidateSpots.length];
-    return { x: pick.x, y: pick.y, face: pick.x < W/2 ? 1 : -1 };
-  }
-
-  // Absolute fallback: center of arena
-  return { x: W/2 - 23, y: H/2 - 23, face: 1 };
-}
-
-function makePlayer(i,slot,colIdx){
-  const N=activeSlots().length;
-  const s=SLOTS[slot] || SLOTS[0];
-  const team = (menu.slotTeam && menu.slotTeam[slot] != null) ? menu.slotTeam[slot] : (slot % 2);
-  let x, y, face;
-
-  const isHunterMode = (settings.gameMode === 'hunter');
-  let roleHunter = false;
-
-  if(isHunterMode){
-    roleHunter = (team === 0 && slot === settings.hunterRed) || (team === 1 && slot === settings.hunterBlue);
-    const safeSpawn = findSafeSpawn(team, roleHunter, i, N);
-    x = safeSpawn.x;
-    y = safeSpawn.y;
-    face = safeSpawn.face;
-  } else {
-    // Normal party / teams spawn: verify and safe-snap to avoid platform clipping
-    let candidateX = Math.round(WALL + (W - 2 * WALL) * ((i + 0.5) / N)) - 23;
-    let surfaceY = H - WALL;
-    for(const s of SOLIDS){
-      if(!s.dy && candidateX + 46 > s.x && candidateX < s.x + s.w){
-        if(s.y < surfaceY && s.y >= H - WALL - 120){
-          surfaceY = s.y;
-        }
-      }
-    }
-    x = candidateX;
-    y = surfaceY - 46;
-    face = (i % 2 === 0 ? 1 : -1);
-  }
-
-  // Emergency safety guard: verify 0 solid overlap
-  for(let pass = 0; pass < 5; pass++){
-    const pBox = { x: x + 2, y: y + 2, w: 42, h: 42 };
-    const coll = SOLIDS.find(s => hitRect(pBox, s));
-    if(!coll) break;
-    y = coll.y - 46;
-  }
-
-  return {x:x,y:y,w:46,h:46,vx:0,vy:0,grounded:true,gp:SOLIDS[1],lastGp:SOLIDS[1],
-    face:face,airJumps:settings.doubleJump?1:0,wallJumps:0,coyote:0,jbuf:0,holdT:0,dropT:0,sideT:0,wallSide:0,
-    sx:1,sy:1,landT:0,tagT:0,padOn:false,blinkT:rand(1.5,4),blink:0,seed:i*3.7,
-    slot:slot,colIdx:colIdx,team:team,trail:[],cosmeticTrail:[],isHunter:roleHunter,isEliminated:false,survivalT:0,isFrozen:false};
-}
 function startMatch(){
   if(menu.tab === 'solo'){
-    settings.teams = false;
-    settings.gameMode = 'party';
-    menu.gameMode = 'party';
+    const soloModes = ['party', 'freeze', 'infection', 'bomb', 'crown'];
+    if(soloModes.indexOf(settings.gameMode) < 0){
+      settings.gameMode = 'party';
+    }
+    settings.teams = (settings.gameMode === 'freeze');
+    menu.gameMode = settings.gameMode;
   } else if(menu.tab === 'bots'){
     // Freeze Tag needs teams (hunter team vs runner team); other watch modes are FFA.
     settings.teams = (settings.gameMode === 'freeze');
