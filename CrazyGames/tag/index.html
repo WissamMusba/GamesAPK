@@ -1477,6 +1477,18 @@ function harnessStart(mapIdx){
   // Safe global access
   const gScope = (typeof window !== 'undefined') ? window : (typeof globalThis !== 'undefined' ? globalThis : root);
 
+  // Live bridge to engine globals. Top-level let/const (match, g, SOLIDS, CW/CH,
+  // CAREER, NET) are NOT properties of window, so gScope.X reads undefined.
+  // These helpers resolve the live lexical bindings instead (TDZ-safe).
+  function Imatch(){ try{ return (typeof match !== 'undefined' && match) ? match : null; }catch(e){ return null; } }
+  function Ictx(){ try{ if(typeof window !== 'undefined' && window.g) return window.g; }catch(e){} try{ return (typeof g !== 'undefined' && g) ? g : null; }catch(e2){ return null; } }
+  function Icw(){ try{ return (typeof CW !== 'undefined' && CW) ? CW : 800; }catch(e){ return 800; } }
+  function Ich(){ try{ return (typeof CH !== 'undefined' && CH) ? CH : 600; }catch(e){ return 600; } }
+  function Isolids(){ try{ return (typeof SOLIDS !== 'undefined' && SOLIDS) ? SOLIDS : []; }catch(e){ return []; } }
+  function Inet(){ try{ return (typeof NET !== 'undefined' && NET) ? NET : null; }catch(e){ return null; } }
+  function Icareer(){ try{ return (typeof CAREER !== 'undefined' && CAREER) ? CAREER : null; }catch(e){ return null; } }
+  function IsaveCareer(){ try{ if(typeof saveCareer === 'function') return saveCareer; }catch(e){} if(typeof gScope.saveCareer === 'function') return gScope.saveCareer; return null; }
+
   // ============================================================================
   // CONSTANTS & TUNING
   // ============================================================================
@@ -1671,7 +1683,7 @@ function harnessStart(mapIdx){
    * Called on match start or countdown entry.
    */
   function initInfectionMode() {
-    const match = gScope.match;
+    const match = Imatch();
     if (!match || !match.players || match.players.length === 0) return;
 
     match.infectionMode = true;
@@ -1732,7 +1744,7 @@ function harnessStart(mapIdx){
    * Evaluates current balance phase (Phase 1, Phase 2, or Phase 3 Last Stand).
    */
   function evaluateInfectionPhase() {
-    const match = gScope.match;
+    const match = Imatch();
     if (!match || !match.players) return 1;
 
     const alivePlayers = match.players.filter(p => !p.isEliminated);
@@ -1836,7 +1848,7 @@ function harnessStart(mapIdx){
    * knocking all nearby zombies back by 120px.
    */
   function triggerRepulsorPulse(survivor) {
-    const match = gScope.match;
+    const match = Imatch();
     if (!match || !match.players || !survivor) return;
 
     const sx = survivor.x + survivor.w / 2;
@@ -1918,13 +1930,14 @@ function harnessStart(mapIdx){
    * Transmits infection on touch (p.isInfected = true) and triggers phase updates.
    */
   function checkInfectionTag() {
-    const match = gScope.match;
+    const match = Imatch();
     if (!match || match.state !== 'playing' || match.cooldown > 0) return;
     const P = match.players;
     if (!P || P.length < 2) return;
 
-    const isOnline = (typeof gScope.NET !== 'undefined' && gScope.NET && gScope.NET.role !== null);
-    const isOnlineGuest = isOnline && !gScope.NET.isHost;
+    const __inet = Inet();
+    const isOnline = (__inet && __inet.role !== null);
+    const isOnlineGuest = isOnline && !__inet.isHost;
 
     const hunters = P.filter(p => p.isInfected && !p.isEliminated);
     const runners = P.filter(p => !p.isInfected && !p.isEliminated);
@@ -1940,7 +1953,7 @@ function harnessStart(mapIdx){
           const popY = (hunter.y + runner.y) / 2 + runner.h / 2;
 
           if (isOnlineGuest) {
-            if (hunter.slot === gScope.NET.mySlot && typeof gScope.netBroadcastReliable === 'function') {
+            if (hunter.slot === __inet.mySlot && typeof gScope.netBroadcastReliable === 'function') {
               gScope.netBroadcastReliable({
                 t: 'tag_claim',
                 from: hunter.slot,
@@ -2020,7 +2033,7 @@ function harnessStart(mapIdx){
    * - Accolades and +250 XP payout
    */
   function updateInfection(dt) {
-    const match = gScope.match;
+    const match = Imatch();
     if (!match) return;
 
     // Update particles & shockwaves
@@ -2100,7 +2113,7 @@ function harnessStart(mapIdx){
       // (prevents double-count with the generic match XP below).
       try {
         if (survivingPlayers.length === 1) {
-          const career = gScope.CAREER;
+          const career = Icareer();
           if (career) {
             if (!career.accolades) career.accolades = [];
             if (!career.accolades.includes('Lone Survivor')) {
@@ -2109,8 +2122,9 @@ function harnessStart(mapIdx){
             if (typeof gScope.toast === 'function') {
               gScope.toast('🏆 LONE SURVIVOR! +250 CAREER XP & ACCOLADE UNLOCKED!');
             }
-            if (typeof gScope.saveCareer === 'function') {
-              gScope.saveCareer();
+            const __saveCareer = IsaveCareer();
+            if (__saveCareer) {
+              try{ __saveCareer(); }catch(e2){}
             }
           }
         }
@@ -2139,7 +2153,7 @@ function harnessStart(mapIdx){
    */
   function infectionBotThink(p, dt) {
     if (!p) return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
-    const match = gScope.match;
+    const match = Imatch();
     if (!match || !match.players) return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
 
     const stepDt = (typeof dt === 'number' && dt > 0) ? Math.min(0.05, dt) : 0.016;
@@ -2148,7 +2162,7 @@ function harnessStart(mapIdx){
     const W = typeof gScope.W === 'number' ? gScope.W : 2400;
     const H = typeof gScope.H === 'number' ? gScope.H : 1320;
     const WALL = typeof gScope.WALL === 'number' ? gScope.WALL : 60;
-    const solids = gScope.SOLIDS || [];
+    const solids = Isolids();
 
     // Initialize bot state tracking if missing
     if (!p._botInfState) {
@@ -2378,7 +2392,7 @@ function harnessStart(mapIdx){
    */
   function drawInfectionPlayer(p) {
     if (!p || p.isEliminated) return;
-    const g = gScope.g;
+    const g = Ictx();
     if (!g) return;
 
     const tGlobal = gScope.tGlobal || (Date.now() * 0.001);
@@ -2564,11 +2578,11 @@ function harnessStart(mapIdx){
    * - Red/Gold danger vignette
    */
   function drawInfectionUI() {
-    const match = gScope.match;
+    const match = Imatch();
     if (!match) return;
-    const g = gScope.g;
-    const CW = gScope.CW || 800;
-    const CH = gScope.CH || 600;
+    const g = Ictx();
+    const CW = Icw();
+    const CH = Ich();
     const tGlobal = gScope.tGlobal || (Date.now() * 0.001);
 
     // Draw background danger vignette
@@ -2676,10 +2690,10 @@ function harnessStart(mapIdx){
    * Renders the pulsating screen edge danger vignette
    */
   function drawInfectionVignette() {
-    const g = gScope.g;
+    const g = Ictx();
     if (!g) return;
-    const CW = gScope.CW || 800;
-    const CH = gScope.CH || 600;
+    const CW = Icw();
+    const CH = Ich();
     const tGlobal = gScope.tGlobal || (Date.now() * 0.001);
 
     g.save();
@@ -2712,7 +2726,7 @@ function harnessStart(mapIdx){
    * Renders expanding shockwaves in world coordinates
    */
   function drawInfectionShockwaves() {
-    const g = gScope.g;
+    const g = Ictx();
     if (!g || infectionState.shockwaves.length === 0) return;
 
     g.save();
@@ -2737,7 +2751,7 @@ function harnessStart(mapIdx){
    * Renders mode slime particles in world coordinates
    */
   function drawInfectionSlime() {
-    const g = gScope.g;
+    const g = Ictx();
     if (!g || infectionState.slimeParticles.length === 0) return;
 
     g.save();
@@ -4273,6 +4287,22 @@ function harnessStart(mapIdx){
 
   const CROWN_BOT_ST = {};       // Bot AI state storage per slot
 
+  // Live canvas ctx capture. The engine canvas (const g) is NOT a window
+  // property, and `const g = ... window.g ... ? ... : (typeof g ...)` inside a
+  // function self-shadows into TDZ ("Cannot access 'g' before initialization").
+  // Capture once here (no shadowing scope) and reuse in all render fns.
+  const CROWN_CTX = (function(){
+    try{ if(typeof window !== 'undefined' && window.g) return window.g; }catch(e){}
+    try{ if(typeof globalThis !== 'undefined' && globalThis.g) return globalThis.g; }catch(e2){}
+    try{ return (typeof g !== 'undefined' && g) ? g : null; }catch(e3){ return null; }
+  })();
+  function Cctx(fallback){
+    if(CROWN_CTX) return CROWN_CTX;
+    try{ if(typeof window !== 'undefined' && window.g) return window.g; }catch(e){}
+    try{ return (typeof g !== 'undefined' && g) ? g : null; }catch(e2){}
+    return fallback || null;
+  }
+
   /* ==========================================================================
      3. UTILITY & FALLBACK HELPERS (Environment Agnostic)
      ========================================================================== */
@@ -4975,7 +5005,7 @@ function harnessStart(mapIdx){
   function drawCrownPlayer(p) {
     if (!crownState.active || !p || p.isEliminated) return;
 
-    const g = (typeof window !== 'undefined' && window.g) ? window.g : (typeof g !== 'undefined' ? g : null);
+    const g = Cctx();
     if (!g) return;
 
     const isKing = (crownState.holder === p);
@@ -5290,7 +5320,7 @@ function harnessStart(mapIdx){
   function drawCrownEntity() {
     if (!crownState.active || crownState.holder) return;
 
-    const g = (typeof window !== 'undefined' && window.g) ? window.g : (typeof g !== 'undefined' ? g : null);
+    const g = Cctx();
     if (!g) return;
 
     const cx = crownState.x;
@@ -5356,7 +5386,7 @@ function harnessStart(mapIdx){
      ========================================================================== */
   function drawCrownWorldFX() {
     if (!crownState.active) return;
-    const g = (typeof window !== 'undefined' && window.g) ? window.g : (typeof g !== 'undefined' ? g : null);
+    const g = Cctx();
     if (!g) return;
 
     // 1. Shockwaves
@@ -5433,7 +5463,7 @@ function harnessStart(mapIdx){
      ========================================================================== */
   function drawCrownUI() {
     if (!crownState.active) return;
-    const g = (typeof window !== 'undefined' && window.g) ? window.g : (typeof g !== 'undefined' ? g : null);
+    const g = Cctx();
     if (!g) return;
 
     const cw = (typeof CW !== 'undefined') ? CW : 1280;
@@ -7153,7 +7183,7 @@ function startMatch(){
     hunterScores:(match && match.hunterScores)?match.hunterScores:{0:0,1:0},
     hunterRound:(match && match.hunterRound)?match.hunterRound:1,
     hunterMaxRounds:3,hunterWipeTime:{0:null,1:null},hunterHistory:hHistory,
-    cageT:0,killfeed:[],killfeedT:0,spectateTarget:null,
+    cageT:isHunter?3.0:0,killfeed:[],killfeedT:0,spectateTarget:null,
     teamItTime:[0,0,0,0],cooldown:0,
     goFlash:0,freeze:0,shake:0,flash:0,fade:0.6,tagPop:null,resultT:0,
     tags:players.map(()=>0),hintT:7,players:players,result:null,roundSummary:null,pausedFrom:null,pauseSel:0,
@@ -7586,6 +7616,7 @@ function botSolveBallisticIntercept(bot, target, dt) {
 }
 function botInputFor(p,dt){
   if(p.isFrozen) return {dir:0,jumpEdge:false,jumpHeld:false,downHeld:false};
+  if(match && match.hunterMode && match.cageT > 0 && p.isHunter) return {dir:0,jumpEdge:false,jumpHeld:false,downHeld:false};
   if(settings.gameMode === 'infection'){
     if(typeof infectionBotThink === 'function') return infectionBotThink(p, dt);
   }
@@ -8452,6 +8483,9 @@ function inputFor(p,dt){
 function physUpdate(p,dt,allow){
   if(p.isEliminated){ p.vx = 0; p.vy = 0; return; }
   if(p.isFrozen){ p.vx = 0; p.vy = 0; return; }
+  if(match && match.hunterMode && match.cageT > 0 && p.isHunter){
+    p.vx = 0; p.vy = 0; allow = false;
+  }
   const wasG=p.grounded;
   if(wasG)p.coyote=0.11;else p.coyote-=dt;
   let dir=0,jumpP=false,jumpHeld=false,downHeld=false;
@@ -8746,6 +8780,7 @@ function pairCollide(){
   for(let i=0;i<P.length;i++)for(let j=i+1;j<P.length;j++){
     const a=P[i],b=P[j];
     if(a.isEliminated || b.isEliminated) continue;
+    if(match.hunterMode && match.cageT > 0 && (a.isHunter || b.isHunter)) continue;
     if(!hitRect(a,b))continue;
     const ox=Math.min(a.x+a.w-b.x,b.x+b.w-a.x),oy=Math.min(a.y+a.h-b.y,b.y+b.h-a.y);
     if(ox<oy){
@@ -8979,7 +9014,7 @@ function advanceHunterRound(){
 
   match.hunterRed = settings.hunterRed;
   match.hunterBlue = settings.hunterBlue;
-  match.cageT = 0;
+  match.cageT = 3.0;
   match.timer = 60;
   match.lastTick = 60;
   match.killfeed = [];
@@ -9049,6 +9084,64 @@ function shouldRenderHunterPlayer(viewerSlot, targetPlayer){
   }
 }
 
+function drawHunterCage(p){
+  const cx = p.x + p.w / 2;
+  const cy = p.y + p.h / 2;
+  const rad = p.w * 0.95;
+  const cageCol = (p.team === 0 ? '#ff4757' : '#38bdf8');
+  const glowAlpha = 0.18 + 0.10 * Math.sin(tGlobal * 14);
+
+  g.save();
+  // Forcefield glow dome with dynamic voltage pulsation
+  g.beginPath();
+  g.arc(cx, cy, rad, 0, TAU);
+  g.fillStyle = p.team === 0 ? ('rgba(255, 71, 87, ' + glowAlpha.toFixed(2) + ')') : ('rgba(56, 189, 248, ' + glowAlpha.toFixed(2) + ')');
+  g.fill();
+  g.lineWidth = 2.5;
+  g.strokeStyle = cageCol;
+  g.stroke();
+
+  // Animated revolving electric spark nodes & laser barrier cage
+  g.beginPath();
+  g.lineWidth = 1.2;
+  g.strokeStyle = p.team === 0 ? 'rgba(255, 140, 155, 0.7)' : 'rgba(147, 222, 255, 0.7)';
+  for(let a = 0; a < 6; a++){
+    const ang = tGlobal * 3.5 + a * (TAU / 6);
+    const ax = cx + Math.cos(ang) * rad;
+    const ay = cy + Math.sin(ang) * rad;
+    if(a === 0) g.moveTo(ax, ay); else g.lineTo(ax, ay);
+  }
+  g.closePath();
+  g.stroke();
+
+  // Draw node sparks
+  for(let a = 0; a < 6; a++){
+    const ang = tGlobal * 3.5 + a * (TAU / 6);
+    const ax = cx + Math.cos(ang) * rad;
+    const ay = cy + Math.sin(ang) * rad;
+    g.beginPath();
+    g.arc(ax, ay, 3, 0, TAU);
+    g.fillStyle = '#ffffff';
+    g.fill();
+  }
+
+  // Internal electric spark arc
+  const arcJitter = (Math.sin(tGlobal * 28) * 8);
+  g.beginPath();
+  g.strokeStyle = '#ffffff';
+  g.lineWidth = 1.2;
+  g.moveTo(cx - 14, cy - 14);
+  g.lineTo(cx + arcJitter, cy);
+  g.lineTo(cx + 14, cy + 14);
+  g.stroke();
+
+  // 3-2-1 Countdown number above cage
+  const cdSec = Math.max(1, Math.ceil(match.cageT));
+  ptxt(cdSec + '', cx, p.y - 28, FT(22), '#ffd166');
+  txt('⚡ CAGED', cx, p.y - 12, FN(9.5, 900), cageCol);
+  g.restore();
+}
+
 function drawHunterHUD(){
   const P = match.players;
   const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
@@ -9058,17 +9151,23 @@ function drawHunterHUD(){
   // 1. Center Timer Pill
   const tw = Math.min(150, CW * 0.26), th = 42;
   const cx = CW / 2, cy = 8;
-  const urgent = match.timer <= 10 && match.state === 'playing';
+  const isCaged = match.cageT > 0;
+  const urgent = !isCaged && match.timer <= 10 && match.state === 'playing';
 
   rr(g, cx - tw/2, cy, tw, th, 10);
-  g.fillStyle = urgent ? 'rgba(190, 24, 24, 0.92)' : 'rgba(20, 28, 42, 0.94)';
+  g.fillStyle = isCaged ? 'rgba(139, 92, 246, 0.92)' : (urgent ? 'rgba(190, 24, 24, 0.92)' : 'rgba(20, 28, 42, 0.94)');
   g.fill();
   g.lineWidth = 2.5;
-  g.strokeStyle = urgent ? '#ef4444' : INK;
+  g.strokeStyle = isCaged ? '#c084fc' : (urgent ? '#ef4444' : INK);
   g.stroke();
 
-  ptxt(fmtTime(match.timer), cx, cy + th * 0.40, FT(Math.min(22, th * 0.52)), urgent ? '#fff0f0' : '#ffffff');
-  txt('ROUND ' + (match.hunterRound || 1) + '/' + (match.hunterMaxRounds || 3), cx, cy + th * 0.78, FN(9, 900), '#cbd5e1');
+  if(isCaged){
+    ptxt('⚡ ' + Math.ceil(match.cageT) + 's', cx, cy + th * 0.40, FT(16), '#ffd166');
+    txt('CAGED', cx, cy + th * 0.78, FN(9, 900), '#ffffff');
+  } else {
+    ptxt(fmtTime(match.timer), cx, cy + th * 0.40, FT(Math.min(22, th * 0.52)), urgent ? '#fff0f0' : '#ffffff');
+    txt('ROUND ' + (match.hunterRound || 1) + '/' + (match.hunterMaxRounds || 3), cx, cy + th * 0.78, FN(9, 900), '#cbd5e1');
+  }
 
   // 2. Control bar on the far right (Pause, Mute, Fullscreen, Voice, Chat)
   const btnSize = 34;
@@ -9551,6 +9650,7 @@ function checkTag(){
   const isOnlineGuest = isOnline && !NET.isHost;
 
   if(match.hunterMode){
+    if(match.cageT > 0) return; // Hunters caged during countdown!
     const redHunter = P.find(p => p.team === 0 && p.slot === match.hunterRed);
     if(redHunter && !redHunter.isEliminated){
       const blueRunners = P.filter(p => p.team === 1 && p.slot !== match.hunterBlue && !p.isEliminated);
@@ -10209,10 +10309,28 @@ function updateGame(dt){
   }
   if(inPlay){
     if(match.hunterMode){
-      match.timer -= dt;
-      for(const p of match.players){
-        if(!p.isHunter && !p.isEliminated){
-          p.survivalT = (p.survivalT || 0) + dt;
+      if(match.cageT > 0){
+        const prevC = Math.ceil(match.cageT);
+        match.cageT -= dt;
+        const curC = Math.ceil(Math.max(0, match.cageT));
+        if(curC < prevC && curC > 0) sfx('count');
+        if(match.cageT <= 0){
+          match.cageT = 0;
+          sfx('boost');
+          match.goFlash = 0.8;
+          for(const p of match.players){
+            if(p.isHunter){
+              ringP(p.x + p.w/2, p.y + p.h/2, p.team === 0 ? '#ff4757' : '#38bdf8');
+              dust(p.x + p.w/2, p.y + p.h, 20, 160);
+            }
+          }
+        }
+      } else {
+        match.timer -= dt;
+        for(const p of match.players){
+          if(!p.isHunter && !p.isEliminated){
+            p.survivalT = (p.survivalT || 0) + dt;
+          }
         }
       }
     } else {
@@ -11147,7 +11265,7 @@ function drawPlayers(){
       g.strokeStyle='rgba(255, 200, 40, 0.55)';
       g.lineWidth=2.5;
       rr(g,p.x-4,p.y-4,p.w+8,p.h+8,11);g.stroke();
-    } else if(match.hunterMode && p.isHunter){
+    } else if(match.hunterMode && p.isHunter && match.cageT <= 0){
       /* Pulsing Hunter Aura */
       const hPulse = 0.25 + 0.15 * Math.sin(tGlobal * 10);
       const hCol = p.team === 0 ? ('rgba(235, 60, 40, ' + hPulse.toFixed(2) + ')') : ('rgba(56, 189, 248, ' + hPulse.toFixed(2) + ')');
@@ -11229,8 +11347,12 @@ function drawPlayers(){
 
     if(match.hunterMode){
       if(p.isHunter){
-        const hTitle = p.team === 0 ? '👑 RED HUNTER' : '👑 BLUE HUNTER';
-        ptxt(hTitle, p.x + p.w/2, p.y - 14, FN(10.5, 900), p.team === 0 ? '#ff6b81' : '#38bdf8');
+        if(match.cageT > 0){
+          drawHunterCage(p);
+        } else {
+          const hTitle = p.team === 0 ? '👑 RED HUNTER' : '👑 BLUE HUNTER';
+          ptxt(hTitle, p.x + p.w/2, p.y - 14, FN(10.5, 900), p.team === 0 ? '#ff6b81' : '#38bdf8');
+        }
       } else {
         const rName = getPlayerDisplayName(p);
         ptxt(rName, p.x + p.w/2, p.y - 12, FN(10, 900), col);
@@ -17606,7 +17728,7 @@ function startMatchNetGuest(p){
     hunterMaxRounds: 3,
     hunterWipeTime: { 0: null, 1: null },
     hunterHistory: p.hunterHistory ? { ...p.hunterHistory } : {},
-    cageT: 0,
+    cageT: p.cageT != null ? p.cageT : (isHunter ? 3.0 : 0),
     killfeed: [],
     killfeedT: 0,
     spectateTarget: null,

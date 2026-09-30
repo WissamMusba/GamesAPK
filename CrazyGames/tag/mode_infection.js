@@ -45,6 +45,18 @@
 
   // Safe global access
   const gScope = (typeof window !== 'undefined') ? window : (typeof globalThis !== 'undefined' ? globalThis : root);
+  // Live bridge to engine globals. Top-level let/const (match, g, SOLIDS, CW/CH,
+  // CAREER, NET) are NOT properties of window, so gScope.X reads undefined.
+  // These helpers resolve the live lexical bindings instead (TDZ-safe).
+  function Imatch(){ try{ return (typeof match !== 'undefined' && match) ? match : null; }catch(e){ return null; } }
+  function Ictx(){ try{ if(typeof window !== 'undefined' && window.g) return window.g; }catch(e){} try{ return (typeof g !== 'undefined' && g) ? g : null; }catch(e2){ return null; } }
+  function Icw(){ try{ return (typeof CW !== 'undefined' && CW) ? CW : 800; }catch(e){ return 800; } }
+  function Ich(){ try{ return (typeof CH !== 'undefined' && CH) ? CH : 600; }catch(e){ return 600; } }
+  function Isolids(){ try{ return (typeof SOLIDS !== 'undefined' && SOLIDS) ? SOLIDS : []; }catch(e){ return []; } }
+  function Inet(){ try{ return (typeof NET !== 'undefined' && NET) ? NET : null; }catch(e){ return null; } }
+  function Icareer(){ try{ return (typeof CAREER !== 'undefined' && CAREER) ? CAREER : null; }catch(e){ return null; } }
+  function IsaveCareer(){ try{ if(typeof saveCareer === 'function') return saveCareer; }catch(e){} if(typeof gScope.saveCareer === 'function') return gScope.saveCareer; return null; }
+
 
   // ============================================================================
   // CONSTANTS & TUNING
@@ -240,7 +252,7 @@
    * Called on match start or countdown entry.
    */
   function initInfectionMode() {
-    const match = gScope.match;
+    const match = Imatch();
     if (!match || !match.players || match.players.length === 0) return;
 
     match.infectionMode = true;
@@ -301,7 +313,7 @@
    * Evaluates current balance phase (Phase 1, Phase 2, or Phase 3 Last Stand).
    */
   function evaluateInfectionPhase() {
-    const match = gScope.match;
+    const match = Imatch();
     if (!match || !match.players) return 1;
 
     const alivePlayers = match.players.filter(p => !p.isEliminated);
@@ -405,7 +417,7 @@
    * knocking all nearby zombies back by 120px.
    */
   function triggerRepulsorPulse(survivor) {
-    const match = gScope.match;
+    const match = Imatch();
     if (!match || !match.players || !survivor) return;
 
     const sx = survivor.x + survivor.w / 2;
@@ -487,13 +499,14 @@
    * Transmits infection on touch (p.isInfected = true) and triggers phase updates.
    */
   function checkInfectionTag() {
-    const match = gScope.match;
+    const match = Imatch();
     if (!match || match.state !== 'playing' || match.cooldown > 0) return;
     const P = match.players;
     if (!P || P.length < 2) return;
 
-    const isOnline = (typeof gScope.NET !== 'undefined' && gScope.NET && gScope.NET.role !== null);
-    const isOnlineGuest = isOnline && !gScope.NET.isHost;
+    const __inet = Inet();
+    const isOnline = (__inet && __inet.role !== null);
+    const isOnlineGuest = isOnline && !__inet.isHost;
 
     const hunters = P.filter(p => p.isInfected && !p.isEliminated);
     const runners = P.filter(p => !p.isInfected && !p.isEliminated);
@@ -509,7 +522,7 @@
           const popY = (hunter.y + runner.y) / 2 + runner.h / 2;
 
           if (isOnlineGuest) {
-            if (hunter.slot === gScope.NET.mySlot && typeof gScope.netBroadcastReliable === 'function') {
+            if (hunter.slot === __inet.mySlot && typeof gScope.netBroadcastReliable === 'function') {
               gScope.netBroadcastReliable({
                 t: 'tag_claim',
                 from: hunter.slot,
@@ -589,7 +602,7 @@
    * - Accolades and +250 XP payout
    */
   function updateInfection(dt) {
-    const match = gScope.match;
+    const match = Imatch();
     if (!match) return;
 
     // Update particles & shockwaves
@@ -669,7 +682,7 @@
       // (prevents double-count with the generic match XP).
       try {
         if (survivingPlayers.length === 1) {
-          const career = gScope.CAREER;
+          const career = Icareer();
           if (career) {
             if (!career.accolades) career.accolades = [];
             if (!career.accolades.includes('Lone Survivor')) {
@@ -679,8 +692,9 @@
             if (typeof gScope.toast === 'function') {
               gScope.toast('🏆 LONE SURVIVOR! +250 CAREER XP & ACCOLADE UNLOCKED!');
             }
-            if (typeof gScope.saveCareer === 'function') {
-              gScope.saveCareer();
+            const __saveCareer = IsaveCareer();
+            if (__saveCareer) {
+              try{ __saveCareer(); }catch(e2){}
             }
           }
         }
@@ -709,7 +723,7 @@
    */
   function infectionBotThink(p, dt) {
     if (!p) return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
-    const match = gScope.match;
+    const match = Imatch();
     if (!match || !match.players) return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
 
     const stepDt = (typeof dt === 'number' && dt > 0) ? Math.min(0.05, dt) : 0.016;
@@ -718,7 +732,7 @@
     const W = typeof gScope.W === 'number' ? gScope.W : 2400;
     const H = typeof gScope.H === 'number' ? gScope.H : 1320;
     const WALL = typeof gScope.WALL === 'number' ? gScope.WALL : 60;
-    const solids = gScope.SOLIDS || [];
+    const solids = Isolids();
 
     // Initialize bot state tracking if missing
     if (!p._botInfState) {
@@ -948,7 +962,7 @@
    */
   function drawInfectionPlayer(p) {
     if (!p || p.isEliminated) return;
-    const g = gScope.g;
+    const g = Ictx();
     if (!g) return;
 
     const tGlobal = gScope.tGlobal || (Date.now() * 0.001);
@@ -1134,11 +1148,11 @@
    * - Red/Gold danger vignette
    */
   function drawInfectionUI() {
-    const match = gScope.match;
+    const match = Imatch();
     if (!match) return;
-    const g = gScope.g;
-    const CW = gScope.CW || 800;
-    const CH = gScope.CH || 600;
+    const g = Ictx();
+    const CW = Icw();
+    const CH = Ich();
     const tGlobal = gScope.tGlobal || (Date.now() * 0.001);
 
     // Draw background danger vignette
@@ -1246,10 +1260,10 @@
    * Renders the pulsating screen edge danger vignette
    */
   function drawInfectionVignette() {
-    const g = gScope.g;
+    const g = Ictx();
     if (!g) return;
-    const CW = gScope.CW || 800;
-    const CH = gScope.CH || 600;
+    const CW = Icw();
+    const CH = Ich();
     const tGlobal = gScope.tGlobal || (Date.now() * 0.001);
 
     g.save();
@@ -1282,7 +1296,7 @@
    * Renders expanding shockwaves in world coordinates
    */
   function drawInfectionShockwaves() {
-    const g = gScope.g;
+    const g = Ictx();
     if (!g || infectionState.shockwaves.length === 0) return;
 
     g.save();
@@ -1307,7 +1321,7 @@
    * Renders mode slime particles in world coordinates
    */
   function drawInfectionSlime() {
-    const g = gScope.g;
+    const g = Ictx();
     if (!g || infectionState.slimeParticles.length === 0) return;
 
     g.save();

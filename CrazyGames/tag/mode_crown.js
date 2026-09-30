@@ -87,7 +87,22 @@
     pointInterval: 0.4           // Point tick interval
   };
 
-  const CROWN_BOT_ST = {};       // Bot AI state storage per slot
+  const CROWN_BOT_ST = {};
+  // Live canvas ctx capture. The engine canvas (const g) is NOT a window
+  // property, and `const g = ... window.g ...` inside a function self-shadows
+  // into TDZ. Capture once here (no shadowing scope) and reuse in render fns.
+  const CROWN_CTX = (function(){
+    try{ if(typeof window !== 'undefined' && window.g) return window.g; }catch(e){}
+    try{ if(typeof globalThis !== 'undefined' && globalThis.g) return globalThis.g; }catch(e2){}
+    try{ return (typeof g !== 'undefined' && g) ? g : null; }catch(e3){ return null; }
+  })();
+  function Cctx(fallback){
+    if(CROWN_CTX) return CROWN_CTX;
+    try{ if(typeof window !== 'undefined' && window.g) return window.g; }catch(e){}
+    try{ return (typeof g !== 'undefined' && g) ? g : null; }catch(e2){}
+    return fallback || null;
+  }
+       // Bot AI state storage per slot
 
   /* ==========================================================================
      3. UTILITY & FALLBACK HELPERS (Environment Agnostic)
@@ -791,7 +806,7 @@
   function drawCrownPlayer(p) {
     if (!crownState.active || !p || p.isEliminated) return;
 
-    const g = (typeof window !== 'undefined' && window.g) ? window.g : (typeof g !== 'undefined' ? g : null);
+    const g = Cctx();
     if (!g) return;
 
     const isKing = (crownState.holder === p);
@@ -1106,7 +1121,7 @@
   function drawCrownEntity() {
     if (!crownState.active || crownState.holder) return;
 
-    const g = (typeof window !== 'undefined' && window.g) ? window.g : (typeof g !== 'undefined' ? g : null);
+    const g = Cctx();
     if (!g) return;
 
     const cx = crownState.x;
@@ -1172,7 +1187,7 @@
      ========================================================================== */
   function drawCrownWorldFX() {
     if (!crownState.active) return;
-    const g = (typeof window !== 'undefined' && window.g) ? window.g : (typeof g !== 'undefined' ? g : null);
+    const g = Cctx();
     if (!g) return;
 
     // 1. Shockwaves
@@ -1249,7 +1264,7 @@
      ========================================================================== */
   function drawCrownUI() {
     if (!crownState.active) return;
-    const g = (typeof window !== 'undefined' && window.g) ? window.g : (typeof g !== 'undefined' ? g : null);
+    const g = Cctx();
     if (!g) return;
 
     const cw = (typeof CW !== 'undefined') ? CW : 1280;
