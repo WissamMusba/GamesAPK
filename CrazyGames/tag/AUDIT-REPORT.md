@@ -277,3 +277,13 @@ const maxDpr = 2.0;
 - **Crown — `const g` TDZ crash in all 4 render fns (CRITICAL).** `const g = ... window.g ... ? ... : (typeof g ...)` self-shadows: the RHS `g` resolves to the uninitialized local binding, throwing `Cannot access 'g' before initialization` (harness reproduced the exact throw). Since the frame loop swallows errors, every crown frame died mid-render → bare map, no HUD. Fixed by capturing `CROWN_CTX` once at module scope (no shadowing) and using `Cctx()` in `drawCrownPlayer`/`drawCrownEntity`/`drawCrownWorldFX`/`drawCrownUI`.
 - **Same-class hardening:** infection `gScope.g` (undefined canvas → HUD would have thrown next), `gScope.CW/CH` (800×600 fallback), `gScope.SOLIDS` (blind bots), `gScope.CAREER` (lost accolade), `gScope.NET` (forced offline path) now resolve live lexical bindings via `Imatch/Ictx/Icw/Ich/Isolids/Inet/Icareer/IsaveCareer` bridges. Bomb module already used bare globals + `getGlobalCtx()` and was unaffected.
 - **Mirrored** in `mode_infection.js` and `mode_crown.js`; proven by harness on all four targets (bundled infection/crown + standalone infection/crown): init selects Patient Zero / activates crown + scores, bot brains output steering, UI + update run throw-free, `node --check` PASS everywhere.
+
+## 8. SUBAGENT VERIFICATION ROUND (frame-swallowing hardening)
+
+An independent subagent audit verified the §7 fixes (bridges present, no TDZ, all call-sites wired without tab-gating, thinkers null-safe) and confirmed the amplifier: `frame()`'s empty `catch(err){}` turns any single mode throw into the reported bare-map symptom. Applied on its recommendation, all in `tag/index.html`:
+- `drawHUD` mode branches now `try/catch` with a guaranteed `drawFallbackTimerHUD()` timer pill (new) — a mode UI can never blank the HUD again.
+- `checkTag` / `updateGame` / `botInputFor` mode dispatches wrapped in `try/catch` via `logModeErr()` (new; deduped one-line-per-site `console.error` with mode + state + stack). Bot-think failures fall through to the core bot brain instead of freezing the bot.
+- `frame()`'s catch now logs through `logModeErr('frame', err)` — the next real-browser repro will print the actual stack to the console instead of failing silently.
+- `drawInfectionUI` gained the missing `if(!g) return` null-ctx guard its five sibling functions already had.
+- `endMatch` crown branch now looks up `crownState.scores` by player **slot** instead of roster index (wrong-winner bug in non-contiguous lobbies).
+- Verified: `node --check` PASS + execution harness green on bundled infection (Patient Zero + steering bot + clean UI/update), bundled crown (active + scores + clean UI/update + advancing bot), and both standalone reference engines.

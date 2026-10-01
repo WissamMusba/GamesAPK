@@ -3804,6 +3804,7 @@ var initCrownMode, updateCrownMode, checkCrownTag, drawCrownUI, drawCrownPlayer,
     const match = Imatch();
     if (!match) return;
     const g = Ictx();
+    if (!g) return;
     const CW = Icw();
     const CH = Ich();
     const tGlobal = gScope.tGlobal || (Date.now() * 0.001);
@@ -7705,13 +7706,13 @@ function botInputFor(p,dt){
   if(p.isFrozen) return {dir:0,jumpEdge:false,jumpHeld:false,downHeld:false};
   if(match && match.hunterMode && match.cageT > 0 && p.isHunter) return {dir:0,jumpEdge:false,jumpHeld:false,downHeld:false};
   if(settings.gameMode === 'infection'){
-    if(typeof infectionBotThink === 'function') return infectionBotThink(p, dt);
+    if(typeof infectionBotThink === 'function'){ try{ return infectionBotThink(p, dt); }catch(e){ logModeErr('infectionBotThink', e); } }
   }
   if(settings.gameMode === 'bomb'){
-    if(typeof bombBotThink === 'function') return bombBotThink(p, dt);
+    if(typeof bombBotThink === 'function'){ try{ return bombBotThink(p, dt); }catch(e){ logModeErr('bombBotThink', e); } }
   }
   if(settings.gameMode === 'crown'){
-    if(typeof crownBotThink === 'function') return crownBotThink(p, dt);
+    if(typeof crownBotThink === 'function'){ try{ return crownBotThink(p, dt); }catch(e){ logModeErr('crownBotThink', e); } }
   }
   let S=BOT.st[p.slot];
   if(!S){S=BOT.st[p.slot]={dir:0,jumpQ:false,jumpHoldT:0,decideT:0,px:p.x,py:p.y,stuckT:0,unstuckT:0,unstuckDir:0,bonks:0,bonkT:0,airT:0,dropHold:0,descLockT:0,descDir:0,airT2:0,exitX:0,hasExit:false,exitLockT:0,exitDir:0,exitGp:null,climbPlat:null,climbOut:0,climbT:0,bannedSide:0,banT:0,banTierY:0,dropNoJumpT:0,pinkJukePhase:0,pinkJukeT:0,pinkJukeCooldown:0,pinkJukePlat:null,pinkJukeDir:0,airBrakeT:0,airBrakeCooldown:0};}
@@ -9721,15 +9722,18 @@ function checkTag(){
   if(!P || P.length < 2) return;
 
   if(settings.gameMode === 'infection'){
-    if(typeof checkInfectionTag === 'function') checkInfectionTag();
+    try{ if(typeof checkInfectionTag === 'function') checkInfectionTag(); }
+    catch(e){ logModeErr('checkInfectionTag', e); }
     return;
   }
   if(settings.gameMode === 'bomb'){
-    if(typeof checkBombTag === 'function') checkBombTag();
+    try{ if(typeof checkBombTag === 'function') checkBombTag(); }
+    catch(e){ logModeErr('checkBombTag', e); }
     return;
   }
   if(settings.gameMode === 'crown'){
-    if(typeof checkCrownTag === 'function') checkCrownTag();
+    try{ if(typeof checkCrownTag === 'function') checkCrownTag(); }
+    catch(e){ logModeErr('checkCrownTag', e); }
     return;
   }
 
@@ -10052,7 +10056,7 @@ function endMatch(){
       let bestP = 0, bestScore = -1;
       if(typeof crownState !== 'undefined' && crownState.scores){
         for(let si = 0; si < match.players.length; si++){
-          const sc = crownState.scores[si] || 0;
+          const sc = crownState.scores[match.players[si].slot] || 0;
           if(sc > bestScore){ bestScore = sc; bestP = si; }
         }
       }
@@ -10388,11 +10392,14 @@ function updateGame(dt){
   checkTag();
   pairCollide();
   if(settings.gameMode === 'infection'){
-    if(typeof updateInfection === 'function') updateInfection(dt);
+    try{ if(typeof updateInfection === 'function') updateInfection(dt); }
+    catch(e){ logModeErr('updateInfection', e); }
   } else if(settings.gameMode === 'bomb'){
-    if(typeof updateBombMode === 'function') updateBombMode(dt);
+    try{ if(typeof updateBombMode === 'function') updateBombMode(dt); }
+    catch(e){ logModeErr('updateBombMode', e); }
   } else if(settings.gameMode === 'crown'){
-    if(typeof updateCrownMode === 'function') updateCrownMode(dt);
+    try{ if(typeof updateCrownMode === 'function') updateCrownMode(dt); }
+    catch(e){ logModeErr('updateCrownMode', e); }
   }
   if(inPlay){
     if(match.hunterMode){
@@ -14356,17 +14363,47 @@ function drawLocalTutorialCard(){
   g.restore();
 }
 
+/* Mode-error telemetry: one console line per first throw per site (no spam).
+   Lets a real-browser repro reveal the actual stack instead of a silent frame. */
+const _modeErrSeen = {};
+function logModeErr(where, err){
+  try{
+    if(_modeErrSeen[where]) return;
+    _modeErrSeen[where] = true;
+    console.error('[TAG] mode fault @' + where +
+      ' mode=' + ((typeof settings !== 'undefined' && settings.gameMode) || '?') +
+      ' state=' + ((typeof match !== 'undefined' && match && match.state) || '?'),
+      (err && err.stack) || err);
+  }catch(e){}
+}
+/* Minimal timer HUD fallback: guarantees a timer is always visible even if a
+   mode-specific HUD is missing or throws mid-draw. */
+function drawFallbackTimerHUD(){
+  try{
+    if(typeof match === 'undefined' || !match) return;
+    const urgent = match.timer <= 10 && match.state === 'playing';
+    const tw = Math.min(150, CW * 0.28), th = 40;
+    rr(g, CW / 2 - tw / 2, 8, tw, th, 10);
+    g.fillStyle = 'rgba(20, 28, 42, 0.92)';
+    g.fill();
+    g.lineWidth = 2.5; g.strokeStyle = urgent ? '#ef4444' : INK; g.stroke();
+    ptxt(fmtTime(match.timer), CW / 2, 8 + th / 2 + 1, FT(Math.min(22, th * 0.54)), '#ffffff');
+  }catch(e){ logModeErr('drawFallbackTimerHUD', e); }
+}
 function drawHUD(){
   if(settings.gameMode === 'infection'){
-    if(typeof drawInfectionUI === 'function') drawInfectionUI();
+    try{ if(typeof drawInfectionUI === 'function') drawInfectionUI(); else drawFallbackTimerHUD(); }
+    catch(e){ logModeErr('drawInfectionUI', e); try{ drawFallbackTimerHUD(); }catch(e2){} }
     return;
   }
   if(settings.gameMode === 'bomb'){
-    if(typeof drawBombUI === 'function') drawBombUI();
+    try{ if(typeof drawBombUI === 'function') drawBombUI(); else drawFallbackTimerHUD(); }
+    catch(e){ logModeErr('drawBombUI', e); try{ drawFallbackTimerHUD(); }catch(e2){} }
     return;
   }
   if(settings.gameMode === 'crown'){
-    if(typeof drawCrownUI === 'function') drawCrownUI();
+    try{ if(typeof drawCrownUI === 'function') drawCrownUI(); else drawFallbackTimerHUD(); }
+    catch(e){ logModeErr('drawCrownUI', e); try{ drawFallbackTimerHUD(); }catch(e2){} }
     return;
   }
   if(match && match.hunterMode){
@@ -18047,7 +18084,7 @@ function frame(now){
       update(dt);
     }
     render();
-  }catch(err){}
+  }catch(err){ try{ logModeErr('frame', err); }catch(e2){} }
   TOUCH.jumpEdge = false;
   pressed.clear();
 }
