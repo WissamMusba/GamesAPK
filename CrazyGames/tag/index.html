@@ -6260,54 +6260,10 @@ var initCrownMode, updateCrownMode, checkCrownTag, drawCrownUI, drawCrownPlayer,
     const cy = p.y + p.h / 2;
     const tG = (typeof tGlobal !== 'undefined') ? tGlobal : (Date.now() / 1000);
 
-    // 1. King Fatigue: Golden Sky Beacon (> 15s Continuous Hold)
+    // 1. King Fatigue Warning Indicator (> 15s Continuous Hold)
     if (isKing && crownState.beaconAlpha > 0.02) {
       g.save();
       g.globalAlpha = crownState.beaconAlpha;
-
-      const topY = 0;
-      const botY = p.y + p.h;
-
-      // Outer golden radiance
-      const wideGrad = g.createLinearGradient(cx - 52, 0, cx + 52, 0);
-      wideGrad.addColorStop(0, 'rgba(255, 215, 0, 0)');
-      wideGrad.addColorStop(0.3, 'rgba(255, 193, 7, 0.20)');
-      wideGrad.addColorStop(0.5, 'rgba(255, 235, 59, 0.38)');
-      wideGrad.addColorStop(0.7, 'rgba(255, 193, 7, 0.20)');
-      wideGrad.addColorStop(1, 'rgba(255, 215, 0, 0)');
-      g.fillStyle = wideGrad;
-      g.fillRect(cx - 52, topY, 104, botY - topY);
-
-      // Core white-gold laser pillar
-      const coreGrad = g.createLinearGradient(cx - 15, 0, cx + 15, 0);
-      coreGrad.addColorStop(0, 'rgba(255, 255, 255, 0)');
-      coreGrad.addColorStop(0.3, 'rgba(255, 240, 150, 0.65)');
-      coreGrad.addColorStop(0.5, 'rgba(255, 255, 255, 0.95)');
-      coreGrad.addColorStop(0.7, 'rgba(255, 240, 150, 0.65)');
-      coreGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
-      g.fillStyle = coreGrad;
-      g.fillRect(cx - 15, topY, 30, botY - topY);
-
-      // Ascending celestial light rings
-      const pulseT = tG * 2.8;
-      for (let ring = 0; ring < 4; ring++) {
-        const ry = botY - ((pulseT + ring * 0.25) % 1.0) * (botY - topY);
-        g.strokeStyle = 'rgba(255, 255, 255, 0.75)';
-        g.lineWidth = 2.2;
-        g.beginPath();
-        g.ellipse(cx, ry, 22, 6, 0, 0, Math.PI * 2);
-        g.stroke();
-      }
-
-      // Base halo around King
-      const baseGrad = g.createRadialGradient(cx, cy, 6, cx, cy, 46);
-      baseGrad.addColorStop(0, 'rgba(255, 255, 255, 0.85)');
-      baseGrad.addColorStop(0.4, 'rgba(255, 215, 0, 0.42)');
-      baseGrad.addColorStop(1, 'rgba(255, 215, 0, 0)');
-      g.fillStyle = baseGrad;
-      g.beginPath();
-      g.arc(cx, cy, 46, 0, Math.PI * 2);
-      g.fill();
 
       // Warning pill atop King
       const warnY = p.y - 48;
