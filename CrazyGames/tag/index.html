@@ -1109,6 +1109,12 @@ const SLOTS=[
 
 function getPlayerColor(p, pList){
   if(!p) return '#ffffff';
+  if(settings.gameMode === 'infection' && p.isInfected){
+    if(p.zombieColor) return p.zombieColor;
+    const ZOMBIE_GREENS = ['#4ade80', '#22c55e', '#16a34a', '#15803d', '#84cc16', '#65a30d', '#a3e635', '#10b981'];
+    const idx = (p.infectionOrder != null && p.infectionOrder >= 0) ? p.infectionOrder : (p.slot || 0);
+    return ZOMBIE_GREENS[idx % ZOMBIE_GREENS.length];
+  }
   if(settings.teams){
     const teamIdx = p.team != null ? (p.team % TEAMS.length) : 0;
     const teamDef = TEAMS[teamIdx] || TEAMS[0];
@@ -3624,97 +3630,7 @@ var initCrownMode, updateCrownMode, checkCrownTag, drawCrownUI, drawCrownPlayer,
 
     // --------------------------------------------------------------------------
     // 1. INFECTED / ZOMBIE RENDERING
-    // --------------------------------------------------------------------------
-    if (p.isInfected) {
-      g.save();
-
-      // Pulsing toxic green outline / aura
-      const auraPulse = 0.35 + 0.20 * Math.sin(tGlobal * 9 + (p.slot || 0));
-      g.fillStyle = p.isPatientZero
-        ? ('rgba(57, 255, 20, ' + auraPulse.toFixed(2) + ')')
-        : ('rgba(34, 197, 94, ' + (auraPulse * 0.8).toFixed(2) + ')');
-
-      if (typeof gScope.rr === 'function') {
-        gScope.rr(g, p.x - 7, p.y - 7, p.w + 14, p.h + 14, 12);
-        g.fill();
-        g.lineWidth = p.isPatientZero ? 2.8 : 2.0;
-        g.strokeStyle = p.isPatientZero ? '#39ff14' : '#22c55e';
-        gScope.rr(g, p.x - 3, p.y - 3, p.w + 6, p.h + 6, 9);
-        g.stroke();
-      }
-
-      // Patient Zero menacing toxic corona spikes
-      if (p.isPatientZero) {
-        g.strokeStyle = 'rgba(163, 230, 53, 0.7)';
-        g.lineWidth = 1.8;
-        for (let i = 0; i < 6; i++) {
-          const angle = (tGlobal * 3.5) + (i * Math.PI / 3);
-          const r0 = p.w * 0.58;
-          const r1 = p.w * 0.78 + Math.sin(tGlobal * 12 + i) * 4;
-          g.beginPath();
-          g.moveTo(cx + Math.cos(angle) * r0, cy + Math.sin(angle) * r0);
-          g.lineTo(cx + Math.cos(angle) * r1, cy + Math.sin(angle) * r1);
-          g.stroke();
-        }
-      }
-
-      // Zombie Evil Face Overlay
-      const faceX = cx + (p.face || 1) * 3;
-      const eyeY = p.y + p.h * 0.40;
-      const eyeW = 5, eyeH = 6;
-
-      // Menacing glowing lime/yellow slitted eyes
-      g.fillStyle = '#fef08a';
-      g.beginPath();
-      // Left eye (slanted)
-      g.moveTo(faceX - 9, eyeY - 2);
-      g.lineTo(faceX - 3, eyeY + 1);
-      g.lineTo(faceX - 8, eyeY + 4);
-      g.closePath();
-      g.fill();
-
-      // Right eye (slanted)
-      g.beginPath();
-      g.moveTo(faceX + 9, eyeY - 2);
-      g.lineTo(faceX + 3, eyeY + 1);
-      g.lineTo(faceX + 8, eyeY + 4);
-      g.closePath();
-      g.fill();
-
-      // Pupil slits
-      g.fillStyle = '#141414';
-      g.fillRect(faceX - 6, eyeY, 1.8, 3.5);
-      g.fillRect(faceX + 5, eyeY, 1.8, 3.5);
-
-      // Jagged zombie mouth with sharp fangs
-      const mouthY = p.y + p.h * 0.72;
-      g.fillStyle = '#141414';
-      g.fillRect(faceX - 7, mouthY, 14, 5);
-
-      // White fangs
-      g.fillStyle = '#ffffff';
-      g.beginPath();
-      g.moveTo(faceX - 5, mouthY); g.lineTo(faceX - 3.5, mouthY + 4); g.lineTo(faceX - 2, mouthY);
-      g.moveTo(faceX + 2, mouthY); g.lineTo(faceX + 3.5, mouthY + 4); g.lineTo(faceX + 5, mouthY);
-      g.fill();
-
-      // Slime droplet hanging from mouth
-      g.fillStyle = '#39ff14';
-      g.beginPath();
-      g.arc(faceX + 4, mouthY + 6, 2, 0, Math.PI * 2);
-      g.fill();
-
-      // Floating Skull / Patient Zero Badge
-      const badgeY = p.y - 18;
-      const skullText = p.isPatientZero ? '☣️ PATIENT ZERO' : '🧟 INFECTED';
-      const badgeCol = p.isPatientZero ? '#39ff14' : '#86efac';
-
-      if (typeof gScope.ptxt === 'function') {
-        gScope.ptxt(skullText, cx, badgeY, typeof gScope.FN === 'function' ? gScope.FN(10.5, 900) : '900 10.5px sans-serif', badgeCol);
-      }
-
-      g.restore();
-    }
+    // Character body itself is rendered in zombie green variant; no extra clutter/face/overlays.
 
     // --------------------------------------------------------------------------
     // 2. LONE SURVIVOR LAST STAND RENDERING
