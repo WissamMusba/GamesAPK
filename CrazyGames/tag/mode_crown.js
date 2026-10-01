@@ -91,15 +91,11 @@
   // Live canvas ctx capture. The engine canvas (const g) is NOT a window
   // property, and `const g = ... window.g ...` inside a function self-shadows
   // into TDZ. Capture once here (no shadowing scope) and reuse in render fns.
-  const CROWN_CTX = (function(){
-    try{ if(typeof window !== 'undefined' && window.g) return window.g; }catch(e){}
-    try{ if(typeof globalThis !== 'undefined' && globalThis.g) return globalThis.g; }catch(e2){}
-    try{ return (typeof g !== 'undefined' && g) ? g : null; }catch(e3){ return null; }
-  })();
   function Cctx(fallback){
-    if(CROWN_CTX) return CROWN_CTX;
-    try{ if(typeof window !== 'undefined' && window.g) return window.g; }catch(e){}
-    try{ return (typeof g !== 'undefined' && g) ? g : null; }catch(e2){}
+    try{ if(typeof g !== 'undefined' && g && typeof g.save === 'function') return g; }catch(e){}
+    try{ if(typeof window !== 'undefined' && window.renderCtx) return window.renderCtx; }catch(e){}
+    try{ if(typeof cv !== 'undefined' && cv && cv.getContext) return cv.getContext('2d'); }catch(e){}
+    try{ if(typeof document !== 'undefined'){ const c = document.getElementById('g'); if(c && c.getContext) return c.getContext('2d'); } }catch(e){}
     return fallback || null;
   }
        // Bot AI state storage per slot

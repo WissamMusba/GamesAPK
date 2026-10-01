@@ -105,7 +105,7 @@ let fontIdx=PINNED_FONTIdx;
 function cycleFont(d){ toast('Fonts locked to pinned pick #' + (PINNED_FONTIdx+1) + ' — ' + FAMILIES[PINNED_FONTIdx]); }
 const INK='#141414';
 
-const cv=document.getElementById('g'),g=cv.getContext('2d');
+const cv=document.getElementById('g'),g=cv.getContext('2d'); window.renderCtx = g;
 let CW=0,CH=0,DPR=1;
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
 
@@ -2704,7 +2704,7 @@ var initCrownMode, updateCrownMode, checkCrownTag, drawCrownUI, drawCrownPlayer,
   // CAREER, NET) are NOT properties of window, so gScope.X reads undefined.
   // These helpers resolve the live lexical bindings instead (TDZ-safe).
   function Imatch(){ try{ return (typeof match !== 'undefined' && match) ? match : null; }catch(e){ return null; } }
-  function Ictx(){ try{ if(typeof window !== 'undefined' && window.g) return window.g; }catch(e){} try{ return (typeof g !== 'undefined' && g) ? g : null; }catch(e2){ return null; } }
+  function Ictx(){ try{ if(typeof g !== 'undefined' && g && typeof g.save === 'function') return g; }catch(e){} try{ if(typeof window !== 'undefined' && window.renderCtx) return window.renderCtx; }catch(e){} try{ if(typeof cv !== 'undefined' && cv && cv.getContext) return cv.getContext('2d'); }catch(e){} try{ if(typeof document !== 'undefined'){ const c = document.getElementById('g'); if(c && c.getContext) return c.getContext('2d'); } }catch(e){} return null; }
   function Icw(){ try{ return (typeof CW !== 'undefined' && CW) ? CW : 800; }catch(e){ return 800; } }
   function Ich(){ try{ return (typeof CH !== 'undefined' && CH) ? CH : 600; }catch(e){ return 600; } }
   function Isolids(){ try{ return (typeof SOLIDS !== 'undefined' && SOLIDS) ? SOLIDS : []; }catch(e){ return []; } }
@@ -5542,15 +5542,11 @@ var initCrownMode, updateCrownMode, checkCrownTag, drawCrownUI, drawCrownPlayer,
   // property, and `const g = ... window.g ... ? ... : (typeof g ...)` inside a
   // function self-shadows into TDZ ("Cannot access 'g' before initialization").
   // Capture once here (no shadowing scope) and reuse in all render fns.
-  const CROWN_CTX = (function(){
-    try{ if(typeof window !== 'undefined' && window.g) return window.g; }catch(e){}
-    try{ if(typeof globalThis !== 'undefined' && globalThis.g) return globalThis.g; }catch(e2){}
-    try{ return (typeof g !== 'undefined' && g) ? g : null; }catch(e3){ return null; }
-  })();
   function Cctx(fallback){
-    if(CROWN_CTX) return CROWN_CTX;
-    try{ if(typeof window !== 'undefined' && window.g) return window.g; }catch(e){}
-    try{ return (typeof g !== 'undefined' && g) ? g : null; }catch(e2){}
+    try{ if(typeof g !== 'undefined' && g && typeof g.save === 'function') return g; }catch(e){}
+    try{ if(typeof window !== 'undefined' && window.renderCtx) return window.renderCtx; }catch(e){}
+    try{ if(typeof cv !== 'undefined' && cv && cv.getContext) return cv.getContext('2d'); }catch(e){}
+    try{ if(typeof document !== 'undefined'){ const c = document.getElementById('g'); if(c && c.getContext) return c.getContext('2d'); } }catch(e){}
     return fallback || null;
   }
 

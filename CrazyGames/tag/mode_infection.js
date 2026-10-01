@@ -49,7 +49,7 @@
   // CAREER, NET) are NOT properties of window, so gScope.X reads undefined.
   // These helpers resolve the live lexical bindings instead (TDZ-safe).
   function Imatch(){ try{ return (typeof match !== 'undefined' && match) ? match : null; }catch(e){ return null; } }
-  function Ictx(){ try{ if(typeof window !== 'undefined' && window.g) return window.g; }catch(e){} try{ return (typeof g !== 'undefined' && g) ? g : null; }catch(e2){ return null; } }
+  function Ictx(){ try{ if(typeof g !== 'undefined' && g && typeof g.save === 'function') return g; }catch(e){} try{ if(typeof window !== 'undefined' && window.renderCtx) return window.renderCtx; }catch(e){} try{ if(typeof cv !== 'undefined' && cv && cv.getContext) return cv.getContext('2d'); }catch(e){} try{ if(typeof document !== 'undefined'){ const c = document.getElementById('g'); if(c && c.getContext) return c.getContext('2d'); } }catch(e){} return null; }
   function Icw(){ try{ return (typeof CW !== 'undefined' && CW) ? CW : 800; }catch(e){ return 800; } }
   function Ich(){ try{ return (typeof CH !== 'undefined' && CH) ? CH : 600; }catch(e){ return 600; } }
   function Isolids(){ try{ return (typeof SOLIDS !== 'undefined' && SOLIDS) ? SOLIDS : []; }catch(e){ return []; } }
