@@ -2285,17 +2285,17 @@ function selectHunterRole(slot){
 
 function setGameMode(newMode){
   if(menu.tab === 'solo'){
-    const soloModes = ['party', 'freeze', 'infection', 'bomb', 'crown'];
+    const soloModes = ['party', 'bomb', 'crown'];
     if(soloModes.indexOf(newMode) < 0){
-      toast('🤖 SOLO SUPPORTS FFA, FREEZE, INFECTION, BOMB & CROWN');
+      toast('🤖 SOLO SUPPORTS FFA, BOMB & CROWN');
       sfx('back');
       return;
     }
   }
   if(menu.tab === 'bots'){
-    const botModes = ['party', 'freeze', 'infection', 'bomb', 'crown'];
+    const botModes = ['party', 'bomb', 'crown'];
     if(botModes.indexOf(newMode) < 0){
-      toast('🤖 WATCH MODE: FFA, FREEZE, INFECTION, BOMB OR CROWN ONLY');
+      toast('🤖 WATCH MODE: FFA, BOMB OR CROWN ONLY');
       sfx('back');
       return;
     }
@@ -2350,8 +2350,8 @@ function cycleGameMode(d){
     return;
   }
   const modes = (menu.tab === 'bots' || menu.tab === 'solo')
-    ? ['party', 'freeze', 'infection', 'bomb', 'crown']
-    : ['party', 'teams', 'hunter', 'freeze', 'infection', 'bomb', 'crown'];
+    ? ['party', 'bomb', 'crown']
+    : ['party', 'teams', 'hunter', 'bomb', 'crown'];
   let curIdx = modes.indexOf(settings.gameMode || (settings.teams ? 'teams' : 'party'));
   if(curIdx < 0) curIdx = 0;
   const nextIdx = (curIdx + (d || 1) + modes.length) % modes.length;
@@ -4037,7 +4037,7 @@ var initCrownMode, updateCrownMode, checkCrownTag, drawCrownUI, drawCrownPlayer,
     PASS_FUSE_CAP: 12.0,        // Capped at 12.0s when receiving pass bonus
     FUSE_4P: 14.0,              // 4+ players: 14.0s starting fuse
     FUSE_3P: 11.0,              // 3 players: 11.0s starting fuse
-    FUSE_2P: 8.0,               // 2 players: 8.0s starting fuse (Sudden Death 1v1)
+    FUSE_2P: 20.0,              // 2 players: 20.0s starting fuse in the beginning
     DESPERATION_THRESHOLD: 3.0, // Last 3.0s: rapid 2x ticking tempo and flashing visuals
     INTERMISSION_DELAY: 1.8     // 1.8s dramatic elimination pause before next round
   };
@@ -7035,16 +7035,15 @@ var CrownMode = (typeof window !== "undefined" && window.CrownMode) || (typeof g
 
 function startMatch(){
   if(menu.tab === 'solo'){
-    const soloModes = ['party', 'freeze', 'infection', 'bomb', 'crown'];
+    const soloModes = ['party', 'bomb', 'crown'];
     if(soloModes.indexOf(settings.gameMode) < 0){
       settings.gameMode = 'party';
     }
-    settings.teams = (settings.gameMode === 'freeze');
+    settings.teams = false;
     menu.gameMode = settings.gameMode;
   } else if(menu.tab === 'bots'){
-    // Freeze Tag needs teams (hunter team vs runner team); other watch modes are FFA.
-    settings.teams = (settings.gameMode === 'freeze');
-    const botModes = ['party', 'freeze', 'infection', 'bomb', 'crown'];
+    settings.teams = false;
+    const botModes = ['party', 'bomb', 'crown'];
     if(botModes.indexOf(settings.gameMode) < 0){
       settings.gameMode = 'party';
     }
@@ -7092,6 +7091,10 @@ function startMatch(){
       sfx('back');
       return;
     }
+  } else if((settings.gameMode === 'infection' || settings.gameMode === 'freeze') && act.length < 3){
+    toast('⚠️ ' + (settings.gameMode === 'infection' ? 'INFECTION' : 'FREEZE') + ' REQUIRES AT LEAST 3 PLAYERS!');
+    sfx('back');
+    return;
   } else if(act.length<2){
     menu.mode='slots';
     menu.row=0;
@@ -9886,8 +9889,7 @@ function careerLine(){
   if(!CAREER) return '';
   const lvl = getCareerLevel(CAREER.xp);
   const prog = getCareerProgress(CAREER.xp);
-  const curTrail = COSMETIC_TRAILS[CAREER.trail || 0] || COSMETIC_TRAILS[0];
-  let s = '⭐ LVL ' + lvl + ' (' + prog.cur + '/' + prog.need + ' XP) • ' + curTrail.icon + ' ' + curTrail.name;
+  let s = '⭐ LVL ' + lvl + ' (' + prog.cur + '/' + prog.need + ' XP)';
   if(CAREER.m > 0){
     s += ' • 🏆 ' + CAREER.w + 'W/' + CAREER.m + ' • 🏷️ ' + CAREER.tags + ' tags';
     if(CAREER.streak >= 2) s += ' • 🔥 x' + CAREER.streak;
@@ -10303,15 +10305,20 @@ function updateGame(dt){
         if(c1<c0&&c1>0)sfx('count');
         if(match.cooldown<=0){match.cooldown=0;match.goFlash=0.8;sfx('go');}
       }
-      match.timer-=dt;
+      // Bomb Tag owns its clock via BOMB_MODE.fuse (synced to match.timer by
+      // updateBombMode): generic decay here would double-speed the fuse AND
+      // endMatch() on first detonation instead of running the elimination loop.
+      if(settings.gameMode !== 'bomb') match.timer-=dt;
       if(settings.teams && match.itTeam != null){
         if(!match.teamItTime) match.teamItTime = [0,0,0,0];
         match.teamItTime[match.itTeam] += dt;
       }
     }
-    const s=Math.ceil(match.timer);
-    if(s!==match.lastTick){if(s<=5&&s>0)sfx('tick');match.lastTick=s;}
-    if(match.timer<=0){
+    if(settings.gameMode !== 'bomb'){
+      const s=Math.ceil(match.timer);
+      if(s!==match.lastTick){if(s<=5&&s>0)sfx('tick');match.lastTick=s;}
+    }
+    if(match.timer<=0 && settings.gameMode !== 'bomb'){
       match.timer=0;
       if(match.hunterMode) endHunterRound(null);
       else endMatch();
@@ -11071,6 +11078,8 @@ function drawITArrow(p){
 }
 
 function drawCosmeticTrail(p){
+  // Kept out of circulation for now — reserved for future cosmetics shop
+  return;
   if(!p.cosmeticTrail || p.cosmeticTrail.length < 2) return;
   const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
   const mySlot = isOnline ? NET.mySlot : 0;
@@ -12965,6 +12974,12 @@ function drawMenu(){
       }
       const ratioStr = '⚔️ ' + redCount + ' RED vs ' + blueCount + ' BLUE:';
       txt(ratioStr, pillsStartX - 10, pillY + ph/2 + 1, FN(clamp(CW * 0.024, 10, 12), 900), '#ffd166', 'right');
+    } else if(settings.gameMode === 'crown'){
+      txt('👑 CROWN (REC 3-4P):', pillsStartX - 10, pillY + ph/2 + 1, FN(clamp(CW * 0.024, 9.5, 11.5), 900), '#facc15', 'right');
+    } else if(settings.gameMode === 'bomb'){
+      const isDuo = (actSlots.length === 2);
+      const bStr = isDuo ? '💣 BOMB (20s DUEL - REC 3+):' : '💣 BOMB TAG (REC 3+):';
+      txt(bStr, pillsStartX - 10, pillY + ph/2 + 1, FN(clamp(CW * 0.024, 9.5, 11.5), 900), '#f87171', 'right');
     } else {
       txt('LOCAL PLAYERS:', pillsStartX - 10, pillY + ph/2 + 1, FN(10.5, 900), 'rgba(255,255,255,0.75)', 'right');
     }
@@ -13099,9 +13114,16 @@ function drawMenu(){
     zone(stickX - 6, stickY - 6, stickW + 12, stickH + 12, { fn: () => { setMenuTab('online'); sfx('ok'); } });
   }
 
-  // 4c. Interactive Promo Sticker (Alternates between 🎯 HUNTER MODE: TRY NOW! and 🤖 1P SOLO v BOT)
+  // 4c. Interactive Promo Sticker (Rotates between NEW MODES: 👑 CROWN, 💣 BOMB, 🎯 HUNTER, and 🤖 1P SOLO)
   if(menu.tab !== 'solo'){
-    const isPromoHunter = (settings.gameMode !== 'hunter');
+    // Rotate promo topic every 6 seconds: 0: crown, 1: bomb, 2: hunter, 3: solo
+    const promoStage = Math.floor((tGlobal / 6.0) % 4);
+    let promoType = 'crown';
+    if(promoStage === 0 && settings.gameMode !== 'crown') promoType = 'crown';
+    else if(promoStage === 1 && settings.gameMode !== 'bomb') promoType = 'bomb';
+    else if(promoStage === 2 && settings.gameMode !== 'hunter') promoType = 'hunter';
+    else promoType = 'solo';
+
     let soloW, soloH, soloX, soloY, soloTilt;
     if(isMobilePhone){
       soloW = clamp(CW * 0.25, 120, 144);
@@ -13137,14 +13159,16 @@ function drawMenu(){
     g.fillStyle = '#ffffff'; g.fill();
     g.lineWidth = isMobilePhone ? 2 : 2.5; g.strokeStyle = INK; g.stroke();
 
-    // Inner card body (deep arcade violet/indigo)
+    // Inner card body (color themed by promo)
     rr(g, 0, 0, soloW, soloH, isMobilePhone ? 9 : 13);
-    g.fillStyle = isPromoHunter ? '#220e36' : '#1c1335'; g.fill();
+    const bgCol = promoType === 'crown' ? '#2b2005' : (promoType === 'bomb' ? '#2e0a0a' : (promoType === 'hunter' ? '#220e36' : '#1c1335'));
+    g.fillStyle = bgCol; g.fill();
 
     // Animated warm glowing pulse
     const soloPulse = 0.55 + 0.35 * Math.sin(tGlobal * 6);
     g.lineWidth = isMobilePhone ? 1.5 : 2;
-    g.strokeStyle = isPromoHunter ? ('rgba(224, 86, 253, ' + soloPulse + ')') : ('rgba(255, 107, 129, ' + soloPulse + ')');
+    const glowCol = promoType === 'crown' ? ('rgba(250, 204, 21, ' + soloPulse + ')') : (promoType === 'bomb' ? ('rgba(248, 113, 113, ' + soloPulse + ')') : (promoType === 'hunter' ? ('rgba(224, 86, 253, ' + soloPulse + ')') : ('rgba(255, 107, 129, ' + soloPulse + ')')));
+    g.strokeStyle = glowCol;
     g.stroke();
 
     // Live expression & slight movement cycle every 3s
@@ -13166,7 +13190,33 @@ function drawMenu(){
       charTilt = Math.sin((cycleT - 2.1) / 0.45 * Math.PI) * 0.10;
     }
 
-    const charCol = isPromoHunter ? '#a855f7' : '#ff4757';
+    const charCol = promoType === 'crown' ? '#eab308' : (promoType === 'bomb' ? '#ef4444' : (promoType === 'hunter' ? '#a855f7' : '#ff4757'));
+
+    let titleTxt = '🤖 1P SOLO';
+    let badgeTxt = '⚡ SOLO BOT';
+    let badgeColor = '#ff6b81';
+    let btnTxt = '▶ PLAY SOLO !';
+    let btnBg = '#2ed573';
+
+    if(promoType === 'crown'){
+      titleTxt = isMobilePhone ? '👑 CROWN' : '👑 CROWN KING';
+      badgeTxt = '⚡ NEW MODE';
+      badgeColor = '#facc15';
+      btnTxt = '▶ TRY NOW !';
+      btnBg = '#eab308';
+    } else if(promoType === 'bomb'){
+      titleTxt = isMobilePhone ? '💣 BOMB' : '💣 BOMB TAG';
+      badgeTxt = '⚡ NEW MODE';
+      badgeColor = '#f87171';
+      btnTxt = '▶ TRY NOW !';
+      btnBg = '#dc2626';
+    } else if(promoType === 'hunter'){
+      titleTxt = isMobilePhone ? '🎯 HUNTER' : '🎯 HUNTER MODE';
+      badgeTxt = '⚡ TEAM HUNT';
+      badgeColor = '#e056fd';
+      btnTxt = '▶ TRY NOW !';
+      btnBg = '#9b59b6';
+    }
 
     if(isMobilePhone){
       const charSz = clamp(soloH * 0.38, 17, 23);
@@ -13182,21 +13232,20 @@ function drawMenu(){
       });
 
       const soloTxtX = charX + charSz + 5;
-      const titleTxt = isPromoHunter ? '🎯 HUNTER' : '🤖 1P SOLO';
       txt(titleTxt, soloTxtX, soloH * 0.22, FT(clamp(soloH * 0.18, 9, 11.5)), '#ffd166', 'left');
 
       const betaW = soloW - soloTxtX - 7;
       const betaH = Math.floor(soloH * 0.20);
-      pill(soloTxtX, soloH * 0.37, betaW, betaH, isPromoHunter ? 'rgba(224, 86, 253, 0.22)' : 'rgba(255, 71, 87, 0.22)', isPromoHunter ? '#e056fd' : '#ff4757');
-      txt(isPromoHunter ? '⚡ NEW MODE' : '⚡ BETA', soloTxtX + betaW / 2, soloH * 0.37 + betaH / 2 + 1, FN(clamp(betaH * 0.55, 7.5, 9), 900), isPromoHunter ? '#f368e0' : '#ff6b81');
+      pill(soloTxtX, soloH * 0.37, betaW, betaH, 'rgba(255, 255, 255, 0.12)', badgeColor);
+      txt(badgeTxt, soloTxtX + betaW / 2, soloH * 0.37 + betaH / 2 + 1, FN(clamp(betaH * 0.55, 7.5, 9), 900), badgeColor);
 
       const tryBtnW = soloW - 14;
       const tryBtnH = Math.floor(soloH * 0.26);
       const tryBtnY = soloH - tryBtnH - 5;
       rr(g, 7, tryBtnY, tryBtnW, tryBtnH, 6);
-      g.fillStyle = isPromoHunter ? '#9b59b6' : '#2ed573'; g.fill();
+      g.fillStyle = btnBg; g.fill();
       g.lineWidth = 1.2; g.strokeStyle = '#ffffff'; g.stroke();
-      txt(isPromoHunter ? '▶ TRY NOW !' : '▶ PLAY SOLO !', soloW / 2, tryBtnY + tryBtnH / 2 + 1, FT(clamp(tryBtnH * 0.58, 8.5, 11)), '#ffffff');
+      txt(btnTxt, soloW / 2, tryBtnY + tryBtnH / 2 + 1, FT(clamp(tryBtnH * 0.58, 8.5, 11)), '#ffffff');
     } else {
       const charSz = clamp(soloH * 0.38, 32, 44);
       const charX = 22;
@@ -13211,28 +13260,33 @@ function drawMenu(){
       });
 
       const soloTxtX = charX + charSz + 10;
-      const titleTxt = isPromoHunter ? '🎯 HUNTER MODE' : '🤖 1P SOLO v BOT';
       txt(titleTxt, soloTxtX, soloH * 0.22, FT(clamp(soloH * 0.155, 12, 16)), '#ffd166', 'left');
 
       const betaW = soloW - soloTxtX - 12;
       const betaH = Math.floor(soloH * 0.21);
-      pill(soloTxtX, soloH * 0.38, betaW, betaH, isPromoHunter ? 'rgba(224, 86, 253, 0.22)' : 'rgba(255, 71, 87, 0.22)', isPromoHunter ? '#e056fd' : '#ff4757');
-      txt(isPromoHunter ? '⚡ NEW GAME MODE' : '⚡ BETA TESTING', soloTxtX + betaW / 2, soloH * 0.38 + betaH / 2 + 1, FN(clamp(betaH * 0.52, 9, 11), 900), isPromoHunter ? '#f368e0' : '#ff6b81');
+      pill(soloTxtX, soloH * 0.38, betaW, betaH, 'rgba(255, 255, 255, 0.12)', badgeColor);
+      txt(badgeTxt, soloTxtX + betaW / 2, soloH * 0.38 + betaH / 2 + 1, FN(clamp(betaH * 0.52, 9, 11), 900), badgeColor);
 
       const tryBtnW = soloW - 22;
       const tryBtnH = Math.floor(soloH * 0.26);
       const tryBtnY = soloH - tryBtnH - 8;
       rr(g, 11, tryBtnY, tryBtnW, tryBtnH, 8);
-      g.fillStyle = isPromoHunter ? '#9b59b6' : '#2ed573'; g.fill();
+      g.fillStyle = btnBg; g.fill();
       g.lineWidth = 1.5; g.strokeStyle = '#ffffff'; g.stroke();
-      txt(isPromoHunter ? '▶ TRY NOW !' : '▶ PLAY SOLO !', soloW / 2, tryBtnY + tryBtnH / 2 + 1, FT(clamp(tryBtnH * 0.56, 12, 15)), '#ffffff');
+      txt(btnTxt, soloW / 2, tryBtnY + tryBtnH / 2 + 1, FT(clamp(tryBtnH * 0.56, 12, 15)), '#ffffff');
     }
 
     g.restore();
 
     // Click zone for promo sticker
     zone(soloX - 6, soloY - 6, soloW + 12, soloH + 12, { fn: () => {
-      if(isPromoHunter){
+      if(promoType === 'crown'){
+        setGameMode('crown');
+        sfx('go');
+      } else if(promoType === 'bomb'){
+        setGameMode('bomb');
+        sfx('go');
+      } else if(promoType === 'hunter'){
         setGameMode('hunter');
         sfx('go');
       } else {
@@ -13635,6 +13689,10 @@ function drawMenu(){
             sfx('back');
             return;
           }
+        } else if((settings.gameMode === 'infection' || settings.gameMode === 'freeze') && activeSlots().length < 3){
+          toast('⚠️ ' + (settings.gameMode === 'infection' ? 'INFECTION' : 'FREEZE') + ' REQUIRES AT LEAST 3 PLAYERS!');
+          sfx('back');
+          return;
         } else if(activeSlots().length < 2){
           menu.slotColor[0] = 0; menu.slotColor[1] = 1;
         }
@@ -17452,6 +17510,9 @@ function netForceStart(){
       netToast('⚠️ TEAMS MUST BE BALANCED (MAX ±1 DIFFERENCE)');
       return;
     }
+  } else if((settings.gameMode === 'infection' || settings.gameMode === 'freeze') && activeCount < 3){
+    netToast('⚠️ ' + (settings.gameMode === 'infection' ? 'INFECTION' : 'FREEZE') + ' REQUIRES AT LEAST 3 PLAYERS!');
+    return;
   } else if(activeCount < 2){
     netToast('Need at least 2 players to start');
     return;

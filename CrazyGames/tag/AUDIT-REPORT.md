@@ -287,3 +287,7 @@ An independent subagent audit verified the §7 fixes (bridges present, no TDZ, a
 - `drawInfectionUI` gained the missing `if(!g) return` null-ctx guard its five sibling functions already had.
 - `endMatch` crown branch now looks up `crownState.scores` by player **slot** instead of roster index (wrong-winner bug in non-contiguous lobbies).
 - Verified: `node --check` PASS + execution harness green on bundled infection (Patient Zero + steering bot + clean UI/update), bundled crown (active + scores + clean UI/update + advancing bot), and both standalone reference engines.
+
+## 9. BOMB ELIMINATION-LOOP FIX (generic timer hijacked the loop)
+
+**Symptom:** match ended on the first detonation instead of playing down to the last survivor. **Cause:** two clocks fought — `updateBombMode` counts `BOMB_MODE.fuse` (synced to `match.timer`) while generic `updateGame` *also* decremented `match.timer` (double-speed fuse) and fired `endMatch()` at zero, killing the detonate → intermission → random-next-carrier loop. **Fix:** generic `match.timer` decay, low-timer tick, and timer-expiry `endMatch()` are all skipped when `settings.gameMode==='bomb'` — the fuse owns the clock and `BOMB_MODE` declares the winner itself. **Proven** by executing the bundled bomb module (4P simulated): `4 → 3 → 2 → 1`, `startFuse:14`, random carrier each round, final `result:{winner, reason:'last_survivor'}`.
