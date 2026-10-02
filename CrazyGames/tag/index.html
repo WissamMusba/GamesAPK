@@ -13098,10 +13098,10 @@ function drawMenu(){
   ptxt('TAG!', 14 + logoW * 0.4, headY + headH * 0.52, FT(logoFs), '#ffffff');
 
   // Mode Navigation Tabs (Pills in Center: Local Party & 1P Solo with BETA badge)
+  // NOTE: WATCH BOTS hidden for now (logic kept — re-add entry to restore).
   const modeTabs = [
     { id: '2p', label: '👥 2-4P PARTY', short: '👥 PARTY' },
     { id: 'solo', label: '🤖 1P SOLO', short: '🤖 SOLO', badge: 'BETA' },
-    { id: 'bots', label: '⚔️ WATCH BOTS', short: '⚔️ BOTS' },
     { id: 'online', label: '🌐 ONLINE HUB', short: '🌐 ONLINE' }
   ];
   const tabW = clamp((themeX - 14 - logoW - 20) / modeTabs.length, isNarrowW ? 62 : 90, 150);
