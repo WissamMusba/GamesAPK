@@ -14828,6 +14828,8 @@ const NET_ALERTS_CONFIG = {
   enabled: true,
   // 1. Discord Webhook URL (Paste your Discord webhook URL here; if empty, Discord notification is skipped)
   discordWebhookUrl: '',
+  // Set to '@everyone', '@here', '<@YOUR_USER_ID>', or '' (pings phone/laptop Discord app when posted)
+  discordMention: '@everyone',
   // 2. ntfy.sh Topic name (Subscribe to this exact topic in your phone/laptop ntfy app or browser)
   ntfyTopic: 'crazygames-tag-server-alerts',
   // Optional custom server for ntfy (defaults to public https://ntfy.sh)
@@ -14843,7 +14845,9 @@ function netNotifyRoomCreated(roomCode, hostName, isPublic, maxPlayers){
 
     // --- A. Discord Webhook Notification ---
     if(NET_ALERTS_CONFIG.discordWebhookUrl && NET_ALERTS_CONFIG.discordWebhookUrl.trim()){
+      const mentionText = NET_ALERTS_CONFIG.discordMention ? `${NET_ALERTS_CONFIG.discordMention} ` : '';
       const discordPayload = {
+        content: mentionText ? `${mentionText}🎮 **A player started a TAG game server!**` : undefined,
         username: 'TAG Server Watchdog',
         avatar_url: 'https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/1f3ae.png',
         embeds: [{
