@@ -7772,7 +7772,7 @@ function botInputFor(p,dt){
     if(typeof crownBotThink === 'function'){ try{ return crownBotThink(p, dt); }catch(e){ logModeErr('crownBotThink', e); } }
   }
   let S=BOT.st[p.slot];
-  if(!S){S=BOT.st[p.slot]={dir:0,jumpQ:false,jumpHoldT:0,decideT:0,px:p.x,py:p.y,stuckT:0,unstuckT:0,unstuckDir:0,bonks:0,bonkT:0,airT:0,dropHold:0,descLockT:0,descDir:0,airT2:0,exitX:0,hasExit:false,exitLockT:0,exitDir:0,exitGp:null,climbPlat:null,climbOut:0,climbT:0,bannedSide:0,banT:0,banTierY:0,dropNoJumpT:0,pinkJukePhase:0,pinkJukeT:0,pinkJukeCooldown:0,pinkJukePlat:null,pinkJukeDir:0,airBrakeT:0,airBrakeCooldown:0};}
+  if(!S){S=BOT.st[p.slot]={dir:0,jumpQ:false,jumpHoldT:0,decideT:Math.random()*0.09,thinkJit:0.85+Math.random()*0.3,px:p.x,py:p.y,stuckT:0,unstuckT:0,unstuckDir:0,bonks:0,bonkT:0,airT:0,dropHold:0,descLockT:0,descDir:0,airT2:0,exitX:0,hasExit:false,exitLockT:0,exitDir:0,exitGp:null,climbPlat:null,climbOut:0,climbT:0,bannedSide:0,banT:0,banTierY:0,dropNoJumpT:0,pinkJukePhase:0,pinkJukeT:0,pinkJukeCooldown:0,pinkJukePlat:null,pinkJukeDir:0,airBrakeT:0,airBrakeCooldown:0};}
   const isEasy = ((menu.botDifficulty || settings.botDifficulty) === 'easy');
   const botThinkRate = isEasy ? 0.16 : BOT.think;
   const stepDt=(typeof dt==='number'&&dt>0)?Math.min(0.05,dt):Math.min(0.033,1/60);
@@ -7787,14 +7787,23 @@ function botInputFor(p,dt){
   try{
     if(isIt){
       // IT/Hunter: target closest enemy runner (never target teammates, ignore frozen players in freeze mode)
+      // Human focus: prefer a human-controlled runner when one is within 1.5x
+      // of the nearest distance, so bots hunt YOU instead of each other.
       let best = 1e12;
+      let bestHuman = null, bestHumanD = 1e12;
       for(const o of match.players){
         if(o === p || o.isEliminated) continue;
         if(isTeam && o.team === p.team) continue;
         if(settings.gameMode === 'freeze' && o.isFrozen) continue;
         const d = (o.x - cx)**2 + (o.y - cy)**2;
         if(d < best){ best = d; target = o; }
+        if(d < bestHumanD){
+          let humanRunner = true;
+          try{ humanRunner = !isBotSlot(o); }catch(e){ humanRunner = true; }
+          if(humanRunner){ bestHumanD = d; bestHuman = o; }
+        }
       }
+      if(bestHuman && target !== bestHuman && bestHumanD < best * 2.25){ target = bestHuman; }
     } else {
       // Runner: find nearest enemy chaser to flee from
       let nearestChaser = null;
@@ -7893,7 +7902,7 @@ function botInputFor(p,dt){
   }
 
   if(S.decideT<=0){
-    S.decideT=botThinkRate;
+    S.decideT=botThinkRate*(S.thinkJit||1);
     let want=0;
     let isCornerJuke=false;
     let chaseWant = 0;
@@ -7985,7 +7994,8 @@ function botInputFor(p,dt){
       // owns the steering, so the intercept leap is never overwritten.
       if(myRole === 'anvil' && !S.interceptActive){
         const runnerRunDir = Math.sign(target.vx || target.face || 1);
-        const cutoffX = target.x + runnerRunDir * 200;
+        const cutLead = 160 + ((p.slot * 53) % 80);
+        const cutoffX = target.x + runnerRunDir * cutLead;
         want = (cutoffX > cx + 15) ? 1 : (cutoffX < cx - 15 ? -1 : (Math.sign(dx) || 1));
         // Runner above and drifting toward a ledge: jump early to contest it
         if(dy < -40 && p.grounded && Math.abs(cutoffX - cx) < 160){
@@ -13679,6 +13689,8 @@ function drawMenu(){
       gmBorder_mob = '#e056fd';
     } else if(curGM_mob === 'teams'){
       gmLabel_mob = '⚔️ TEAMS';
+      gmBadge_mob = 'NEW!';
+      gmBadgeBg_mob = '#e056fd';
       gmActive_mob = true;
       gmBg_mob = '#f39c12';
       gmDarkBg_mob = '#b45309';
@@ -13832,6 +13844,8 @@ function drawMenu(){
       gmBorder_desk = '#e056fd';
     } else if(curGM_desk === 'teams'){
       gmLabel_desk = '⚔️ TEAMS';
+      gmBadge_desk = 'NEW!';
+      gmBadgeBg_desk = '#e056fd';
       gmActive_desk = true;
       gmBg_desk = '#f39c12';
       gmDarkBg_desk = '#b45309';
