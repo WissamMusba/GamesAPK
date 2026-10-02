@@ -10255,7 +10255,8 @@ function updateGame(dt){
 
   for(const p of match.players){
     if(typeof NET !== 'undefined' && NET && NET.role !== null && NET.isHost){
-      if(p.slot === NET.mySlot || p.slot === 0){
+      // Host simulates itself AND its bots (lobby autofill); guests' slots interpolate.
+      if(p.slot === NET.mySlot || p.slot === 0 || (NET.botSlots && NET.botSlots.includes(p.slot))){
         physUpdate(p, dt, inPlay);
       } else {
         netApplyRemoteTarget(p, dt);
@@ -13059,7 +13060,7 @@ function drawMenu(){
 
   const isMobilePhone = (typeof isTouch !== 'undefined' && isTouch) || (CW < 780);
 
-  // 4b. Online Multiplayer Coming Soon Sticker (Right Side of Screen) - Desktop / Laptop only
+  // 4b. NEW MODES promo sticker (Right Side of Screen) - Desktop / Laptop only
   if(!isMobilePhone){
     const isWideScreen = (CW >= 880);
     const isMediumScreen = (CW >= 680 && CW < 880);
@@ -13074,11 +13075,20 @@ function drawMenu(){
       stickY = headY + headH + 12;
     }
 
+    // Rotating spotlight: ❄️ FREEZE TAG <-> 🧟 INFECTED (switch every 3s)
+    const promoStage = Math.floor(tGlobal / 3) % 2;
+    const promoMode = (promoStage === 0) ? 'freeze' : 'infection';
+    const promoIcon = (promoStage === 0) ? '❄️' : '🧟';
+    const promoName = (promoStage === 0) ? 'FREEZE TAG' : 'INFECTED';
+    const promoDesc = (promoStage === 0) ? 'Freeze the whole crew' : 'Outrun Patient Zero';
+    const promoGlow = (promoStage === 0) ? '103,232,249' : '163,230,53';
+    const switchPulse = Math.max(0, 1 - (tGlobal % 3) * 2.5); // name pops right after each switch
+
     g.save();
     const scx = stickX + stickW / 2;
     const scy = stickY + stickH / 2;
     g.translate(scx, scy);
-    g.rotate(-0.06); // ~-3.5 degrees sticker tilt
+    g.rotate(-0.06 + 0.02 * Math.sin(tGlobal * 1.3)); // sticker sway, ~-3.5 degrees
     g.translate(-stickW / 2, -stickH / 2);
 
     // Soft drop shadow
@@ -13094,30 +13104,36 @@ function drawMenu(){
     rr(g, 0, 0, stickW, stickH, 11);
     g.fillStyle = '#161329'; g.fill();
 
-    // Glowing border pulse
+    // Glowing border pulse (cyan for Freeze, lime for Infected)
     const stickerPulse = 0.55 + 0.35 * Math.sin(tGlobal * 5);
     g.lineWidth = 2;
-    g.strokeStyle = 'rgba(46, 204, 113, ' + stickerPulse + ')';
+    g.strokeStyle = 'rgba(' + promoGlow + ', ' + stickerPulse + ')';
     g.stroke();
 
-    // 1. "ONLINE PLAY" in BIG LETTERS
-    const bigFs = clamp(stickH * 0.28, 14, 19);
-    ptxt('🌐 ONLINE PLAY', stickW / 2, stickH * 0.28, FT(bigFs), '#ffd166');
+    // 1. "✨ NEW MODES" eyebrow in gold
+    ptxt('✨ NEW MODES', stickW / 2, stickH * 0.17, FN(clamp(stickH * 0.11, 8, 9.5), 900), '#ffd166');
 
-    // 2. "Public & Private Rooms" in small
-    const smallFs = clamp(stickH * 0.16, 9.5, 12);
-    txt('⚡ Public & Private Rooms', stickW / 2, stickH * 0.54, FN(smallFs, 800), '#e2e8f0');
+    // 2. Rotating mode name, pops on every switch
+    const nameFs = clamp(stickH * 0.21, 12, 16) * (1 + 0.12 * switchPulse);
+    ptxt(promoIcon + ' ' + promoName, stickW / 2, stickH * 0.42, FT(nameFs), '#ffffff');
 
-    // 3. Note: "▶ CLICK TO PLAY!"
+    // 3. Mode hook line
+    const smallFs = clamp(stickH * 0.13, 8.5, 10.5);
+    txt(promoDesc, stickW / 2, stickH * 0.60, FN(smallFs, 800), '#e2e8f0');
+
+    // 4. Note pill + floating corner icons riding the tilt
     const notePillW = stickW - 16;
-    const notePillH = Math.floor(stickH * 0.25);
+    const notePillH = Math.floor(stickH * 0.22);
     const notePillY = stickH - notePillH - 6;
     pill(8, notePillY, notePillW, notePillH, 'rgba(46, 204, 113, 0.20)', 'rgba(46, 204, 113, 0.6)');
-    txt('▶ CLICK TO PLAY!', stickW / 2, notePillY + notePillH / 2 + 1, FN(clamp(notePillH * 0.52, 8.5, 10.5), 900), '#2ecc71');
+    txt('▶ TAP TO PLAY!', stickW / 2, notePillY + notePillH / 2 + 1, FN(clamp(notePillH * 0.52, 8.5, 10.5), 900), '#2ecc71');
+    const bobA = Math.sin(tGlobal * 2.2) * 2.5, bobB = Math.sin(tGlobal * 2.2 + 2.1) * 2.5;
+    ptxt('❄️', 2, 12 + bobA, FN(13, 900), '#ffffff');
+    ptxt('🧟', stickW - 2, stickH - 2 + bobB, FN(13, 900), '#ffffff');
     g.restore();
 
-    // Click zone for the sticker to open Online Hub
-    zone(stickX - 6, stickY - 6, stickW + 12, stickH + 12, { fn: () => { setMenuTab('online'); sfx('ok'); } });
+    // Click zone for the sticker: applies the currently spotlighted mode
+    zone(stickX - 6, stickY - 6, stickW + 12, stickH + 12, { fn: () => { setGameMode(promoMode); } });
   }
 
   // 4c. Interactive Promo Sticker (Rotates between NEW MODES: 👑 CROWN, 💣 BOMB, 🎯 HUNTER, and 🤖 1P SOLO)
