@@ -14823,6 +14823,75 @@ function netDirBase(){
   }catch(e){ return 'https://tag-netplay-server.onrender.com'; }
 }
 
+/* ================= HOST ALERT NOTIFICATIONS (DISCORD & NTFY.SH) ================= */
+const NET_ALERTS_CONFIG = {
+  enabled: true,
+  // 1. Discord Webhook URL (Paste your Discord webhook URL here; if empty, Discord notification is skipped)
+  discordWebhookUrl: '',
+  // 2. ntfy.sh Topic name (Subscribe to this exact topic in your phone/laptop ntfy app or browser)
+  ntfyTopic: 'crazygames-tag-server-alerts',
+  // Optional custom server for ntfy (defaults to public https://ntfy.sh)
+  ntfyServer: 'https://ntfy.sh'
+};
+
+function netNotifyRoomCreated(roomCode, hostName, isPublic, maxPlayers){
+  try{
+    if(!NET_ALERTS_CONFIG || !NET_ALERTS_CONFIG.enabled) return;
+    const mode = (typeof settings !== 'undefined' && settings && settings.gameMode) ? settings.gameMode.toUpperCase() : 'CLASSIC';
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const joinUrl = (typeof netLink === 'function') ? netLink(roomCode) : (location.origin + location.pathname + '?room=' + roomCode);
+
+    // --- A. Discord Webhook Notification ---
+    if(NET_ALERTS_CONFIG.discordWebhookUrl && NET_ALERTS_CONFIG.discordWebhookUrl.trim()){
+      const discordPayload = {
+        username: 'TAG Server Watchdog',
+        avatar_url: 'https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/1f3ae.png',
+        embeds: [{
+          title: '🎮 New Game Server Hosted!',
+          color: 0x22c55e, // Emerald Green
+          fields: [
+            { name: 'Room Code', value: '`' + roomCode + '`', inline: true },
+            { name: 'Host Player', value: '**' + (hostName || 'Host') + '**', inline: true },
+            { name: 'Game Mode', value: mode, inline: true },
+            { name: 'Capacity', value: (maxPlayers || 8) + ' Players', inline: true },
+            { name: 'Visibility', value: isPublic ? '🌐 Public' : '🔒 Private', inline: true },
+            { name: 'Time', value: timeStr, inline: true },
+            { name: 'Direct Join Link', value: '[Click to Join Room](' + joinUrl + ')' }
+          ],
+          footer: { text: 'TAG Multiplayer Watchdog' },
+          timestamp: new Date().toISOString()
+        }]
+      };
+
+      fetch(NET_ALERTS_CONFIG.discordWebhookUrl.trim(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(discordPayload)
+      }).catch(()=>{});
+    }
+
+    // --- B. ntfy.sh Phone & Laptop Push Notification ---
+    if(NET_ALERTS_CONFIG.ntfyTopic && NET_ALERTS_CONFIG.ntfyTopic.trim()){
+      const topic = NET_ALERTS_CONFIG.ntfyTopic.trim();
+      const ntfyBase = (NET_ALERTS_CONFIG.ntfyServer || 'https://ntfy.sh').replace(/\/+$/, '');
+      const ntfyUrl = ntfyBase + '/' + encodeURIComponent(topic);
+
+      const ntfyMessage = `Host: ${hostName || 'Host'} | Mode: ${mode} | Room: ${roomCode} (${isPublic ? 'Public' : 'Private'})`;
+
+      fetch(ntfyUrl, {
+        method: 'POST',
+        headers: {
+          'Title': '🎮 Server Hosted: ' + roomCode,
+          'Priority': 'default',
+          'Tags': 'video_game,bell',
+          'Click': joinUrl
+        },
+        body: ntfyMessage
+      }).catch(()=>{});
+    }
+  }catch(err){}
+}
+
 const NET = {
   peer: null,
   conns: new Map(), // peerId -> { rel: conn, fast: conn }
@@ -17511,6 +17580,7 @@ function netHostAction(isPublic = true){
   history.replaceState(null, '', '?room=' + code);
   
   netCopyLink();
+  try{ netNotifyRoomCreated(code, myProfile.name, isPublic, (NET && NET.maxPlayers) || 8); }catch(e){}
   try{
     if(typeof CG !== 'undefined' && CG && typeof CG.updateRoom === 'function'){
       CG.updateRoom(code, [{ id: 'p0', username: myProfile.name }], true);
