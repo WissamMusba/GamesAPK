@@ -1882,7 +1882,10 @@ const menu={tab:'2p',mode:'rows',slotColor:[0,1,-1,-1,-1,-1,-1,-1],slotTeam:[0,1
 function isSlotBot(slotIdx){
   if(menu.tab === 'solo') return slotIdx === 1;
   if(menu.tab === 'bots') return slotIdx === 0 || slotIdx === 1;
-  if(typeof NET !== 'undefined' && NET && NET.role !== null) return false;
+  if(typeof NET !== 'undefined' && NET && NET.role !== null){
+    if(NET.botSlots && NET.botSlots.includes(slotIdx)) return true;
+    return false;
+  }
   if(menu.botSlots){
     if(Array.isArray(menu.botSlots)) return menu.botSlots.includes(slotIdx);
     if(menu.botSlots.has) return menu.botSlots.has(slotIdx);
@@ -7313,7 +7316,10 @@ function isBotSlot(p){
       if(HARNESS.mode === 'playback') return slot === 1;
       return false;
     }
-    if(typeof NET !== 'undefined' && NET && NET.role !== null) return false;
+    if(typeof NET !== 'undefined' && NET && NET.role !== null){
+      if(NET.botSlots && NET.botSlots.includes(slot)) return true;
+      return false;
+    }
     if(menu.tab === 'bots') return (slot === 0 || slot === 1);
     if(menu.tab === 'solo') return slot === 1;
     if(menu.botSlots){
@@ -14977,6 +14983,7 @@ const NET = {
   peerNames: new Map(), // peerId -> name
   peerMutes: new Set(), // peerId (local player mute toggles)
   readyCountdown: null, // number (seconds) or null
+  botSlots: [], // slots occupied by AI bots (e.g. auto-fill hard bot)
   publicRooms: [], // cached list of public rooms from server
   lastRoomFetch: 0,
   heartbeatTimer: null,
@@ -15916,6 +15923,9 @@ function inputForNet(p,dt){
   if(NET.role !== null){
     if(NET.isHost){
       const slot = p.slot;
+      if(isBotSlot(p)){
+        return botInputFor(p, dt);
+      }
       if(slot === NET.mySlot || slot === 0){
         return sampleControls(NET.myCtrl || 'WASD');
       }
@@ -16374,16 +16384,26 @@ function netOnData(m, c){
       return;
     }
     let reqSlot = m.slot | 0;
-    if(!(reqSlot >= 1 && reqSlot < 8 && !NET.hostInputs.has(reqSlot) && menu.slotColor[reqSlot] === -1)){
-      // Requested slot taken in a race: fall back to the first free slot
+    const isBotSlotCandidate = (s) => (NET.botSlots && NET.botSlots.includes(s));
+    if(!(reqSlot >= 1 && reqSlot < 8 && (!NET.hostInputs.has(reqSlot) || isBotSlotCandidate(reqSlot)) && (menu.slotColor[reqSlot] === -1 || isBotSlotCandidate(reqSlot)))){
+      // Requested slot taken in a race: fall back to the first free slot (or first bot slot)
       reqSlot = -1;
       for(let s = 1; s < 8; s++){
         if(!NET.hostInputs.has(s) && menu.slotColor[s] === -1){ reqSlot = s; break; }
       }
       if(reqSlot < 0){
+        for(let s = 1; s < 8; s++){
+          if(isBotSlotCandidate(s)){ reqSlot = s; break; }
+        }
+      }
+      if(reqSlot < 0){
         c.send({ t: 'toast', msg: 'Lobby is full.' });
         return;
       }
+    }
+    // If slot was occupied by a bot, remove bot from NET.botSlots
+    if(NET.botSlots && NET.botSlots.includes(reqSlot)){
+      NET.botSlots = NET.botSlots.filter(s => s !== reqSlot);
     }
     {
       const guestName = NET.peerNames.get(c.peer) || 'Player';
@@ -16441,6 +16461,7 @@ function netOnData(m, c){
         slotsCtrl: NET.slotsCtrl.slice(),
         slotsReady: NET.slotsReady.slice(),
         slotsName: NET.slotsName.slice(),
+        botSlots: NET.botSlots ? NET.botSlots.slice() : [],
         slotsPeer: slotsPeer
       });
       netBroadcastSettings();
@@ -16547,6 +16568,7 @@ function netOnData(m, c){
     if(m.slotsCtrl) NET.slotsCtrl = m.slotsCtrl.slice();
     if(m.slotsReady) NET.slotsReady = m.slotsReady.slice();
     if(m.slotsName) NET.slotsName = m.slotsName.slice();
+    if(m.botSlots && Array.isArray(m.botSlots)) NET.botSlots = m.botSlots.slice();
     if(m.slotsPeer && Array.isArray(m.slotsPeer)){
       for(let s=0; s<m.slotsPeer.length; s++){
         if(m.slotsPeer[s]) NET.peerSlots.set(m.slotsPeer[s], s);
@@ -16568,6 +16590,7 @@ function netOnData(m, c){
     if(m.lobbyLocked !== undefined) NET.lobbyLocked = !!m.lobbyLocked;
     if(m.teamsLocked !== undefined) NET.teamsLocked = !!m.teamsLocked;
     if(m.readyCountdown !== undefined) NET.readyCountdown = m.readyCountdown;
+    if(m.botSlots && Array.isArray(m.botSlots)) NET.botSlots = m.botSlots.slice();
     if(m.slotColor){
       menu.slotColor = m.slotColor.slice(0, 8);
       buildLevel();
@@ -17552,6 +17575,7 @@ function netBroadcastRoster(){
     lobbyLocked: !!NET.lobbyLocked,
     teamsLocked: !!NET.teamsLocked,
     readyCountdown: NET.readyCountdown,
+    botSlots: NET.botSlots ? NET.botSlots.slice() : [],
     hunterRed: settings.hunterRed,
     hunterBlue: settings.hunterBlue,
     hunterVotes: menu.hunterVotes ? { ...menu.hunterVotes } : {},
@@ -17659,8 +17683,35 @@ function netHostAction(isPublic = true){
     setTimeout(()=>{try{if(NET.isHost&&NET.room===code&&typeof netUpdateHostDirectory==='function')netUpdateHostDirectory();}catch(e){}},3500);
     setTimeout(()=>{try{if(NET.isHost&&NET.room===code&&typeof CG!=='undefined'&&CG&&typeof CG.showInviteButton==='function')CG.showInviteButton(code);}catch(e){}},1500);
   }catch(e){}
+  NET.botSlots = [];
   netEnsureServer(()=>netConnectPeer(code, true)); // fresh self/render pick (self wins within 20ms) before hosting
   netShow(false);
+
+  // Auto-fill lobby with a Hard Bot if no one joins in 5 seconds
+  if(typeof _botAutofillTimer !== 'undefined' && _botAutofillTimer) clearTimeout(_botAutofillTimer);
+  _botAutofillTimer = setTimeout(() => {
+    try{
+      if(!NET.isHost || NET.role !== 'host' || NET.room !== code || (match && screen === 'game')) return;
+      const act = activeSlots();
+      // If only host is in lobby (1 player) and no guests connected
+      if(act.length <= 1 && NET.hostInputs.size === 0){
+        const botSlot = 1;
+        if(menu.slotColor[botSlot] === -1){
+          menu.slotColor[botSlot] = (menu.slotColor[0] === 1 ? 2 : 1);
+          if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+          menu.slotTeam[botSlot] = (menu.slotTeam[0] === 0 ? 1 : 0);
+          NET.slotsReady[botSlot] = true;
+          NET.slotsName[botSlot] = '🤖 HARD BOT';
+          if(!NET.botSlots) NET.botSlots = [];
+          if(!NET.botSlots.includes(botSlot)) NET.botSlots.push(botSlot);
+          settings.botDifficulty = 'hard';
+          menu.botDifficulty = 'hard';
+          netBroadcastRoster();
+          netToast('🤖 Hard Bot joined the lobby!');
+        }
+      }
+    }catch(e){}
+  }, 5000);
 
   // Start ping heartbeat timer & signaling server heartbeat
   if(NET.heartbeatTimer) clearInterval(NET.heartbeatTimer);
@@ -17768,6 +17819,7 @@ function netLeaveRoom(reason){
   if(NET.heartbeatTimer){ clearInterval(NET.heartbeatTimer); NET.heartbeatTimer = null; }
   if(NET.pingTimer){ clearInterval(NET.pingTimer); NET.pingTimer = null; }
   if(_readyTimerInterval){ clearInterval(_readyTimerInterval); _readyTimerInterval = null; }
+  if(typeof _botAutofillTimer !== 'undefined' && _botAutofillTimer){ clearTimeout(_botAutofillTimer); _botAutofillTimer = null; }
   try{ if(NET._guestTimeout){ clearTimeout(NET._guestTimeout); NET._guestTimeout = null; } }catch(e){}
 
   if(NET.peer){
@@ -17792,6 +17844,7 @@ function netLeaveRoom(reason){
   if(NET.peerNames) NET.peerNames.clear();
   if(NET.pings) NET.pings.clear();
   NET.spectators = [];
+  NET.botSlots = [];
   NET.role = null;
   NET.room = '';
   NET.mySlot = -1;
