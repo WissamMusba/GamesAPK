@@ -12195,12 +12195,40 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
     txt(cdStr, startX + availW/2, stageY + 18, FN(11, 900), '#ff6b81');
   }
 
-  // Host Controls on Top Right (Lock Lobby, Lock Teams)
+  // Host Controls on Top Right (Add Bot, Lock Teams, Lock Lobby)
   if(NET.isHost){
+    const isNarrowHeader = (availW < 740);
+    const botCount = (NET.botSlots || []).length;
+    const botBtnW = isNarrowHeader ? 74 : 86, botBtnH = 24;
+    const ltBtnW = isNarrowHeader ? 80 : 90, ltBtnH = 24;
+    const llBtnW = isNarrowHeader ? 74 : 84, llBtnH = 24;
+    const leaveBtnW = isNarrowHeader ? 64 : 72;
+
+    const llBtnX = startX + availW - leaveBtnW - 6 - llBtnW - 6;
+    const ltBtnX = llBtnX - ltBtnW - 6;
+    const botBtnX = ltBtnX - botBtnW - 6;
+
+    const botLabel = botCount >= 2 ? (isNarrowHeader ? '🤖 (2/2)' : '🤖 Bots (2/2)') : (botCount === 1 ? (isNarrowHeader ? '🤖 +Bot (1/2)' : '🤖 + Bot (1/2)') : '🤖 + Bot');
+    drawJuicyChip(botBtnX, stageY + 5, botBtnW, botBtnH, {
+      label: botLabel,
+      active: botCount > 0,
+      activeBg: botCount >= 2 ? '#6366f1' : '#8b5cf6',
+      activeDarkBg: botCount >= 2 ? '#4338ca' : '#6d28d9',
+      activeText: '#ffffff',
+      textColor: '#cbd5e1',
+      fontSize: 9.5,
+      fn: () => {
+        if(botCount >= 2){
+          netToast('Max 2 bots in online lobby! Use ✕ on slot to remove');
+          sfx('back');
+        } else {
+          netAddBot();
+        }
+      }
+    });
+
     // Lock Teams Toggle
-    const ltBtnW = 90, ltBtnH = 24;
-    const ltBtnX = startX + availW - ltBtnW - 170, ltBtnY = stageY + 5;
-    drawJuicyChip(ltBtnX, ltBtnY, ltBtnW, ltBtnH, {
+    drawJuicyChip(ltBtnX, stageY + 5, ltBtnW, ltBtnH, {
       label: NET.teamsLocked ? '🔒 Teams Lock' : '🔓 Teams Open',
       active: NET.teamsLocked,
       activeBg: '#e74c3c',
@@ -12212,9 +12240,7 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
     });
 
     // Lock Lobby Toggle
-    const llBtnW = 84, llBtnH = 24;
-    const llBtnX = startX + availW - llBtnW - 82, llBtnY = stageY + 5;
-    drawJuicyChip(llBtnX, llBtnY, llBtnW, llBtnH, {
+    drawJuicyChip(llBtnX, stageY + 5, llBtnW, llBtnH, {
       label: NET.lobbyLocked ? '🔒 Locked' : '🔓 Open',
       active: NET.lobbyLocked,
       activeBg: '#e67e22',
@@ -12227,7 +12253,8 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
   }
 
   // Leave Room Button
-  const leaveBtnW = 72, leaveBtnH = 24;
+  const isNarrowHeaderLeave = (availW < 740);
+  const leaveBtnW = isNarrowHeaderLeave ? 64 : 72, leaveBtnH = 24;
   const leaveBtnX = startX + availW - leaveBtnW - 6, leaveBtnY = stageY + 5;
   drawJuicyChip(leaveBtnX, leaveBtnY, leaveBtnW, leaveBtnH, {
     label: '🚪 Leave',
@@ -12839,11 +12866,12 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
     zone(mX + 14, mBtnY, mbW, mbH, { fn: () => { netMovePlayerToWaitlist(ms); NET.manageSlot = null; NET.teamPickerOpen = false; } });
     mBtnY += mbH + mbGap;
 
-    // Option 3: Kick from Room
+    // Option 3: Kick from Room / Remove Bot
+    const isBot = (NET.botSlots && NET.botSlots.includes(ms));
     rr(g, mX + 14, mBtnY, mbW, mbH, 6);
     g.fillStyle = 'rgba(231, 76, 60, 0.25)'; g.fill();
     g.lineWidth = 1.2; g.strokeStyle = '#e74c3c'; g.stroke();
-    txt('🚫 Kick from Room', mX + mW/2, mBtnY + mbH/2 + 1, FN(10.5, 900), '#ff6b81');
+    txt(isBot ? '🤖 Remove Bot' : '🚫 Kick from Room', mX + mW/2, mBtnY + mbH/2 + 1, FN(10.5, 900), '#ff6b81');
     zone(mX + 14, mBtnY, mbW, mbH, { fn: () => { netKickPlayer(ms); NET.manageSlot = null; NET.teamPickerOpen = false; } });
     mBtnY += mbH + mbGap;
 
@@ -13353,14 +13381,14 @@ function drawMenu(){
     const notePillH = Math.floor(stickH * 0.22);
     const notePillY = stickH - notePillH - 6;
     pill(8, notePillY, notePillW, notePillH, 'rgba(46, 204, 113, 0.20)', 'rgba(46, 204, 113, 0.6)');
-    txt('▶ TAP TO PLAY!', stickW / 2, notePillY + notePillH / 2 + 1, FN(clamp(notePillH * 0.52, 8.5, 10.5), 900), '#2ecc71');
+    txt('COMING SOON', stickW / 2, notePillY + notePillH / 2 + 1, FN(clamp(notePillH * 0.52, 8.5, 10.5), 900), '#2ecc71');
     const bobA = Math.sin(tGlobal * 2.2) * 2.5, bobB = Math.sin(tGlobal * 2.2 + 2.1) * 2.5;
     ptxt('❄️', 2, 12 + bobA, FN(13, 900), '#ffffff');
     ptxt('🧟', stickW - 2, stickH - 2 + bobB, FN(13, 900), '#ffffff');
     g.restore();
 
-    // Click zone for the sticker: applies the currently spotlighted mode
-    zone(stickX - 6, stickY - 6, stickW + 12, stickH + 12, { fn: () => { setGameMode(promoMode); } });
+    // Click zone for the sticker: modes aren't playable yet, just hype them
+    zone(stickX - 6, stickY - 6, stickW + 12, stickH + 12, { fn: () => { toast('❄️ FREEZE TAG & 🧟 INFECTED — COMING SOON!'); sfx('ui'); } });
   }
 
   // 4c. Interactive Promo Sticker (Rotates between NEW MODES: 👑 CROWN, 💣 BOMB, 🎯 HUNTER, and 🤖 1P SOLO)
@@ -17565,12 +17593,17 @@ function netKickPlayer(slotOrPeer){
     const pair = NET.conns.get(targetPeer);
     if(pair) netSendRel(pair, { t: 'kicked' });
   }
+  let wasBot = false;
   if(targetSlot > 0){
     NET.hostInputs.delete(targetSlot);
     menu.slotColor[targetSlot] = -1;
     NET.slotsReady[targetSlot] = false;
     NET.slotsName[targetSlot] = '';
     _remoteTargets.delete(targetSlot);
+    if(NET.botSlots && NET.botSlots.includes(targetSlot)){
+      wasBot = true;
+      NET.botSlots = NET.botSlots.filter(s => s !== targetSlot);
+    }
     if(settings.gameMode === 'hunter'){
       if(menu.hunterVotes){
         delete menu.hunterVotes[targetSlot];
@@ -17591,7 +17624,7 @@ function netKickPlayer(slotOrPeer){
   netBroadcastSettings();
   netBroadcastRoster();
   netUpdateHostDirectory();
-  netToast('Player removed');
+  netToast(wasBot ? '🤖 Bot removed' : 'Player removed');
 }
 
 function netAdmitSpectator(peerId, targetSlot, teamIdx){
@@ -17666,6 +17699,7 @@ function netAdmitSpectator(peerId, targetSlot, teamIdx){
       slotsCtrl: NET.slotsCtrl.slice(),
       slotsReady: NET.slotsReady.slice(),
       slotsName: NET.slotsName.slice(),
+      botSlots: NET.botSlots ? NET.botSlots.slice() : [],
       slotsPeer: slotsPeer
     });
   }
@@ -17674,6 +17708,102 @@ function netAdmitSpectator(peerId, targetSlot, teamIdx){
   netBroadcastRoster();
   netUpdateHostDirectory();
   netToast((spec.name || 'Spectator') + ' admitted as P' + (slot+1));
+}
+
+function netAddBot(preferredSlot, preferredTeam){
+  if(typeof NET === 'undefined' || !NET || !NET.isHost) return;
+  if(!NET.botSlots) NET.botSlots = [];
+  if(NET.botSlots.length >= 2){
+    netToast('Max 2 bots in online lobby!');
+    sfx('back');
+    return;
+  }
+  // Find open slot (1 to 7)
+  let targetSlot = -1;
+  if(preferredSlot != null && preferredSlot >= 1 && preferredSlot < 8 && menu.slotColor[preferredSlot] === -1 && !NET.hostInputs.has(preferredSlot) && !NET.botSlots.includes(preferredSlot)){
+    targetSlot = preferredSlot;
+  } else {
+    for(let s = 1; s < 8; s++){
+      if(menu.slotColor[s] === -1 && !NET.hostInputs.has(s) && !NET.botSlots.includes(s)){
+        targetSlot = s;
+        break;
+      }
+    }
+  }
+  if(targetSlot === -1){
+    netToast('Lobby is full! (8 players max)');
+    sfx('back');
+    return;
+  }
+
+  // Clear 5-sec autofill timer if pending
+  if(typeof _botAutofillTimer !== 'undefined' && _botAutofillTimer){
+    clearTimeout(_botAutofillTimer);
+    _botAutofillTimer = null;
+  }
+
+  // Pick unique color from PALETTE
+  const taken = menu.slotColor.filter(v => v >= 0);
+  let pick = -1;
+  for(let pi = 0; pi < PALETTE.length; pi++){
+    if(!taken.includes(pi)){ pick = pi; break; }
+  }
+  if(pick === -1) pick = targetSlot % PALETTE.length;
+  menu.slotColor[targetSlot] = pick;
+
+  // Assign team (balance if teams or hunter mode)
+  if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+  let wantTeam = (preferredTeam === 0 || preferredTeam === 1) ? preferredTeam : -1;
+  if(wantTeam < 0){
+    let r0 = 0, b0 = 0;
+    for(const s of activeSlots()){
+      if(s === targetSlot) continue;
+      (((menu.slotTeam ? menu.slotTeam[s] : s) % 2) === 0) ? r0++ : b0++;
+    }
+    wantTeam = (r0 <= b0) ? 0 : 1;
+  } else if(settings.gameMode === 'hunter'){
+    let r0 = 0, b0 = 0;
+    for(const s of activeSlots()){
+      if(s === targetSlot) continue;
+      (((menu.slotTeam ? menu.slotTeam[s] : s) % 2) === 0) ? r0++ : b0++;
+    }
+    if(Math.abs((r0 + (wantTeam === 0 ? 1 : 0)) - (b0 + (wantTeam === 1 ? 1 : 0))) > 1){
+      wantTeam = (r0 <= b0) ? 0 : 1;
+    }
+  }
+  menu.slotTeam[targetSlot] = wantTeam;
+
+  NET.slotsCtrl[targetSlot] = 'CPU';
+  NET.slotsReady[targetSlot] = true;
+  const botNum = NET.botSlots.length + 1;
+  NET.slotsName[targetSlot] = '🤖 HARD BOT ' + botNum;
+  NET.botSlots.push(targetSlot);
+  settings.botDifficulty = 'hard';
+  menu.botDifficulty = 'hard';
+
+  if(settings.gameMode === 'hunter'){
+    enforceHunterBalance();
+    validateHunterRoles();
+  }
+
+  buildLevel();
+  netBroadcastSettings();
+  netBroadcastRoster();
+  netUpdateHostDirectory();
+  sfx('ok');
+  netToast('🤖 Added Bot to slot P' + (targetSlot + 1));
+}
+
+function netRemoveBot(slot){
+  if(typeof NET === 'undefined' || !NET || !NET.isHost) return;
+  if(slot != null){
+    if(NET.botSlots && NET.botSlots.includes(slot)){
+      netKickPlayer(slot);
+    }
+  } else if(NET.botSlots && NET.botSlots.length > 0){
+    const lastBot = NET.botSlots[NET.botSlots.length - 1];
+    netKickPlayer(lastBot);
+  }
 }
 
 function netClaimSlot(s, teamIdx){
@@ -18095,22 +18225,9 @@ function netHostAction(isPublic = true){
     try{
       if(!NET.isHost || NET.role !== 'host' || NET.room !== code || (match && screen === 'game')) return;
       const act = activeSlots();
-      // If only host is in lobby (1 player) and no guests connected
-      if(act.length <= 1 && NET.hostInputs.size === 0){
-        const botSlot = 1;
-        if(menu.slotColor[botSlot] === -1){
-          menu.slotColor[botSlot] = (menu.slotColor[0] === 1 ? 2 : 1);
-          if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
-          menu.slotTeam[botSlot] = (menu.slotTeam[0] === 0 ? 1 : 0);
-          NET.slotsReady[botSlot] = true;
-          NET.slotsName[botSlot] = '🤖 HARD BOT';
-          if(!NET.botSlots) NET.botSlots = [];
-          if(!NET.botSlots.includes(botSlot)) NET.botSlots.push(botSlot);
-          settings.botDifficulty = 'hard';
-          menu.botDifficulty = 'hard';
-          netBroadcastRoster();
-          netToast('🤖 Hard Bot joined the lobby!');
-        }
+      // If only host is in lobby (1 player), no guests connected, and no bot added yet
+      if(act.length <= 1 && NET.hostInputs.size === 0 && (!NET.botSlots || NET.botSlots.length === 0)){
+        netAddBot();
       }
     }catch(e){}
   }, 5000);
