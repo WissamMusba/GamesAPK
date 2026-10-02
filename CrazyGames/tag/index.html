@@ -2320,6 +2320,7 @@ function requestMode(voter, modeId){
   let ok = false;
   for(const m of MAPVOTE_MODES){ if(m.id === modeId){ ok = true; break; } }
   if(!ok) return;
+  if(modeId === 'freeze' || modeId === 'infection'){ toast('❄️🧟 THAT MODE IS COMING SOON!'); sfx('back'); return; }
   const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
   const isGuest = isOnline && !NET.isHost;
   if(menu.tab === 'solo' && modeId !== 'party'){ toast('🤖 SOLO STAYS FFA'); sfx('back'); return; }
@@ -14978,15 +14979,20 @@ function drawModePopup(){
     const ry = py + 44 + i * (rowH + 6);
     const cnt = (M.counts && M.counts[md.id]) || 0;
     const mine = (myMode === md.id);
+    const soon = (md.id === 'freeze' || md.id === 'infection');
     rr(g, px + 12, ry, pw - 24, rowH, 8);
-    g.fillStyle = mine ? 'rgba(46,204,113,0.25)' : 'rgba(255,255,255,0.06)';
+    g.fillStyle = soon ? 'rgba(255,255,255,0.03)' : (mine ? 'rgba(46,204,113,0.25)' : 'rgba(255,255,255,0.06)');
     g.fill();
-    g.lineWidth = mine ? 2.5 : 1.2;
-    g.strokeStyle = mine ? '#2ecc71' : 'rgba(255,255,255,0.2)';
+    g.lineWidth = mine && !soon ? 2.5 : 1.2;
+    g.strokeStyle = mine && !soon ? '#2ecc71' : 'rgba(255,255,255,0.2)';
     g.stroke();
-    txt(md.icon + '  ' + md.label, px + 24, ry + rowH / 2 + 1, FN(13, 900), '#ffffff', 'left');
-    txt(cnt ? ('×' + cnt) : '', px + pw - 24, ry + rowH / 2 + 1, FN(13, 900), '#ffd166', 'right');
-    zone(px + 12, ry, pw - 24, rowH, { fn: (function(id){ return function(){ requestMode(myVoterId(), id); }; })(md.id) });
+    txt(md.icon + '  ' + md.label, px + 24, ry + rowH / 2 + 1, FN(13, 900), soon ? 'rgba(255,255,255,0.35)' : '#ffffff', 'left');
+    txt(soon ? 'COMING SOON' : (cnt ? ('×' + cnt) : ''), px + pw - 24, ry + rowH / 2 + 1, FN(soon ? 10 : 13, 900), soon ? '#ffd166' : '#ffd166', 'right');
+    if(soon){
+      zone(px + 12, ry, pw - 24, rowH, { fn: function(){ toast('❄️🧟 THAT MODE IS COMING SOON!'); sfx('back'); } });
+    } else {
+      zone(px + 12, ry, pw - 24, rowH, { fn: (function(id){ return function(){ requestMode(myVoterId(), id); }; })(md.id) });
+    }
     txt((i + 1) + '', px + pw - 14, ry - 2, FN(8, 800), 'rgba(255,255,255,0.35)', 'right');
   }
   const cy = py + ph - 40;
@@ -17220,6 +17226,7 @@ function netOnData(m, c){
     let ok = false;
     for(const md of MAPVOTE_MODES){ if(md.id === m.mode){ ok = true; break; } }
     if(!ok) return;
+    if(m.mode === 'freeze' || m.mode === 'infection') return;
     V.mseq++;
     V.modeReq[v] = { mode: m.mode, seq: V.mseq };
     sfx('ok');
