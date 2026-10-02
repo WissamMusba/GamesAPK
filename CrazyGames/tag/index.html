@@ -2233,6 +2233,183 @@ function validateHunterRoles(){
   updateElectedHuntersFromVotes();
 }
 
+/* ================= POST-GAME MAP VOTE + MODE REQUESTS =================
+   After a match: 3 map cards with live previews, one vote per human.
+   Highest count wins; ties go to whichever map reached the count FIRST
+   (the Nth-vote sequence number decides). Zero votes => random pick.
+   Mode requests work the same way (earliest request wins ties, else current).
+   Online: host owns the state and broadcasts; guests send votes. */
+const MAPVOTE_MODES = [
+  {id:'party', icon:'👥', label:'PARTY'},
+  {id:'teams', icon:'⚔️', label:'TEAMS'},
+  {id:'hunter', icon:'🎯', label:'HUNTER'},
+  {id:'freeze', icon:'❄️', label:'FREEZE'},
+  {id:'infection', icon:'🧟', label:'INFECTION'},
+  {id:'bomb', icon:'💣', label:'BOMB'},
+  {id:'crown', icon:'👑', label:'CROWN'}
+];
+function mapVoteVoters(){
+  const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
+  if(isOnline){
+    if(!NET.isHost) return [(NET.mySlot != null ? NET.mySlot : -1)];
+    const r = [];
+    const act = (typeof activeSlots === 'function') ? activeSlots() : [];
+    for(const s of act){
+      if(NET.botSlots && NET.botSlots.indexOf(s) >= 0) continue;
+      r.push(s);
+    }
+    return r;
+  }
+  let humans = [];
+  try{ humans = activeSlots().filter(function(s){ return !isSlotBot(s); }); }catch(e){ humans = [0]; }
+  return humans.length ? ['L'] : [];
+}
+function myVoterId(){
+  const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
+  if(isOnline) return (NET.mySlot != null ? NET.mySlot : -1);
+  return 'L';
+}
+function initMapVote(){
+  const opts = [];
+  const tried = {};
+  tried[settings.map] = true;
+  let guard = 0;
+  while(opts.length < 3 && guard++ < 60){
+    const m = Math.floor(Math.random() * MAPS.length);
+    if(tried[m]) continue;
+    tried[m] = true;
+    opts.push(m);
+  }
+  for(let m = 0; m < MAPS.length && opts.length < 3; m++){
+    if(opts.indexOf(m) < 0) opts.push(m);
+  }
+  const voters = mapVoteVoters();
+  menu.mapVote = { mid: matchIndex, opts: opts, votes: {}, seq: 0,
+    modeReq: {}, mseq: 0, t: voters.length ? 20 : 6, decided: false, syncT: 0 };
+  menu.modePopup = false;
+  const isHost = (typeof NET !== 'undefined' && NET && NET.role !== null && NET.isHost);
+  if(isHost) broadcastMapVote();
+}
+function broadcastMapVote(){
+  if(typeof NET === 'undefined' || !NET || !NET.isHost) return;
+  if(!menu.mapVote) return;
+  try{ netBroadcastReliable({ t: 'mapvote_sync', vote: menu.mapVote }); }catch(e){}
+}
+function castMapVote(voter, pick){
+  const V = menu.mapVote;
+  if(!V || V.decided || V.opts.length < 3) return;
+  pick = pick | 0;
+  if(pick < 0 || pick > 2) return;
+  const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
+  const isGuest = isOnline && !NET.isHost;
+  if(isGuest){
+    V.votes[voter] = { pick: pick, seq: -1 };
+    try{ for(const pair of NET.conns.values()) netSendRel(pair, { t: 'map_vote', voter: voter, pick: pick }); }catch(e){}
+    sfx('ui');
+    return;
+  }
+  if(mapVoteVoters().indexOf(voter) < 0) return;
+  V.seq++;
+  V.votes[voter] = { pick: pick, seq: V.seq };
+  sfx('ui');
+  broadcastMapVote();
+}
+function requestMode(voter, modeId){
+  const V = menu.mapVote;
+  if(!V || V.decided) return;
+  let ok = false;
+  for(const m of MAPVOTE_MODES){ if(m.id === modeId){ ok = true; break; } }
+  if(!ok) return;
+  const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
+  const isGuest = isOnline && !NET.isHost;
+  if(menu.tab === 'solo' && modeId !== 'party'){ toast('🤖 SOLO STAYS FFA'); sfx('back'); return; }
+  if(menu.tab === 'bots' && ['party','freeze','infection','bomb','crown'].indexOf(modeId) < 0){ toast('🤖 WATCH: FFA MODES ONLY'); sfx('back'); return; }
+  if(isGuest){
+    V.modeReq[voter] = { mode: modeId, seq: -1 };
+    try{ for(const pair of NET.conns.values()) netSendRel(pair, { t: 'mode_request', voter: voter, mode: modeId }); }catch(e){}
+    sfx('ok');
+    toast('📣 REQUESTED ' + modeId.toUpperCase() + '!');
+    return;
+  }
+  if(mapVoteVoters().indexOf(voter) < 0) return;
+  V.mseq++;
+  V.modeReq[voter] = { mode: modeId, seq: V.mseq };
+  sfx('ok');
+  toast('📣 REQUESTED ' + modeId.toUpperCase() + '!');
+  broadcastMapVote();
+}
+function tallyMapVote(){
+  const V = menu.mapVote;
+  const counts = [0, 0, 0], last = [-1, -1, -1];
+  if(V){
+    for(const k of Object.keys(V.votes || {})){
+      const o = V.votes[k];
+      if(!o) continue;
+      const pk = o.pick | 0;
+      if(pk < 0 || pk > 2) continue;
+      counts[pk]++;
+      const sq = (o.seq == null ? -1 : o.seq) | 0;
+      if(sq > last[pk]) last[pk] = sq;
+    }
+  }
+  let best = 0;
+  for(let i = 1; i < 3; i++){
+    if(counts[i] > counts[best] || (counts[i] === counts[best] && last[i] < last[best])) best = i;
+  }
+  return { counts: counts, best: best, total: counts[0] + counts[1] + counts[2] };
+}
+function tallyModeReq(){
+  const V = menu.mapVote;
+  const counts = {}, first = {};
+  if(V){
+    for(const k of Object.keys(V.modeReq || {})){
+      const o = V.modeReq[k];
+      if(!o || !o.mode) continue;
+      counts[o.mode] = (counts[o.mode] || 0) + 1;
+      const sq = (o.seq == null ? -1 : o.seq) | 0;
+      if(first[o.mode] == null || sq < first[o.mode]) first[o.mode] = sq;
+    }
+  }
+  let best = null, bn = 0, bf = 1e12;
+  for(const k of Object.keys(counts)){
+    if(counts[k] > bn || (counts[k] === bn && first[k] < bf)){ bn = counts[k]; bf = first[k]; best = k; }
+  }
+  return { counts: counts, best: best, total: bn };
+}
+function decideMapVote(){
+  const V = menu.mapVote;
+  if(!V || V.decided) return;
+  const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
+  if(isOnline && !NET.isHost) return;
+  V.decided = true;
+  const T = tallyMapVote();
+  let bi;
+  if(T.total === 0 || V.opts.length < 3){
+    bi = Math.floor(Math.random() * Math.max(1, V.opts.length));
+    toast('🎲 NO VOTES — RANDOM MAP!');
+  } else {
+    bi = T.best;
+  }
+  const mapIdx = V.opts[bi] != null ? V.opts[bi] : settings.map;
+  const M = tallyModeReq();
+  let modeId = (M.best && M.total > 0) ? M.best : settings.gameMode;
+  settings.map = ((mapIdx % MAPS.length) + MAPS.length) % MAPS.length;
+  if(modeId && modeId !== settings.gameMode){
+    if(modeId === 'hunter' && activeSlots().length < 4){
+      toast('🎯 HUNTER NEEDS 4+ PLAYERS — MODE UNCHANGED');
+    } else {
+      setGameMode(modeId);
+    }
+  }
+  buildLevel();
+  const mname = MAPS[settings.map].name;
+  toast('🗺️ ' + mname + ' WINS!' + (T.total ? (' (' + T.counts[bi] + ' VOTE' + (T.counts[bi] === 1 ? '' : 'S') + ')') : ''));
+  sfx('go');
+  menu.mapVote = null;
+  menu.modePopup = false;
+  startMatch();
+}
+
 function setTeamHunterChoice(teamIdx, cand){
   const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
   const teamSlots = activeSlots().filter(s => ((menu.slotTeam ? menu.slotTeam[s] : s) % 2) === teamIdx);
@@ -7151,6 +7328,8 @@ function startMatch(){
     tags:players.map(()=>0),hintT:7,players:players,result:null,roundSummary:null,pausedFrom:null,pauseSel:0,
     mapToast:(settings.randomMap?('🎲 RANDOM: '+MAPS[settings.map].name):MAPS[settings.map].name),mapToastT:2.5};
   try{botReset();}catch(e){}
+  menu.mapVote = null;
+  menu.modePopup = false;
   if(settings.gameMode === 'infection'){
     if(typeof initInfectionMode === 'function') initInfectionMode();
   } else if(settings.gameMode === 'bomb'){
@@ -10115,7 +10294,7 @@ function selectMapQuick(idx){
 
 function updateGame(dt){
   if(!match)return;
-  if(anyPressed(['KeyM']))toggleSound();
+  if(anyPressed(['KeyM']) && (!match || match.state !== 'result'))toggleSound();
   // Fullscreen was on F — that collides with TFGH left (F). O is free in-game (O is font-prev only in menu).
   if(anyPressed(['KeyO']))toggleFullscreen();
   if(anyPressed(['KeyP']))togglePause();
@@ -10147,30 +10326,78 @@ function updateGame(dt){
   if(match.state==='result'){
     match.resultT+=dt;
     const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
+    const isHost = isOnline && NET.isHost, isGuest = isOnline && !NET.isHost;
+    const joiner = !!(isHost && NET.midgameJoiner);
+    // post-game map vote replaces instant rematch / 5s lobby return
+    if(!joiner){
+      if(!menu.mapVote || menu.mapVote.mid !== matchIndex){
+        if(isGuest){
+          menu.mapVote = { mid: matchIndex, opts: [], votes: {}, seq: 0, modeReq: {}, mseq: 0, t: 20, decided: false, waiting: true };
+        } else {
+          initMapVote();
+        }
+      }
+    }
+    const V = menu.mapVote;
+    if(V && !V.decided && !joiner){
+      V.t -= dt;
+      if(!isGuest){
+        const voters = mapVoteVoters();
+        const voted = voters.filter(function(v){ return V.votes[v] != null; }).length;
+        if(voters.length && voted >= voters.length) V.t = Math.min(V.t, 2);
+        if(isHost){
+          V.syncT = (V.syncT || 0) + dt;
+          if(V.syncT >= 1){ V.syncT = 0; broadcastMapVote(); }
+        }
+        if(V.t <= 0){ decideMapVote(); return; }
+      }
+    }
     if(isOnline){
-      match.matchOverTimer = Math.max(0, (match.matchOverTimer != null ? match.matchOverTimer : 5.0) - dt);
-      if(match.matchOverTimer <= 0){
-        returnToLobby();
-        return;
+      if(joiner){
+        match.matchOverTimer = Math.max(0, (match.matchOverTimer != null ? match.matchOverTimer : 5.0) - dt);
+        if(match.matchOverTimer <= 0){
+          returnToLobby();
+          return;
+        }
+      } else if(!(V && !V.decided)){
+        match.matchOverTimer = Math.max(0, (match.matchOverTimer != null ? match.matchOverTimer : 5.0) - dt);
+        if(match.matchOverTimer <= 0){
+          returnToLobby();
+          return;
+        }
       }
     } else if(typeof NET!=='undefined' && NET && NET.isHost && NET.midgameJoiner && match.resultT >= 4.0){
       NET.midgameJoiner = false;
       quitToMenu();
       return;
     }
+    if(menu.modePopup){
+      for(let d = 1; d <= 7; d++){
+        if(pressed.has('Digit' + d)){
+          requestMode(myVoterId(), MAPVOTE_MODES[d - 1].id);
+          menu.modePopup = false;
+        }
+      }
+      if(anyPressed(['Escape','KeyM'])){ menu.modePopup = false; sfx('back'); }
+    } else {
+      if(pressed.has('Digit1')) castMapVote(myVoterId(), 0);
+      if(pressed.has('Digit2')) castMapVote(myVoterId(), 1);
+      if(pressed.has('Digit3')) castMapVote(myVoterId(), 2);
+      if(anyPressed(['KeyM']) && V && !V.decided){ menu.modePopup = true; sfx('ui'); }
+    }
     if(anyPressed(['Enter','NumpadEnter','Space'])){
-      if(isOnline){
-        returnToLobby();
+      if(isGuest || joiner){
         return;
       }
+      if(V && !V.decided){ decideMapVote(); return; }
+      if(isOnline){ returnToLobby(); return; }
       sfx('go');startMatch();
     }
     for(let i=0;i<4;i++){
       if(PAD[i]&&PAD[i].confirmE){
-        if(isOnline){
-          returnToLobby();
-          return;
-        }
+        if(isGuest || joiner){ continue; }
+        if(V && !V.decided){ decideMapVote(); return; }
+        if(isOnline){ returnToLobby(); return; }
         sfx('go');startMatch();
       }
     }
@@ -14573,10 +14800,175 @@ function drawPause(){
   }
 }
 
+/* Mini map preview rendered straight from MAPS data (no level rebuild). */
+function drawMapThumb(x, y, w, h, mapIdx, votes, leader, myPick){
+  const M = MAPS[((mapIdx % MAPS.length) + MAPS.length) % MAPS.length];
+  rr(g, x, y, w, h, 8);
+  g.fillStyle = 'rgba(8,12,22,0.95)';
+  g.fill();
+  g.lineWidth = leader ? 3 : 1.5;
+  g.strokeStyle = leader ? '#ffd166' : (myPick ? '#2ecc71' : 'rgba(255,255,255,0.25)');
+  g.stroke();
+  if(!M){ return; }
+  g.save();
+  rr(g, x, y, w, h, 8);
+  g.clip();
+  const s = Math.min(w / 2400, h / 1320);
+  const ox = x + (w - 2400 * s) / 2, oy = y + (h - 1320 * s) / 2;
+  const lists = [
+    [M.solids, '#5b6b8c'], [M.speeds, '#f5a623'],
+    [M.drops, '#f06292'], [M.boosts, '#4a90e2']
+  ];
+  for(const entry of lists){
+    g.fillStyle = entry[1];
+    const arr = entry[0] || [];
+    for(const a of arr){
+      g.fillRect(ox + a[0] * s, oy + a[1] * s, Math.max(1.5, a[2] * s), Math.max(1.5, a[3] * s));
+    }
+  }
+  g.restore();
+  // name scrim + vote pill
+  g.fillStyle = 'rgba(0,0,0,0.55)';
+  g.fillRect(x, y + h - 20, w, 20);
+  txt(M.name, x + w / 2, y + h - 10, FN(Math.min(11, w * 0.075), 900), '#ffffff');
+  const pillTxt = (leader ? '👑 ' : '') + '×' + votes;
+  g.font = FN(12, 900);
+  const ptw = g.measureText(pillTxt).width + 14;
+  const pxx = x + w - ptw - 5, pyy = y + 5;
+  rr(g, pxx, pyy, ptw, 18, 9);
+  g.fillStyle = leader ? 'rgba(255,209,102,0.92)' : 'rgba(0,0,0,0.6)';
+  g.fill();
+  txt(pillTxt, pxx + ptw / 2, pyy + 10, FN(11, 900), leader ? '#3a2c00' : '#ffffff');
+  if(myPick){
+    txt('✓ YOU', x + 6, y + 14, FN(10, 900), '#2ecc71', 'left');
+  }
+}
+/* Post-game voting panel: 3 map cards + mode button + skip/menu. Bottom-anchored. */
+function drawVotePanel(){
+  const V = menu.mapVote;
+  const bw = Math.min(560, CW - 20);
+  const bx = CW / 2 - bw / 2;
+  if(!V || !V.opts || V.opts.length < 3){
+    const wh = 52;
+    const wy = CH - wh - 10;
+    rr(g, bx, wy, bw, wh, 12);
+    g.fillStyle = 'rgba(20,28,42,0.94)'; g.fill();
+    g.lineWidth = 2; g.strokeStyle = 'rgba(255,255,255,0.25)'; g.stroke();
+    ptxt('⏳ WAITING FOR HOST…', CW / 2, wy + 27, FN(13, 900), '#cbd5e1');
+    return;
+  }
+  const T = tallyMapVote();
+  const M = tallyModeReq();
+  const gap = 10;
+  const tw = Math.min(170, (bw - 20 - gap * 2) / 3);
+  const th = tw * 0.55;
+  const dots = [];
+  for(const k of Object.keys(V.votes || {})){
+    const o = V.votes[k];
+    if(!o || o.pick == null) continue;
+    let col = '#ffffff';
+    if(k !== 'L'){
+      const slot = parseInt(k, 10);
+      const pl = match && match.players ? match.players.find(function(p){ return p.slot === slot; }) : null;
+      if(pl) col = getPlayerColor(pl);
+    }
+    dots.push(col);
+  }
+  const hTitle = 26, hThumbs = th + 26, hDots = dots.length ? 18 : 0, hMode = 24, hBtns = 40;
+  const totalH = hTitle + hThumbs + hDots + hMode + hBtns + 18;
+  const by = Math.max(8, CH - totalH - 8);
+  rr(g, bx, by, bw, totalH, 14);
+  g.fillStyle = 'rgba(20,28,42,0.96)'; g.fill();
+  g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
+  const tLeft = Math.max(0, Math.ceil(V.t));
+  ptxt('🗺️ VOTE NEXT MAP (' + tLeft + 's)', CW / 2, by + 14, FN(14, 900), '#ffd166');
+  const tx0 = CW / 2 - (tw * 3 + gap * 2) / 2;
+  const ty = by + hTitle;
+  const me = myVoterId();
+  const myPick = (V.votes[me] != null) ? (V.votes[me].pick | 0) : -1;
+  for(let i = 0; i < 3; i++){
+    const cx = tx0 + i * (tw + gap);
+    const leader = (T.total > 0 && T.best === i);
+    drawMapThumb(cx, ty, tw, th, V.opts[i], T.counts[i], leader, myPick === i);
+    zone(cx - 2, ty - 2, tw + 4, th + 26, { fn: (function(idx){ return function(){ castMapVote(myVoterId(), idx); }; })(i) });
+    txt((i + 1) + '', cx + tw / 2, ty + th + 12, FN(10, 800), 'rgba(255,255,255,0.5)');
+  }
+  let by2 = ty + hThumbs;
+  if(dots.length){
+    const dx0 = CW / 2 - (Math.min(dots.length, 12) * 14) / 2;
+    for(let d = 0; d < dots.length && d < 12; d++){
+      g.beginPath();
+      g.arc(dx0 + d * 14 + 7, by2 + 7, 5, 0, TAU);
+      g.fillStyle = dots[d];
+      g.fill();
+    }
+    by2 += 18;
+  }
+  let modeLine = '🎮 MODE: ' + settings.gameMode.toUpperCase() + '  •  no requests yet — tap MODE to change';
+  if(M.best && M.total > 0){
+    let icon = '';
+    for(const mm of MAPVOTE_MODES){ if(mm.id === M.best) icon = mm.icon; }
+    modeLine = '🎮 MODE: ' + icon + ' ' + M.best.toUpperCase() + ' ×' + M.total + '  •  tap MODE to change';
+  }
+  txt(modeLine, CW / 2, by2 + 8, FN(11, 800), '#cbd5e1');
+  by2 += 24;
+  const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
+  const isGuest = isOnline && !NET.isHost;
+  const bH = 34;
+  const bModeW = 150, bSkipW = 130, bMenuW = 110;
+  const bTotal = bModeW + 10 + (isGuest ? 0 : bSkipW + 10) + bMenuW;
+  let sx = CW / 2 - bTotal / 2;
+  simpleButton(sx, by2, bModeW, bH, '🎮 MODE', function(){ menu.modePopup = true; sfx('ui'); }, null, '#8b5cf6');
+  sx += bModeW + 10;
+  if(!isGuest){
+    simpleButton(sx, by2, bSkipW, bH, '⏭ START NOW', function(){ decideMapVote(); }, null, '#2ecc71');
+    sx += bSkipW + 10;
+  }
+  simpleButton(sx, by2, bMenuW, bH, isOnline ? '🚪 QUIT' : 'MENU', function(){ quitToMenu(); }, null, '#475569');
+}
+/* Mode request popup: 7 modes with live request counts. */
+function drawModePopup(){
+  if(!menu.modePopup) return;
+  const V = menu.mapVote;
+  g.fillStyle = 'rgba(0,0,0,0.6)';
+  g.fillRect(0, 0, CW, CH);
+  const pw = Math.min(420, CW - 40);
+  const rowH = 36;
+  const ph = 52 + MAPVOTE_MODES.length * (rowH + 6) + 52;
+  const px = CW / 2 - pw / 2, py = CH / 2 - ph / 2;
+  rr(g, px, py, pw, ph, 14);
+  g.fillStyle = 'rgba(20,28,42,0.97)';
+  g.fill();
+  g.lineWidth = 2.5; g.strokeStyle = '#8b5cf6'; g.stroke();
+  ptxt('🎮 REQUEST NEXT MODE', CW / 2, py + 22, FN(15, 900), '#ffffff');
+  zone(0, 0, CW, CH, { fn: function(){ menu.modePopup = false; } });
+  const M = tallyModeReq();
+  const me = myVoterId();
+  const myMode = (V && V.modeReq[me]) ? V.modeReq[me].mode : null;
+  for(let i = 0; i < MAPVOTE_MODES.length; i++){
+    const md = MAPVOTE_MODES[i];
+    const ry = py + 44 + i * (rowH + 6);
+    const cnt = (M.counts && M.counts[md.id]) || 0;
+    const mine = (myMode === md.id);
+    rr(g, px + 12, ry, pw - 24, rowH, 8);
+    g.fillStyle = mine ? 'rgba(46,204,113,0.25)' : 'rgba(255,255,255,0.06)';
+    g.fill();
+    g.lineWidth = mine ? 2.5 : 1.2;
+    g.strokeStyle = mine ? '#2ecc71' : 'rgba(255,255,255,0.2)';
+    g.stroke();
+    txt(md.icon + '  ' + md.label, px + 24, ry + rowH / 2 + 1, FN(13, 900), '#ffffff', 'left');
+    txt(cnt ? ('×' + cnt) : '', px + pw - 24, ry + rowH / 2 + 1, FN(13, 900), '#ffd166', 'right');
+    zone(px + 12, ry, pw - 24, rowH, { fn: (function(id){ return function(){ requestMode(myVoterId(), id); }; })(md.id) });
+    txt((i + 1) + '', px + pw - 14, ry - 2, FN(8, 800), 'rgba(255,255,255,0.35)', 'right');
+  }
+  const cy = py + ph - 40;
+  simpleButton(CW / 2 - 70, cy, 140, 32, 'CLOSE', function(){ menu.modePopup = false; sfx('back'); }, null, '#475569');
+}
 function drawResult(){
   g.fillStyle='rgba(10,16,24,0.72)';g.fillRect(0,0,CW,CH);
   if(!isTouch){
     zone(0,0,CW,CH,{fn:()=>{
+      if(menu.mapVote && !menu.mapVote.decided) return;
       if(typeof NET!=='undefined' && NET && NET.role!==null){
         if(!NET.isHost) return;
         if(NET.midgameJoiner){
@@ -14671,46 +15063,11 @@ function drawResult(){
     if(P[loser]) drawChar(g,CW/2+psz*1.4,py+ph*0.48,psz,getPlayerColor(P[loser]),{face:'sad',fdir:-1,tilt:-0.06,grounded:true,seed:5});
   }
   txt('TAGS - '+P.map((p,i)=>'P'+(i+1)+': '+match.tags[i]).join('  •  '),CW/2,py+ph*0.66,FN(13,900),'#cfe9d6');
-  const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
-  const lobbySec = Math.max(0, Math.ceil(match.matchOverTimer != null ? match.matchOverTimer : 5));
-  const btnH = (CH < 540) ? 34 : 38;
-  const btnY = py + ph - btnH - 12;
-  const b3 = Math.min(180, (pw - 56) / 3);
-  const sx0 = CW / 2 - (3 * b3 + 28) / 2;
   const _cl = (typeof careerLine === 'function') ? careerLine() : '';
   if(_cl) txt(_cl, CW/2, py+ph*0.66 + 22, FN(11, 800), '#ffd166');
-  if(isOnline){
-    const btnW = Math.min(220, (pw - 40) / 2);
-    simpleButton(CW / 2 - btnW - 8, btnY, btnW, btnH, '⏳ LOBBY (' + lobbySec + 's)', () => {
-      returnToLobby();
-    }, null, '#8b5cf6');
-    simpleButton(CW / 2 + 8, btnY, btnW, btnH, '🚪 QUIT ROOM', () => {
-      quitToMenu();
-    }, null, '#475569');
-  } else {
-    simpleButton(sx0,btnY,b3,btnH,'NEXT MAP',()=>{
-      if(typeof NET!=='undefined' && NET && NET.role!==null && !NET.isHost){ toast('HOST CHOOSES MAP'); return; }
-      if(typeof NET!=='undefined' && NET && NET.isHost && NET.midgameJoiner){
-        NET.midgameJoiner = false;
-        quitToMenu();
-        return;
-      }
-      sfx('ui');selectMapQuick(settings.map+1);
-    }, null, '#3b82f6');
-    simpleButton(sx0+b3+14,btnY,b3,btnH,'PLAY AGAIN',()=>{
-      if(typeof NET!=='undefined' && NET && NET.role!==null && !NET.isHost){ toast('HOST RESTARTS THE MATCH'); return; }
-      if(typeof NET!=='undefined' && NET && NET.isHost && NET.midgameJoiner){
-        NET.midgameJoiner = false;
-        quitToMenu();
-        return;
-      }
-      sfx('go');startMatch();
-    }, null, '#2ecc71');
-    simpleButton(sx0+2*(b3+14),btnY,b3,btnH,'MENU',()=>{
-      quitToMenu();
-    }, null, '#475569');
-  }
   g.restore();
+  drawVotePanel();
+  drawModePopup();
 }
 
 function drawGame(){
@@ -16814,6 +17171,35 @@ function netOnData(m, c){
       match.hunterRed = settings.hunterRed;
       match.hunterBlue = settings.hunterBlue;
     }
+  } else if(m.t === 'map_vote' && NET.isHost){
+    const V = menu.mapVote;
+    if(!V || V.decided || !match || match.state !== 'result') return;
+    const v = m.voter | 0;
+    if(!(v >= 0 && v < 8) || menu.slotColor[v] < 0) return;
+    if(NET.botSlots && NET.botSlots.indexOf(v) >= 0) return;
+    const pk = m.pick | 0;
+    if(pk < 0 || pk > 2 || !V.opts || V.opts.length < 3) return;
+    V.seq++;
+    V.votes[v] = { pick: pk, seq: V.seq };
+    sfx('ui');
+    broadcastMapVote();
+  } else if(m.t === 'mode_request' && NET.isHost){
+    const V = menu.mapVote;
+    if(!V || V.decided || !match || match.state !== 'result') return;
+    const v = m.voter | 0;
+    if(!(v >= 0 && v < 8) || menu.slotColor[v] < 0) return;
+    if(NET.botSlots && NET.botSlots.indexOf(v) >= 0) return;
+    let ok = false;
+    for(const md of MAPVOTE_MODES){ if(md.id === m.mode){ ok = true; break; } }
+    if(!ok) return;
+    V.mseq++;
+    V.modeReq[v] = { mode: m.mode, seq: V.mseq };
+    sfx('ok');
+    broadcastMapVote();
+  } else if(m.t === 'mapvote_sync' && !NET.isHost){
+    if(m.vote && match && match.state === 'result'){
+      menu.mapVote = m.vote;
+    }
   } else if(m.t === 'set_hunter' && NET.isHost){
     if(!NET.teamsLocked && m.slot >= 0 && m.slot < 8 && menu.slotColor[m.slot] >= 0){
       if(match && (match.state === 'playing' || match.state === 'countdown' || match.state === 'paused')) return;
@@ -17908,6 +18294,8 @@ function startMatchNetGuest(p){
     menu.hunterHistory = { ...p.hunterHistory };
   }
   menu.hunterVotes = {};
+  menu.mapVote = null;
+  menu.modePopup = false;
   match = {
     state: initState,
     cd: p.cd != null ? p.cd : 3,
@@ -18141,7 +18529,7 @@ function frame(now){
         }
         checkTag();
         if(typeof updateVoiceProximity === 'function') updateVoiceProximity(dt);
-        if(anyPressed(['KeyM'])) toggleSound();
+        if(anyPressed(['KeyM']) && (!match || match.state !== 'result')) toggleSound();
         if(anyPressed(['KeyO'])) toggleFullscreen();
         updateCam(dt);
         updateParts(dt);
@@ -18150,7 +18538,30 @@ function frame(now){
         match.flash = Math.max(0, (match.flash || 0) - dt);
         match.fade = Math.max(0, (match.fade || 0) - dt);
         match.shake = (match.shake || 0) * Math.exp(-dt * 7);
-        if(match.state === 'result'){ match.resultT = (match.resultT || 0) + dt; }
+        if(match.state === 'result'){
+          match.resultT = (match.resultT || 0) + dt;
+          if(!menu.mapVote || menu.mapVote.mid !== matchIndex){
+            menu.mapVote = { mid: matchIndex, opts: [], votes: {}, seq: 0, modeReq: {}, mseq: 0, t: 20, decided: false, waiting: true };
+          }
+          const GV = menu.mapVote;
+          if(GV && !GV.decided){
+            GV.t -= dt;
+            if(menu.modePopup){
+              for(let d = 1; d <= 7; d++){
+                if(pressed.has('Digit' + d)){
+                  requestMode(myVoterId(), MAPVOTE_MODES[d - 1].id);
+                  menu.modePopup = false;
+                }
+              }
+              if(anyPressed(['Escape','KeyM'])){ menu.modePopup = false; sfx('back'); }
+            } else {
+              if(pressed.has('Digit1')) castMapVote(myVoterId(), 0);
+              if(pressed.has('Digit2')) castMapVote(myVoterId(), 1);
+              if(pressed.has('Digit3')) castMapVote(myVoterId(), 2);
+              if(anyPressed(['KeyM']) && GV && !GV.decided){ menu.modePopup = true; sfx('ui'); }
+            }
+          }
+        }
       } // end freeze gate
     } else {
       update(dt);
