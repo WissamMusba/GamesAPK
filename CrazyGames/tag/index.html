@@ -861,7 +861,7 @@ const CG={
         }
       }catch(e){}
       let urlRoom='';
-      try{urlRoom=(new URLSearchParams(location.search).get('room')||'');}catch(e){}
+      try{const p=new URLSearchParams(location.search); urlRoom=(p.get('room')||p.get('roomId')||'');}catch(e){}
       if(invRoom&&!urlRoom){
         setTimeout(()=>{try{
           if(typeof NET!=='undefined'&&NET&&NET.role!==null)return;
@@ -874,7 +874,7 @@ const CG={
           setTimeout(()=>{try{
             if(typeof NET!=='undefined'&&NET&&NET.role!==null)return;
             if(typeof screen!=='undefined'&&screen!=='menu')return;
-            let q='';try{q=(new URLSearchParams(location.search).get('room')||'');}catch(e){}
+            let q='';try{const p=new URLSearchParams(location.search); q=(p.get('room')||p.get('roomId')||'');}catch(e){}
             if(q)return;
             if(typeof netHostAction==='function')netHostAction(false);
           }catch(e){}},800);
@@ -3562,232 +3562,13 @@ var initCrownMode, updateCrownMode, checkCrownTag, drawCrownUI, drawCrownPlayer,
    * Returns: { dir: -1|0|1, jumpEdge: bool, jumpHeld: bool, downHeld: bool }
    */
   function infectionBotThink(p, dt) {
-    if (!p) return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
-    const match = Imatch();
-    if (!match || !match.players) return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
-
-    const stepDt = (typeof dt === 'number' && dt > 0) ? Math.min(0.05, dt) : 0.016;
-    const cx = p.x + p.w / 2;
-    const cy = p.y + p.h / 2;
-    const W = typeof gScope.W === 'number' ? gScope.W : 2400;
-    const H = typeof gScope.H === 'number' ? gScope.H : 1320;
-    const WALL = typeof gScope.WALL === 'number' ? gScope.WALL : 60;
-    const solids = Isolids();
-
-    // Initialize bot state tracking if missing
-    if (!p._botInfState) {
-      p._botInfState = {
-        dir: 0,
-        jumpQ: false,
-        jumpHoldT: 0,
-        decideT: 0,
-        pinkDropT: 0,
-        highGroundT: 0
-      };
-    }
-    const S = p._botInfState;
-    S.decideT -= stepDt;
-    if (S.pinkDropT > 0) S.pinkDropT -= stepDt;
-    if (S.jumpHoldT > 0) S.jumpHoldT -= stepDt;
-
-    // --------------------------------------------------------------------------
-    // A. ZOMBIE BOT AI (Swarm & Coordinated Pincer Flank)
-    // --------------------------------------------------------------------------
-    if (p.isInfected) {
-      const survivors = match.players.filter(s => !s.isInfected && !s.isEliminated);
-      if (survivors.length === 0) {
-        return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
-      }
-
-      // 1. Pick target survivor (closest overall)
-      let bestDistSq = 1e12;
-      let target = survivors[0];
-      for (const s of survivors) {
-        const dSq = (s.x - cx) ** 2 + (s.y - cy) ** 2;
-        if (dSq < bestDistSq) {
-          bestDistSq = dSq;
-          target = s;
-        }
-      }
-
-      const tx = target.x + target.w / 2;
-      const ty = target.y + target.h / 2;
-      const dx = tx - cx;
-      const dy = ty - cy;
-
-      // 2. Coordinated Pincer Flank when 2+ zombies exist
-      const activeZombies = match.players.filter(z => z.isInfected && !z.isEliminated);
-      let isFlanker = false;
-      let flankTargetX = tx;
-
-      if (activeZombies.length >= 2) {
-        // Sort zombies by distance to target survivor
-        const sortedZombies = activeZombies.slice().sort((a, b) => {
-          const da = (a.x - tx) ** 2 + (a.y - ty) ** 2;
-          const db = (b.x - tx) ** 2 + (b.y - ty) ** 2;
-          return da - db;
-        });
-
-        const primaryChaser = sortedZombies[0];
-        if (p !== primaryChaser) {
-          isFlanker = true;
-          // Flanker aims for the opposite flank to pinch survivor between zombies
-          const chaserDx = primaryChaser.x - tx;
-          const pinchOffset = (chaserDx < 0) ? 140 : -140;
-          flankTargetX = clamp(tx + pinchOffset, WALL + 50, W - WALL - 50);
-        }
-      }
-
-      const aimX = isFlanker ? flankTargetX : tx;
-      const steerDx = aimX - cx;
-      let wantDir = Math.abs(steerDx) > 14 ? Math.sign(steerDx) : (Math.sign(dx) || 1);
-
-      // Jump & Pink drop navigation
-      let jumpEdge = false;
-      let downHeld = false;
-
-      // If survivor is below on a lower tier and zombie is on a pink drop platform -> DROP!
-      const onPinkDrop = typeof gScope.botFullyOnDrop === 'function' ? gScope.botFullyOnDrop(p) : (p.gp && p.gp.t === 'drop');
-      if (onPinkDrop && dy > 45 && Math.abs(dx) < 240) {
-        downHeld = true;
-      }
-
-      // Jump over obstacles / walls
-      const wallAhead = typeof gScope.botWallAhead === 'function' ? gScope.botWallAhead(p, wantDir, 45) : false;
-      const groundAhead = typeof gScope.botGroundAhead === 'function' ? gScope.botGroundAhead(p, wantDir, 65) : true;
-      const headBlocked = typeof gScope.botSolidBetween === 'function' ? gScope.botSolidBetween(cx, p.y - 4, cx, p.y - 120, p.gp) : false;
-
-      if (p.grounded) {
-        if (wallAhead && !headBlocked) {
-          jumpEdge = true;
-          S.jumpHoldT = 0.14;
-        } else if (!groundAhead && Math.abs(dx) > 60) {
-          // Leap across gap
-          jumpEdge = true;
-          S.jumpHoldT = 0.15;
-        } else if (dy < -50 && Math.abs(dx) < 220 && !headBlocked) {
-          // Survivor is on high ground -> jump to scale platform!
-          jumpEdge = true;
-          S.jumpHoldT = p.isPatientZero ? 0.18 : 0.14;
-        }
-      } else {
-        // Airborne: Wall kick or double jump
-        if (p.sideT > 0 && p.wallJumps < 2) {
-          jumpEdge = true;
-          S.jumpHoldT = 0.14;
-        } else if (p.airJumps > 0 && dy < -40 && p.vy > -80) {
-          // Double jump apex chaining
-          jumpEdge = true;
-          S.jumpHoldT = 0.14;
-        }
-      }
-
-      S.dir = wantDir;
-      return {
-        dir: wantDir,
-        jumpEdge: jumpEdge,
-        jumpHeld: jumpEdge || (S.jumpHoldT > 0),
-        downHeld: downHeld
-      };
-    }
-
-    // --------------------------------------------------------------------------
-    // B. SURVIVOR BOT AI (Flee, Seek High Ground & Pink Drops)
-    // --------------------------------------------------------------------------
-    const activeZombies = match.players.filter(z => z.isInfected && !z.isEliminated);
-    if (activeZombies.length === 0) {
+    if (!p || p.isEliminated || p.isFrozen) {
       return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
     }
-
-    // 1. Calculate weighted repulsion vector from all zombies
-    let repelX = 0, repelY = 0;
-    let nearestZombieDist = 1e12;
-    let nearestZombie = activeZombies[0];
-
-    for (const z of activeZombies) {
-      const zx = z.x + z.w / 2;
-      const zy = z.y + z.h / 2;
-      const dist = Math.hypot(cx - zx, cy - zy);
-      if (dist < nearestZombieDist) {
-        nearestZombieDist = dist;
-        nearestZombie = z;
-      }
-      const weight = 1200 / Math.max(35, dist);
-      repelX += ((cx - zx) / (dist || 1)) * weight;
-      repelY += ((cy - zy) / (dist || 1)) * weight;
+    if (typeof botInputFor === 'function') {
+      return botInputFor(p, dt);
     }
-
-    const nzx = nearestZombie.x + nearestZombie.w / 2;
-    const nzy = nearestZombie.y + nearestZombie.h / 2;
-    const ndx = nzx - cx;
-    const ndy = nzy - cy;
-
-    let wantDir = Math.abs(repelX) > 0.5 ? Math.sign(repelX) : (-Math.sign(ndx) || 1);
-
-    // Turn away from perimeter walls to avoid being cornered
-    if (cx <= WALL + 100 && wantDir < 0) wantDir = 1;
-    if (cx >= W - WALL - 100 && wantDir > 0) wantDir = -1;
-
-    let jumpEdge = false;
-    let downHeld = false;
-
-    // 2. High Ground Seeking & Zoning:
-    // If nearest zombie is below, hold upper platform!
-    const zombieBelow = (nzy > cy + 65);
-    const onSolidHighPlat = p.grounded && p.gp && p.gp.t !== 'drop';
-
-    if (zombieBelow && onSolidHighPlat && nearestZombieDist > 160) {
-      // Hold high ground: stay safely away from platform drop edges
-      const platL = p.gp.x, platR = p.gp.x + p.gp.w;
-      if (p.x < platL + 40 && wantDir < 0) wantDir = 1;
-      if (p.x + p.w > platR - 40 && wantDir > 0) wantDir = -1;
-      downHeld = false;
-    } else if (!zombieBelow && nearestZombieDist < 280) {
-      // Zombie is on same tier or above: jump to higher ground!
-      if (p.grounded) {
-        jumpEdge = true;
-        S.jumpHoldT = 0.15;
-      }
-    }
-
-    // 3. Pink Platform Juke & Drop:
-    // If standing on a pink platform and zombie is sprinting on the same tier, drop through!
-    const onPinkDrop = typeof gScope.botFullyOnDrop === 'function' ? gScope.botFullyOnDrop(p) : (p.gp && p.gp.t === 'drop');
-    if (onPinkDrop && Math.abs(ndy) < 70 && nearestZombieDist < 200 && S.pinkDropT <= 0) {
-      downHeld = true;
-      S.pinkDropT = 1.8; // Cooldown between intentional drops
-    }
-
-    // 4. Corner Wall-Jump Flank:
-    const cornerL = (p.x <= WALL + 90 && ndx > 0);
-    const cornerR = (p.x + p.w >= W - WALL - 90 && ndx < 0);
-    if ((cornerL || cornerR) && nearestZombieDist < 260) {
-      // Leap overhead to wall-kick reverse over approaching zombie
-      if (p.grounded || p.sideT > 0) {
-        jumpEdge = true;
-        S.jumpHoldT = 0.16;
-        wantDir = cornerL ? 1 : -1;
-      }
-    }
-
-    // 5. Gap / Wall clearing
-    const wallAhead = typeof gScope.botWallAhead === 'function' ? gScope.botWallAhead(p, wantDir, 40) : false;
-    const groundAhead = typeof gScope.botGroundAhead === 'function' ? gScope.botGroundAhead(p, wantDir, 70) : true;
-    if (p.grounded && (wallAhead || !groundAhead)) {
-      jumpEdge = true;
-      S.jumpHoldT = 0.14;
-    } else if (!p.grounded && p.airJumps > 0 && p.vy > 40) {
-      jumpEdge = true;
-      S.jumpHoldT = 0.13;
-    }
-
-    S.dir = wantDir;
-    return {
-      dir: wantDir,
-      jumpEdge: jumpEdge,
-      jumpHeld: jumpEdge || (S.jumpHoldT > 0),
-      downHeld: downHeld
-    };
+    return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
   }
 
   // ============================================================================
@@ -5299,199 +5080,10 @@ var initCrownMode, updateCrownMode, checkCrownTag, drawCrownUI, drawCrownPlayer,
     if (!p || p.isEliminated || p.isFrozen) {
       return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
     }
-
-    const P = (typeof match !== 'undefined' && match && match.players) ? match.players : [];
-    const pIdx = P.indexOf(p);
-    const isCarrier = (pIdx === BOMB_MODE.carrierIdx);
-    const cx = p.x + p.w / 2;
-    const cy = p.y + p.h / 2;
-    const solids = (typeof SOLIDS !== 'undefined' && Array.isArray(SOLIDS)) ? SOLIDS : [];
-
-    let wantDir = 0;
-    let wantJumpEdge = false;
-    let wantJumpHeld = false;
-    let wantDown = false;
-
-    // -------------------------------------------------------------
-    // CASE 1: BOT IS THE BOMB CARRIER (High-Aggression Pursuit)
-    // -------------------------------------------------------------
-    if (isCarrier) {
-      // 1. Target Selection: Find the closest non-eliminated runner WITHOUT anti-retag shield
-      let bestTarget = null;
-      let minScore = 1e12;
-
-      for (let j = 0; j < P.length; j++) {
-        if (j === pIdx) continue;
-        const o = P[j];
-        if (!o || o.isEliminated) continue;
-
-        // Skip runners with active anti-retag shield
-        const immKey = o.slot != null ? o.slot : j;
-        if ((BOMB_MODE.passImmunity[immKey] || 0) > 0) continue;
-
-        const ox = o.x + o.w / 2;
-        const oy = o.y + o.h / 2;
-        const distSq = (ox - cx) ** 2 + (oy - cy) ** 2;
-
-        // Give preference to runners on the same horizontal platform tier
-        const tierPenalty = Math.abs(oy - cy) * 1.5;
-        const totalScore = Math.sqrt(distSq) + tierPenalty;
-
-        if (totalScore < minScore) {
-          minScore = totalScore;
-          bestTarget = o;
-        }
-      }
-
-      // If all living runners have shields, hold center lane instead of
-      // wasting the chase into immunity (shields expire in <=2s).
-      if (!bestTarget) {
-        const arenaW = (typeof W !== 'undefined') ? W : 2400;
-        wantDir = (cx < arenaW / 2) ? 1 : -1;
-        return {
-          dir: wantDir,
-          jumpEdge: false,
-          jumpHeld: false,
-          downHeld: false
-        };
-      }
-
-      if (bestTarget) {
-        const tx = bestTarget.x + bestTarget.w / 2;
-        const ty = bestTarget.y + bestTarget.h / 2;
-        const dx = tx - cx;
-        const dy = ty - cy;
-
-        // Predictive Lead-Aiming: Carrier sprints at 565 px/s
-        const dist = Math.hypot(dx, dy);
-        const leadT = _clamp(dist / BOMB_CONFIG.SPEED_CARRIER, 0.08, 0.32);
-        const predictedTx = tx + _clamp((bestTarget.vx || 0) * leadT, -240, 240);
-        wantDir = Math.abs(predictedTx - cx) > 10 ? Math.sign(predictedTx - cx) : Math.sign(dx);
-
-        // Platform Navigation:
-        // A. Runner is on a HIGHER platform (dy < -40)
-        if (dy < -40) {
-          if (p.grounded) {
-            wantJumpEdge = true;
-            wantJumpHeld = true;
-          } else if (p.airJumps > 0) {
-            // Apex Double Jump Chaining: Trigger near vertical velocity turnaround (-120 < vy < 100)
-            const isApexWindow = (p.vy > -120 && p.vy < 100);
-            if (isApexWindow) {
-              wantJumpEdge = true;
-              wantJumpHeld = true;
-            }
-          } else if (p.sideT > 0 && p.wallJumps < 2) {
-            // Wall-jump off vertical walls to climb higher
-            wantJumpEdge = true;
-            wantJumpHeld = true;
-          }
-        }
-
-        // B. Runner is on a LOWER platform (dy > 50)
-        if (dy > 50) {
-          // Check if standing on drop-through pink platform
-          let onDrop = false;
-          if (typeof botFullyOnDrop === 'function') {
-            onDrop = !!botFullyOnDrop(p);
-          } else if (p.grounded && p.gp && p.gp.t === 'drop') {
-            onDrop = true;
-          }
-
-          if (onDrop) {
-            wantDown = true;
-            wantJumpEdge = false;
-          }
-        }
-
-        // C. Blue Boost Pad Jump: If standing on or crossing boost pad, jump for 1.31x launch
-        const onBoost = p.grounded && (typeof zoneAtFeet === 'function' && zoneAtFeet(p, 'boost'));
-        if (onBoost && dy < -20) {
-          wantJumpEdge = true;
-          wantJumpHeld = true;
-        }
-
-        // D. Close Quarters Finishing Leap:
-        if (dist < 75 && dy < -15 && (p.grounded || p.airJumps > 0)) {
-          wantJumpEdge = true;
-        }
-      } else {
-        wantDir = p.face || 1;
-      }
+    if (typeof botInputFor === 'function') {
+      return botInputFor(p, dt);
     }
-
-    // -------------------------------------------------------------
-    // CASE 2: BOT IS A RUNNER (Survival & Opposing Tier Scatter)
-    // -------------------------------------------------------------
-    else {
-      const carrier = P[BOMB_MODE.carrierIdx];
-      if (carrier && !carrier.isEliminated) {
-        const kx = carrier.x + carrier.w / 2;
-        const ky = carrier.y + carrier.h / 2;
-        const dx = kx - cx;
-        const dy = ky - cy;
-        const dist = Math.hypot(dx, dy);
-
-        // Flee in opposite direction from carrier
-        wantDir = dx > 0 ? -1 : 1;
-
-        // Anti-Cornering: If trapped against arena perimeter wall while carrier approaches
-        const worldW = (typeof W !== 'undefined') ? W : 2400;
-        const wallW = (typeof WALL !== 'undefined') ? WALL : 60;
-        const nearLeftWall = (p.x <= wallW + 110 && dx < 0);
-        const nearRightWall = (p.x + p.w >= worldW - wallW - 110 && dx > 0);
-
-        if ((nearLeftWall || nearRightWall) && dist < 320) {
-          // Overhead Flank: Jump and double-jump over approaching carrier
-          if (p.grounded) {
-            wantJumpEdge = true;
-            wantJumpHeld = true;
-          } else if (p.airJumps > 0 && p.vy > -50) {
-            wantJumpEdge = true;
-            wantJumpHeld = true;
-            wantDir = -wantDir; // Flip direction to clear over carrier
-          } else if (p.sideT > 0) {
-            // Wall-jump off outer wall
-            wantJumpEdge = true;
-            wantJumpHeld = true;
-            wantDir = nearLeftWall ? 1 : -1;
-          }
-        }
-
-        // Tier Scattering:
-        // If carrier is on the SAME or LOWER tier (dy >= -20), climb up to higher tiers!
-        if (dy >= -20 && dist < 420) {
-          if (p.grounded) {
-            wantJumpEdge = true;
-            wantJumpHeld = true;
-          } else if (p.airJumps > 0 && p.vy > -100 && p.vy < 120) {
-            wantJumpEdge = true;
-            wantJumpHeld = true;
-          }
-        }
-
-        // Drop Platform Juke: If running over pink drop platform and carrier is right behind
-        if (dist < 180 && Math.abs(dy) < 60) {
-          let onDrop = false;
-          if (typeof botFullyOnDrop === 'function') onDrop = !!botFullyOnDrop(p);
-          else if (p.grounded && p.gp && p.gp.t === 'drop') onDrop = true;
-
-          if (onDrop) {
-            wantDown = true; // Drop through to evade
-          }
-        }
-      } else {
-        // Safe wandering
-        wantDir = 0;
-      }
-    }
-
-    return {
-      dir: wantDir,
-      jumpEdge: wantJumpEdge,
-      jumpHeld: wantJumpHeld || wantJumpEdge,
-      downHeld: wantDown
-    };
+    return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
   }
 
   /* ================= EXPORT MODULE API ================= */
@@ -6862,229 +6454,13 @@ var initCrownMode, updateCrownMode, checkCrownTag, drawCrownUI, drawCrownPlayer,
      16. BOT AI INTEGRATION: crownBotThink(p)
      ========================================================================== */
   function crownBotThink(p, dt) {
-    if (!crownState.active || !p || p.isEliminated || p.isFrozen) {
+    if (!p || p.isEliminated || p.isFrozen) {
       return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
     }
-
-    const stepDt = (typeof dt === 'number' && dt > 0) ? Math.min(0.05, dt) : (1 / 60);
-    const cx = p.x + p.w / 2;
-    const cy = p.y + p.h / 2;
-    const isKing = (crownState.holder === p);
-
-    // Bot state initialization
-    let S = CROWN_BOT_ST[p.slot];
-    if (!S) {
-      S = CROWN_BOT_ST[p.slot] = {
-        dir: 0,
-        jumpQ: false,
-        jumpHoldT: 0,
-        decideT: 0,
-        px: p.x,
-        py: p.y,
-        stuckT: 0,
-        unstuckT: 0,
-        unstuckDir: 0,
-        campT: 0,
-        dropHoldT: 0
-      };
+    if (typeof botInputFor === 'function') {
+      return botInputFor(p, dt);
     }
-
-    // Stuck Tracking & Anti-Stall Escape
-    const distMoved = Math.hypot(p.x - S.px, p.y - S.py);
-    if (distMoved < 14) {
-      S.stuckT += stepDt;
-    } else {
-      S.stuckT = 0;
-      S.px = p.x;
-      S.py = p.y;
-    }
-
-    if (S.stuckT > 0.42 && S.unstuckT <= 0) {
-      S.unstuckT = 0.65;
-      S.unstuckDir = (S.dir !== 0 ? -S.dir : (Math.random() < 0.5 ? -1 : 1));
-      S.stuckT = 0;
-    }
-
-    if (S.unstuckT > 0) {
-      S.unstuckT -= stepDt;
-      let j = false;
-      if (p.grounded || p.airJumps > 0 || (p.wallJumps < 2 && p.sideT > 0)) {
-        j = true;
-        S.jumpHoldT = 0.14;
-      }
-      const uh = !!j || S.jumpHoldT > 0;
-      if (S.jumpHoldT > 0) S.jumpHoldT -= stepDt;
-      return { dir: S.unstuckDir, jumpEdge: j, jumpHeld: uh, downHeld: false };
-    }
-
-    // Decay timers
-    S.decideT -= stepDt;
-    if (S.dropHoldT > 0) S.dropHoldT -= stepDt;
-
-    // AI Decision Cycle (~0.09s)
-    if (S.decideT <= 0) {
-      S.decideT = 0.09;
-      let want = 0;
-      let wantJump = false;
-      let wantDown = false;
-
-      // ----------------------------------------------------------------------
-      // CASE A: UNOWNED CROWN (Sprint & jump to claim central crown!)
-      // ----------------------------------------------------------------------
-      if (!crownState.holder) {
-        const dx = crownState.x - cx;
-        const dy = crownState.y - cy;
-
-        want = Math.abs(dx) > 16 ? Math.sign(dx) : (S.dir || 1);
-
-        // Jump if crown is higher or across a gap
-        if (dy < -25 && (p.grounded || p.sideT > 0)) {
-          wantJump = true;
-        }
-        if (Math.abs(dx) < 60 && dy < -10 && p.grounded) {
-          wantJump = true;
-        }
-
-        S.dir = want;
-        if (wantJump) S.jumpQ = true;
-      }
-
-      // ----------------------------------------------------------------------
-      // CASE B: KING BOT (High-Ground Evade, Pink Drop Escapes, Speed Pads!)
-      // ----------------------------------------------------------------------
-      else if (isKing) {
-        const players = (typeof match !== 'undefined' && match && match.players) ? match.players : [];
-        let nearestChaser = null;
-        let minChaserDistSq = 1e12;
-
-        for (const o of players) {
-          if (o === p || o.isEliminated || o.isFrozen) continue;
-          const dSq = (o.x - cx) ** 2 + (o.y - cy) ** 2;
-          if (dSq < minChaserDistSq) {
-            minChaserDistSq = dSq;
-            nearestChaser = o;
-          }
-        }
-
-        if (nearestChaser) {
-          const chaserDx = (nearestChaser.x + nearestChaser.w / 2) - cx;
-          const chaserDy = (nearestChaser.y + nearestChaser.h / 2) - cy;
-          const distChaser = Math.sqrt(minChaserDistSq);
-
-          // 1. Pink Platform Drop-Through Escape:
-          // If grounded on pink drop platform and chaser is closing in (< 190px),
-          // drop down through the floor to slip under their tag attempt!
-          const onPink = _botFullyOnDrop(p);
-          if (onPink && distChaser < 190 && Math.abs(chaserDy) < 80) {
-            wantDown = true;
-            S.dropHoldT = 0.28;
-            want = -Math.sign(chaserDx) || (p.face || 1);
-          }
-
-          // 2. Speed Pad Sprint Meta:
-          // If near or on speed pad, sprint across to leverage the 1.55x boost
-          const onSpeed = p.grounded && !!_zoneAtFeet(p, 'speed');
-          if (onSpeed) {
-            want = -Math.sign(chaserDx) || (p.face || 1);
-          }
-
-          // 3. High-Ground Preservation:
-          // King seeks elevated tiers. If on bottom floor, navigate upward!
-          const arenaH = (typeof H !== 'undefined') ? H : 1320;
-          if (p.y > arenaH - 240 && distChaser > 160) {
-            wantJump = true;
-          }
-
-          // 4. Anti-Cornering Jump-Over:
-          // If trapped against edge (< 120px from arena wall) and chaser is approaching:
-          const arenaW = (typeof W !== 'undefined') ? W : 2400;
-          const nearWall = (p.x < 140 || p.x + p.w > arenaW - 140);
-          if (nearWall && distChaser < 160 && (p.grounded || p.sideT > 0)) {
-            wantJump = true;
-            want = (p.x < arenaW / 2) ? 1 : -1; // Jump inwards away from wall
-          } else if (!wantDown) {
-            // General Fleeing Direction away from closest chaser
-            want = -Math.sign(chaserDx) || 1;
-            // Jump over chaser if they charge in head-on at close proximity
-            if (distChaser < 90 && Math.abs(chaserDy) < 40 && p.grounded) {
-              wantJump = true;
-            }
-          }
-        } else {
-          // No chaser nearby: camp high ground
-          want = 0;
-        }
-
-        S.dir = want;
-        if (wantJump) S.jumpQ = true;
-      }
-
-      // ----------------------------------------------------------------------
-      // CASE C: CHASER BOT (100% Hunt the King with Intercept Trajectories!)
-      // ----------------------------------------------------------------------
-      else {
-        const king = crownState.holder;
-        if (king) {
-          const kx = king.x + king.w / 2;
-          const ky = king.y + king.h / 2;
-          const dx = kx - cx;
-          const dy = ky - cy;
-          const distKing = Math.hypot(dx, dy);
-
-          // Calculate Dynamic Intercept Lead Time
-          const leadT = _clamp(distKing / CROWN_CONFIG.SPEED_CHASER_NORMAL, 0.12, 0.38);
-          const aimX = kx + _clamp((king.vx || 0) * leadT, -220, 220);
-          const aimDx = aimX - cx;
-
-          // Aggressive Chase Movement
-          want = Math.abs(aimDx) > 16 ? Math.sign(aimDx) : (Math.sign(dx) || 1);
-
-          // Platform climb / jump navigation
-          if (dy < -30 && (p.grounded || p.sideT > 0)) {
-            wantJump = true;
-          }
-
-          // Gap jumping
-          if (Math.abs(dx) > 80 && dy < 10 && p.grounded) {
-            wantJump = true;
-          }
-
-          // Drop-through pink platform if King is below
-          if (dy > 60 && _botFullyOnDrop(p)) {
-            wantDown = true;
-            S.dropHoldT = 0.22;
-          }
-
-          // Jump cut-off when King is in striking range
-          if (distKing < 110 && Math.abs(dy) < 50 && p.grounded) {
-            wantJump = true;
-          }
-
-          S.dir = want;
-          if (wantJump) S.jumpQ = true;
-        }
-      }
-    }
-
-    // Execute Jump Commands
-    let jumpEdge = false;
-    if (S.jumpQ) {
-      jumpEdge = true;
-      S.jumpQ = false;
-      S.jumpHoldT = 0.16; // Full jump height
-    }
-
-    const jumpHeld = jumpEdge || S.jumpHoldT > 0;
-    if (S.jumpHoldT > 0) S.jumpHoldT -= stepDt;
-
-    const downHeld = S.dropHoldT > 0;
-
-    return {
-      dir: S.dir || 0,
-      jumpEdge: jumpEdge,
-      jumpHeld: jumpHeld,
-      downHeld: downHeld
-    };
+    return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
   }
 
   /* ==========================================================================
@@ -7762,15 +7138,6 @@ function botSolveBallisticIntercept(bot, target, dt) {
 function botInputFor(p,dt){
   if(p.isFrozen) return {dir:0,jumpEdge:false,jumpHeld:false,downHeld:false};
   if(match && match.hunterMode && match.cageT > 0 && p.isHunter) return {dir:0,jumpEdge:false,jumpHeld:false,downHeld:false};
-  if(settings.gameMode === 'infection'){
-    if(typeof infectionBotThink === 'function'){ try{ return infectionBotThink(p, dt); }catch(e){ logModeErr('infectionBotThink', e); } }
-  }
-  if(settings.gameMode === 'bomb'){
-    if(typeof bombBotThink === 'function'){ try{ return bombBotThink(p, dt); }catch(e){ logModeErr('bombBotThink', e); } }
-  }
-  if(settings.gameMode === 'crown'){
-    if(typeof crownBotThink === 'function'){ try{ return crownBotThink(p, dt); }catch(e){ logModeErr('crownBotThink', e); } }
-  }
   let S=BOT.st[p.slot];
   if(!S){S=BOT.st[p.slot]={dir:0,jumpQ:false,jumpHoldT:0,decideT:Math.random()*0.09,thinkJit:0.85+Math.random()*0.3,px:p.x,py:p.y,stuckT:0,unstuckT:0,unstuckDir:0,bonks:0,bonkT:0,airT:0,dropHold:0,descLockT:0,descDir:0,airT2:0,exitX:0,hasExit:false,exitLockT:0,exitDir:0,exitGp:null,climbPlat:null,climbOut:0,climbT:0,bannedSide:0,banT:0,banTierY:0,dropNoJumpT:0,pinkJukePhase:0,pinkJukeT:0,pinkJukeCooldown:0,pinkJukePlat:null,pinkJukeDir:0,airBrakeT:0,airBrakeCooldown:0};}
   const isEasy = ((menu.botDifficulty || settings.botDifficulty) === 'easy');
@@ -7779,61 +7146,158 @@ function botInputFor(p,dt){
   const cx=p.x+p.w/2,cy=p.y+p.h/2;
 
   const isTeam = !!(settings.teams && match && match.itTeam != null);
-  const isIt = isTeam ? (p.team === match.itTeam) : (match && match.players && match.players[match.it] === p);
+  const isCrown = (settings.gameMode === 'crown');
+  const isBomb = (settings.gameMode === 'bomb');
+  const isInf = (settings.gameMode === 'infection');
 
-  // Target selection with team awareness
+  let isIt = false;
   let target = null;
   let rescuingTeammate = false;
+
   try{
-    if(isIt){
-      // IT/Hunter: target closest enemy runner (never target teammates, ignore frozen players in freeze mode)
-      // Human focus: prefer a human-controlled runner when one is within 1.5x
-      // of the nearest distance, so bots hunt YOU instead of each other.
-      let best = 1e12;
-      let bestHuman = null, bestHumanD = 1e12;
-      for(const o of match.players){
-        if(o === p || o.isEliminated) continue;
-        if(isTeam && o.team === p.team) continue;
-        if(settings.gameMode === 'freeze' && o.isFrozen) continue;
-        const d = (o.x - cx)**2 + (o.y - cy)**2;
-        if(d < best){ best = d; target = o; }
-        if(d < bestHumanD){
-          let humanRunner = true;
-          try{ humanRunner = !isBotSlot(o); }catch(e){ humanRunner = true; }
-          if(humanRunner){ bestHumanD = d; bestHuman = o; }
-        }
-      }
-      if(bestHuman && target !== bestHuman && bestHumanD < best * 2.25){ target = bestHuman; }
-    } else {
-      // Runner: find nearest enemy chaser to flee from
-      let nearestChaser = null;
-      let minChaserDist = 1e12;
-      for(const o of match.players){
-        if(o === p || o.isEliminated) continue;
-        const isEnemyChaser = isTeam ? (o.team === match.itTeam && o.team !== p.team) : (o === match.players[match.it]);
-        if(isEnemyChaser){
-          const d = (o.x - cx)**2 + (o.y - cy)**2;
-          if(d < minChaserDist){ minChaserDist = d; nearestChaser = o; }
-        }
-      }
-
-      // Freeze Tag mode: if chaser is far (>260px) and a teammate is frozen, go rescue them!
-      if(settings.gameMode === 'freeze' && (!nearestChaser || minChaserDist > 67600)){
-        let nearestFrozen = null;
-        let minFreezeDist = 1e12;
+    if(isCrown){
+      const isKing = !!(typeof crownState !== 'undefined' && crownState && crownState.holder === p);
+      if(typeof crownState === 'undefined' || !crownState || !crownState.holder){
+        // Crown is unowned on central platform: all bots sprint to claim it!
+        isIt = true;
+        const anchor = (typeof findCentralPlatform === 'function') ? findCentralPlatform() : { x: 1200, y: 600 };
+        const pedX = (crownState && crownState.spawnX != null) ? crownState.spawnX : anchor.x;
+        const pedY = (crownState && crownState.spawnY != null) ? crownState.spawnY : anchor.y;
+        target = { x: pedX - 20, y: pedY - 20, w: 40, h: 40, vx: 0, vy: 0, grounded: true };
+      } else if(isKing){
+        // Bot is the King: runner fleeing from closest chaser using high-ground evasion & speed pads!
+        isIt = false;
+        let minD = 1e12;
         for(const o of match.players){
-          if(o === p || !o.isFrozen || o.isEliminated) continue;
-          if(isTeam && o.team !== p.team) continue;
+          if(o === p || o.isEliminated || o.isFrozen) continue;
           const d = (o.x - cx)**2 + (o.y - cy)**2;
-          if(d < minFreezeDist){ minFreezeDist = d; nearestFrozen = o; }
+          if(d < minD){ minD = d; target = o; }
         }
-        if(nearestFrozen){
-          target = nearestFrozen;
-          rescuingTeammate = true;
+      } else {
+        // Bot is a chaser: hunt down the King relentlessly!
+        isIt = true;
+        target = crownState.holder;
+      }
+    } else if(isBomb){
+      const pIdx = match.players.indexOf(p);
+      const isCarrier = (typeof BOMB_MODE !== 'undefined' && BOMB_MODE && BOMB_MODE.carrierIdx === pIdx);
+      if(isCarrier){
+        isIt = true;
+        let best = 1e12;
+        for(let j = 0; j < match.players.length; j++){
+          if(j === pIdx) continue;
+          const o = match.players[j];
+          if(!o || o.isEliminated) continue;
+          const immKey = o.slot != null ? o.slot : j;
+          if(BOMB_MODE && BOMB_MODE.passImmunity && (BOMB_MODE.passImmunity[immKey] || 0) > 0) continue;
+          const d = (o.x - cx)**2 + (o.y - cy)**2;
+          if(d < best){ best = d; target = o; }
+        }
+        if(!target){
+          for(let j = 0; j < match.players.length; j++){
+            if(j === pIdx) continue;
+            const o = match.players[j];
+            if(!o || o.isEliminated) continue;
+            const d = (o.x - cx)**2 + (o.y - cy)**2;
+            if(d < best){ best = d; target = o; }
+          }
+        }
+      } else {
+        isIt = false;
+        const cIdx = (typeof BOMB_MODE !== 'undefined' && BOMB_MODE) ? BOMB_MODE.carrierIdx : -1;
+        target = (cIdx >= 0 && cIdx < match.players.length) ? match.players[cIdx] : null;
+      }
+    } else if(isInf){
+      const isInfected = !!p.isInfected;
+      isIt = isInfected;
+      if(isInfected){
+        let best = 1e12;
+        for(const o of match.players){
+          if(o === p || o.isEliminated || o.isInfected) continue;
+          const d = (o.x - cx)**2 + (o.y - cy)**2;
+          if(d < best){ best = d; target = o; }
+        }
+      } else {
+        let minD = 1e12;
+        for(const o of match.players){
+          if(o === p || o.isEliminated || !o.isInfected) continue;
+          const d = (o.x - cx)**2 + (o.y - cy)**2;
+          if(d < minD){ minD = d; target = o; }
         }
       }
+    } else if(match && match.hunterMode){
+      // HUNTER MODE: one hunter per team; cross-team runners are prey.
+      // Classic match.it logic does not apply (single-IT index is meaningless
+      // here), so identify by p.isHunter — otherwise hunter bots think they
+      // are runners, flee from one wrong player, or freeze with no target.
+      if(p.isHunter){
+        isIt = true;
+        let best = 1e12;
+        for(const o of match.players){
+          if(o === p || o.isEliminated) continue;
+          if(o.team === p.team) continue; // never hunt teammates
+          if(o.isHunter) continue; // enemy hunter is not prey
+          const d = (o.x - cx)**2 + (o.y - cy)**2;
+          if(d < best){ best = d; target = o; }
+        }
+      } else {
+        isIt = false;
+        let best = 1e12;
+        for(const o of match.players){
+          if(o === p || o.isEliminated || !o.isHunter) continue;
+          if(o.team === p.team) continue; // only the ENEMY hunter chases us
+          const d = (o.x - cx)**2 + (o.y - cy)**2;
+          if(d < best){ best = d; target = o; }
+        }
+      }
+    } else {
+      isIt = isTeam ? (p.team === match.itTeam) : (match && match.players && match.players[match.it] === p);
+      if(isIt){
+        let best = 1e12;
+        let bestHuman = null, bestHumanD = 1e12;
+        for(const o of match.players){
+          if(o === p || o.isEliminated) continue;
+          if(isTeam && o.team === p.team) continue;
+          if(settings.gameMode === 'freeze' && o.isFrozen) continue;
+          const d = (o.x - cx)**2 + (o.y - cy)**2;
+          if(d < best){ best = d; target = o; }
+          if(d < bestHumanD){
+            let humanRunner = true;
+            try{ humanRunner = !isBotSlot(o); }catch(e){ humanRunner = true; }
+            if(humanRunner){ bestHumanD = d; bestHuman = o; }
+          }
+        }
+        if(bestHuman && target !== bestHuman && bestHumanD < best * 2.25){ target = bestHuman; }
+      } else {
+        let nearestChaser = null;
+        let minChaserDist = 1e12;
+        for(const o of match.players){
+          if(o === p || o.isEliminated) continue;
+          const isEnemyChaser = isTeam ? (o.team === match.itTeam && o.team !== p.team) : (o === match.players[match.it]);
+          if(isEnemyChaser){
+            const d = (o.x - cx)**2 + (o.y - cy)**2;
+            if(d < minChaserDist){ minChaserDist = d; nearestChaser = o; }
+          }
+        }
 
-      if(!target) target = nearestChaser;
+        // Freeze Tag mode: if chaser is far (>260px) and a teammate is frozen, go rescue them!
+        if(settings.gameMode === 'freeze' && (!nearestChaser || minChaserDist > 67600)){
+          let nearestFrozen = null;
+          let minFreezeDist = 1e12;
+          for(const o of match.players){
+            if(o === p || !o.isFrozen || o.isEliminated) continue;
+            if(isTeam && o.team !== p.team) continue;
+            const d = (o.x - cx)**2 + (o.y - cy)**2;
+            if(d < minFreezeDist){ minFreezeDist = d; nearestFrozen = o; }
+          }
+          if(nearestFrozen){
+            target = nearestFrozen;
+            rescuingTeammate = true;
+          }
+        }
+
+        if(!target) target = nearestChaser;
+      }
     }
   }catch(e){}
   if(!target) return {dir:0,jumpEdge:false,jumpHeld:false,downHeld:false};
@@ -7848,11 +7312,13 @@ function botInputFor(p,dt){
   /* Hound & Anvil role detection: closest hunter bot drives (Hound),
      farther hunter bots cut off the escape route (Anvil). Scalar-only. */
   let myRole = 'hound';
-  if(isIt && !rescuingTeammate){
+  if(isIt && !rescuingTeammate && target){
     const myDistSq = (target.x - cx) ** 2 + (target.y - cy) ** 2;
     for(const ally of match.players){
       if(ally === p || ally.isEliminated) continue;
-      const isAllyHunter = isTeam ? (ally.team === p.team) : (ally === match.players[match.it]);
+      const isAllyHunter = (match && match.hunterMode)
+        ? (ally.isHunter && ally.team === p.team)
+        : (isCrown ? (ally !== (typeof crownState !== 'undefined' && crownState && crownState.holder)) : (isBomb ? (ally !== (typeof BOMB_MODE !== 'undefined' && BOMB_MODE && match.players[BOMB_MODE.carrierIdx])) : (isTeam ? (ally.team === p.team) : (ally === match.players[match.it]))));
       if(isAllyHunter){
         const allyDistSq = (target.x - (ally.x + ally.w / 2)) ** 2 + (target.y - (ally.y + ally.h / 2)) ** 2;
         if(allyDistSq < myDistSq){ myRole = 'anvil'; break; }
@@ -12902,7 +12368,9 @@ function drawSpectatorBanner(){
   const banW = Math.min(CW - 24, 460);
   const banH = 38;
   const banX = CW / 2 - banW / 2;
-  const banY = 12;
+  // Sit BELOW the center timer pill (y 8..48) so spectators keep the clock,
+  // tag pills and mode HUD visible instead of painting over them.
+  const banY = 56;
 
   // Background Glass Pill
   rr(g, banX, banY, banW, banH, 19);
@@ -15326,28 +14794,35 @@ function netNotifyRoomCreated(roomCode, hostName, isPublic, maxPlayers){
     if(!NET_ALERTS_CONFIG || !NET_ALERTS_CONFIG.enabled) return;
     const mode = (typeof settings !== 'undefined' && settings && settings.gameMode) ? settings.gameMode.toUpperCase() : 'CLASSIC';
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    const joinUrl = (typeof netLink === 'function') ? netLink(roomCode) : (location.origin + location.pathname + '?room=' + roomCode);
+    const code = (roomCode || '').toUpperCase();
+    let invitedBy = 'YS0WTkyqWaOxDpfJWLEv7hRzkJ73';
+    try {
+      if(typeof CG !== 'undefined' && CG && CG._user && (CG._user.id || CG._user.userId)){
+        invitedBy = CG._user.id || CG._user.userId;
+      }
+    } catch(e) {}
+    const joinUrl = 'https://www.crazygames.com/game/tag-arena-multiplayer?czy_invite=true&utm_source=invite&czy_invited_by=' + encodeURIComponent(invitedBy) + '&room=' + encodeURIComponent(code) + '&roomId=' + encodeURIComponent(code);
 
     // --- A. Discord Webhook Notification ---
     if(NET_ALERTS_CONFIG.discordWebhookUrl && NET_ALERTS_CONFIG.discordWebhookUrl.trim()){
-      const mentionText = NET_ALERTS_CONFIG.discordMention ? `${NET_ALERTS_CONFIG.discordMention} ` : '';
+      const mentionText = NET_ALERTS_CONFIG.discordMention ? (NET_ALERTS_CONFIG.discordMention + ' ') : '';
       const discordPayload = {
-        content: mentionText ? `${mentionText}🎮 **A player started a TAG game server!**` : undefined,
+        content: mentionText + '🎮 **A player started a TAG game server!**\n🔗 **Join link:** ' + joinUrl,
         username: 'TAG Server Watchdog',
         avatar_url: 'https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/1f3ae.png',
         embeds: [{
           title: '🎮 New Game Server Hosted!',
-          color: 0x22c55e, // Emerald Green
+          description: '[👉 **Click to Join Room on CrazyGames**](' + joinUrl + ')\n`' + joinUrl + '`',
+          color: 0x22c55e,
           fields: [
-            { name: 'Room Code', value: '`' + roomCode + '`', inline: true },
+            { name: 'Room Code', value: '`' + code + '`', inline: true },
             { name: 'Host Player', value: '**' + (hostName || 'Host') + '**', inline: true },
             { name: 'Game Mode', value: mode, inline: true },
             { name: 'Capacity', value: (maxPlayers || 8) + ' Players', inline: true },
             { name: 'Visibility', value: isPublic ? '🌐 Public' : '🔒 Private', inline: true },
-            { name: 'Time', value: timeStr, inline: true },
-            { name: 'Direct Join Link', value: '[Click to Join Room](' + joinUrl + ')' }
+            { name: 'Time', value: timeStr, inline: true }
           ],
-          footer: { text: 'TAG Multiplayer Watchdog' },
+          footer: { text: 'TAG Multiplayer Watchdog • CrazyGames' },
           timestamp: new Date().toISOString()
         }]
       };
@@ -15364,13 +14839,12 @@ function netNotifyRoomCreated(roomCode, hostName, isPublic, maxPlayers){
       const topic = NET_ALERTS_CONFIG.ntfyTopic.trim();
       const ntfyBase = (NET_ALERTS_CONFIG.ntfyServer || 'https://ntfy.sh').replace(/\/+$/, '');
       const ntfyUrl = ntfyBase + '/' + encodeURIComponent(topic);
-
-      const ntfyMessage = `Host: ${hostName || 'Host'} | Mode: ${mode} | Room: ${roomCode} (${isPublic ? 'Public' : 'Private'})`;
+      const ntfyMessage = 'Host: ' + (hostName || 'Host') + ' | Mode: ' + mode + ' | Room: ' + code + ' (' + (isPublic ? 'Public' : 'Private') + ')\nJoin: ' + joinUrl;
 
       fetch(ntfyUrl, {
         method: 'POST',
         headers: {
-          'Title': '🎮 Server Hosted: ' + roomCode,
+          'Title': '🎮 Server Hosted: ' + code,
           'Priority': 'default',
           'Tags': 'video_game,bell',
           'Click': joinUrl
@@ -15473,24 +14947,139 @@ function netGetMyProfile(){
   return { name: cleanText(stored).slice(0, 16), avatar: '' };
 }
 
-const ICE_SERVERS = [
+/* === INSTITUTIONAL FIREWALL TRAVERSAL: TURNS & STATIC RELAY CONFIG === */
+const TURN_STATIC_FALLBACK = [
+  {
+    urls: [
+      'turns:openrelay.metered.ca:443?transport=tcp',
+      'turn:openrelay.metered.ca:443?transport=tcp',
+      'turn:openrelay.metered.ca:80?transport=tcp'
+    ],
+    username: 'openrelay',
+    credential: 'openrelay'
+  }
+];
+
+let ICE_SERVERS = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
   { urls: 'stun:stun2.l.google.com:19302' },
   { urls: 'stun:stun3.l.google.com:19302' },
   { urls: 'stun:stun4.l.google.com:19302' },
   { urls: 'stun:global.stun.twilio.com:3478' },
-  // OpenRelay Public TURN Relay (enables cross-device audio across different Wi-Fi networks and symmetric NAT)
-  {
-    urls: [
-      'turn:openrelay.metered.ca:80',
-      'turn:openrelay.metered.ca:443',
-      'turn:openrelay.metered.ca:443?transport=tcp'
-    ],
-    username: 'openrelay',
-    credential: 'openrelay'
-  }
+  ...TURN_STATIC_FALLBACK
 ];
+
+// Boot / Match connect: fetch dynamic TURNS from signaling server
+async function netRefreshIce(){
+  try{
+    const base = (typeof netDirBase === 'function' ? netDirBase() : 'https://tag-netplay-server.onrender.com');
+    const r = await fetch(base + '/api/turn', { cache: 'no-store' });
+    if(r.ok){
+      const j = await r.json();
+      if(j && j.iceServers && j.iceServers.length){
+        ICE_SERVERS = [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:global.stun.twilio.com:3478' },
+          ...j.iceServers,
+          ...TURN_STATIC_FALLBACK
+        ];
+      }
+    }
+  }catch(e){}
+}
+
+/* === ZERO-UDP CAMPUS & INSTITUTIONAL FIREWALL RELAY (WSS + HTTP LONG-POLL) === */
+const RELAY = { mode: 'p2p', ws: null, pollTimer: null, room: '', pid: '', peerReady: false, deadline: 3500, _t0: 0 };
+function netRelayBase(){
+  try{
+    const b = (typeof netDirBase === 'function' ? netDirBase() : 'https://tag-netplay-server.onrender.com');
+    return b.replace(/^http/i, 'ws');
+  }catch(e){ return 'wss://tag-netplay-server.onrender.com'; }
+}
+
+function netEnterRelay(reason){
+  if(RELAY.mode === 'relay') return;
+  RELAY.mode = 'relay';
+  try{ netToast('Strict network detected — relay mode (' + reason + ')'); }catch(e){}
+  try{ if(typeof VOICE !== 'undefined'){ VOICE.enabled = false; try{ voiceStopLocal(); }catch(e){} } }catch(e){}
+  const base = netRelayBase();
+  const openWs = () => {
+    try{
+      RELAY.ws = new WebSocket(base + '/tag-relay');
+      RELAY.ws.onopen = () => {
+        try{
+          RELAY.ws.send(JSON.stringify({
+            t: 'join',
+            room: (NET.room || RELAY.room || '').toUpperCase(),
+            peerId: NET.myId || RELAY.pid
+          }));
+        }catch(e){}
+      };
+      RELAY.ws.onmessage = (ev) => {
+        try{
+          const m = JSON.parse(ev.data);
+          if(!m || !m.from || !m.data) return;
+          const fakeConn = {
+            peer: m.from,
+            open: true,
+            send: (d) => netRelaySend(m.from, d)
+          };
+          netOnData(m.data, fakeConn);
+        }catch(e){}
+      };
+      RELAY.ws.onclose = () => netEnterPolling();
+      RELAY.ws.onerror = () => {
+        try{ if(RELAY.ws) RELAY.ws.close(); }catch(e){}
+        netEnterPolling();
+      };
+    }catch(e){ netEnterPolling(); }
+  };
+  openWs();
+}
+
+function netEnterPolling(){
+  if(RELAY.pollTimer) return;
+  const base = (typeof netDirBase === 'function' ? netDirBase() : 'https://tag-netplay-server.onrender.com');
+  RELAY.pollTimer = setInterval(async () => {
+    try{
+      const rm = (NET.room || RELAY.room || '').toUpperCase();
+      const pid = NET.myId || RELAY.pid || '';
+      if(!rm || !pid) return;
+      const r = await fetch(base + '/api/relay/poll?room=' + encodeURIComponent(rm) + '&peerId=' + encodeURIComponent(pid));
+      if(r.ok){
+        const j = await r.json();
+        for(const m of (j.msgs || [])){
+          if(!m || !m.from || !m.data) continue;
+          const fakeConn = {
+            peer: m.from,
+            open: true,
+            send: (d) => netRelaySend(m.from, d)
+          };
+          netOnData(m.data, fakeConn);
+        }
+      }
+    }catch(e){}
+  }, 600);
+}
+
+function netRelaySend(to, data){
+  const base = (typeof netDirBase === 'function' ? netDirBase() : 'https://tag-netplay-server.onrender.com');
+  const rm = (NET.room || RELAY.room || '').toUpperCase();
+  const from = NET.myId || RELAY.pid || '';
+  if(RELAY.ws && RELAY.ws.readyState === 1){
+    try{
+      RELAY.ws.send(JSON.stringify({ to: to || '', data }));
+      return;
+    }catch(e){}
+  }
+  fetch(base + '/api/relay/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ room: rm, from, to: to || '', data })
+  }).catch(()=>{});
+}
 
 function getOrCreateConnPair(peerId){
   let pair = NET.conns.get(peerId);
@@ -15502,6 +15091,11 @@ function getOrCreateConnPair(peerId){
 }
 
 function netSendFast(peerOrPair, msg){
+  if(typeof RELAY !== 'undefined' && RELAY.mode === 'relay'){
+    const pid = (typeof peerOrPair === 'string') ? peerOrPair : (peerOrPair && (peerOrPair.peer || peerOrPair.peerId));
+    netRelaySend(pid || NET._hostId || '', msg);
+    return;
+  }
   const pair = (typeof peerOrPair === 'string') ? NET.conns.get(peerOrPair) : peerOrPair;
   if(!pair) return;
   let c = (pair.fast && pair.fast.open) ? pair.fast : null;
@@ -15516,6 +15110,11 @@ function netSendFast(peerOrPair, msg){
 }
 
 function netSendRel(peerOrPair, msg){
+  if(typeof RELAY !== 'undefined' && RELAY.mode === 'relay'){
+    const pid = (typeof peerOrPair === 'string') ? peerOrPair : (peerOrPair && (peerOrPair.peer || peerOrPair.peerId));
+    netRelaySend(pid || NET._hostId || '', msg);
+    return;
+  }
   const pair = (typeof peerOrPair === 'string') ? NET.conns.get(peerOrPair) : peerOrPair;
   if(!pair) return;
   const c = (pair.rel && pair.rel.open) ? pair.rel : (pair.fast && pair.fast.open ? pair.fast : (pair.open ? pair : null));
@@ -15523,6 +15122,10 @@ function netSendRel(peerOrPair, msg){
 }
 
 function netBroadcastReliable(msg, excludePeerId){
+  if(typeof RELAY !== 'undefined' && RELAY.mode === 'relay'){
+    netRelaySend('', msg);
+    return;
+  }
   if(typeof NET === 'undefined' || !NET || !NET.conns) return;
   for(const [pid, pair] of NET.conns.entries()){
     if(excludePeerId && pid === excludePeerId) continue;
@@ -15618,6 +15221,7 @@ function applyModeState(env){
         }
       }
     } else if(env.mode === 'bomb' && typeof BOMB_MODE !== 'undefined'){
+      try{ BOMB_MODE.active = true; }catch(e){}
       if(env.carrier != null){ BOMB_MODE.carrierIdx = env.carrier; if(match) match.it = env.carrier; }
       if(env.fuse != null){ BOMB_MODE.fuse = env.fuse; }
       if(env.maxFuse != null) BOMB_MODE.maxFuse = env.maxFuse;
@@ -15626,6 +15230,7 @@ function applyModeState(env){
       if(env.bstate) BOMB_MODE.state = env.bstate;
       if(match && typeof BOMB_MODE.fuse === 'number') match.timer = BOMB_MODE.fuse;
     } else if(env.mode === 'crown' && typeof crownState !== 'undefined'){
+      try{ crownState.active = true; }catch(e){}
       if(env.scores) crownState.scores = Object.assign({}, env.scores);
       if(env.imm != null) crownState.immunityTimer = env.imm;
       if(env.hold != null) crownState.holdTimer = env.hold;
@@ -16203,23 +15808,26 @@ function netShow(on){
 }
 
 function netLink(room){
-  let p = location.pathname;
-  if(p.endsWith('/')){
-    try{if(location.host&&location.host.indexOf('game-files.crazygames.com')>=0) p = p + 'index.html';}catch(e){}
-  }
-  else if(/\/[^\/]+\.[a-z]+$/i.test(p)) p = p.replace(/\/[^\/]*$/, '/');
-  else p = p + '/';
+  const code = (room || '').toUpperCase();
+  let invitedBy = 'YS0WTkyqWaOxDpfJWLEv7hRzkJ73';
   try{
-    if(p.endsWith('/')&&location.host&&location.host.indexOf('game-files.crazygames.com')>=0) p = p + 'index.html';
-  }catch(e){}
-  let l = location.origin + p + '?room=' + room.toUpperCase();
-  try{
-    if(typeof CG!=='undefined'&&CG&&typeof CG.getInviteLink==='function'&&l.indexOf('game-files.crazygames.com')>=0){
-      // direct game-files folder URLs 404 (NoSuchKey) — index.html form loads
-      l = l.replace(/\/\?room=/, '/index.html?room=');
+    if(typeof CG !== 'undefined' && CG && CG._user && (CG._user.id || CG._user.userId)){
+      invitedBy = CG._user.id || CG._user.userId;
     }
   }catch(e){}
-  return l;
+
+  const isCrazyHost = (typeof location !== 'undefined' && location.host && location.host.indexOf('crazygames') >= 0);
+  const isLocalOrFile = (typeof location === 'undefined' || !location.origin || location.origin.startsWith('file:') || location.origin.includes('localhost') || location.origin.includes('127.0.0.1'));
+  
+  if(isCrazyHost || isLocalOrFile){
+    return 'https://www.crazygames.com/game/tag-arena-multiplayer?czy_invite=true&utm_source=invite&czy_invited_by=' + encodeURIComponent(invitedBy) + '&room=' + encodeURIComponent(code) + '&roomId=' + encodeURIComponent(code);
+  }
+
+  let p = location.pathname;
+  if(p.endsWith('/')) p = p + 'index.html';
+  else if(/\/[^\/]+\.[a-z]+$/i.test(p)) p = p.replace(/\/[^\/]*$/, '/');
+  else p = p + '/';
+  return location.origin + p + '?room=' + code;
 }
 
 /* Copy the portal invite link when available, else the ?room= fallback link */
@@ -16426,7 +16034,9 @@ function netFetchHostPeerId(roomCode){
 }
 
 /* PeerJS connect (Supports dedicated Railway/Render server with zero-failure cloud fallback) */
-function netConnectPeer(room, isHost, forceFallback = false){
+/* PeerJS connect (Supports dedicated Railway/Render server with zero-failure cloud & zero-UDP relay fallback) */
+async function netConnectPeer(room, isHost, forceFallback = false){
+  try{ await netRefreshIce(); }catch(e){}
   try{ if(NET._guestTimeout){ clearTimeout(NET._guestTimeout); NET._guestTimeout = null; } }catch(e){}
   if(NET.peer){
     try{ NET.peer.destroy(); }catch(e){}
@@ -16443,6 +16053,14 @@ function netConnectPeer(room, isHost, forceFallback = false){
       else if(!NET._hostId){ NET._hostId = ''; }
     }
   }catch(e){}
+
+  if(typeof RELAY !== 'undefined'){
+    RELAY.mode = 'p2p';
+    RELAY.room = cleanRoom;
+    RELAY.pid = id;
+    if(RELAY.ws){ try{ RELAY.ws.close(); }catch(e){} RELAY.ws = null; }
+    if(RELAY.pollTimer){ clearInterval(RELAY.pollTimer); RELAY.pollTimer = null; }
+  }
   
   // Server choice: manual ?server=... wins, else probed self/render pick (NET._srv), else PEER_SERVER_CONFIG
   let customHost = '';
@@ -16463,7 +16081,14 @@ function netConnectPeer(room, isHost, forceFallback = false){
     }
   } catch(e){}
 
-  let peerOptions = { debug: 0, config: { iceServers: ICE_SERVERS } };
+  let peerOptions = {
+    debug: 0,
+    config: {
+      iceServers: ICE_SERVERS,
+      iceCandidatePoolSize: 2,
+      iceTransportPolicy: 'all'
+    }
+  };
   let usingCustom = false;
   if(customHost && !forceFallback){
     usingCustom = true;
@@ -16473,7 +16098,11 @@ function netConnectPeer(room, isHost, forceFallback = false){
       path: effPath,
       secure: effSecure,
       debug: 0,
-      config: { iceServers: ICE_SERVERS }
+      config: {
+        iceServers: ICE_SERVERS,
+        iceCandidatePoolSize: 2,
+        iceTransportPolicy: 'all'
+      }
     };
   }
 
@@ -16515,6 +16144,33 @@ function netConnectPeer(room, isHost, forceFallback = false){
       NET.peer.on('connection', c => netWireConn(c, true));
       netToast('Hosting room ' + room.toUpperCase() + '! Link copied.');
       setTimeout(() => { netBroadcastSettings(); netBroadcastRoster(); }, 400);
+
+      // Host also registers with relay server in the background for zero-UDP guests
+      try {
+        const base = netRelayBase();
+        const hostRelayWs = new WebSocket(base + '/tag-relay');
+        hostRelayWs.onopen = () => {
+          try { hostRelayWs.send(JSON.stringify({ t: 'join', room: cleanRoom.toUpperCase(), peerId: id2 })); } catch(e){}
+        };
+        hostRelayWs.onmessage = (ev) => {
+          try {
+            const m = JSON.parse(ev.data);
+            if (m && m.from && m.data) {
+              const fakeConn = {
+                peer: m.from,
+                open: true,
+                send: (d) => {
+                  if (hostRelayWs.readyState === 1) {
+                    try { hostRelayWs.send(JSON.stringify({ to: m.from, data: d })); return; } catch(e){}
+                  }
+                  netRelaySend(m.from, d);
+                }
+              };
+              netOnData(m.data, fakeConn);
+            }
+          } catch(e) {}
+        };
+      } catch(e) {}
     } else {
       const hostId = NET._joinHostId || ('tag-' + cleanRoom + '-host');
       NET._hostId = hostId;
@@ -16523,6 +16179,23 @@ function netConnectPeer(room, isHost, forceFallback = false){
       netWireConn(connRel, false);
       const connFast = NET.peer.connect(hostId, { reliable: false, ordered: false, maxRetransmits: 0, label: 'fast' });
       netWireConn(connFast, false);
+
+      // 3.5s P2P watchdog for campus / institutional firewalls
+      RELAY._t0 = performance.now();
+      setTimeout(() => {
+        try {
+          if (!NET || NET.role !== 'guest' || RELAY.mode === 'relay') return;
+          const pair = NET.conns.get(NET._hostId || hostId);
+          const open = pair && ((pair.rel && pair.rel.open) || (pair.fast && pair.fast.open));
+          if (!open) {
+            console.warn('[NET] P2P channel not open after 3.5s, switching to relay mode.');
+            netEnterRelay('no-p2p-3.5s');
+            const myProfile = netGetMyProfile();
+            netRelaySend(hostId, { t: 'hello', ctrl: NET.myCtrl || 'WASD', name: myProfile.name, avatar: myProfile.avatar });
+          }
+        } catch(e) {}
+      }, RELAY.deadline || 3500);
+
       NET._guestTimeout = setTimeout(() => {
         try{
           if(!NET || NET.role !== 'guest') return;
@@ -16531,6 +16204,7 @@ function netConnectPeer(room, isHost, forceFallback = false){
             const pair = NET.conns.get(NET._hostId || hostId);
             const open = pair && ((pair.rel && pair.rel.open) || (pair.fast && pair.fast.open));
             if(open && (NET.mySlot >= 0 || NET.isSpectator)) ok = true;
+            if(RELAY.mode === 'relay' && (NET.mySlot >= 0 || NET.isSpectator)) ok = true;
           }catch(e){}
           if(!ok){
             try{ if(typeof CG!=='undefined'&&CG&&typeof CG.leftRoom==='function')CG.leftRoom(); }catch(e){}
@@ -16549,10 +16223,14 @@ function netConnectPeer(room, isHost, forceFallback = false){
 
   NET.peer.on('error', e => {
     const t = String(e.type || e.message || 'error').toLowerCase();
-    if(usingCustom && (t.includes('server-error') || t.includes('socket-error') || t.includes('network') || t.includes('failed') || t.includes('could not connect'))){
+    if(usingCustom && (t.includes('server-error') || t.includes('socket-error') || t.includes('network') || t.includes('could not connect'))){
       if(fallbackTimer){ clearTimeout(fallbackTimer); fallbackTimer = null; }
       netToast('Custom server error. Switching to public cloud…');
       netConnectPeer(room, isHost, true);
+      return;
+    }
+    if(/ice|failed|disconnected/i.test(t)){
+      netEnterRelay('ice-failed');
       return;
     }
     if(t.includes('peer-unavailable')){
@@ -16768,7 +16446,10 @@ function netOnData(m, c){
     netBroadcastRoster();
     netUpdateHostDirectory();
 
-    const isMidgame = (match && screen === 'game' && (match.state === 'playing' || match.state === 'countdown'));
+    // Any live match screen (playing/countdown/paused/result/round-result):
+    // a joiner during result/paused previously got NO snapshot and sat in the
+    // lobby seeing nothing until the next round.
+    const isMidgame = !!(match && screen === 'game' && match.state);
     if(isMidgame){
       const payload = {
         it: match.it,
@@ -18356,6 +18037,11 @@ function netLeaveRoom(reason){
       }).catch(() => {});
     } catch(e){}
   }
+  if(typeof RELAY !== "undefined"){
+      RELAY.mode = "p2p";
+      if(RELAY.ws){ try{ RELAY.ws.close(); }catch(e){} RELAY.ws = null; }
+      if(RELAY.pollTimer){ clearInterval(RELAY.pollTimer); RELAY.pollTimer = null; }
+    }
   if(NET.heartbeatTimer){ clearInterval(NET.heartbeatTimer); NET.heartbeatTimer = null; }
   if(NET.pingTimer){ clearInterval(NET.pingTimer); NET.pingTimer = null; }
   if(_readyTimerInterval){ clearInterval(_readyTimerInterval); _readyTimerInterval = null; }
@@ -18461,6 +18147,12 @@ function startMatchNetGuest(p){
     hintT: 7, players: players, result: null, roundSummary: null, pausedFrom: null, pauseSel: 0,
     mapToast: MAPS[settings.map % MAPS.length].name, mapToastT: 2.5
   };
+  // Spectator-safe: 'start'/'midgame_start' carry no mode init, so ensure HUD
+  // active flags without resetting fuse/scores (init funcs would reset state).
+  try{
+    if(settings.gameMode === 'bomb' && typeof BOMB_MODE !== 'undefined') BOMB_MODE.active = true;
+    if(settings.gameMode === 'crown' && typeof crownState !== 'undefined') crownState.active = true;
+  }catch(e){}
   screen = 'game';
   if(initState === 'countdown') sfx('count');
   netShow(false);
@@ -18590,7 +18282,7 @@ function netInitUI(){
 
   // Check URL ?room= parameter on boot -> auto-joins immediately!
   const qp = new URLSearchParams(location.search);
-  const roomQ = (qp.get('room') || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 6).toUpperCase();
+  const roomQ = (qp.get('room') || qp.get('roomId') || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 6).toUpperCase();
   try{ // carry ?srv= server hint (stripped from code) so guest probes the host's directory
     const srvQ = (qp.get('srv') || '').replace(/^https?:\/\//i, '').replace(/\/+$/, '').trim().slice(0, 64);
     if(srvQ && /^[A-Za-z0-9.\-:]+$/.test(srvQ)) NET._srvHintHost = srvQ;
