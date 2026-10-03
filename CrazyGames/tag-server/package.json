@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "tag-netplay-server",
   "version": "1.0.0",
   "description": "High-performance WebRTC signaling server for Tag Netplay",
@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "express": "^4.19.2",
-    "peer": "^1.0.2"
+    "peer": "^1.0.2",
+    "ws": "^8.22.0"
   }
 }

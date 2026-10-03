@@ -1,5 +1,7 @@
 const express = require('express');
 const { ExpressPeerServer } = require('peer');
+const { WebSocketServer } = require('ws');
+const crypto = require('crypto');
 
 const PORT = process.env.PORT || 9000;
 const app = express();
@@ -34,6 +36,43 @@ function pruneDeadRooms() {
 // Health check endpoint for uptime monitors (keeps Render / Railway awake 24/7)
 app.get('/', (req, res) => res.status(200).json({ status: 'ok', service: 'tag-netplay-signaling' }));
 app.get('/health', (req, res) => res.status(200).send('OK'));
+
+// Dynamic TURN Credential Minting Endpoint (Institutional / Strict NAT Traversal)
+app.get('/api/turn', (req, res) => {
+  const turnServers = [
+    {
+      urls: [
+        'turns:openrelay.metered.ca:443?transport=tcp',
+        'turn:openrelay.metered.ca:443?transport=tcp',
+        'turn:openrelay.metered.ca:80?transport=tcp'
+      ],
+      username: 'openrelay',
+      credential: 'openrelay'
+    }
+  ];
+
+  if (process.env.TURN_SECRET) {
+    try {
+      const ttl = 86400; // 24 hours
+      const user = (Math.floor(Date.now() / 1000) + ttl) + ':tag';
+      const pass = crypto.createHmac('sha1', process.env.TURN_SECRET).update(user).digest('base64');
+      const domain = process.env.TURN_DOMAIN || 'turn.tag-game.com';
+      turnServers.unshift({
+        urls: [
+          `turns:${domain}:443?transport=tcp`,
+          `turn:${domain}:443?transport=tcp`,
+          `turns:${domain}:5349?transport=tcp`
+        ],
+        username: user,
+        credential: pass
+      });
+    } catch (e) {
+      console.warn('[TURN] Error generating HMAC TURN credentials:', e.message);
+    }
+  }
+
+  res.json({ iceServers: turnServers });
+});
 
 // Public Room Directory APIs
 app.get('/api/rooms', (req, res) => {
@@ -92,17 +131,79 @@ app.post('/api/rooms/close', (req, res) => {
   if (roomId) {
     const cleanId = String(roomId).trim().toUpperCase();
     activeRooms.delete(cleanId);
+    relayRooms.delete(cleanId);
     console.log(`[NET] Host cleanly closed room: ${cleanId}`);
   }
   res.json({ success: true });
 });
 
+// ================= ZERO-UDP WSS & HTTP LONG-POLL RELAY =================
+// roomId -> Map(peerId -> ws)
+const relayRooms = new Map();
+// "roomId:peerId" -> array of buffered messages for HTTP polling
+const relayQueues = new Map();
+
+app.post('/api/relay/send', (req, res) => {
+  try {
+    const { room, from, to, data } = req.body || {};
+    const r = String(room || '').trim().toUpperCase();
+    const pid = String(from || '').trim();
+    if (r && pid && data) {
+      const peers = relayRooms.get(r);
+      const targets = to ? [to] : (peers ? [...peers.keys()].filter(k => k !== pid) : []);
+      const env = JSON.stringify({ from: pid, data });
+      for (const t of targets) {
+        const s = peers && peers.get(t);
+        if (s && s.readyState === 1) {
+          s.send(env);
+        } else {
+          const k = r + ':' + t;
+          if (!relayQueues.has(k)) relayQueues.set(k, { msgs: [], lastAccess: Date.now() });
+          const entry = relayQueues.get(k);
+          entry.lastAccess = Date.now();
+          if (entry.msgs.length < 200) entry.msgs.push({ from: pid, data });
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[RELAY HTTP] Send error:', e.message);
+  }
+  res.json({ ok: true });
+});
+
+app.get('/api/relay/poll', (req, res) => {
+  const r = String(req.query.room || '').trim().toUpperCase();
+  const pid = String(req.query.peerId || '').trim();
+  const k = r + ':' + pid;
+  const entry = relayQueues.get(k);
+  if (entry) {
+    const msgs = entry.msgs || [];
+    entry.msgs = [];
+    entry.lastAccess = Date.now();
+    res.json({ msgs });
+  } else {
+    res.json({ msgs: [] });
+  }
+});
+
+// Periodic safe TTL cleanup of stale relay queues (older than 30s)
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, entry] of relayQueues.entries()) {
+    if (now - (entry.lastAccess || 0) > 30000) {
+      relayQueues.delete(k);
+    }
+  }
+}, 15000);
+
 const server = app.listen(PORT, () => {
   console.log(`[NET] Tag Signaling Server running on port ${PORT}`);
   console.log(`[NET] Health endpoint: http://localhost:${PORT}/health`);
   console.log(`[NET] PeerJS path: /tag-netplay`);
+  console.log(`[NET] Zero-UDP Relay path: /tag-relay`);
 });
 
+// Attach PeerJS Server
 const peerServer = ExpressPeerServer(server, {
   path: '/',
   proxied: true,
@@ -118,4 +219,60 @@ peerServer.on('connection', (client) => {
 
 peerServer.on('disconnect', (client) => {
   console.log(`[NET] Peer disconnected: ${client.getId()}`);
+});
+
+// Attach Zero-UDP WebSocket Relay Server
+const relayWss = new WebSocketServer({ server, path: '/tag-relay' });
+
+relayWss.on('connection', (ws) => {
+  let room = '';
+  let pid = '';
+
+  ws.on('message', (raw) => {
+    try {
+      const m = JSON.parse(raw);
+      if (m.t === 'join') {
+        room = String(m.room || '').trim().toUpperCase();
+        pid = String(m.peerId || '').trim();
+        if (!relayRooms.has(room)) relayRooms.set(room, new Map());
+        relayRooms.get(room).set(pid, ws);
+        console.log(`[RELAY WS] Joined room ${room}: ${pid}`);
+        return;
+      }
+
+      const peers = relayRooms.get(room);
+      if (!peers) return;
+
+      const targets = m.to ? [m.to] : [...peers.keys()].filter(k => k !== pid);
+      const env = JSON.stringify({ from: pid, data: m.data });
+      for (const t of targets) {
+        const s = peers.get(t);
+        if (s && s.readyState === 1) {
+          s.send(env);
+        } else {
+          const k = room + ':' + t;
+          if (!relayQueues.has(k)) relayQueues.set(k, { msgs: [], lastAccess: Date.now() });
+          const entry = relayQueues.get(k);
+          entry.lastAccess = Date.now();
+          if (entry.msgs.length < 200) entry.msgs.push({ from: pid, data: m.data });
+        }
+      }
+    } catch (e) {
+      console.warn('[RELAY WS] message parse error:', e.message);
+    }
+  });
+
+  ws.on('close', () => {
+    try {
+      if (room && pid && relayRooms.has(room)) {
+        relayRooms.get(room).delete(pid);
+        console.log(`[RELAY WS] Left room ${room}: ${pid}`);
+        if (relayRooms.get(room).size === 0) {
+          relayRooms.delete(room);
+        }
+      }
+    } catch (e) {}
+  });
+
+  ws.on('error', () => {});
 });
