@@ -6591,6 +6591,7 @@ var CrownMode = (typeof window !== "undefined" && window.CrownMode) || (typeof g
 
 
 function startMatch(){
+  if(typeof NET !== 'undefined' && NET && (menu.tab === 'solo' || menu.tab === 'bots' || menu.tab === '2p' || NET.role === null)){ NET.isSpectator = false; }
   if(match && !match._telemetrySent){ try{ telemetryTrackMatchEnded('quit'); }catch(e){} }
   if(menu.tab === 'solo'){
     const soloModes = ['party', 'bomb', 'crown'];
@@ -12385,6 +12386,10 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
 /* ================= SPECTATOR HUD BANNER ================= */
 function drawSpectatorBanner(){
   if(!match) return;
+  if(menu.tab === 'solo' || menu.tab === 'bots' || menu.tab === '2p') return;
+  if(typeof NET === 'undefined' || !NET || !NET.isSpectator || NET.role === null || menu.tab !== 'online') return;
+  const myIdx = (typeof myMatchIndex === 'function') ? myMatchIndex() : 0;
+  if(myIdx >= 0) return;
   g.save();
   const banW = Math.min(CW - 24, 460);
   const banH = 38;
@@ -14151,8 +14156,9 @@ function drawHUD(){
   /* In-game Tab Scoreboard / Spectator HUD Overlay */
   if(scoreboardOpen){
     drawScoreboardOverlay();
-  } else if(typeof NET !== 'undefined' && NET && NET.isSpectator && match && match.state === 'playing'){
-    drawSpectatorBanner();
+  } else if(typeof NET !== 'undefined' && NET && NET.role !== null && NET.isSpectator && menu.tab === 'online' && match && match.state === 'playing'){
+    const myIdx = (typeof myMatchIndex === 'function') ? myMatchIndex() : 0;
+    if(myIdx < 0) drawSpectatorBanner();
   }
 }
 
@@ -16241,14 +16247,29 @@ function netGuestTryOtherServer(room){
   }catch(e){ return false; }
 }
 
+/* Intentional peer teardown for fallback/retry: destroy fires 'close'
+   asynchronously, and the close handler wipes hosting state. Detach first
+   so a rebuild never looks like a disconnect. */
+function netDestroyPeerForRebuild(){
+  try{
+    NET._rebuilding = true;
+    const p = NET.peer;
+    NET.peer = null;
+    if(p){
+      try{ if(typeof p.removeAllListeners === 'function') p.removeAllListeners('close'); }catch(e){}
+      try{ if(typeof p.off === 'function') p.off('close'); }catch(e){}
+      try{ p.destroy(); }catch(e){}
+    }
+  }catch(e){ try{ NET._rebuilding = true; NET.peer = null; }catch(e2){} }
+}
+
 /* PeerJS connect (Supports dedicated Railway/Render server with zero-failure cloud fallback) */
 /* PeerJS connect (Supports dedicated Railway/Render server with zero-failure cloud & zero-UDP relay fallback) */
 async function netConnectPeer(room, isHost, forceFallback = false){
   try{ await netRefreshIce(); }catch(e){}
   try{ if(NET._guestTimeout){ clearTimeout(NET._guestTimeout); NET._guestTimeout = null; } }catch(e){}
   if(NET.peer){
-    try{ NET.peer.destroy(); }catch(e){}
-    NET.peer = null;
+    netDestroyPeerForRebuild();
   }
   const cleanRoom = room.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 6);
   try{ if(typeof NET!=='undefined'&&NET) NET._joinHostId = NET._joinHostId || ''; }catch(e){}
@@ -16344,6 +16365,7 @@ async function netConnectPeer(room, isHost, forceFallback = false){
   
   NET.peer.on('open', id2 => {
     if(fallbackTimer){ clearTimeout(fallbackTimer); fallbackTimer = null; }
+    try{ NET._rebuilding = false; }catch(e){} // rebuild survived: future closes are real
     NET.myId = id2;
     NET.peerSlots.clear();
     if(usingCustom){
@@ -16474,6 +16496,7 @@ async function netConnectPeer(room, isHost, forceFallback = false){
   });
 
   NET.peer.on('close', () => {
+    try{ if(NET._rebuilding){ NET._rebuilding = false; return; } }catch(e){}
     netToast('Online session ended');
     netLeaveRoom();
   });
