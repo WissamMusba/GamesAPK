@@ -3075,7 +3075,6 @@ var initCrownMode, updateCrownMode, checkCrownTag, drawCrownUI, drawCrownPlayer,
           break;
         case 'last_stand':
           gScope.sfx('win');
-  try{ telemetryTrackMatchEnded(); }catch(e){}
           break;
         case 'win_survivors':
           gScope.sfx('win');
@@ -6592,6 +6591,7 @@ var CrownMode = (typeof window !== "undefined" && window.CrownMode) || (typeof g
 
 
 function startMatch(){
+  if(match && !match._telemetrySent){ try{ telemetryTrackMatchEnded('quit'); }catch(e){} }
   if(menu.tab === 'solo'){
     const soloModes = ['party', 'bomb', 'crown'];
     if(soloModes.indexOf(settings.gameMode) < 0){
@@ -6732,6 +6732,7 @@ function startMatch(){
 }
 function quitToMenu(){
   try{CG.gameplayStop();}catch(e){}
+  if(match && !match._telemetrySent){ try{ telemetryTrackMatchEnded('quit'); }catch(e){} }
   if(typeof NET!=='undefined' && NET && NET.role!==null && NET.isHost){
     try{if(typeof CG!=='undefined'&&CG&&typeof CG.leftRoom==='function')CG.leftRoom();}catch(e){}
     netBroadcastReliable({t:'to_menu'});
@@ -6747,6 +6748,7 @@ function quitToMenu(){
 
 function returnToLobby(){
   try{CG.gameplayStop();}catch(e){}
+  if(match && !match._telemetrySent){ try{ telemetryTrackMatchEnded('quit'); }catch(e){} }
   GESTURE_SPLIT.showTutorial = false;
   const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
   if(isOnline){
@@ -12817,263 +12819,134 @@ function drawMenu(){
 
   const isMobilePhone = (typeof isTouch !== 'undefined' && isTouch) || (CW < 780);
 
-  // 4b. NEW MODES promo sticker (Right Side of Screen) - Desktop / Laptop only
-  if(!isMobilePhone){
+  // 4b. COMING SOON promo sticker (Cycles: 🗺️ NEW MAPS <-> 🧟 INFECTED <-> ❄️ FREEZE TAG)
+  // Hide when 4 players are active in local multiplayer to avoid overlapping 4th player card
+  const curPCount = (actSlots && actSlots.length) ? actSlots.length : 2;
+  const hideSticker4P = (curPCount >= 4 && menu.tab !== 'solo' && menu.tab !== 'bots');
+
+  if(!hideSticker4P){
     const isWideScreen = (CW >= 880);
     const isMediumScreen = (CW >= 680 && CW < 880);
-    let stickW, stickH, stickX, stickY;
-    if(isWideScreen){
+    let stickW, stickH, stickX, stickY, stickTilt;
+    if(isMobilePhone){
+      stickW = clamp(CW * 0.25, 118, 146);
+      stickH = clamp(CH * 0.14, 48, 62);
+      stickX = CW - stickW - 6;
+      stickY = headY + headH + 4;
+      stickTilt = -0.04;
+    } else if(isWideScreen){
       stickW = 186; stickH = 88;
       stickX = CW - stickW - 20;
       stickY = headY + headH + 18;
+      stickTilt = -0.06 + 0.02 * Math.sin(tGlobal * 1.3);
     } else {
       stickW = 152; stickH = 76;
       stickX = CW - stickW - 14;
       stickY = headY + headH + 12;
+      stickTilt = -0.06 + 0.02 * Math.sin(tGlobal * 1.3);
     }
 
-    // Rotating spotlight: ❄️ FREEZE TAG <-> 🧟 INFECTED (switch every 3s)
-    const promoStage = Math.floor(tGlobal / 3) % 2;
-    const promoMode = (promoStage === 0) ? 'freeze' : 'infection';
-    const promoIcon = (promoStage === 0) ? '❄️' : '🧟';
-    const promoName = (promoStage === 0) ? 'FREEZE TAG' : 'INFECTED';
-    const promoDesc = (promoStage === 0) ? 'Freeze the whole crew' : 'Outrun Patient Zero';
-    const promoGlow = (promoStage === 0) ? '103,232,249' : '163,230,53';
+    // Rotating spotlight every 3s: 0: 🗺️ NEW MAPS, 1: 🧟 INFECTED, 2: ❄️ FREEZE TAG
+    const promoStage = Math.floor(tGlobal / 3) % 3;
+    let promoMode = 'maps';
+    let promoIcon = '🗺️';
+    let promoName = 'NEW MAPS';
+    let promoDesc = 'Fresh arenas & layouts';
+    let promoGlow = '56,189,248'; // Cyan
+    let cornerIcon1 = '🗺️', cornerIcon2 = '🧭';
+
+    if(promoStage === 1){
+      promoMode = 'infected';
+      promoIcon = '🧟';
+      promoName = 'INFECTED';
+      promoDesc = 'Outrun Patient Zero';
+      promoGlow = '34,197,94'; // Toxic Green
+      cornerIcon1 = '🧟'; cornerIcon2 = '☣️';
+    } else if(promoStage === 2){
+      promoMode = 'freeze';
+      promoIcon = '❄️';
+      promoName = 'FREEZE TAG';
+      promoDesc = 'Freeze the whole crew';
+      promoGlow = '103,232,249'; // Frost Cyan
+      cornerIcon1 = '❄️'; cornerIcon2 = '🧊';
+    }
     const switchPulse = Math.max(0, 1 - (tGlobal % 3) * 2.5); // name pops right after each switch
 
     g.save();
     const scx = stickX + stickW / 2;
     const scy = stickY + stickH / 2;
     g.translate(scx, scy);
-    g.rotate(-0.06 + 0.02 * Math.sin(tGlobal * 1.3)); // sticker sway, ~-3.5 degrees
+    g.rotate(stickTilt);
     g.translate(-stickW / 2, -stickH / 2);
 
     // Soft drop shadow
-    rr(g, 3, 5, stickW, stickH, 12);
+    rr(g, 3, 5, stickW, stickH, isMobilePhone ? 9 : 12);
     g.fillStyle = 'rgba(0, 0, 0, 0.45)'; g.fill();
 
     // Die-cut white vinyl border
-    rr(g, -3, -3, stickW + 6, stickH + 6, 14);
+    rr(g, -2.5, -2.5, stickW + 5, stickH + 5, isMobilePhone ? 11 : 14);
     g.fillStyle = '#ffffff'; g.fill();
     g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
 
     // Sticker inner body
-    rr(g, 0, 0, stickW, stickH, 11);
+    rr(g, 0, 0, stickW, stickH, isMobilePhone ? 8 : 11);
     g.fillStyle = '#161329'; g.fill();
 
-    // Glowing border pulse (cyan for Freeze, lime for Infected)
+    // Glowing border pulse in matching mode color
     const stickerPulse = 0.55 + 0.35 * Math.sin(tGlobal * 5);
-    g.lineWidth = 2;
+    g.lineWidth = isMobilePhone ? 1.5 : 2;
     g.strokeStyle = 'rgba(' + promoGlow + ', ' + stickerPulse + ')';
     g.stroke();
 
-    // 1. "✨ NEW MODES" eyebrow in gold
-    ptxt('✨ NEW MODES', stickW / 2, stickH * 0.17, FN(clamp(stickH * 0.11, 8, 9.5), 900), '#ffd166');
+    if(isMobilePhone){
+      // 1. "✨ COMING SOON" eyebrow in gold
+      ptxt('✨ COMING SOON', stickW / 2, stickH * 0.18, FN(clamp(stickH * 0.15, 8, 9.5), 900), '#ffd166');
+      // 2. Rotating name
+      const nameFsMob = clamp(stickH * 0.23, 10.5, 13) * (1 + 0.10 * switchPulse);
+      ptxt(promoIcon + ' ' + promoName, stickW / 2, stickH * 0.45, FT(nameFsMob), '#ffffff');
+      // 3. Pill
+      const pillWMob = stickW - 14;
+      const pillHMob = Math.floor(stickH * 0.26);
+      const pillYMob = stickH - pillHMob - 4;
+      pill(7, pillYMob, pillWMob, pillHMob, 'rgba(' + promoGlow + ', 0.22)', 'rgba(' + promoGlow + ', 0.85)');
+      txt('OCT 12TH (TENT.)', stickW / 2, pillYMob + pillHMob / 2 + 1, FN(clamp(pillHMob * 0.52, 7.5, 9.5), 900), '#ffffff');
+    } else {
+      // 1. "✨ COMING SOON" eyebrow in gold
+      ptxt('✨ COMING SOON', stickW / 2, stickH * 0.17, FN(clamp(stickH * 0.11, 8, 9.5), 900), '#ffd166');
 
-    // 2. Rotating mode name, pops on every switch
-    const nameFs = clamp(stickH * 0.21, 12, 16) * (1 + 0.12 * switchPulse);
-    ptxt(promoIcon + ' ' + promoName, stickW / 2, stickH * 0.42, FT(nameFs), '#ffffff');
+      // 2. Rotating name, pops on every switch
+      const nameFs = clamp(stickH * 0.21, 12, 16) * (1 + 0.12 * switchPulse);
+      ptxt(promoIcon + ' ' + promoName, stickW / 2, stickH * 0.42, FT(nameFs), '#ffffff');
 
-    // 3. Mode hook line
-    const smallFs = clamp(stickH * 0.13, 8.5, 10.5);
-    txt(promoDesc, stickW / 2, stickH * 0.60, FN(smallFs, 800), '#e2e8f0');
+      // 3. Hook line
+      const smallFs = clamp(stickH * 0.13, 8.5, 10.5);
+      txt(promoDesc, stickW / 2, stickH * 0.60, FN(smallFs, 800), '#e2e8f0');
 
-    // 4. Note pill + floating corner icons riding the tilt
-    const notePillW = stickW - 16;
-    const notePillH = Math.floor(stickH * 0.22);
-    const notePillY = stickH - notePillH - 6;
-    pill(8, notePillY, notePillW, notePillH, 'rgba(46, 204, 113, 0.20)', 'rgba(46, 204, 113, 0.6)');
-    txt('COMING SOON', stickW / 2, notePillY + notePillH / 2 + 1, FN(clamp(notePillH * 0.52, 8.5, 10.5), 900), '#2ecc71');
-    const bobA = Math.sin(tGlobal * 2.2) * 2.5, bobB = Math.sin(tGlobal * 2.2 + 2.1) * 2.5;
-    ptxt('❄️', 2, 12 + bobA, FN(13, 900), '#ffffff');
-    ptxt('🧟', stickW - 2, stickH - 2 + bobB, FN(13, 900), '#ffffff');
+      // 4. Note pill + floating corner icons riding the tilt
+      const notePillW = stickW - 16;
+      const notePillH = Math.floor(stickH * 0.22);
+      const notePillY = stickH - notePillH - 6;
+      pill(8, notePillY, notePillW, notePillH, 'rgba(' + promoGlow + ', 0.20)', 'rgba(' + promoGlow + ', 0.75)');
+      txt('COMING SOON • OCT 12TH', stickW / 2, notePillY + notePillH / 2 + 1, FN(clamp(notePillH * 0.48, 8, 9.5), 900), '#ffffff');
+      const bobA = Math.sin(tGlobal * 2.2) * 2.5, bobB = Math.sin(tGlobal * 2.2 + 2.1) * 2.5;
+      ptxt(cornerIcon1, 2, 12 + bobA, FN(13, 900), '#ffffff');
+      ptxt(cornerIcon2, stickW - 2, stickH - 2 + bobB, FN(13, 900), '#ffffff');
+    }
     g.restore();
 
-    // Click zone for the sticker: modes aren't playable yet, just hype them
-    zone(stickX - 6, stickY - 6, stickW + 12, stickH + 12, { fn: () => { toast('❄️ FREEZE TAG & 🧟 INFECTED — COMING SOON!'); sfx('ui'); } });
-  }
-
-  // 4c. Interactive Promo Sticker (Rotates between NEW MODES: 👑 CROWN, 💣 BOMB, 🎯 HUNTER, and 🤖 1P SOLO)
-  if(menu.tab !== 'solo'){
-    // Rotate promo topic every 6 seconds: 0: crown, 1: bomb, 2: hunter, 3: solo
-    const promoStage = Math.floor((tGlobal / 6.0) % 4);
-    let promoType = 'crown';
-    if(promoStage === 0 && settings.gameMode !== 'crown') promoType = 'crown';
-    else if(promoStage === 1 && settings.gameMode !== 'bomb') promoType = 'bomb';
-    else if(promoStage === 2 && settings.gameMode !== 'hunter') promoType = 'hunter';
-    else promoType = 'solo';
-
-    let soloW, soloH, soloX, soloY, soloTilt;
-    if(isMobilePhone){
-      soloW = clamp(CW * 0.25, 120, 144);
-      soloH = clamp(CH * 0.14, 48, 62);
-      soloX = CW - soloW - 8;
-      soloY = headY + headH + 6;
-      soloTilt = -0.05;
-    } else if(CW >= 880){
-      soloW = 240; soloH = 118;
-      soloX = 20;
-      soloY = headY + headH + 14;
-      soloTilt = 0.055;
-    } else {
-      soloW = 196; soloH = 100;
-      soloX = 14;
-      soloY = headY + headH + 10;
-      soloTilt = 0.055;
-    }
-
-    g.save();
-    const solocx = soloX + soloW / 2;
-    const solocy = soloY + soloH / 2;
-    g.translate(solocx, solocy);
-    g.rotate(soloTilt);
-    g.translate(-soloW / 2, -soloH / 2);
-
-    // Soft drop shadow
-    rr(g, 3, 4, soloW, soloH, isMobilePhone ? 10 : 14);
-    g.fillStyle = 'rgba(0, 0, 0, 0.45)'; g.fill();
-
-    // Die-cut white vinyl border
-    rr(g, -2.5, -2.5, soloW + 5, soloH + 5, isMobilePhone ? 12 : 16);
-    g.fillStyle = '#ffffff'; g.fill();
-    g.lineWidth = isMobilePhone ? 2 : 2.5; g.strokeStyle = INK; g.stroke();
-
-    // Inner card body (color themed by promo)
-    rr(g, 0, 0, soloW, soloH, isMobilePhone ? 9 : 13);
-    const bgCol = promoType === 'crown' ? '#2b2005' : (promoType === 'bomb' ? '#2e0a0a' : (promoType === 'hunter' ? '#220e36' : '#1c1335'));
-    g.fillStyle = bgCol; g.fill();
-
-    // Animated warm glowing pulse
-    const soloPulse = 0.55 + 0.35 * Math.sin(tGlobal * 6);
-    g.lineWidth = isMobilePhone ? 1.5 : 2;
-    const glowCol = promoType === 'crown' ? ('rgba(250, 204, 21, ' + soloPulse + ')') : (promoType === 'bomb' ? ('rgba(248, 113, 113, ' + soloPulse + ')') : (promoType === 'hunter' ? ('rgba(224, 86, 253, ' + soloPulse + ')') : ('rgba(255, 107, 129, ' + soloPulse + ')')));
-    g.strokeStyle = glowCol;
-    g.stroke();
-
-    // Live expression & slight movement cycle every 3s
-    const cycleT = (tGlobal % 3.0);
-    let charFace = 'cool';
-    let charHopY = 0;
-    let charTilt = 0;
-    let charBlink = false;
-
-    if(cycleT < 0.45){
-      charFace = 'happy';
-      charHopY = -Math.sin(cycleT / 0.45 * Math.PI) * (isMobilePhone ? 5 : 9);
-      charTilt = Math.sin(cycleT / 0.45 * Math.PI * 2) * 0.14;
-    } else if(cycleT >= 1.5 && cycleT < 1.7){
-      charBlink = true;
-      charFace = 'idle';
-    } else if(cycleT >= 2.1 && cycleT < 2.55){
-      charFace = 'run';
-      charTilt = Math.sin((cycleT - 2.1) / 0.45 * Math.PI) * 0.10;
-    }
-
-    const charCol = promoType === 'crown' ? '#eab308' : (promoType === 'bomb' ? '#ef4444' : (promoType === 'hunter' ? '#a855f7' : '#ff4757'));
-
-    let titleTxt = '🤖 1P SOLO';
-    let badgeTxt = '⚡ SOLO BOT';
-    let badgeColor = '#ff6b81';
-    let btnTxt = '▶ PLAY SOLO !';
-    let btnBg = '#2ed573';
-
-    if(promoType === 'crown'){
-      titleTxt = isMobilePhone ? '👑 CROWN' : '👑 CROWN KING';
-      badgeTxt = '⚡ NEW MODE';
-      badgeColor = '#facc15';
-      btnTxt = '▶ TRY NOW !';
-      btnBg = '#eab308';
-    } else if(promoType === 'bomb'){
-      titleTxt = isMobilePhone ? '💣 BOMB' : '💣 BOMB TAG';
-      badgeTxt = '⚡ NEW MODE';
-      badgeColor = '#f87171';
-      btnTxt = '▶ TRY NOW !';
-      btnBg = '#dc2626';
-    } else if(promoType === 'hunter'){
-      titleTxt = isMobilePhone ? '🎯 HUNTER' : '🎯 HUNTER MODE';
-      badgeTxt = '⚡ TEAM HUNT';
-      badgeColor = '#e056fd';
-      btnTxt = '▶ TRY NOW !';
-      btnBg = '#9b59b6';
-    }
-
-    if(isMobilePhone){
-      const charSz = clamp(soloH * 0.38, 17, 23);
-      const charX = 14;
-      const charY = Math.floor(soloH * 0.32 + charHopY);
-      drawChar(g, charX, charY, charSz, charCol, {
-        face: charFace,
-        tilt: charTilt,
-        blink: charBlink,
-        moving: (charHopY !== 0),
-        grounded: (charHopY === 0),
-        seed: 7
-      });
-
-      const soloTxtX = charX + charSz + 5;
-      txt(titleTxt, soloTxtX, soloH * 0.22, FT(clamp(soloH * 0.18, 9, 11.5)), '#ffd166', 'left');
-
-      const betaW = soloW - soloTxtX - 7;
-      const betaH = Math.floor(soloH * 0.20);
-      pill(soloTxtX, soloH * 0.37, betaW, betaH, 'rgba(255, 255, 255, 0.12)', badgeColor);
-      txt(badgeTxt, soloTxtX + betaW / 2, soloH * 0.37 + betaH / 2 + 1, FN(clamp(betaH * 0.55, 7.5, 9), 900), badgeColor);
-
-      const tryBtnW = soloW - 14;
-      const tryBtnH = Math.floor(soloH * 0.26);
-      const tryBtnY = soloH - tryBtnH - 5;
-      rr(g, 7, tryBtnY, tryBtnW, tryBtnH, 6);
-      g.fillStyle = btnBg; g.fill();
-      g.lineWidth = 1.2; g.strokeStyle = '#ffffff'; g.stroke();
-      txt(btnTxt, soloW / 2, tryBtnY + tryBtnH / 2 + 1, FT(clamp(tryBtnH * 0.58, 8.5, 11)), '#ffffff');
-    } else {
-      const charSz = clamp(soloH * 0.38, 32, 44);
-      const charX = 22;
-      const charY = Math.floor(soloH * 0.34 + charHopY);
-      drawChar(g, charX, charY, charSz, charCol, {
-        face: charFace,
-        tilt: charTilt,
-        blink: charBlink,
-        moving: (charHopY !== 0),
-        grounded: (charHopY === 0),
-        seed: 7
-      });
-
-      const soloTxtX = charX + charSz + 10;
-      txt(titleTxt, soloTxtX, soloH * 0.22, FT(clamp(soloH * 0.155, 12, 16)), '#ffd166', 'left');
-
-      const betaW = soloW - soloTxtX - 12;
-      const betaH = Math.floor(soloH * 0.21);
-      pill(soloTxtX, soloH * 0.38, betaW, betaH, 'rgba(255, 255, 255, 0.12)', badgeColor);
-      txt(badgeTxt, soloTxtX + betaW / 2, soloH * 0.38 + betaH / 2 + 1, FN(clamp(betaH * 0.52, 9, 11), 900), badgeColor);
-
-      const tryBtnW = soloW - 22;
-      const tryBtnH = Math.floor(soloH * 0.26);
-      const tryBtnY = soloH - tryBtnH - 8;
-      rr(g, 11, tryBtnY, tryBtnW, tryBtnH, 8);
-      g.fillStyle = btnBg; g.fill();
-      g.lineWidth = 1.5; g.strokeStyle = '#ffffff'; g.stroke();
-      txt(btnTxt, soloW / 2, tryBtnY + tryBtnH / 2 + 1, FT(clamp(tryBtnH * 0.56, 12, 15)), '#ffffff');
-    }
-
-    g.restore();
-
-    // Click zone for promo sticker
-    zone(soloX - 6, soloY - 6, soloW + 12, soloH + 12, { fn: () => {
-      if(promoType === 'crown'){
-        setGameMode('crown');
-        sfx('go');
-      } else if(promoType === 'bomb'){
-        setGameMode('bomb');
-        sfx('go');
-      } else if(promoType === 'hunter'){
-        setGameMode('hunter');
-        sfx('go');
-      } else {
-        setMenuTab('solo');
-        toast('🤖 1P SOLO vs BOT ACTIVE');
-        sfx('go');
+    // Click zone for the sticker
+    zone(stickX - 6, stickY - 6, stickW + 12, stickH + 12, {
+      fn: () => {
+        if(promoStage === 0){
+          toast('🗺️ NEW MAPS COMING SOON! TENTATIVE DATE: OCT 12TH');
+        } else if(promoStage === 1){
+          toast('🧟 INFECTED MODE COMING SOON! TENTATIVE DATE: OCT 12TH');
+        } else {
+          toast('❄️ FREEZE TAG COMING SOON! TENTATIVE DATE: OCT 12TH');
+        }
+        sfx('ui');
       }
-    }});
+    });
   }
   }
 
@@ -14800,6 +14673,29 @@ function netDirBase(){
 }
 
 /* ================= DISCORD TELEMETRY & MULTI-CHANNEL SUITE ================= */
+function isOrganicPlay(){
+  try{
+    if(typeof window === 'undefined') return false;
+    // 1. Headless / automation flags
+    if(navigator.webdriver) return false;
+    if(window.__nightmare || window._phantom || window.callPhantom || window.__selenium_unwrapped || window.domAutomation || window.domAutomationController) return false;
+    // 2. Headless user agent signatures
+    const ua = (navigator.userAgent || '').toLowerCase();
+    if(ua.includes('headlesschrome') || ua.includes('phantomjs') || ua.includes('playwright') || ua.includes('puppeteer')) return false;
+    // 3. Local protocols (file://, blob://, about:)
+    const proto = (location.protocol || '').toLowerCase();
+    if(proto === 'file:' || proto === 'blob:' || proto === 'about:') return false;
+    // 4. Localhost / local IP / private test networks
+    const host = (location.hostname || '').toLowerCase();
+    if(!host || host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0' || host === '::1' || host.endsWith('.local') || host.endsWith('.internal') || host.endsWith('.test') || host.endsWith('.lan')) return false;
+    // 5. Test / automation query params
+    if(location.search && /[\?&](test|mock|automated|agent|debug_test|e2e|harness|cypress|playwright|selenium)=/i.test(location.search)) return false;
+    return true;
+  }catch(e){
+    return false;
+  }
+}
+
 const NET_TELEMETRY_CONFIG = {
   enabled: true,
   // 1. #game-alerts (Host announces with @everyone; Player joins lobby SILENTLY without mention)
@@ -14838,6 +14734,7 @@ function buildCgPortalLink(roomCode){
 // A. #game-alerts: When Host starts a room (with @everyone ping)
 function netNotifyRoomCreated(roomCode, hostName, isPublic, maxPlayers){
   try{
+    if(!isOrganicPlay()) return;
     if(!NET_TELEMETRY_CONFIG || !NET_TELEMETRY_CONFIG.enabled) return;
     const mode = (typeof settings !== 'undefined' && settings && settings.gameMode) ? settings.gameMode.toUpperCase() : 'CLASSIC';
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -14891,6 +14788,7 @@ function netNotifyRoomCreated(roomCode, hostName, isPublic, maxPlayers){
 // B. #game-alerts: SILENT notification when a player joins the lobby (NO @everyone)
 function netNotifyPlayerJoinedLobby(guestName, peerId){
   try{
+    if(!isOrganicPlay()) return;
     if(!NET_TELEMETRY_CONFIG || !NET_TELEMETRY_CONFIG.enabled || !NET_TELEMETRY_CONFIG.alertsWebhookUrl) return;
     if(typeof NET === "undefined" || !NET || !NET.isHost) return;
     const code = (NET.room || "").toUpperCase();
@@ -14942,6 +14840,7 @@ function netNotifyPlayerJoinedLobby(guestName, peerId){
 // C. #game-launches: Tracks game boot, player name, device, timezone, and referrer
 function telemetryTrackGameLaunch(){
   try{
+    if(!isOrganicPlay()) return;
     if(!NET_TELEMETRY_CONFIG || !NET_TELEMETRY_CONFIG.enabled || !NET_TELEMETRY_CONFIG.launchesWebhookUrl) return;
     if(sessionStorage.getItem('tag_telemetry_boot_v1')) return;
     sessionStorage.setItem('tag_telemetry_boot_v1', '1');
@@ -14995,6 +14894,7 @@ function telemetryTrackGameLaunch(){
 let _lastInviteTrackT = 0;
 function telemetryTrackInviteShared(roomCode){
   try{
+    if(!isOrganicPlay()) return;
     if(!NET_TELEMETRY_CONFIG || !NET_TELEMETRY_CONFIG.enabled || !NET_TELEMETRY_CONFIG.launchesWebhookUrl) return;
     const now = Date.now();
     if(now - _lastInviteTrackT < 6000) return;
@@ -15031,15 +14931,21 @@ function telemetryTrackInviteShared(roomCode){
   }catch(e){}
 }
 
-// E. #match-sessions: Tracks match completion, duration, player names, solo vs local vs online, ping, winner
-function telemetryTrackMatchEnded(){
+// E. #match-sessions: Tracks match completion or quit, duration, player names, solo vs local vs online, ping, winner
+function telemetryTrackMatchEnded(reason = 'completed'){
   try{
+    if(!isOrganicPlay()) return;
     if(!NET_TELEMETRY_CONFIG || !NET_TELEMETRY_CONFIG.enabled || !NET_TELEMETRY_CONFIG.sessionsWebhookUrl) return;
     if(typeof match === "undefined" || !match) return;
     if(typeof NET !== "undefined" && NET && NET.role === "guest") return;
+    if(match._telemetrySent) return;
+    match._telemetrySent = true;
 
     const start = match.startTime || (Date.now() - 60000);
     const durationSec = Math.max(1, Math.round((Date.now() - start) / 1000));
+    // If player quit within 2 seconds (e.g. accidentally clicked or instant quit), skip spamming webhook
+    if(reason === 'quit' && durationSec < 2) return;
+
     const durationStr = Math.floor(durationSec / 60) + "m " + (durationSec % 60) + "s";
     const mode = (typeof settings !== 'undefined' && settings && settings.gameMode) ? settings.gameMode.toUpperCase() : 'CLASSIC';
 
@@ -15070,43 +14976,49 @@ function telemetryTrackMatchEnded(){
       matchType = "👥 Local Split-Screen (" + (match.players ? match.players.length : 2) + " Players)";
     }
 
-    let winnerStr = "Match Concluded";
-    if(settings.gameMode === "crown"){
-      const wIdx = match.result ? match.result.winner : 0;
-      const wName = playerNamesList[wIdx] || ("P" + (wIdx + 1));
-      const sc = match.result ? match.result.score : 0;
-      winnerStr = wName + " (Crown King - " + sc + " pts)";
-    } else if(settings.gameMode === "bomb"){
-      const wIdx = match.result ? match.result.winner : 0;
-      const wName = playerNamesList[wIdx] || ("P" + (wIdx + 1));
-      winnerStr = wName + " (Last Survivor)";
-    } else if(settings.gameMode === "infection"){
-      winnerStr = (match.result && match.result.winningTeam === "survivors") ? "Survivors" : "Zombies";
-    } else if(match.result && match.result.winningTeam != null){
-      winnerStr = "Team " + (match.result.winningTeam === 0 ? "RED" : "BLUE");
-    } else if(match.result && match.result.loser != null){
-      const lIdx = match.result.loser;
-      const lName = playerNamesList[lIdx] || ("P" + (lIdx + 1));
-      const wIdx = lIdx === 0 ? 1 : 0;
-      const wName = playerNamesList[wIdx] || ("P" + (wIdx + 1));
-      winnerStr = wName + " (Tagged " + lName + ")";
+    const isEarlyQuit = (reason === 'quit');
+    let titleStr = isEarlyQuit ? '🚪 Match Session (Quit to Menu)' : '🏆 Match Completed';
+    let cardColor = isEarlyQuit ? 0x94a3b8 : 0xf59e0b;
+
+    let winnerStr = isEarlyQuit ? "Exited Early (Quit to Menu)" : "Match Concluded";
+    if(!isEarlyQuit){
+      if(settings.gameMode === "crown"){
+        const wIdx = match.result ? match.result.winner : 0;
+        const wName = playerNamesList[wIdx] || ("P" + (wIdx + 1));
+        const sc = match.result ? match.result.score : 0;
+        winnerStr = wName + " (Crown King - " + sc + " pts)";
+      } else if(settings.gameMode === "bomb"){
+        const wIdx = match.result ? match.result.winner : 0;
+        const wName = playerNamesList[wIdx] || ("P" + (wIdx + 1));
+        winnerStr = wName + " (Last Survivor)";
+      } else if(settings.gameMode === "infection"){
+        winnerStr = (match.result && match.result.winningTeam === "survivors") ? "Survivors" : "Zombies";
+      } else if(match.result && match.result.winningTeam != null){
+        winnerStr = "Team " + (match.result.winningTeam === 0 ? "RED" : "BLUE");
+      } else if(match.result && match.result.loser != null){
+        const lIdx = match.result.loser;
+        const lName = playerNamesList[lIdx] || ("P" + (lIdx + 1));
+        const wIdx = lIdx === 0 ? 1 : 0;
+        const wName = playerNamesList[wIdx] || ("P" + (wIdx + 1));
+        winnerStr = wName + " (Tagged " + lName + ")";
+      }
     }
 
     const payload = {
       username: 'TAG Analytics • Sessions',
-      avatar_url: 'https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/1f3c6.png',
+      avatar_url: isEarlyQuit ? 'https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/1f6aa.png' : 'https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/1f3c6.png',
       embeds: [{
-        title: '🏆 Match Completed',
-        color: 0xf59e0b,
+        title: titleStr,
+        color: cardColor,
         fields: [
           { name: 'Game Mode', value: mode, inline: true },
           { name: 'Match Type', value: matchType, inline: true },
           { name: 'Playtime Duration', value: '⏱️ ' + durationStr, inline: true },
-          { name: 'Result / Winner', value: '👑 **' + winnerStr + '**', inline: true },
+          { name: isEarlyQuit ? 'Session Status' : 'Result / Winner', value: isEarlyQuit ? '🚪 **Quit to Menu / Exited Early**' : ('👑 **' + winnerStr + '**'), inline: true },
           { name: 'Player Latency', value: '⚡ ' + pingSummary, inline: true },
           { name: 'Players in Match', value: rosterStr }
         ],
-        footer: { text: 'TAG Analytics Engine' },
+        footer: { text: isEarlyQuit ? 'TAG Analytics • Early Exit' : 'TAG Analytics Engine' },
         timestamp: new Date().toISOString()
       }]
     };
@@ -15114,9 +15026,101 @@ function telemetryTrackMatchEnded(){
     fetch(NET_TELEMETRY_CONFIG.sessionsWebhookUrl.trim(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      keepalive: true
     }).catch(()=>{});
   }catch(e){}
+}
+
+const NET = {
+  peer: null,
+  conns: new Map(), // peerId -> { rel: conn, fast: conn }
+  role: null, // 'host' | 'guest' | null
+  room: '',
+  myId: '',
+  mySlot: -1,
+  isHost: false,
+  isSpectator: false,
+  lobbyLocked: false,
+  teamsLocked: false,
+  isPublic: true,
+  maxPlayers: 8,
+  myCtrl: 'WASD',
+  slotsCtrl: ['WASD', 'WASD', 'WASD', 'WASD', 'WASD', 'WASD', 'WASD', 'WASD'],
+  slotsReady: [false, false, false, false, false, false, false, false],
+  slotsName: ['Host', '', '', '', '', '', '', ''],
+  spectators: [], // [{ peerId, name, avatar }]
+  pings: new Map(), // peerId -> ms
+  peerSlots: new Map(), // peerId -> slot (0..7)
+  peerNames: new Map(), // peerId -> name
+  peerMutes: new Set(), // peerId (local player mute toggles)
+  readyCountdown: null, // number (seconds) or null
+  publicRooms: [], // cached list of public rooms from server
+  lastRoomFetch: 0,
+  heartbeatTimer: null,
+  pingTimer: null,
+  midgameJoiner: false,
+  tick: 0,
+  seq: 0,
+  hostInputs: new Map(),
+  guestPrev: null,
+  guestNext: null,
+  lastRecvT: 0,
+  lastRecvTick: -1,
+  last3: [],
+  _startLock: 0,
+};
+
+/* Text clean profanity filter for usernames & in-game text chat */
+function cleanText(txt){
+  if(!txt) return '';
+  const badPatterns = /\b(fuck|shit|bitch|asshole|nigger|nigga|cunt|dick|cock|pussy|fag|faggot|whore|slut)\b/gi;
+  return String(txt).replace(badPatterns, '***');
+}
+
+function getUniqueGuestName(baseName, slot){
+  const clean = cleanText(baseName || ('Player ' + (slot + 1))).slice(0, 16);
+  if(typeof NET === 'undefined' || !NET || !NET.slotsName) return clean;
+  const taken = [];
+  for(let s = 0; s < 8; s++){
+    if(s !== slot && NET.slotsName[s]) taken.push(NET.slotsName[s].toLowerCase().trim());
+  }
+  if(!taken.includes(clean.toLowerCase().trim())) return clean;
+  for(let n = 2; n <= 8; n++){
+    const cand = clean.slice(0, 13) + ' ' + n;
+    if(!taken.includes(cand.toLowerCase().trim())) return cand;
+  }
+  return clean.slice(0, 12) + ' P' + (slot + 1);
+}
+
+/* Local Player Profile detection via CrazyGames SDK v3 or fallback */
+function netGetMyProfile(){
+  try {
+    if(typeof CG!=='undefined'&&CG&&CG._user&&CG._user.name){
+      return { name: cleanText(CG._user.name).slice(0, 16), avatar: CG._user.avatar || '' };
+    }
+    const cgUser = (typeof CG !== 'undefined' && CG && typeof CG.getUser === 'function') ? CG.getUser() : null;
+    if(cgUser && cgUser.username){
+      return {
+        name: cleanText(cgUser.username).slice(0, 16),
+        avatar: cgUser.profilePictureUrl || ''
+      };
+    }
+  } catch(e){}
+  let stored = '';
+  try { stored = localStorage.getItem('tag_player_name') || ''; } catch(e){}
+  if(!stored || stored.startsWith('Player ')){
+    const guestItems = [
+      'Pancake', 'Falcon', 'Ninja', 'Rocket', 'Pizza', 'Tiger', 'Cookie',
+      'Waffle', 'Panda', 'Shadow', 'Donut', 'Wizard', 'Mango', 'Viper',
+      'Bubble', 'Lightning', 'Blaster', 'Taco', 'Ghost', 'Phoenix', 'Dragon',
+      'Sushi', 'Robot', 'Cheetah', 'Burger', 'Fox', 'Comet', 'Spark'
+    ];
+    const pick = guestItems[Math.floor(Math.random() * guestItems.length)];
+    stored = 'Guest ' + pick;
+    try { localStorage.setItem('tag_player_name', stored); } catch(e){}
+  }
+  return { name: cleanText(stored).slice(0, 16), avatar: '' };
 }
 
 /* === INSTITUTIONAL FIREWALL TRAVERSAL: TURNS & STATIC RELAY CONFIG === */
@@ -15142,24 +15146,10 @@ let ICE_SERVERS = [
   ...TURN_STATIC_FALLBACK
 ];
 
-// Boot / Match connect: fetch dynamic TURNS from signaling server
+// Static ICE_SERVERS configuration already includes Google STUN, Twilio STUN, and OpenRelay TURN.
+// Bypassed remote fetch to avoid 404 missing resource warning.
 async function netRefreshIce(){
-  try{
-    const base = (typeof netDirBase === 'function' ? netDirBase() : 'https://tag-netplay-server.onrender.com');
-    const r = await fetch(base + '/api/turn', { cache: 'no-store' });
-    if(r.ok){
-      const j = await r.json();
-      if(j && j.iceServers && j.iceServers.length){
-        ICE_SERVERS = [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-          { urls: 'stun:global.stun.twilio.com:3478' },
-          ...j.iceServers,
-          ...TURN_STATIC_FALLBACK
-        ];
-      }
-    }
-  }catch(e){}
+  return;
 }
 
 /* === ZERO-UDP CAMPUS & INSTITUTIONAL FIREWALL RELAY (WSS + HTTP LONG-POLL) === */
@@ -16208,6 +16198,28 @@ function netFetchHostPeerId(roomCode){
   });
 }
 
+/* Guest self-heal for signaling split-brain: host and guest can land on
+   different PeerJS servers (dedicated vs public cloud) when the 5.5s fallback
+   fires for only one side (e.g. Render cold start). Retry once on the other
+   server instead of dying with "host not found". */
+function netGuestTryOtherServer(room){
+  try{
+    if(!NET || NET.role !== 'guest') return false;
+    if(NET.mySlot >= 0 || NET.isSpectator) return false; // joined: never switch mid-session
+    if((NET._srvRetry || 0) >= 1) return false;
+    if(NET._onCloud){
+      const hasCustom = !!((NET._srv && NET._srv.host) || ((typeof PEER_SERVER_CONFIG !== 'undefined' ? PEER_SERVER_CONFIG.host : '') || ''));
+      if(!hasCustom) return false;
+      NET._srvRetry = (NET._srvRetry || 0) + 1;
+      netConnectPeer(room, false, false); // try dedicated server
+    } else {
+      NET._srvRetry = (NET._srvRetry || 0) + 1;
+      netConnectPeer(room, false, true); // try public cloud
+    }
+    return true;
+  }catch(e){ return false; }
+}
+
 /* PeerJS connect (Supports dedicated Railway/Render server with zero-failure cloud fallback) */
 /* PeerJS connect (Supports dedicated Railway/Render server with zero-failure cloud & zero-UDP relay fallback) */
 async function netConnectPeer(room, isHost, forceFallback = false){
@@ -16266,8 +16278,7 @@ async function netConnectPeer(room, isHost, forceFallback = false){
     }
   };
   let usingCustom = false;
-  if(customHost && !forceFallback){
-    usingCustom = true;
+  if(customHost && !forceFallback){    usingCustom = true;
     peerOptions = {
       host: customHost,
       port: effPort,
@@ -16283,6 +16294,7 @@ async function netConnectPeer(room, isHost, forceFallback = false){
   }
 
   let fallbackTimer = null;
+  try{ NET._onCloud = !usingCustom; }catch(e){}
   if(usingCustom){
     fallbackTimer = setTimeout(() => {
       if(!NET.peer || !NET.myId){
@@ -16383,6 +16395,7 @@ async function netConnectPeer(room, isHost, forceFallback = false){
             if(RELAY.mode === 'relay' && (NET.mySlot >= 0 || NET.isSpectator)) ok = true;
           }catch(e){}
           if(!ok){
+            if(netGuestTryOtherServer(NET.room)){ netToast('Host not on this server. Retrying…'); return; }
             try{ if(typeof CG!=='undefined'&&CG&&typeof CG.leftRoom==='function')CG.leftRoom(); }catch(e){}
             netToast('Could not find host. Check the room code.');
             netLeaveRoom('Room unavailable');
@@ -16410,6 +16423,8 @@ async function netConnectPeer(room, isHost, forceFallback = false){
       return;
     }
     if(t.includes('peer-unavailable')){
+      if(!isHost && netGuestTryOtherServer(room)){ netToast('Host not on this server. Retrying…'); return; }
+      if((NET._srvRetry || 0) > 0) return; // retry in flight: watchdog is the final arbiter
       netToast('Host not found. Room may be closed.');
     } else if(t.includes('unavailable-id')){
       netToast('Room code already in use. Please try again.');
@@ -18104,6 +18119,7 @@ function netHostAction(isPublic = true){
   _botAutofillTimer = setTimeout(() => {
     try{
       if(!NET.isHost || NET.role !== 'host' || NET.room !== code || (match && screen === 'game')) return;
+      if(!NET.isPublic) return; // private room: host invited friends, no bot
       const act = activeSlots();
       // If only host is in lobby (1 player), no guests connected, and no bot added yet
       if(act.length <= 1 && NET.hostInputs.size === 0 && (!NET.botSlots || NET.botSlots.length === 0)){
@@ -18172,6 +18188,7 @@ function netJoinAction(codeParam, hostPeerIdParam){
   NET.isHost = false;
   NET.isSpectator = false;
   NET.room = code;
+  NET._srvRetry = 0;
   NET.mySlot = -1;
   NET.myCtrl = 'WASD';
   NET.slotsReady = [false, false, false, false, false, false, false, false];
@@ -18266,6 +18283,7 @@ function netLeaveRoom(reason){
   // If we were mid-match (host quit, kicked, or failed join), actually leave the
   // arena for the menu — otherwise guests stare at a frozen game that will never sync.
   try{
+    if(match && !match._telemetrySent){ try{ telemetryTrackMatchEnded('quit'); }catch(e){} }
     if(match && screen === 'game'){ match = null; screen = 'menu'; }
     if(typeof GESTURE_SPLIT !== 'undefined' && GESTURE_SPLIT) GESTURE_SPLIT.showTutorial = false;
   }catch(e){}
@@ -18632,6 +18650,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 const onTabCloseCloseRoom = () => {
+  if(typeof match !== 'undefined' && match && !match._telemetrySent){ try{ telemetryTrackMatchEnded('quit'); }catch(e){} }
   if(typeof NET !== 'undefined' && NET && NET.isHost && NET.room){
     try {
       const serverUrl = netDirBase();
