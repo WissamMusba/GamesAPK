@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TAG Arena Analytics & Conversion Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg-dark: #080b11;
+      --card-bg: rgba(15, 23, 42, 0.75);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --accent-cyan: #06b6d4;
+      --accent-green: #10b981;
+      --accent-purple: #a855f7;
+      --accent-amber: #f59e0b;
+      --accent-red: #ef4444;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(6, 182, 212, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(168, 85, 247, 0.08) 0%, transparent 40%);
+      color: var(--text-main);
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      min-height: 100vh;
+      padding: 24px;
+    }
+    .container { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+    
+    /* Header */
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--card-border);
+    }
+    .header-title h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.5px; display: flex; align-items: center; gap: 10px; }
+    .header-title p { color: var(--text-muted); font-size: 13.5px; margin-top: 4px; }
+    .controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .source-select {
+      background: #1e293b; color: #fff; border: 1px solid var(--card-border);
+      border-radius: 8px; padding: 8px 12px; font-size: 13px; font-weight: 600; cursor: pointer; outline: none;
+    }
+    button {
+      background: #1e293b; color: #fff; border: 1px solid var(--card-border);
+      padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 600;
+      cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.15s ease;
+    }
+    button:hover { background: #334155; transform: translateY(-1px); }
+    button.primary { background: linear-gradient(135deg, #0284c7, #06b6d4); border: none; }
+    button.primary:hover { opacity: 0.9; }
+    .badge-live {
+      display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px;
+      background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 20px; font-size: 12px; font-weight: 700; color: #34d399;
+    }
+    .pulse-dot { width: 8px; height: 8px; border-radius: 50%; background: #34d399; animation: pulse 1.8s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(1.3); } }
+
+    /* KPI Grid */
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; }
+    .kpi-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      position: relative;
+      overflow: hidden;
+    }
+    .kpi-card::after {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+    }
+    .kpi-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center; }
+    .kpi-value { font-size: 28px; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
+    .kpi-sub { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 5px; }
+    .kpi-sub span.pos { color: #34d399; font-weight: 600; }
+    .kpi-sub span.neg { color: #f87171; font-weight: 600; }
+
+    /* Funnel Section */
+    .funnel-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .section-header { display: flex; justify-content: space-between; align-items: center; }
+    .section-header h2 { font-size: 18px; font-weight: 700; }
+    .section-header p { font-size: 13px; color: var(--text-muted); }
+
+    .funnel-steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 12px;
+    }
+    .funnel-step {
+      background: rgba(30, 41, 59, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      position: relative;
+    }
+    .funnel-step-name { font-size: 12.5px; font-weight: 600; color: #cbd5e1; }
+    .funnel-step-count { font-size: 22px; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
+    .funnel-step-bar-bg { height: 6px; width: 100%; background: #1e293b; border-radius: 4px; overflow: hidden; margin-top: 4px; }
+    .funnel-step-bar { height: 100%; border-radius: 4px; transition: width 0.4s ease; }
+    .funnel-step-pct { font-size: 11.5px; font-weight: 700; color: var(--text-muted); display: flex; justify-content: space-between; }
+
+    /* Visual Grid */
+    .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 16px; }
+    .chart-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      height: 320px;
+    }
+    .chart-card canvas { width: 100% !important; height: 100% !important; }
+
+    /* Sessions Table */
+    .table-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .table-filter-bar { display: flex; gap: 10px; flex-wrap: wrap; }
+    .table-filter-bar input {
+      flex: 1; min-width: 200px; background: #1e293b; border: 1px solid var(--card-border);
+      border-radius: 8px; padding: 8px 12px; font-size: 13px; color: #fff; outline: none;
+    }
+    .table-filter-bar select {
+      background: #1e293b; border: 1px solid var(--card-border);
+      border-radius: 8px; padding: 8px 12px; font-size: 13px; color: #fff; outline: none;
+    }
+    .table-wrap { overflow-x: auto; max-height: 420px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; padding: 10px 12px; color: var(--text-muted); font-size: 11.5px; text-transform: uppercase; border-bottom: 1px solid var(--card-border); }
+    td { padding: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); }
+    tr:hover td { background: rgba(255, 255, 255, 0.02); }
+    .badge {
+      display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px;
+      border-radius: 6px; font-size: 11px; font-weight: 700;
+    }
+    .badge.win { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+    .badge.loss { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+    .badge.rage { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+    .badge.quit { background: rgba(148, 163, 184, 0.2); color: #cbd5e1; }
+    .mono { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="header-title">
+        <h1>🎮 TAG Arena Telemetry & Funnel</h1>
+        <p>End-to-end player journey from CrazyGames link open to tab close, conversion rates, and retention</p>
+      </div>
+      <div class="controls">
+        <div class="badge-live" id="liveBadge">
+          <div class="pulse-dot"></div>
+          <span id="sourceLabel">Live Server</span>
+        </div>
+        <select class="source-select" id="sourceSelector" onchange="switchDataSource(this.value)">
+          <option value="server">🌐 Server API (/api/analytics)</option>
+          <option value="local">💻 Client LocalStorage</option>
+          <option value="demo">🧪 100 Simulated Plays (Demo)</option>
+        </select>
+        <button onclick="fetchData()">🔄 Refresh</button>
+        <button onclick="exportDataJSON()">📥 Export JSON</button>
+        <button onclick="resetDataPrompt()">🗑️ Reset</button>
+      </div>
+    </header>
+
+    <!-- Top KPI Cards -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">Total Visitors / Opens <span>🚀</span></div>
+        <div class="kpi-value" id="kpiTotalSessions">0</div>
+        <div class="kpi-sub"><span id="kpiDeviceSplit">100% Desktop</span></div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Match Conversion Rate <span>🎯</span></div>
+        <div class="kpi-value" id="kpiConversionRate">0%</div>
+        <div class="kpi-sub"><span class="pos" id="kpiBounceRate">0% Bounce</span> (Left &lt;15s)</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Avg Tab Lifetime <span>⏱️</span></div>
+        <div class="kpi-value" id="kpiAvgTabTime">0s</div>
+        <div class="kpi-sub">Link open to tab close</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Avg Match Duration <span>🎮</span></div>
+        <div class="kpi-value" id="kpiAvgMatchTime">0s</div>
+        <div class="kpi-sub"><span id="kpiTotalMatches">0</span> total matches played</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Rage Quit Rate <span>💢</span></div>
+        <div class="kpi-value" id="kpiRageQuitRate">0%</div>
+        <div class="kpi-sub">&lt;12s after being tagged</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Human Win Rate (Solo) <span>🤖</span></div>
+        <div class="kpi-value" id="kpiHumanWinRate">0%</div>
+        <div class="kpi-sub"><span id="kpiDiffSplit">vs Hard Bot</span></div>
+      </div>
+    </div>
+
+    <!-- Conversion Funnel Card -->
+    <div class="funnel-card">
+      <div class="section-header">
+        <div>
+          <h2>📊 Player Conversion Funnel</h2>
+          <p>Drop-off tracking from initial CrazyGames link open through multi-match retention</p>
+        </div>
+      </div>
+      <div class="funnel-steps" id="funnelStepsContainer">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+
+    <!-- Charts Grid -->
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="section-header">
+          <h2>⏱️ Playtime Distribution</h2>
+        </div>
+        <canvas id="playtimeChart"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="section-header">
+          <h2>🗺️ Game Mode Popularity</h2>
+        </div>
+        <canvas id="modesChart"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="section-header">
+          <h2>⚡ Device & Performance Health</h2>
+        </div>
+        <canvas id="fpsChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Recent Sessions Table -->
+    <div class="table-card">
+      <div class="section-header">
+        <div>
+          <h2>📜 Recent Game Sessions Feed</h2>
+          <p>Real-time log of players, durations, outcomes, and exit reasons</p>
+        </div>
+      </div>
+      <div class="table-filter-bar">
+        <input type="text" id="searchInput" placeholder="Search player name (e.g. Guest Robot)..." oninput="renderTable()">
+        <select id="modeFilter" onchange="renderTable()">
+          <option value="all">All Modes</option>
+          <option value="party">Classic Party</option>
+          <option value="bomb">Bomb Tag</option>
+          <option value="crown">Crown King</option>
+          <option value="hunter">Hunter Mode</option>
+          <option value="freeze">Freeze Tag</option>
+        </select>
+        <select id="deviceFilter" onchange="renderTable()">
+          <option value="all">All Devices</option>
+          <option value="Desktop">Desktop</option>
+          <option value="Mobile">Mobile</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Player</th>
+              <th>Device</th>
+              <th>Mode</th>
+              <th>Match Duration</th>
+              <th>Total Tab Time</th>
+              <th>Outcome / Status</th>
+              <th>FPS</th>
+              <th>Funnel Stage</th>
+            </tr>
+          </thead>
+          <tbody id="sessionsTableBody">
+            <!-- Rendered dynamically -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentSource = 'server';
+    let rawData = null;
+    let playtimeChart = null;
+    let modesChart = null;
+    let fpsChart = null;
+
+    // Format seconds to '1m 24s'
+    function fmtSec(sec) {
+      if (!sec || sec <= 0) return '0s';
+      const m = Math.floor(sec / 60);
+      const s = Math.round(sec % 60);
+      return m > 0 ? (m + 'm ' + s + 's') : (s + 's');
+    }
+
+    function timeAgo(ts) {
+      if (!ts) return 'Just now';
+      const diff = Math.round((Date.now() - ts) / 1000);
+      if (diff < 60) return diff + 's ago';
+      if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+      return Math.floor(diff / 3600) + 'h ago';
+    }
+
+    // Generate 100 realistic sample sessions for demo
+    function generateSampleData() {
+      const names = ['Guest Robot', 'Guest Pancake', 'Guest Falcon', 'Guest Ninja', 'Guest Pizza', 'Guest Tiger', 'Guest Waffle', 'Alex', 'Sam', 'Leo', 'Maya'];
+      const modes = ['party', 'bomb', 'crown', 'hunter', 'freeze'];
+      const sampleSessions = [];
+
+      for (let i = 0; i < 100; i++) {
+        const isBounced = Math.random() < 0.18;
+        const matchesStarted = isBounced ? 0 : Math.floor(Math.random() * 4) + 1;
+        const matchesCompleted = matchesStarted > 0 ? Math.floor(matchesStarted * (0.6 + Math.random() * 0.4)) : 0;
+        const matchSec = matchesStarted * (35 + Math.floor(Math.random() * 55));
+        const tabSec = isBounced ? (4 + Math.floor(Math.random() * 8)) : (matchSec + 25 + Math.floor(Math.random() * 90));
+        const rageQuits = (!isBounced && Math.random() < 0.22) ? 1 : 0;
+        const normalQuits = (!isBounced && !rageQuits && Math.random() < 0.3) ? 1 : 0;
+        const humanWins = matchesCompleted > 0 ? Math.floor(matchesCompleted * (0.4 + Math.random() * 0.4)) : 0;
+        const botWins = Math.max(0, matchesCompleted - humanWins);
+        const mode = modes[Math.floor(Math.random() * modes.length)];
+        const modesPlayed = {};
+        modesPlayed[mode] = matchesStarted;
+
+        let funnelStage = 'Stage 1: Bounced (<15s)';
+        if (matchesStarted >= 5) funnelStage = 'Stage 6: Power Player (5+)';
+        else if (matchesStarted >= 2) funnelStage = 'Stage 5: Retained (2+)';
+        else if (matchesCompleted >= 1) funnelStage = 'Stage 4: Completed Match';
+        else if (matchesStarted >= 1) funnelStage = 'Stage 3: Started Match';
+        else if (tabSec >= 15) funnelStage = 'Stage 2: Menu Explorer (>15s)';
+
+        sampleSessions.push({
+          sessionId: 'sess_' + i,
+          playerName: names[Math.floor(Math.random() * names.length)],
+          device: Math.random() < 0.35 ? 'Mobile' : 'Desktop',
+          tabLifetimeSec: tabSec,
+          totalMatchPlaytimeSec: matchSec,
+          matchesStarted: matchesStarted,
+          matchesCompleted: matchesCompleted,
+          rageQuits: rageQuits,
+          normalQuits: normalQuits,
+          humanWins: humanWins,
+          botWins: botWins,
+          botDifficulty: Math.random() < 0.7 ? 'hard' : 'easy',
+          avgFps: Math.random() < 0.12 ? (24 + Math.floor(Math.random() * 8)) : (56 + Math.floor(Math.random() * 5)),
+          funnelStage: funnelStage,
+          modesPlayed: modesPlayed,
+          timestamp: Date.now() - (i * 140000)
+        });
+      }
+
+      return processSessionsList(sampleSessions);
+    }
+
+    function processSessionsList(sessions) {
+      const totalSessions = sessions.length;
+      let totalTabSec = 0, totalMatchSec = 0, totalStarted = 0, totalCompleted = 0;
+      let totalRage = 0, totalNormal = 0, totalBounces = 0, totalHWins = 0, totalBWins = 0;
+      let totalFps = 0, fpsCount = 0;
+
+      const funnel = { linkOpened: totalSessions, menuEngaged: 0, match1Started: 0, match1Completed: 0, multiMatches: 0, powerPlayers: 0 };
+      const modes = {}, devices = { Desktop: 0, Mobile: 0 };
+
+      for (const s of sessions) {
+        const tab = s.tabLifetimeSec || 0;
+        const match = s.totalMatchPlaytimeSec || 0;
+        totalTabSec += tab; totalMatchSec += match;
+        totalStarted += (s.matchesStarted || 0);
+        totalCompleted += (s.matchesCompleted || 0);
+        if (tab < 15 && (s.matchesStarted || 0) === 0) totalBounces++;
+        if (tab >= 15 || (s.matchesStarted || 0) > 0) funnel.menuEngaged++;
+        if ((s.matchesStarted || 0) >= 1) funnel.match1Started++;
+        if ((s.matchesCompleted || 0) >= 1) funnel.match1Completed++;
+        if ((s.matchesStarted || 0) >= 2) funnel.multiMatches++;
+        if ((s.matchesStarted || 0) >= 5) funnel.powerPlayers++;
+        totalRage += (s.rageQuits || 0);
+        totalNormal += (s.normalQuits || 0);
+        totalHWins += (s.humanWins || 0);
+        totalBWins += (s.botWins || 0);
+        if (s.avgFps) { totalFps += s.avgFps; fpsCount++; }
+        const dev = (s.device && s.device.toLowerCase().includes('mobile')) ? 'Mobile' : 'Desktop';
+        devices[dev]++;
+        if (s.modesPlayed) {
+          for (const [m, c] of Object.entries(s.modesPlayed)) { modes[m] = (modes[m] || 0) + c; }
+        }
+      }
+
+      return {
+        totalSessions,
+        totalMatchesStarted: totalStarted,
+        totalMatchesCompleted: totalCompleted,
+        avgTabTimeSec: totalSessions > 0 ? Math.round(totalTabSec / totalSessions) : 0,
+        avgMatchTimeSec: totalStarted > 0 ? Math.round(totalMatchSec / totalStarted) : 0,
+        conversionRate: totalSessions > 0 ? Math.round((funnel.match1Started / totalSessions) * 100) : 0,
+        bounceRate: totalSessions > 0 ? Math.round((totalBounces / totalSessions) * 100) : 0,
+        rageQuitRate: (totalRage + totalNormal) > 0 ? Math.round((totalRage / (totalRage + totalNormal)) * 100) : 0,
+        humanWinRate: (totalHWins + totalBWins) > 0 ? Math.round((totalHWins / (totalHWins + totalBWins)) * 100) : 50,
+        avgFps: fpsCount > 0 ? Math.round((totalFps / fpsCount) * 10) / 10 : 60,
+        funnel, modes, devices,
+        recentSessions: sessions.slice(0, 50)
+      };
+    }
+
+    async function fetchData() {
+      if (currentSource === 'demo') {
+        rawData = generateSampleData();
+        updateDashboard();
+        return;
+      }
+
+      if (currentSource === 'local') {
+        try {
+          const raw = localStorage.getItem('tag_analytics_sessions_v1');
+          const list = raw ? JSON.parse(raw) : [];
+          if (!list.length) {
+            alert('No local sessions found yet. Play a match or switch to Demo mode!');
+            rawData = generateSampleData();
+          } else {
+            rawData = processSessionsList(list.reverse());
+          }
+          updateDashboard();
+        } catch (e) {
+          rawData = generateSampleData();
+          updateDashboard();
+        }
+        return;
+      }
+
+      // Live Server API
+      try {
+        const res = await fetch('/api/analytics/summary');
+        if (res.ok) {
+          rawData = await res.json();
+          if (!rawData.totalSessions) {
+            document.getElementById('sourceLabel').innerText = 'Server (0 Data - Showing Demo)';
+            rawData = generateSampleData();
+          } else {
+            document.getElementById('sourceLabel').innerText = 'Live Server';
+          }
+        } else {
+          document.getElementById('sourceLabel').innerText = 'Server Offline (Showing Demo)';
+          rawData = generateSampleData();
+        }
+      } catch (e) {
+        document.getElementById('sourceLabel').innerText = 'Local / Demo Mode';
+        rawData = generateSampleData();
+      }
+      updateDashboard();
+    }
+
+    function switchDataSource(src) {
+      currentSource = src;
+      fetchData();
+    }
+
+    function updateDashboard() {
+      if (!rawData) return;
+
+      // KPIs
+      document.getElementById('kpiTotalSessions').innerText = rawData.totalSessions.toLocaleString();
+      const devDesk = rawData.devices ? (rawData.devices.Desktop || 0) : 0;
+      const devMob = rawData.devices ? (rawData.devices.Mobile || 0) : 0;
+      const devTot = (devDesk + devMob) || 1;
+      document.getElementById('kpiDeviceSplit').innerText = Math.round((devDesk / devTot) * 100) + '% Desk • ' + Math.round((devMob / devTot) * 100) + '% Mob';
+
+      document.getElementById('kpiConversionRate').innerText = rawData.conversionRate + '%';
+      document.getElementById('kpiBounceRate').innerText = rawData.bounceRate + '% Bounce';
+      document.getElementById('kpiAvgTabTime').innerText = fmtSec(rawData.avgTabTimeSec);
+      document.getElementById('kpiAvgMatchTime').innerText = fmtSec(rawData.avgMatchTimeSec);
+      document.getElementById('kpiTotalMatches').innerText = (rawData.totalMatchesStarted || 0).toLocaleString();
+      document.getElementById('kpiRageQuitRate').innerText = rawData.rageQuitRate + '%';
+      document.getElementById('kpiHumanWinRate').innerText = rawData.humanWinRate + '%';
+
+      // Funnel
+      renderFunnel(rawData.funnel, rawData.totalSessions);
+
+      // Charts
+      renderCharts(rawData);
+
+      // Table
+      renderTable();
+    }
+
+    function renderFunnel(funnel, total) {
+      if (!funnel) return;
+      const container = document.getElementById('funnelStepsContainer');
+      const base = total || 1;
+
+      const steps = [
+        { label: '🔗 1. Link Opened', count: funnel.linkOpened || total, col: '#06b6d4' },
+        { label: '🧭 2. Menu Engaged (>15s)', count: funnel.menuEngaged, col: '#38bdf8' },
+        { label: '⚔️ 3. First Match Started', count: funnel.match1Started, col: '#10b981' },
+        { label: '🏁 4. First Match Finished', count: funnel.match1Completed, col: '#22c55e' },
+        { label: '🔄 5. Retained (2+ Matches)', count: funnel.multiMatches, col: '#a855f7' },
+        { label: '⭐ 6. Power Players (5+)', count: funnel.powerPlayers, col: '#f59e0b' }
+      ];
+
+      container.innerHTML = steps.map((s, idx) => {
+        const pctOfTotal = Math.round((s.count / base) * 100);
+        const prevCount = idx > 0 ? steps[idx - 1].count : s.count;
+        const dropPct = prevCount > 0 ? (100 - Math.round((s.count / prevCount) * 100)) : 0;
+        const dropText = idx > 0 ? `-${dropPct}% drop` : 'Entry';
+
+        return `
+          <div class="funnel-step">
+            <div class="funnel-step-name">${s.label}</div>
+            <div class="funnel-step-count">${s.count.toLocaleString()}</div>
+            <div class="funnel-step-bar-bg">
+              <div class="funnel-step-bar" style="width: ${pctOfTotal}%; background: ${s.col};"></div>
+            </div>
+            <div class="funnel-step-pct">
+              <span>${pctOfTotal}% conv.</span>
+              <span style="color: ${idx > 0 && dropPct > 35 ? '#f87171' : '#94a3b8'}">${dropText}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderCharts(data) {
+      // 1. Playtime Chart (Histogram)
+      const ptCtx = document.getElementById('playtimeChart').getContext('2d');
+      if (playtimeChart) playtimeChart.destroy();
+
+      const buckets = { '<1m': 0, '1-3m': 0, '3-7m': 0, '7-15m': 0, '15m+': 0 };
+      for (const s of (data.recentSessions || [])) {
+        const t = s.tabLifetimeSec || 0;
+        if (t < 60) buckets['<1m']++;
+        else if (t < 180) buckets['1-3m']++;
+        else if (t < 420) buckets['3-7m']++;
+        else if (t < 900) buckets['7-15m']++;
+        else buckets['15m+']++;
+      }
+
+      playtimeChart = new Chart(ptCtx, {
+        type: 'bar',
+        data: {
+          labels: Object.keys(buckets),
+          datasets: [{
+            label: 'Sessions',
+            data: Object.values(buckets),
+            backgroundColor: '#06b6d4',
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: '#94a3b8' } },
+            y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } }
+          }
+        }
+      });
+
+      // 2. Modes Chart (Donut)
+      const mCtx = document.getElementById('modesChart').getContext('2d');
+      if (modesChart) modesChart.destroy();
+
+      const modeLabels = ['Classic', 'Bomb Tag', 'Crown King', 'Hunter', 'Freeze'];
+      const modeKeys = ['party', 'bomb', 'crown', 'hunter', 'freeze'];
+      const modeData = modeKeys.map(k => (data.modes && data.modes[k]) || 0);
+
+      modesChart = new Chart(mCtx, {
+        type: 'doughnut',
+        data: {
+          labels: modeLabels,
+          datasets: [{
+            data: modeData.some(v => v > 0) ? modeData : [45, 25, 18, 12, 10],
+            backgroundColor: ['#38bdf8', '#f87171', '#facc15', '#a855f7', '#60a5fa'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'right', labels: { color: '#cbd5e1', font: { size: 11.5 } } }
+          }
+        }
+      });
+
+      // 3. Performance / FPS Health Chart
+      const fCtx = document.getElementById('fpsChart').getContext('2d');
+      if (fpsChart) fpsChart.destroy();
+
+      let smooth = 0, fine = 0, lag = 0;
+      for (const s of (data.recentSessions || [])) {
+        const f = s.avgFps || 60;
+        if (f >= 55) smooth++;
+        else if (f >= 35) fine++;
+        else lag++;
+      }
+      if (smooth + fine + lag === 0) { smooth = 88; fine = 9; lag = 3; }
+
+      fpsChart = new Chart(fCtx, {
+        type: 'bar',
+        data: {
+          labels: ['60 FPS (Smooth)', '35-50 FPS (Good)', '<30 FPS (Lag)'],
+          datasets: [{
+            data: [smooth, fine, lag],
+            backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: '#94a3b8' } },
+            y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } }
+          }
+        }
+      });
+    }
+
+    function renderTable() {
+      if (!rawData || !rawData.recentSessions) return;
+      const search = (document.getElementById('searchInput').value || '').toLowerCase().trim();
+      const modeF = document.getElementById('modeFilter').value;
+      const devF = document.getElementById('deviceFilter').value;
+      const tbody = document.getElementById('sessionsTableBody');
+
+      const filtered = rawData.recentSessions.filter(s => {
+        if (search && !(s.playerName || '').toLowerCase().includes(search)) return false;
+        if (devF !== 'all' && s.device !== devF) return false;
+        if (modeF !== 'all' && s.modesPlayed && !s.modesPlayed[modeF]) return false;
+        return true;
+      });
+
+      if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #94a3b8; padding: 24px;">No matching sessions found</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(s => {
+        let badgeHtml = '<span class="badge quit">🚪 Quit Menu</span>';
+        if (s.rageQuits) badgeHtml = '<span class="badge rage">💢 Rage Quit</span>';
+        else if (s.humanWins) badgeHtml = '<span class="badge win">👑 Human Win</span>';
+        else if (s.botWins) badgeHtml = '<span class="badge loss">🤖 Bot Win</span>';
+        else if (s.matchesCompleted) badgeHtml = '<span class="badge win">🏁 Completed</span>';
+
+        const modeStr = s.modesPlayed ? Object.keys(s.modesPlayed).join(', ').toUpperCase() : 'PARTY';
+        const fpsCol = (s.avgFps >= 50) ? '#34d399' : (s.avgFps >= 30 ? '#fbbf24' : '#f87171');
+
+        return `
+          <tr>
+            <td style="color: #94a3b8;">${timeAgo(s.timestamp)}</td>
+            <td style="font-weight: 700; color: #fff;">${s.playerName || 'Guest'}</td>
+            <td>${s.device === 'Mobile' ? '📱 Mobile' : '💻 Desktop'}</td>
+            <td><span class="mono">${modeStr || 'CLASSIC'}</span></td>
+            <td class="mono">${fmtSec(s.totalMatchPlaytimeSec)}</td>
+            <td class="mono">${fmtSec(s.tabLifetimeSec)}</td>
+            <td>${badgeHtml}</td>
+            <td class="mono" style="color: ${fpsCol}; font-weight: 700;">${s.avgFps || 60}</td>
+            <td style="font-size: 11.5px; color: #94a3b8;">${s.funnelStage || 'Started'}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function exportDataJSON() {
+      if (!rawData) return;
+      const blob = new Blob([JSON.stringify(rawData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'tag_analytics_report_' + new Date().toISOString().slice(0, 10) + '.json';
+      a.click();
+    }
+
+    async function resetDataPrompt() {
+      if (!confirm('Are you sure you want to reset analytics data?')) return;
+      localStorage.removeItem('tag_analytics_sessions_v1');
+      try { await fetch('/api/analytics/reset'); } catch (e) {}
+      fetchData();
+    }
+
+    // Initialize
+    fetchData();
+    // Auto-refresh every 10 seconds
+    setInterval(fetchData, 10000);
+  </script>
+</body>
+</html>

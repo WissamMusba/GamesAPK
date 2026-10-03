@@ -645,6 +645,9 @@
         // 2. Transfer bomb to runner
         BOMB_MODE.carrierIdx = newCarrierIdx;
         BOMB_MODE.carrierPlayer = runner;
+        if (newCarrierIdx === 0 || (runner && runner.slot === 0)) {
+          if (typeof SESSION_METRICS !== 'undefined') SESSION_METRICS.lastTagT = Date.now();
+        }
         if (typeof match !== 'undefined' && match) {
           match.it = newCarrierIdx;
           if (match.tags) {

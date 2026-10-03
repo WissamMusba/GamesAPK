@@ -539,6 +539,7 @@
 
           // Infect runner!
           runner.isInfected = true;
+          if (runner.slot === 0 || P.indexOf(runner) === 0) { if (typeof SESSION_METRICS !== 'undefined') SESSION_METRICS.lastTagT = Date.now(); }
           runner.infectionOrder = P.filter(p => p.isInfected).length;
           runner.tagT = 0.5;
 

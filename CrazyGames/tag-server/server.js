@@ -2,6 +2,8 @@ const express = require('express');
 const { ExpressPeerServer } = require('peer');
 const { WebSocketServer } = require('ws');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 
 const PORT = process.env.PORT || 9000;
 const app = express();
@@ -136,6 +138,141 @@ app.post('/api/rooms/close', (req, res) => {
     console.log(`[NET] Host cleanly closed room: ${cleanId}`);
   }
   res.json({ success: true });
+});
+
+
+// ================= GAME ANALYTICS & CONVERSION ENGINE =================
+const ANALYTICS_MAX_SESSIONS = 2000;
+const analyticsSessions = [];
+
+app.post('/api/analytics/session', (req, res) => {
+  try {
+    const s = req.body || {};
+    if (!s.sessionId) s.sessionId = 'sess_' + Date.now().toString(36);
+    s.receivedAt = Date.now();
+    analyticsSessions.push(s);
+    if (analyticsSessions.length > ANALYTICS_MAX_SESSIONS) {
+      analyticsSessions.shift();
+    }
+    res.json({ success: true, count: analyticsSessions.length });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/analytics/summary', (req, res) => {
+  try {
+    const totalSessions = analyticsSessions.length;
+    let totalTabTimeSec = 0;
+    let totalMatchTimeSec = 0;
+    let totalMatchesStarted = 0;
+    let totalMatchesCompleted = 0;
+    let totalRageQuits = 0;
+    let totalNormalQuits = 0;
+    let totalBounces = 0;
+    let totalHumanWins = 0;
+    let totalBotWins = 0;
+    let totalFpsSum = 0;
+    let fpsCount = 0;
+
+    const funnel = {
+      linkOpened: totalSessions,
+      menuEngaged: 0,
+      match1Started: 0,
+      match1Completed: 0,
+      multiMatches: 0,
+      powerPlayers: 0
+    };
+
+    const modes = {};
+    const devices = { Desktop: 0, Mobile: 0 };
+    const botDifficulties = { easy: { humanWins: 0, botWins: 0 }, hard: { humanWins: 0, botWins: 0 } };
+
+    for (const s of analyticsSessions) {
+      const tabSec = s.tabLifetimeSec || s.totalTabTimeSec || 0;
+      const matchSec = s.totalMatchPlaytimeSec || 0;
+      totalTabTimeSec += tabSec;
+      totalMatchTimeSec += matchSec;
+
+      const started = s.matchesStarted || 0;
+      const completed = s.matchesCompleted || 0;
+      totalMatchesStarted += started;
+      totalMatchesCompleted += completed;
+
+      if (tabSec < 15 && started === 0) totalBounces++;
+      if (tabSec >= 15 || started > 0) funnel.menuEngaged++;
+      if (started >= 1) funnel.match1Started++;
+      if (completed >= 1) funnel.match1Completed++;
+      if (started >= 2) funnel.multiMatches++;
+      if (started >= 5) funnel.powerPlayers++;
+
+      totalRageQuits += s.rageQuits || 0;
+      totalNormalQuits += s.normalQuits || 0;
+      totalHumanWins += s.humanWins || 0;
+      totalBotWins += s.botWins || 0;
+
+      if (s.avgFps) {
+        totalFpsSum += s.avgFps;
+        fpsCount++;
+      }
+
+      const dev = (s.device && s.device.toLowerCase().includes('mobile')) ? 'Mobile' : 'Desktop';
+      devices[dev]++;
+
+      if (s.modesPlayed && typeof s.modesPlayed === 'object') {
+        for (const [m, cnt] of Object.entries(s.modesPlayed)) {
+          modes[m] = (modes[m] || 0) + cnt;
+        }
+      }
+
+      const diff = s.botDifficulty === 'easy' ? 'easy' : 'hard';
+      botDifficulties[diff].humanWins += s.humanWins || 0;
+      botDifficulties[diff].botWins += s.botWins || 0;
+    }
+
+    const avgTabTimeSec = totalSessions > 0 ? Math.round(totalTabTimeSec / totalSessions) : 0;
+    const avgMatchTimeSec = totalMatchesStarted > 0 ? Math.round(totalMatchTimeSec / totalMatchesStarted) : 0;
+    const conversionRate = totalSessions > 0 ? Math.round((funnel.match1Started / totalSessions) * 100) : 0;
+    const completionRate = funnel.match1Started > 0 ? Math.round((funnel.match1Completed / funnel.match1Started) * 100) : 0;
+    const bounceRate = totalSessions > 0 ? Math.round((totalBounces / totalSessions) * 100) : 0;
+    const rageQuitRate = (totalRageQuits + totalNormalQuits) > 0 ? Math.round((totalRageQuits / (totalRageQuits + totalNormalQuits)) * 100) : 0;
+    const humanWinRate = (totalHumanWins + totalBotWins) > 0 ? Math.round((totalHumanWins / (totalHumanWins + totalBotWins)) * 100) : 50;
+    const avgFps = fpsCount > 0 ? Math.round((totalFpsSum / fpsCount) * 10) / 10 : 60;
+
+    res.json({
+      totalSessions,
+      totalMatchesStarted,
+      totalMatchesCompleted,
+      avgTabTimeSec,
+      avgMatchTimeSec,
+      conversionRate,
+      completionRate,
+      bounceRate,
+      rageQuitRate,
+      humanWinRate,
+      avgFps,
+      funnel,
+      modes,
+      devices,
+      botDifficulties,
+      recentSessions: analyticsSessions.slice(-50).reverse()
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/analytics/reset', (req, res) => {
+  analyticsSessions.length = 0;
+  res.json({ success: true, message: 'Analytics reset successfully' });
+});
+
+app.get('/dashboard', (req, res) => {
+  const p = path.join(__dirname, 'dashboard.html');
+  if (fs.existsSync(p)) return res.sendFile(p);
+  const tagDash = path.join(__dirname, '..', 'tag', 'dashboard.html');
+  if (fs.existsSync(tagDash)) return res.sendFile(tagDash);
+  res.send('Dashboard HTML not found.');
 });
 
 // ================= ZERO-UDP WSS & HTTP LONG-POLL RELAY =================

@@ -6598,6 +6598,13 @@ var CrownMode = (typeof window !== "undefined" && window.CrownMode) || (typeof g
 
 function startMatch(){
   if(typeof NET !== 'undefined' && NET && (menu.tab === 'solo' || menu.tab === 'bots' || menu.tab === '2p' || NET.role === null)){ NET.isSpectator = false; }
+  try{
+    SESSION_METRICS.matchesStarted++;
+    SESSION_METRICS.currentMatchStartT = Date.now();
+    const curM = settings.gameMode || 'party';
+    SESSION_METRICS.modesPlayed[curM] = (SESSION_METRICS.modesPlayed[curM] || 0) + 1;
+    SESSION_METRICS.botDifficulty = menu.botDifficulty || 'hard';
+  }catch(e){}
   if(match && !match._telemetrySent){ try{ telemetryTrackMatchEnded('quit'); }catch(e){} }
   if(menu.tab === 'solo'){
     const soloModes = ['party', 'bomb', 'crown'];
@@ -8452,6 +8459,7 @@ function applyTag(newItIdx, popX, popY){
   match.tags[newItIdx]++;
   match.freeze = 0.09; match.shake = 13; match.flash = 0.14;
   match.tagPop = { t: 0.55, x: popX != null ? popX : (oldIt.x + newIt.x) / 2 + 23, y: popY != null ? popY : (oldIt.y + newIt.y) / 2 + 10 };
+  if(newItIdx === 0 || (newIt && newIt.slot === 0)){ try{ SESSION_METRICS.lastTagT = Date.now(); }catch(e){} }
   oldIt.tagT = 0.7; newIt.tagT = 0.7;
   sfx('tag');
   tagBurst(match.tagPop.x, match.tagPop.y, getPlayerColor(oldIt), getPlayerColor(newIt));
@@ -14684,6 +14692,28 @@ function netDirBase(){
   }catch(e){ return 'https://tag-netplay-server.onrender.com'; }
 }
 
+/* ================= SESSION LIFECYCLE & ANALYTICS ENGINE ================= */
+const SESSION_METRICS = {
+  sessionId: 'sess_' + Math.random().toString(36).slice(2, 9),
+  startTime: Date.now(),
+  matchesStarted: 0,
+  matchesCompleted: 0,
+  totalMatchPlaytimeSec: 0,
+  currentMatchStartT: 0,
+  modesPlayed: {},
+  botDifficulty: 'hard',
+  botWins: 0,
+  humanWins: 0,
+  lastTagT: 0,
+  rageQuits: 0,
+  normalQuits: 0,
+  fpsCounter: 0,
+  fpsTimer: 0,
+  fpsSamples: [],
+  avgFps: 60,
+  isEnded: false
+};
+
 /* ================= DISCORD TELEMETRY & MULTI-CHANNEL SUITE ================= */
 function isOrganicPlay(){
   try{
@@ -14943,7 +14973,7 @@ function telemetryTrackInviteShared(roomCode){
   }catch(e){}
 }
 
-// E. #match-sessions: Tracks match completion or quit, duration, player names, solo vs local vs online, ping, winner
+// E. #match-sessions: Tracks match completion, duration, player identity, FPS, rage-quits, and outcomes
 function telemetryTrackMatchEnded(reason = 'completed'){
   try{
     if(!isOrganicPlay()) return;
@@ -14955,13 +14985,13 @@ function telemetryTrackMatchEnded(reason = 'completed'){
 
     const start = match.startTime || (Date.now() - 60000);
     const durationSec = Math.max(1, Math.round((Date.now() - start) / 1000));
-    // If player quit within 2 seconds (e.g. accidentally clicked or instant quit), skip spamming webhook
-    if(reason === 'quit' && durationSec < 2) return;
+    // Filter noise: skip misclick exits under 5 seconds
+    if(reason === 'quit' && durationSec < 5) return;
 
     const durationStr = Math.floor(durationSec / 60) + "m " + (durationSec % 60) + "s";
     const mode = (typeof settings !== 'undefined' && settings && settings.gameMode) ? settings.gameMode.toUpperCase() : 'CLASSIC';
 
-    // 1. Resolve human player's identity (CrazyGames username, localStorage, or Guest name e.g. Guest Robot)
+    // 1. Resolve human player's identity (CrazyGames username, localStorage, or Guest name)
     let myName = "Guest";
     try {
       const prof = netGetMyProfile();
@@ -14975,12 +15005,24 @@ function telemetryTrackMatchEnded(reason = 'completed'){
     } catch(e){}
     if(!myName || myName === "Host") myName = "Guest";
 
-    // Also update NET.slotsName[0] if it was just 'Host'
     if(typeof NET !== "undefined" && NET && (!NET.slotsName[0] || NET.slotsName[0] === "Host")){
       NET.slotsName[0] = myName;
     }
 
-    // 2. Extract roster player names with clear human vs bot distinction
+    // 2. Rage Quit vs Normal Quit vs Completed Analysis
+    const isEarlyQuit = (reason === 'quit');
+    const timeSinceTag = (SESSION_METRICS.lastTagT > 0) ? (Date.now() - SESSION_METRICS.lastTagT) : 999999;
+    const isRageQuit = (isEarlyQuit && timeSinceTag < 12000 && durationSec >= 5);
+
+    if(isEarlyQuit){
+      if(isRageQuit) SESSION_METRICS.rageQuits++;
+      else SESSION_METRICS.normalQuits++;
+    } else {
+      SESSION_METRICS.matchesCompleted++;
+    }
+    SESSION_METRICS.totalMatchPlaytimeSec += durationSec;
+
+    // 3. Extract roster player names
     const playerNamesList = [];
     if(match.players && match.players.length){
       for(let pi=0; pi<match.players.length; pi++){
@@ -15005,7 +15047,7 @@ function telemetryTrackMatchEnded(reason = 'completed'){
             name = "P" + (pi + 1) + " (Local)";
           }
         } else {
-          // 1P Solo vs Bot or offline mode
+          // 1P Solo vs Bot
           if(pi === 0){
             name = myName;
           } else {
@@ -15017,7 +15059,7 @@ function telemetryTrackMatchEnded(reason = 'completed'){
     }
     const rosterStr = playerNamesList.length ? playerNamesList.join(", ") : myName;
 
-    let matchType = "🤖 Solo vs Bot";
+    let matchType = "🤖 Solo vs Bot (" + (SESSION_METRICS.botDifficulty === 'easy' ? '⚡ EASY' : '🔥 HARD') + ")";
     let pingSummary = "N/A (Local)";
     if(typeof NET !== "undefined" && NET && NET.role === "host"){
       matchType = "🌐 Online Multiplayer (" + (match.players ? match.players.length : 2) + " Players)";
@@ -15030,9 +15072,45 @@ function telemetryTrackMatchEnded(reason = 'completed'){
       matchType = "👥 Local Split-Screen (" + (match.players ? match.players.length : 2) + " Players)";
     }
 
-    const isEarlyQuit = (reason === 'quit');
-    let titleStr = isEarlyQuit ? '🚪 Match Session (Quit to Menu)' : '🏆 Match Completed';
-    let cardColor = isEarlyQuit ? 0x94a3b8 : 0xf59e0b;
+    // 4. Human vs Bot Win Detection in Solo
+    let isHumanWin = false;
+    let isBotWin = false;
+    if(menu && menu.tab === 'solo' && !isEarlyQuit){
+      if(settings.gameMode === "crown" || settings.gameMode === "bomb"){
+        isHumanWin = (match.result && match.result.winner === 0);
+        isBotWin = !isHumanWin;
+      } else if(settings.gameMode === "infection"){
+        const p1 = match.players && match.players[0];
+        isHumanWin = match.result && match.result.winningTeam === 'survivors' ? (!p1 || !p1.isInfected) : (!!p1 && !!p1.isInfected);
+        isBotWin = !isHumanWin;
+      } else if(match.result && match.result.loser != null){
+        isHumanWin = (match.result.loser !== 0);
+        isBotWin = !isHumanWin;
+      }
+      if(isHumanWin) SESSION_METRICS.humanWins++;
+      else if(isBotWin) SESSION_METRICS.botWins++;
+    }
+
+    // 5. Dynamic Color Coding
+    let cardColor = 0xf59e0b;
+    let outcomeTag = '👑 Match Concluded';
+    let titleStr = '🏆 Match Completed';
+
+    if(isRageQuit){
+      cardColor = 0xef4444; // Crimson Red
+      outcomeTag = '💢 Rage Quit (<12s post-tag)';
+      titleStr = '💢 Match Session (Rage Quit)';
+    } else if(isEarlyQuit){
+      cardColor = 0x64748b; // Slate Gray
+      outcomeTag = '🚪 Quit to Menu';
+      titleStr = '🚪 Match Session (Quit to Menu)';
+    } else if(isHumanWin){
+      cardColor = 0x22c55e; // Emerald Green
+      outcomeTag = '👑 Human Victory';
+    } else if(isBotWin){
+      cardColor = 0xf59e0b; // Amber Bot Victory
+      outcomeTag = '🤖 Bot Victory';
+    }
 
     let winnerStr = isEarlyQuit ? (myName + " (Quit to Menu)") : "Match Concluded";
     if(!isEarlyQuit){
@@ -15058,27 +15136,37 @@ function telemetryTrackMatchEnded(reason = 'completed'){
       }
     }
 
-    const descStr = isEarlyQuit
-      ? ("**" + myName + "** exited the match early after **" + durationStr + "**.")
-      : ("**" + myName + "** finished a **" + mode + "** match in **" + durationStr + "**.");
+    const fpsRating = (SESSION_METRICS.avgFps >= 50)
+      ? ('⚡ ' + SESSION_METRICS.avgFps + ' FPS (Smooth)')
+      : ('⚠️ ' + SESSION_METRICS.avgFps + ' FPS (Low FPS)');
+
+    const matchHistoryStr = 'Match #' + SESSION_METRICS.matchesStarted + ((typeof CAREER !== 'undefined' && CAREER && CAREER.xp) ? (' • ⭐ Level ' + getCareerLevel(CAREER.xp)) : ' (New Player)');
+
+    const descStr = isRageQuit
+      ? ("💢 **" + myName + "** rage-quit " + Math.round(timeSinceTag / 1000) + "s after being tagged (playtime: " + durationStr + ").")
+      : (isEarlyQuit
+        ? ("**" + myName + "** exited the match early after **" + durationStr + "**.")
+        : ("**" + myName + "** finished a **" + mode + "** match in **" + durationStr + "** (Result: " + outcomeTag + ")."));
 
     const payload = {
       username: 'TAG Analytics • Sessions',
-      avatar_url: isEarlyQuit ? 'https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/1f6aa.png' : 'https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/1f3c6.png',
+      avatar_url: isRageQuit ? 'https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/1f4a2.png' : (isEarlyQuit ? 'https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/1f6aa.png' : 'https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/1f3c6.png'),
       embeds: [{
         title: titleStr,
         description: descStr,
         color: cardColor,
         fields: [
           { name: '👤 Active Player', value: '**' + myName + '**', inline: true },
-          { name: '🎮 Game Mode', value: mode, inline: true },
+          { name: '🎮 Mode & Map', value: mode + ' (Map #' + (settings.map + 1) + ')', inline: true },
           { name: '🕹️ Match Type', value: matchType, inline: true },
           { name: '⏱️ Playtime Duration', value: durationStr, inline: true },
-          { name: isEarlyQuit ? '🚪 Session Status' : '👑 Result / Winner', value: isEarlyQuit ? '🚪 **Quit to Menu / Exited Early**' : ('👑 **' + winnerStr + '**'), inline: true },
-          { name: '⚡ Player Latency', value: pingSummary, inline: true },
+          { name: '🏆 Outcome / Status', value: '**' + outcomeTag + '**', inline: true },
+          { name: '⚡ Performance', value: fpsRating, inline: true },
+          { name: '🌟 Player Journey', value: matchHistoryStr, inline: true },
+          { name: '🌐 Latency', value: pingSummary, inline: true },
           { name: '👥 Players in Match', value: rosterStr }
         ],
-        footer: { text: isEarlyQuit ? 'TAG Analytics • Early Exit' : 'TAG Analytics Engine' },
+        footer: { text: isRageQuit ? 'TAG Analytics • Rage Quit Alert' : (isEarlyQuit ? 'TAG Analytics • Early Exit' : 'TAG Analytics Engine') },
         timestamp: new Date().toISOString()
       }]
     };
@@ -15089,6 +15177,68 @@ function telemetryTrackMatchEnded(reason = 'completed'){
       body: JSON.stringify(payload),
       keepalive: true
     }).catch(()=>{});
+  }catch(e){}
+}
+
+// F. Session Telemetry on Tab Close / Link Exit (Funnel & Total Conversion)
+function telemetryRecordSessionEnd(){
+  try{
+    if(typeof SESSION_METRICS === 'undefined' || SESSION_METRICS.isEnded) return;
+    SESSION_METRICS.isEnded = true;
+
+    const tabLifetimeSec = Math.max(1, Math.round((Date.now() - SESSION_METRICS.startTime) / 1000));
+    let myName = "Guest";
+    try { myName = netGetMyProfile().name || "Guest"; } catch(e){}
+
+    let funnelStage = 'Stage 1: Bounced (<15s)';
+    if(SESSION_METRICS.matchesStarted >= 5) funnelStage = 'Stage 6: Power Player (5+)';
+    else if(SESSION_METRICS.matchesStarted >= 2) funnelStage = 'Stage 5: Retained (2+)';
+    else if(SESSION_METRICS.matchesCompleted >= 1) funnelStage = 'Stage 4: Completed Match';
+    else if(SESSION_METRICS.matchesStarted >= 1) funnelStage = 'Stage 3: Started Match';
+    else if(tabLifetimeSec >= 15) funnelStage = 'Stage 2: Menu Explorer (>15s)';
+
+    const sessionPayload = {
+      sessionId: SESSION_METRICS.sessionId,
+      playerName: myName,
+      tabLifetimeSec: tabLifetimeSec,
+      totalMatchPlaytimeSec: SESSION_METRICS.totalMatchPlaytimeSec,
+      matchesStarted: SESSION_METRICS.matchesStarted,
+      matchesCompleted: SESSION_METRICS.matchesCompleted,
+      rageQuits: SESSION_METRICS.rageQuits,
+      normalQuits: SESSION_METRICS.normalQuits,
+      humanWins: SESSION_METRICS.humanWins,
+      botWins: SESSION_METRICS.botWins,
+      botDifficulty: SESSION_METRICS.botDifficulty,
+      avgFps: SESSION_METRICS.avgFps,
+      device: (typeof isTouch !== 'undefined' && isTouch) ? 'Mobile' : 'Desktop',
+      funnelStage: funnelStage,
+      modesPlayed: SESSION_METRICS.modesPlayed,
+      timestamp: Date.now()
+    };
+
+    // 1. Save to local device history for dashboard viewing
+    try {
+      let localHist = [];
+      const raw = localStorage.getItem('tag_analytics_sessions_v1');
+      if(raw) localHist = JSON.parse(raw);
+      localHist.push(sessionPayload);
+      if(localHist.length > 50) localHist.shift();
+      localStorage.setItem('tag_analytics_sessions_v1', JSON.stringify(localHist));
+    } catch(e){}
+
+    // 2. Transmit to server analytics endpoint
+    const serverUrl = (typeof netDirBase === 'function') ? netDirBase() : 'https://tag-netplay-server.onrender.com';
+    const jsonStr = JSON.stringify(sessionPayload);
+    if(navigator.sendBeacon){
+      navigator.sendBeacon(serverUrl + '/api/analytics/session', new Blob([jsonStr], { type: 'application/json' }));
+    } else {
+      fetch(serverUrl + '/api/analytics/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: jsonStr,
+        keepalive: true
+      }).catch(()=>{});
+    }
   }catch(e){}
 }
 
@@ -18738,6 +18888,19 @@ function frame(now){
   const dt = Math.min(0.033, Math.max(0, (now - last) / 1000));
   last = now;
   tGlobal += dt;
+  if(typeof SESSION_METRICS !== 'undefined'){
+    SESSION_METRICS.fpsCounter = (SESSION_METRICS.fpsCounter || 0) + 1;
+    if(!SESSION_METRICS.fpsTimer) SESSION_METRICS.fpsTimer = now;
+    if(now - SESSION_METRICS.fpsTimer >= 1000){
+      const curFps = Math.min(60, Math.round(SESSION_METRICS.fpsCounter * 1000 / (now - SESSION_METRICS.fpsTimer)));
+      if(!SESSION_METRICS.fpsSamples) SESSION_METRICS.fpsSamples = [];
+      SESSION_METRICS.fpsSamples.push(curFps);
+      if(SESSION_METRICS.fpsSamples.length > 30) SESSION_METRICS.fpsSamples.shift();
+      SESSION_METRICS.avgFps = Math.round(SESSION_METRICS.fpsSamples.reduce((a,b)=>a+b, 0) / SESSION_METRICS.fpsSamples.length);
+      SESSION_METRICS.fpsCounter = 0;
+      SESSION_METRICS.fpsTimer = now;
+    }
+  }
   
   // Global gamepad polling for every client
   pollGamepads();
