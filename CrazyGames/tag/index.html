@@ -3075,6 +3075,7 @@ var initCrownMode, updateCrownMode, checkCrownTag, drawCrownUI, drawCrownPlayer,
           break;
         case 'last_stand':
           gScope.sfx('win');
+  try{ telemetryTrackMatchEnded(); }catch(e){}
           break;
         case 'win_survivors':
           gScope.sfx('win');
@@ -6694,7 +6695,7 @@ function startMatch(){
     menu.hunterVotes = {};
   }
 
-  match={state:initState,cd:3,cdT:0,timer:isHunter?60:settings.time,lastTick:isHunter?60:settings.time,it:it,itTeam:itTeam,
+  match={startTime:Date.now(),state:initState,cd:3,cdT:0,timer:isHunter?60:settings.time,lastTick:isHunter?60:settings.time,it:it,itTeam:itTeam,
     hunterMode:isHunter,hunterRed:settings.hunterRed,hunterBlue:settings.hunterBlue,
     hunterScores:(match && match.hunterScores)?match.hunterScores:{0:0,1:0},
     hunterRound:(match && match.hunterRound)?match.hunterRound:1,
@@ -6715,6 +6716,11 @@ function startMatch(){
     match.it = -1;
     if(typeof initCrownMode === 'function') initCrownMode();
   }
+  // Clear stale mode flags when leaving bomb/crown (init only sets active=true).
+  try{
+    if(typeof BOMB_MODE !== 'undefined' && BOMB_MODE && settings.gameMode !== 'bomb') BOMB_MODE.active = false;
+    if(typeof crownState !== 'undefined' && crownState && settings.gameMode !== 'crown') crownState.active = false;
+  }catch(e){}
   screen='game';
   if(!isSplitLocalTouch) sfx('count');
 
@@ -8116,6 +8122,11 @@ function physUpdate(p,dt,allow){
   p.padOn=onSpeed;
   const isIt=match.it===match.players.indexOf(p)&&match.state==='playing';
   let baseMax=isIt?IT_SPEED:RUN_SPEED;
+  if(match && match.hunterMode){
+    // Hunters are the chasers: slot lookup is immune to stale p.isHunter flags.
+    const isHunterP=!!p.isHunter||p.slot===match.hunterRed||p.slot===match.hunterBlue;
+    baseMax=isHunterP?IT_SPEED:RUN_SPEED;
+  }
   if(settings.gameMode === 'infection' && typeof getInfectionPlayerSpeed === 'function'){
     baseMax = getInfectionPlayerSpeed(p);
   } else if(settings.gameMode === 'bomb' && typeof BOMB_MODE !== 'undefined' && BOMB_MODE && BOMB_MODE.carrierIdx === match.players.indexOf(p)){
@@ -8557,6 +8568,10 @@ function endHunterRound(wiperTeam){
   }
 
   const isMatchOver = (match.hunterRound >= match.hunterMaxRounds);
+  if(isMatchOver && !match._telemetrySent){
+    match._telemetrySent = true;
+    try{ telemetryTrackMatchEnded(); }catch(e){}
+  }
   match.roundSummary = {
     round: match.hunterRound,
     wiperTeam: wiperTeam,
@@ -9644,6 +9659,10 @@ function endMatch(){
   match.resultT=0;
   confetti();
   sfx('win');
+  if(!match._telemetrySent){
+    match._telemetrySent = true;
+    try{ telemetryTrackMatchEnded(); }catch(e){}
+  }
   if(typeof NET!=='undefined' && NET && NET.isHost && NET.midgameJoiner){
     netToast('New player joined — returning to lobby!');
   }
@@ -12370,7 +12389,11 @@ function drawSpectatorBanner(){
   const banX = CW / 2 - banW / 2;
   // Sit BELOW the center timer pill (y 8..48) so spectators keep the clock,
   // tag pills and mode HUD visible instead of painting over them.
-  const banY = 56;
+  // Drop further while the killfeed toast (y 58..84) is live to avoid stacking.
+  let banY = 56;
+  try{
+    if(match.killfeed && match.killfeed.length > 0 && match.killfeed[0] && match.killfeed[0].t > 0) banY = 100;
+  }catch(e){}
 
   // Background Glass Pill
   rr(g, banX, banY, banW, banH, 19);
@@ -14776,36 +14799,53 @@ function netDirBase(){
   }catch(e){ return 'https://tag-netplay-server.onrender.com'; }
 }
 
-/* ================= HOST ALERT NOTIFICATIONS (DISCORD & NTFY.SH) ================= */
-const NET_ALERTS_CONFIG = {
+/* ================= DISCORD TELEMETRY & MULTI-CHANNEL SUITE ================= */
+const NET_TELEMETRY_CONFIG = {
   enabled: true,
-  // 1. Discord Webhook URL (Paste your Discord webhook URL here; if empty, Discord notification is skipped)
-  discordWebhookUrl: 'https://discord.com/api/webhooks/1555528500516102255/oorxZysdCzQFmhLfApPuJAl_uMOvOL-WD3LGeszSLGb83nwiP1dAVUO1kDVcTzUw_jEM',
-  // Set to '@everyone', '@here', '<@YOUR_USER_ID>', or '' (pings phone/laptop Discord app when posted)
-  discordMention: '@everyone',
-  // 2. ntfy.sh Topic name (Subscribe to this exact topic in your phone/laptop ntfy app or browser)
+  // 1. #game-alerts (Host announces with @everyone; Player joins lobby SILENTLY without mention)
+  alertsWebhookUrl: 'https://discord.com/api/webhooks/1555528500516102255/oorxZysdCzQFmhLfApPuJAl_uMOvOL-WD3LGeszSLGb83nwiP1dAVUO1kDVcTzUw_jEM',
+  alertsMention: '@everyone',
+
+  // 2. #game-launches (Silent analytics: boot/device/region/player name, plus invite clicks)
+  launchesWebhookUrl: 'https://discord.com/api/webhooks/1555908160261324826/fOcxqoxguFe1486dPY_MjhFn96xGHMDq4yfB7X9bIYsWUqzyrIBdGDf5TvnyGAoUopy9',
+
+  // 3. #match-sessions (Silent analytics: match durations, player names, solo vs local vs online, ping, winner)
+  sessionsWebhookUrl: 'https://discord.com/api/webhooks/1555908433507651605/GytE_exg0eUAJfgLJYK5RopjP6D6a1faaBdvtAzaqWWVSs4PfffHQcivZBx3vo1X-C18',
+
   ntfyTopic: 'crazygames-tag-server-alerts',
-  // Optional custom server for ntfy (defaults to public https://ntfy.sh)
   ntfyServer: 'https://ntfy.sh'
 };
 
+const NET_ALERTS_CONFIG = {
+  get enabled(){ return NET_TELEMETRY_CONFIG.enabled; },
+  get discordWebhookUrl(){ return NET_TELEMETRY_CONFIG.alertsWebhookUrl; },
+  get discordMention(){ return NET_TELEMETRY_CONFIG.alertsMention; },
+  get ntfyTopic(){ return NET_TELEMETRY_CONFIG.ntfyTopic; },
+  get ntfyServer(){ return NET_TELEMETRY_CONFIG.ntfyServer; }
+};
+
+function buildCgPortalLink(roomCode){
+  const code = (roomCode || '').toUpperCase();
+  let invitedBy = 'YS0WTkyqWaOxDpfJWLEv7hRzkJ73';
+  try{
+    if(typeof CG !== 'undefined' && CG && CG._user && (CG._user.id || CG._user.userId)){
+      invitedBy = CG._user.id || CG._user.userId;
+    }
+  }catch(e){}
+  return 'https://www.crazygames.com/game/tag-arena-multiplayer?czy_invite=true&utm_source=invite&czy_invited_by=' + encodeURIComponent(invitedBy) + '&room=' + encodeURIComponent(code) + '&roomId=' + encodeURIComponent(code);
+}
+
+// A. #game-alerts: When Host starts a room (with @everyone ping)
 function netNotifyRoomCreated(roomCode, hostName, isPublic, maxPlayers){
   try{
-    if(!NET_ALERTS_CONFIG || !NET_ALERTS_CONFIG.enabled) return;
+    if(!NET_TELEMETRY_CONFIG || !NET_TELEMETRY_CONFIG.enabled) return;
     const mode = (typeof settings !== 'undefined' && settings && settings.gameMode) ? settings.gameMode.toUpperCase() : 'CLASSIC';
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const code = (roomCode || '').toUpperCase();
-    let invitedBy = 'YS0WTkyqWaOxDpfJWLEv7hRzkJ73';
-    try {
-      if(typeof CG !== 'undefined' && CG && CG._user && (CG._user.id || CG._user.userId)){
-        invitedBy = CG._user.id || CG._user.userId;
-      }
-    } catch(e) {}
-    const joinUrl = 'https://www.crazygames.com/game/tag-arena-multiplayer?czy_invite=true&utm_source=invite&czy_invited_by=' + encodeURIComponent(invitedBy) + '&room=' + encodeURIComponent(code) + '&roomId=' + encodeURIComponent(code);
+    const joinUrl = buildCgPortalLink(code);
 
-    // --- A. Discord Webhook Notification ---
-    if(NET_ALERTS_CONFIG.discordWebhookUrl && NET_ALERTS_CONFIG.discordWebhookUrl.trim()){
-      const mentionText = NET_ALERTS_CONFIG.discordMention ? (NET_ALERTS_CONFIG.discordMention + ' ') : '';
+    if(NET_TELEMETRY_CONFIG.alertsWebhookUrl && NET_TELEMETRY_CONFIG.alertsWebhookUrl.trim()){
+      const mentionText = NET_TELEMETRY_CONFIG.alertsMention ? (NET_TELEMETRY_CONFIG.alertsMention + ' ') : '';
       const discordPayload = {
         content: mentionText + '🎮 **A player started a TAG game server!**\n🔗 **Join link:** ' + joinUrl,
         username: 'TAG Server Watchdog',
@@ -14827,124 +14867,256 @@ function netNotifyRoomCreated(roomCode, hostName, isPublic, maxPlayers){
         }]
       };
 
-      fetch(NET_ALERTS_CONFIG.discordWebhookUrl.trim(), {
+      fetch(NET_TELEMETRY_CONFIG.alertsWebhookUrl.trim(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(discordPayload)
       }).catch(()=>{});
     }
 
-    // --- B. ntfy.sh Phone & Laptop Push Notification ---
-    if(NET_ALERTS_CONFIG.ntfyTopic && NET_ALERTS_CONFIG.ntfyTopic.trim()){
-      const topic = NET_ALERTS_CONFIG.ntfyTopic.trim();
-      const ntfyBase = (NET_ALERTS_CONFIG.ntfyServer || 'https://ntfy.sh').replace(/\/+$/, '');
+    if(NET_TELEMETRY_CONFIG.ntfyTopic && NET_TELEMETRY_CONFIG.ntfyTopic.trim()){
+      const topic = NET_TELEMETRY_CONFIG.ntfyTopic.trim();
+      const ntfyBase = (NET_TELEMETRY_CONFIG.ntfyServer || 'https://ntfy.sh').replace(/\/+$/, '');
       const ntfyUrl = ntfyBase + '/' + encodeURIComponent(topic);
       const ntfyMessage = 'Host: ' + (hostName || 'Host') + ' | Mode: ' + mode + ' | Room: ' + code + ' (' + (isPublic ? 'Public' : 'Private') + ')\nJoin: ' + joinUrl;
-
       fetch(ntfyUrl, {
         method: 'POST',
-        headers: {
-          'Title': '🎮 Server Hosted: ' + code,
-          'Priority': 'default',
-          'Tags': 'video_game,bell',
-          'Click': joinUrl
-        },
+        headers: { 'Title': '🎮 Server Hosted: ' + code, 'Priority': 'default', 'Tags': 'video_game,bell', 'Click': joinUrl },
         body: ntfyMessage
       }).catch(()=>{});
     }
   }catch(err){}
 }
 
-const NET = {
-  peer: null,
-  conns: new Map(), // peerId -> { rel: conn, fast: conn }
-  role: null, // 'host' | 'guest' | null
-  room: '',
-  myId: '',
-  mySlot: -1,
-  isHost: false,
-  isSpectator: false,
-  lobbyLocked: false,
-  teamsLocked: false,
-  isPublic: true,
-  maxPlayers: 8,
-  myCtrl: 'WASD',
-  slotsCtrl: ['WASD', 'WASD', 'WASD', 'WASD', 'WASD', 'WASD', 'WASD', 'WASD'],
-  slotsReady: [false, false, false, false, false, false, false, false],
-  slotsName: ['Host', '', '', '', '', '', '', ''],
-  spectators: [], // [{ peerId, name, avatar }]
-  pings: new Map(), // peerId -> ms
-  peerSlots: new Map(), // peerId -> slot (0..7)
-  peerNames: new Map(), // peerId -> name
-  peerMutes: new Set(), // peerId (local player mute toggles)
-  readyCountdown: null, // number (seconds) or null
-  botSlots: [], // slots occupied by AI bots (e.g. auto-fill hard bot)
-  publicRooms: [], // cached list of public rooms from server
-  lastRoomFetch: 0,
-  heartbeatTimer: null,
-  pingTimer: null,
-  midgameJoiner: false,
-  tick: 0,
-  seq: 0,
-  hostInputs: new Map(),
-  guestPrev: null,
-  guestNext: null,
-  lastRecvT: 0,
-  lastRecvTick: -1,
-  last3: [],
-  _startLock: 0,
-};
+// B. #game-alerts: SILENT notification when a player joins the lobby (NO @everyone)
+function netNotifyPlayerJoinedLobby(guestName, peerId){
+  try{
+    if(!NET_TELEMETRY_CONFIG || !NET_TELEMETRY_CONFIG.enabled || !NET_TELEMETRY_CONFIG.alertsWebhookUrl) return;
+    if(typeof NET === "undefined" || !NET || !NET.isHost) return;
+    const code = (NET.room || "").toUpperCase();
+    const myProfile = netGetMyProfile();
+    const names = [myProfile.name || "Host"];
+    for(let i=1; i<8; i++){
+      const n = NET.slotsName ? NET.slotsName[i] : "";
+      if(n && n.trim()) names.push(n.trim());
+    }
+    if(NET.spectators && NET.spectators.length){
+      for(const sp of NET.spectators){
+        if(sp && sp.name && !names.includes(sp.name)) names.push(sp.name);
+      }
+    }
+    const activeCount = Math.max(names.length, 2);
+    const max = NET.maxPlayers || 8;
+    const mode = (typeof settings !== 'undefined' && settings && settings.gameMode) ? settings.gameMode.toUpperCase() : 'CLASSIC';
+    const rtt = NET.pings ? NET.pings.get(peerId) : null;
+    const pingStr = rtt ? (rtt + "ms") : "Measuring...";
 
-/* Text clean profanity filter for usernames & in-game text chat */
-function cleanText(txt){
-  if(!txt) return '';
-  const badPatterns = /\b(fuck|shit|bitch|asshole|nigger|nigga|cunt|dick|cock|pussy|fag|faggot|whore|slut)\b/gi;
-  return String(txt).replace(badPatterns, '***');
+    const payload = {
+      username: 'TAG Lobby Watchdog',
+      avatar_url: 'https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/1f464.png',
+      embeds: [{
+        title: '👤 Player Joined Lobby',
+        description: "**" + (guestName || "Player") + "** entered room **" + code + "**!",
+        color: 0x06b6d4,
+        fields: [
+          { name: 'Room Code', value: '`' + code + '`', inline: true },
+          { name: 'Joining Player', value: '**' + (guestName || 'Player') + '**', inline: true },
+          { name: 'Ping to Host', value: '⚡ ' + pingStr, inline: true },
+          { name: 'Lobby Capacity', value: activeCount + ' / ' + max + ' Players', inline: true },
+          { name: 'Game Mode', value: mode, inline: true },
+          { name: 'Players in Room', value: names.slice(0, 8).join(', ') || 'Host' }
+        ],
+        footer: { text: 'TAG Lobby Watchdog (Silent Alert)' },
+        timestamp: new Date().toISOString()
+      }]
+    };
+
+    fetch(NET_TELEMETRY_CONFIG.alertsWebhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).catch(()=>{});
+  }catch(e){}
 }
 
-function getUniqueGuestName(baseName, slot){
-  const clean = cleanText(baseName || ('Player ' + (slot + 1))).slice(0, 16);
-  if(typeof NET === 'undefined' || !NET || !NET.slotsName) return clean;
-  const taken = [];
-  for(let s = 0; s < 8; s++){
-    if(s !== slot && NET.slotsName[s]) taken.push(NET.slotsName[s].toLowerCase().trim());
-  }
-  if(!taken.includes(clean.toLowerCase().trim())) return clean;
-  for(let n = 2; n <= 8; n++){
-    const cand = clean.slice(0, 13) + ' ' + n;
-    if(!taken.includes(cand.toLowerCase().trim())) return cand;
-  }
-  return clean.slice(0, 12) + ' P' + (slot + 1);
+// C. #game-launches: Tracks game boot, player name, device, timezone, and referrer
+function telemetryTrackGameLaunch(){
+  try{
+    if(!NET_TELEMETRY_CONFIG || !NET_TELEMETRY_CONFIG.enabled || !NET_TELEMETRY_CONFIG.launchesWebhookUrl) return;
+    if(sessionStorage.getItem('tag_telemetry_boot_v1')) return;
+    sessionStorage.setItem('tag_telemetry_boot_v1', '1');
+
+    let pName = "Guest";
+    try{
+      const prof = netGetMyProfile();
+      if(prof && prof.name) pName = prof.name;
+      else if(typeof CG !== "undefined" && CG && CG._user && CG._user.name) pName = CG._user.name;
+      else pName = localStorage.getItem("tag_player_name") || "Guest";
+    }catch(e){}
+
+    const tz = (typeof Intl !== 'undefined' && Intl.DateTimeFormat) ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'Unknown';
+    const isMobile = !!(typeof isTouch !== 'undefined' && isTouch);
+    const devStr = isMobile ? '📱 Mobile / Touch' : '💻 Desktop / Keyboard';
+    const scrStr = (window.screen ? (window.screen.width + "x" + window.screen.height) : "Unknown");
+    const qp = new URLSearchParams(location.search);
+    const roomQ = (qp.get('room') || qp.get('roomId') || '').toUpperCase();
+    const isCg = !!(typeof location !== 'undefined' && location.host && location.host.includes('crazygames'));
+    const source = isCg ? 'CrazyGames Portal' : (document.referrer ? document.referrer.slice(0, 50) : 'Direct URL');
+
+    const payload = {
+      username: 'TAG Analytics • Launches',
+      avatar_url: 'https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/1f680.png',
+      embeds: [{
+        title: '🚀 Game Launched',
+        description: "**" + pName + "** opened **TAG Arena Multiplayer** in their browser.",
+        color: 0x3b82f6,
+        fields: [
+          { name: 'Player Name', value: '**' + pName + '**', inline: true },
+          { name: 'Device Type', value: devStr, inline: true },
+          { name: 'Resolution', value: scrStr, inline: true },
+          { name: 'Timezone / Region', value: '📍 ' + tz, inline: true },
+          { name: 'Launch Source', value: source, inline: true },
+          { name: 'Joined via Code', value: roomQ ? ('`' + roomQ + '`') : 'No (Menu Boot)', inline: true }
+        ],
+        footer: { text: 'TAG Analytics Engine' },
+        timestamp: new Date().toISOString()
+      }]
+    };
+
+    fetch(NET_TELEMETRY_CONFIG.launchesWebhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).catch(()=>{});
+  }catch(e){}
 }
 
-/* Local Player Profile detection via CrazyGames SDK v3 or fallback */
-function netGetMyProfile(){
-  try {
-    if(typeof CG!=='undefined'&&CG&&CG._user&&CG._user.name){
-      return { name: cleanText(CG._user.name).slice(0, 16), avatar: CG._user.avatar || '' };
+// D. #game-launches: Tracks when a player shares an invite link
+let _lastInviteTrackT = 0;
+function telemetryTrackInviteShared(roomCode){
+  try{
+    if(!NET_TELEMETRY_CONFIG || !NET_TELEMETRY_CONFIG.enabled || !NET_TELEMETRY_CONFIG.launchesWebhookUrl) return;
+    const now = Date.now();
+    if(now - _lastInviteTrackT < 6000) return;
+    _lastInviteTrackT = now;
+    const code = (roomCode || "").toUpperCase();
+    let pName = "A player";
+    try{
+      const prof = netGetMyProfile();
+      if(prof && prof.name) pName = prof.name;
+    }catch(e){}
+
+    const payload = {
+      username: 'TAG Analytics • Invites',
+      avatar_url: 'https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/1f4e8.png',
+      embeds: [{
+        title: '💌 Invite Link Shared',
+        description: "**" + pName + "** clicked **Invite Friend** and copied the share link for room **`" + code + "`**!",
+        color: 0xa855f7,
+        fields: [
+          { name: 'Sender Name', value: '**' + pName + '**', inline: true },
+          { name: 'Room Code', value: '`' + code + '`', inline: true },
+          { name: 'Game Portal', value: 'CrazyGames', inline: true }
+        ],
+        footer: { text: 'TAG Analytics Engine' },
+        timestamp: new Date().toISOString()
+      }]
+    };
+
+    fetch(NET_TELEMETRY_CONFIG.launchesWebhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).catch(()=>{});
+  }catch(e){}
+}
+
+// E. #match-sessions: Tracks match completion, duration, player names, solo vs local vs online, ping, winner
+function telemetryTrackMatchEnded(){
+  try{
+    if(!NET_TELEMETRY_CONFIG || !NET_TELEMETRY_CONFIG.enabled || !NET_TELEMETRY_CONFIG.sessionsWebhookUrl) return;
+    if(typeof match === "undefined" || !match) return;
+    if(typeof NET !== "undefined" && NET && NET.role === "guest") return;
+
+    const start = match.startTime || (Date.now() - 60000);
+    const durationSec = Math.max(1, Math.round((Date.now() - start) / 1000));
+    const durationStr = Math.floor(durationSec / 60) + "m " + (durationSec % 60) + "s";
+    const mode = (typeof settings !== 'undefined' && settings && settings.gameMode) ? settings.gameMode.toUpperCase() : 'CLASSIC';
+
+    // Extract roster player names
+    const playerNamesList = [];
+    if(match.players && match.players.length){
+      for(let pi=0; pi<match.players.length; pi++){
+        const p = match.players[pi];
+        let name = "P" + (pi + 1);
+        if(typeof NET !== "undefined" && NET && NET.slotsName && NET.slotsName[p.slot]) name = NET.slotsName[p.slot];
+        else if(pi === 0){ try{ name = netGetMyProfile().name; }catch(e){} }
+        else if(typeof isBotSlot === "function" && isBotSlot(p)) name = "Bot " + (pi + 1);
+        playerNamesList.push(name);
+      }
     }
-    const cgUser = CG.getUser();
-    if(cgUser && cgUser.username){
-      return {
-        name: cleanText(cgUser.username).slice(0, 16),
-        avatar: cgUser.profilePictureUrl || ''
-      };
+    const rosterStr = playerNamesList.length ? playerNamesList.join(", ") : "Players";
+
+    let matchType = "🤖 Solo vs Bot";
+    let pingSummary = "N/A (Local)";
+    if(typeof NET !== "undefined" && NET && NET.role === "host"){
+      matchType = "🌐 Online Multiplayer (" + (match.players ? match.players.length : 2) + " Players)";
+      if(NET.pings && NET.pings.size > 0){
+        const pingsArr = [...NET.pings.values()];
+        const avgPing = Math.round(pingsArr.reduce((a,b)=>a+b, 0) / pingsArr.length);
+        pingSummary = avgPing + "ms avg (" + pingsArr.join(", ") + "ms)";
+      }
+    } else if(menu && (menu.tab === "2p" || menu.tab === "4p")){
+      matchType = "👥 Local Split-Screen (" + (match.players ? match.players.length : 2) + " Players)";
     }
-  } catch(e){}
-  let stored = '';
-  try { stored = localStorage.getItem('tag_player_name') || ''; } catch(e){}
-  if(!stored || stored.startsWith('Player ')){
-    const guestItems = [
-      'Pancake', 'Falcon', 'Ninja', 'Rocket', 'Pizza', 'Tiger', 'Cookie',
-      'Waffle', 'Panda', 'Shadow', 'Donut', 'Wizard', 'Mango', 'Viper',
-      'Bubble', 'Lightning', 'Blaster', 'Taco', 'Ghost', 'Phoenix', 'Dragon',
-      'Sushi', 'Robot', 'Cheetah', 'Burger', 'Fox', 'Comet', 'Spark'
-    ];
-    const pick = guestItems[Math.floor(Math.random() * guestItems.length)];
-    stored = 'Guest ' + pick;
-    try { localStorage.setItem('tag_player_name', stored); } catch(e){}
-  }
-  return { name: cleanText(stored).slice(0, 16), avatar: '' };
+
+    let winnerStr = "Match Concluded";
+    if(settings.gameMode === "crown"){
+      const wIdx = match.result ? match.result.winner : 0;
+      const wName = playerNamesList[wIdx] || ("P" + (wIdx + 1));
+      const sc = match.result ? match.result.score : 0;
+      winnerStr = wName + " (Crown King - " + sc + " pts)";
+    } else if(settings.gameMode === "bomb"){
+      const wIdx = match.result ? match.result.winner : 0;
+      const wName = playerNamesList[wIdx] || ("P" + (wIdx + 1));
+      winnerStr = wName + " (Last Survivor)";
+    } else if(settings.gameMode === "infection"){
+      winnerStr = (match.result && match.result.winningTeam === "survivors") ? "Survivors" : "Zombies";
+    } else if(match.result && match.result.winningTeam != null){
+      winnerStr = "Team " + (match.result.winningTeam === 0 ? "RED" : "BLUE");
+    } else if(match.result && match.result.loser != null){
+      const lIdx = match.result.loser;
+      const lName = playerNamesList[lIdx] || ("P" + (lIdx + 1));
+      const wIdx = lIdx === 0 ? 1 : 0;
+      const wName = playerNamesList[wIdx] || ("P" + (wIdx + 1));
+      winnerStr = wName + " (Tagged " + lName + ")";
+    }
+
+    const payload = {
+      username: 'TAG Analytics • Sessions',
+      avatar_url: 'https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/1f3c6.png',
+      embeds: [{
+        title: '🏆 Match Completed',
+        color: 0xf59e0b,
+        fields: [
+          { name: 'Game Mode', value: mode, inline: true },
+          { name: 'Match Type', value: matchType, inline: true },
+          { name: 'Playtime Duration', value: '⏱️ ' + durationStr, inline: true },
+          { name: 'Result / Winner', value: '👑 **' + winnerStr + '**', inline: true },
+          { name: 'Player Latency', value: '⚡ ' + pingSummary, inline: true },
+          { name: 'Players in Match', value: rosterStr }
+        ],
+        footer: { text: 'TAG Analytics Engine' },
+        timestamp: new Date().toISOString()
+      }]
+    };
+
+    fetch(NET_TELEMETRY_CONFIG.sessionsWebhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).catch(()=>{});
+  }catch(e){}
 }
 
 /* === INSTITUTIONAL FIREWALL TRAVERSAL: TURNS & STATIC RELAY CONFIG === */
@@ -15029,7 +15201,7 @@ function netEnterRelay(reason){
           netOnData(m.data, fakeConn);
         }catch(e){}
       };
-      RELAY.ws.onclose = () => netEnterPolling();
+      RELAY.ws.onclose = () => { if(RELAY.mode === 'relay' && typeof NET !== 'undefined' && NET && NET.role !== null) netEnterPolling(); };
       RELAY.ws.onerror = () => {
         try{ if(RELAY.ws) RELAY.ws.close(); }catch(e){}
         netEnterPolling();
@@ -15040,7 +15212,7 @@ function netEnterRelay(reason){
 }
 
 function netEnterPolling(){
-  if(RELAY.pollTimer) return;
+  if(RELAY.pollTimer || RELAY.mode !== 'relay' || typeof NET === 'undefined' || !NET || NET.role === null) return;
   const base = (typeof netDirBase === 'function' ? netDirBase() : 'https://tag-netplay-server.onrender.com');
   RELAY.pollTimer = setInterval(async () => {
     try{
@@ -15220,8 +15392,9 @@ function applyModeState(env){
           for(const p of match.players) p.isLoneSurvivor = (p.slot === env.lone);
         }
       }
-    } else if(env.mode === 'bomb' && typeof BOMB_MODE !== 'undefined'){
+    } else if(env.mode === 'bomb' && typeof BOMB_MODE !== 'undefined' && BOMB_MODE){
       try{ BOMB_MODE.active = true; }catch(e){}
+      try{ if(typeof crownState !== 'undefined' && crownState) crownState.active = false; }catch(e){}
       if(env.carrier != null){ BOMB_MODE.carrierIdx = env.carrier; if(match) match.it = env.carrier; }
       if(env.fuse != null){ BOMB_MODE.fuse = env.fuse; }
       if(env.maxFuse != null) BOMB_MODE.maxFuse = env.maxFuse;
@@ -15229,8 +15402,9 @@ function applyModeState(env){
       if(env.round != null) BOMB_MODE.roundNumber = env.round;
       if(env.bstate) BOMB_MODE.state = env.bstate;
       if(match && typeof BOMB_MODE.fuse === 'number') match.timer = BOMB_MODE.fuse;
-    } else if(env.mode === 'crown' && typeof crownState !== 'undefined'){
+    } else if(env.mode === 'crown' && typeof crownState !== 'undefined' && crownState){
       try{ crownState.active = true; }catch(e){}
+      try{ if(typeof BOMB_MODE !== 'undefined' && BOMB_MODE) BOMB_MODE.active = false; }catch(e){}
       if(env.scores) crownState.scores = Object.assign({}, env.scores);
       if(env.imm != null) crownState.immunityTimer = env.imm;
       if(env.hold != null) crownState.holdTimer = env.hold;
@@ -15836,6 +16010,7 @@ function netCopyInviteToClipboard(doneMsg){
   const fallback = () => {
     try{
       if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(netLink(NET.room)).catch(()=>{});
+      try{ telemetryTrackInviteShared(NET.room); }catch(e){}
       netToast(msg);
     }catch(e){}
   };
@@ -15868,7 +16043,7 @@ async function netCopyLink(){
   if(!l) l = netLink(NET.room);
   try{if(l&&l.indexOf('game-files.crazygames.com')>=0) l=l.replace(/\/\?room=/,'/index.html?room=');}catch(e){}
   if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(l).then(() => netToast('Invite link copied! Send it to your friend.')).catch(() => prompt('Copy invite link:', l));
+    navigator.clipboard.writeText(l).then(() => { netToast('Invite link copied! Send it to your friend.'); try{ telemetryTrackInviteShared(NET.room); }catch(e){} }).catch(() => prompt('Copy invite link:', l));
   } else {
     prompt('Copy invite link:', l);
   }
@@ -16059,6 +16234,7 @@ async function netConnectPeer(room, isHost, forceFallback = false){
     RELAY.room = cleanRoom;
     RELAY.pid = id;
     if(RELAY.ws){ try{ RELAY.ws.close(); }catch(e){} RELAY.ws = null; }
+    if(RELAY.hostWs){ try{ RELAY.hostWs.close(); }catch(e){} RELAY.hostWs = null; }
     if(RELAY.pollTimer){ clearInterval(RELAY.pollTimer); RELAY.pollTimer = null; }
   }
   
@@ -16409,6 +16585,7 @@ function netOnData(m, c){
     const guestName = cleanText(m.name || 'Player').slice(0, 16);
     const guestAvatar = m.avatar || '';
     NET.peerNames.set(c.peer, guestName);
+    try{ setTimeout(() => netNotifyPlayerJoinedLobby(guestName, c.peer), 350); }catch(e){}
 
     // All new joiners start in the Waiting List / Spectator queue
     if(!NET.spectators) NET.spectators = [];
@@ -16446,10 +16623,11 @@ function netOnData(m, c){
     netBroadcastRoster();
     netUpdateHostDirectory();
 
-    // Any live match screen (playing/countdown/paused/result/round-result):
-    // a joiner during result/paused previously got NO snapshot and sat in the
-    // lobby seeing nothing until the next round.
-    const isMidgame = !!(match && screen === 'game' && match.state);
+    // Snapshot only for watchable live states. Result/round-result screens
+    // carry no result payload here, so those joiners wait in the lobby and
+    // auto-join next round instead of building a result screen with null data.
+    const snapStates = { playing: 1, countdown: 1, paused: 1 };
+    const isMidgame = !!(match && screen === 'game' && match.state && snapStates[match.state]);
     if(isMidgame){
       const payload = {
         it: match.it,
@@ -16461,7 +16639,7 @@ function netOnData(m, c){
         state: match.state,
         cd: match.cd,
         cdT: match.cdT,
-        tags: match.tags.slice(),
+        tags: (match.tags ? match.tags.slice() : []),
         hunterMode: !!match.hunterMode,
         hunterRed: settings.hunterRed,
         hunterBlue: settings.hunterBlue,
@@ -18121,6 +18299,7 @@ function startMatchNetGuest(p){
   menu.mapVote = null;
   menu.modePopup = false;
   match = {
+    startTime: Date.now(),
     state: initState,
     cd: p.cd != null ? p.cd : 3,
     cdT: p.cdT != null ? p.cdT : 0,
@@ -18149,9 +18328,10 @@ function startMatchNetGuest(p){
   };
   // Spectator-safe: 'start'/'midgame_start' carry no mode init, so ensure HUD
   // active flags without resetting fuse/scores (init funcs would reset state).
+  // Deactivate the other mode so a stale flag can't leak into the next match.
   try{
-    if(settings.gameMode === 'bomb' && typeof BOMB_MODE !== 'undefined') BOMB_MODE.active = true;
-    if(settings.gameMode === 'crown' && typeof crownState !== 'undefined') crownState.active = true;
+    if(typeof BOMB_MODE !== 'undefined' && BOMB_MODE) BOMB_MODE.active = (settings.gameMode === 'bomb');
+    if(typeof crownState !== 'undefined' && crownState) crownState.active = (settings.gameMode === 'crown');
   }catch(e){}
   screen = 'game';
   if(initState === 'countdown') sfx('count');
@@ -18482,6 +18662,7 @@ try{
 }catch(e){/* normal menu boot */}
 buildLevel();
 netInitUI();
+try{ telemetryTrackGameLaunch(); }catch(e){}
 
 /* Training harness launch: ?train (map 0) or ?train=N (map N) or ?harness=N */
 try{
