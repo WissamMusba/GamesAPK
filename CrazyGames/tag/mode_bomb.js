@@ -361,6 +361,10 @@
           if (typeof sfx === 'function') {
             try { sfx('win'); } catch (e) {}
           }
+          if (typeof telemetryTrackMatchEnded === 'function' && match && !match._telemetrySent) {
+            match._telemetrySent = true;
+            try { telemetryTrackMatchEnded('completed'); } catch (e) {}
+          }
           if (typeof toast === 'function') {
             try { toast(`🏆 PLAYER ${BOMB_MODE.winnerIdx + 1} WINS BOMB TAG! 🏆`); } catch (e) {}
           }
@@ -1124,199 +1128,10 @@
     if (!p || p.isEliminated || p.isFrozen) {
       return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
     }
-
-    const P = (typeof match !== 'undefined' && match && match.players) ? match.players : [];
-    const pIdx = P.indexOf(p);
-    const isCarrier = (pIdx === BOMB_MODE.carrierIdx);
-    const cx = p.x + p.w / 2;
-    const cy = p.y + p.h / 2;
-    const solids = (typeof SOLIDS !== 'undefined' && Array.isArray(SOLIDS)) ? SOLIDS : [];
-
-    let wantDir = 0;
-    let wantJumpEdge = false;
-    let wantJumpHeld = false;
-    let wantDown = false;
-
-    // -------------------------------------------------------------
-    // CASE 1: BOT IS THE BOMB CARRIER (High-Aggression Pursuit)
-    // -------------------------------------------------------------
-    if (isCarrier) {
-      // 1. Target Selection: Find the closest non-eliminated runner WITHOUT anti-retag shield
-      let bestTarget = null;
-      let minScore = 1e12;
-
-      for (let j = 0; j < P.length; j++) {
-        if (j === pIdx) continue;
-        const o = P[j];
-        if (!o || o.isEliminated) continue;
-
-        // Skip runners with active anti-retag shield
-        const immKey = o.slot != null ? o.slot : j;
-        if ((BOMB_MODE.passImmunity[immKey] || 0) > 0) continue;
-
-        const ox = o.x + o.w / 2;
-        const oy = o.y + o.h / 2;
-        const distSq = (ox - cx) ** 2 + (oy - cy) ** 2;
-
-        // Give preference to runners on the same horizontal platform tier
-        const tierPenalty = Math.abs(oy - cy) * 1.5;
-        const totalScore = Math.sqrt(distSq) + tierPenalty;
-
-        if (totalScore < minScore) {
-          minScore = totalScore;
-          bestTarget = o;
-        }
-      }
-
-      // If all living runners have shields, hold center lane instead of
-      // wasting the chase into immunity (shields expire in <=2s).
-      if (!bestTarget) {
-        const arenaW = (typeof W !== 'undefined') ? W : 2400;
-        wantDir = (cx < arenaW / 2) ? 1 : -1;
-        return {
-          dir: wantDir,
-          jumpEdge: false,
-          jumpHeld: wantJumpHeld || false,
-          downHeld: false
-        };
-      }
-
-      if (bestTarget) {
-        const tx = bestTarget.x + bestTarget.w / 2;
-        const ty = bestTarget.y + bestTarget.h / 2;
-        const dx = tx - cx;
-        const dy = ty - cy;
-
-        // Predictive Lead-Aiming: Carrier sprints at 565 px/s
-        const dist = Math.hypot(dx, dy);
-        const leadT = _clamp(dist / BOMB_CONFIG.SPEED_CARRIER, 0.08, 0.32);
-        const predictedTx = tx + _clamp((bestTarget.vx || 0) * leadT, -240, 240);
-        wantDir = Math.abs(predictedTx - cx) > 10 ? Math.sign(predictedTx - cx) : Math.sign(dx);
-
-        // Platform Navigation:
-        // A. Runner is on a HIGHER platform (dy < -40)
-        if (dy < -40) {
-          if (p.grounded) {
-            wantJumpEdge = true;
-            wantJumpHeld = true;
-          } else if (p.airJumps > 0) {
-            // Apex Double Jump Chaining: Trigger near vertical velocity turnaround (-120 < vy < 100)
-            const isApexWindow = (p.vy > -120 && p.vy < 100);
-            if (isApexWindow) {
-              wantJumpEdge = true;
-              wantJumpHeld = true;
-            }
-          } else if (p.sideT > 0 && p.wallJumps < 2) {
-            // Wall-jump off vertical walls to climb higher
-            wantJumpEdge = true;
-            wantJumpHeld = true;
-          }
-        }
-
-        // B. Runner is on a LOWER platform (dy > 50)
-        if (dy > 50) {
-          // Check if standing on drop-through pink platform
-          let onDrop = false;
-          if (typeof botFullyOnDrop === 'function') {
-            onDrop = !!botFullyOnDrop(p);
-          } else if (p.grounded && p.gp && p.gp.t === 'drop') {
-            onDrop = true;
-          }
-
-          if (onDrop) {
-            wantDown = true;
-            wantJumpEdge = false;
-          }
-        }
-
-        // C. Blue Boost Pad Jump: If standing on or crossing boost pad, jump for 1.31x launch
-        const onBoost = p.grounded && (typeof zoneAtFeet === 'function' && zoneAtFeet(p, 'boost'));
-        if (onBoost && dy < -20) {
-          wantJumpEdge = true;
-          wantJumpHeld = true;
-        }
-
-        // D. Close Quarters Finishing Leap:
-        if (dist < 75 && dy < -15 && (p.grounded || p.airJumps > 0)) {
-          wantJumpEdge = true;
-        }
-      } else {
-        wantDir = p.face || 1;
-      }
+    if (typeof botInputFor === 'function') {
+      return botInputFor(p, dt);
     }
-
-    // -------------------------------------------------------------
-    // CASE 2: BOT IS A RUNNER (Survival & Opposing Tier Scatter)
-    // -------------------------------------------------------------
-    else {
-      const carrier = P[BOMB_MODE.carrierIdx];
-      if (carrier && !carrier.isEliminated) {
-        const kx = carrier.x + carrier.w / 2;
-        const ky = carrier.y + carrier.h / 2;
-        const dx = kx - cx;
-        const dy = ky - cy;
-        const dist = Math.hypot(dx, dy);
-
-        // Flee in opposite direction from carrier
-        wantDir = dx > 0 ? -1 : 1;
-
-        // Anti-Cornering: If trapped against arena perimeter wall while carrier approaches
-        const worldW = (typeof W !== 'undefined') ? W : 2400;
-        const wallW = (typeof WALL !== 'undefined') ? WALL : 60;
-        const nearLeftWall = (p.x <= wallW + 110 && dx < 0);
-        const nearRightWall = (p.x + p.w >= worldW - wallW - 110 && dx > 0);
-
-        if ((nearLeftWall || nearRightWall) && dist < 320) {
-          // Overhead Flank: Jump and double-jump over approaching carrier
-          if (p.grounded) {
-            wantJumpEdge = true;
-            wantJumpHeld = true;
-          } else if (p.airJumps > 0 && p.vy > -50) {
-            wantJumpEdge = true;
-            wantJumpHeld = true;
-            wantDir = -wantDir; // Flip direction to clear over carrier
-          } else if (p.sideT > 0) {
-            // Wall-jump off outer wall
-            wantJumpEdge = true;
-            wantJumpHeld = true;
-            wantDir = nearLeftWall ? 1 : -1;
-          }
-        }
-
-        // Tier Scattering:
-        // If carrier is on the SAME or LOWER tier (dy >= -20), climb up to higher tiers!
-        if (dy >= -20 && dist < 420) {
-          if (p.grounded) {
-            wantJumpEdge = true;
-            wantJumpHeld = true;
-          } else if (p.airJumps > 0 && p.vy > -100 && p.vy < 120) {
-            wantJumpEdge = true;
-            wantJumpHeld = true;
-          }
-        }
-
-        // Drop Platform Juke: If running over pink drop platform and carrier is right behind
-        if (dist < 180 && Math.abs(dy) < 60) {
-          let onDrop = false;
-          if (typeof botFullyOnDrop === 'function') onDrop = !!botFullyOnDrop(p);
-          else if (p.grounded && p.gp && p.gp.t === 'drop') onDrop = true;
-
-          if (onDrop) {
-            wantDown = true; // Drop through to evade
-          }
-        }
-      } else {
-        // Safe wandering
-        wantDir = 0;
-      }
-    }
-
-    return {
-      dir: wantDir,
-      jumpEdge: wantJumpEdge,
-      jumpHeld: wantJumpHeld || wantJumpEdge,
-      downHeld: wantDown
-    };
+    return { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false };
   }
 
   /* ================= EXPORT MODULE API ================= */
