@@ -89,7 +89,8 @@ app.get('/api/rooms', (req, res) => {
         maxPlayers: r.maxPlayers || 8,
         map: r.map !== undefined ? r.map : 0,
         teams: !!r.teams,
-        state: r.state || 'lobby'
+        state: r.state || 'lobby',
+        hostPeerId: r.hostPeerId || r.hostId || ''
       });
     }
   }

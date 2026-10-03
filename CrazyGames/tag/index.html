@@ -833,7 +833,13 @@ const CG={
             else code=params.room||params.roomName||params.roomId||'';
           }
           if(!code)return;
-          if(typeof NET!=='undefined'&&NET&&NET.role!==null){try{netToast('finish current match first');}catch(e){}return;}
+          if(typeof NET!=='undefined'&&NET&&NET.role!==null){
+            // Stalled guest (never joined) may preempt with the new invite
+            // instead of being stuck behind 'finish current match first'.
+            const stuck = (NET.role==='guest' && NET.mySlot<0 && !NET.isSpectator);
+            if(stuck){ try{ netLeaveRoom(); }catch(e){} }
+            else { try{netToast('finish current match first');}catch(e){} return; }
+          }
           if(typeof netJoinAction==='function')netJoinAction(code);
         }catch(e){}
       };
@@ -14734,7 +14740,7 @@ function buildCgPortalLink(roomCode){
       invitedBy = CG._user.id || CG._user.userId;
     }
   }catch(e){}
-  return 'https://www.crazygames.com/game/tag-arena-multiplayer?czy_invite=true&utm_source=invite&czy_invited_by=' + encodeURIComponent(invitedBy) + '&room=' + encodeURIComponent(code) + '&roomId=' + encodeURIComponent(code);
+  return 'https://www.crazygames.com/game/tag-arena-multiplayer?czy_invite=true&utm_source=invite&czy_invited_by=' + encodeURIComponent(invitedBy) + '&room=' + encodeURIComponent(code) + '&roomId=' + encodeURIComponent(code) + (function(){ try{ var s=((NET&&NET._srv&&NET._srv.host)||((typeof PEER_SERVER_CONFIG!=='undefined'?PEER_SERVER_CONFIG.host:'')||'')||'').replace(/^https?:\/\//i,'').replace(/\/+$/,'').trim(); if(/^[A-Za-z0-9.\-:]+$/.test(s)&&s) return '&srv='+encodeURIComponent(s); }catch(e){} return ''; })();
 }
 
 // A. #game-alerts: When Host starts a room (with @everyone ping)
@@ -16043,6 +16049,12 @@ function netShow(on){
 
 function netLink(room){
   const code = (room || '').toUpperCase();
+  // Pin the invite to our signaling server so host+guest never split brain.
+  let srvQ = '';
+  try{
+    srvQ = ((NET && NET._srv && NET._srv.host) || ((typeof PEER_SERVER_CONFIG !== 'undefined' ? PEER_SERVER_CONFIG.host : '') || '') || '').replace(/^https?:\/\//i, '').replace(/\/+$/, '').trim();
+    if(!/^[A-Za-z0-9.\-:]+$/.test(srvQ)) srvQ = '';
+  }catch(e){ srvQ = ''; }
   let invitedBy = 'YS0WTkyqWaOxDpfJWLEv7hRzkJ73';
   try{
     if(typeof CG !== 'undefined' && CG && CG._user && (CG._user.id || CG._user.userId)){
@@ -16054,14 +16066,14 @@ function netLink(room){
   const isLocalOrFile = (typeof location === 'undefined' || !location.origin || location.origin.startsWith('file:') || location.origin.includes('localhost') || location.origin.includes('127.0.0.1'));
   
   if(isCrazyHost || isLocalOrFile){
-    return 'https://www.crazygames.com/game/tag-arena-multiplayer?czy_invite=true&utm_source=invite&czy_invited_by=' + encodeURIComponent(invitedBy) + '&room=' + encodeURIComponent(code) + '&roomId=' + encodeURIComponent(code);
+    return 'https://www.crazygames.com/game/tag-arena-multiplayer?czy_invite=true&utm_source=invite&czy_invited_by=' + encodeURIComponent(invitedBy) + '&room=' + encodeURIComponent(code) + '&roomId=' + encodeURIComponent(code) + (srvQ ? ('&srv=' + encodeURIComponent(srvQ)) : '');
   }
 
   let p = location.pathname;
   if(p.endsWith('/')) p = p + 'index.html';
   else if(/\/[^\/]+\.[a-z]+$/i.test(p)) p = p.replace(/\/[^\/]*$/, '/');
   else p = p + '/';
-  return location.origin + p + '?room=' + code;
+  return location.origin + p + '?room=' + code + (srvQ ? ('&srv=' + encodeURIComponent(srvQ)) : '');
 }
 
 /* Copy the portal invite link when available, else the ?room= fallback link */
@@ -16315,6 +16327,7 @@ function netDestroyPeerForRebuild(){
 /* PeerJS connect (Supports dedicated Railway/Render server with zero-failure cloud & zero-UDP relay fallback) */
 async function netConnectPeer(room, isHost, forceFallback = false){
   try{ await netRefreshIce(); }catch(e){}
+  try{ if(NET._forceCloud && !isHost){ NET._forceCloud = false; forceFallback = true; } }catch(e){}
   try{ if(NET._guestTimeout){ clearTimeout(NET._guestTimeout); NET._guestTimeout = null; } }catch(e){}
   if(NET.peer){
     netDestroyPeerForRebuild();
@@ -16336,6 +16349,7 @@ async function netConnectPeer(room, isHost, forceFallback = false){
     RELAY.room = cleanRoom;
     RELAY.pid = id;
     try{ netProbeRelayCapable(); }catch(e){} // warm relay-support cache for the 3.5s watchdog
+    try{ NET._helloSent = false; }catch(e){}
     if(RELAY.ws){ try{ RELAY.ws.close(); }catch(e){} RELAY.ws = null; }
     if(RELAY.hostWs){ try{ RELAY.hostWs.close(); }catch(e){} RELAY.hostWs = null; }
     if(RELAY.pollTimer){ clearInterval(RELAY.pollTimer); RELAY.pollTimer = null; }
@@ -16425,6 +16439,14 @@ async function netConnectPeer(room, isHost, forceFallback = false){
       NET.peerSlots.set(id2, 0);
       NET.peer.on('connection', c => netWireConn(c, true));
       netToast('Hosting room ' + room.toUpperCase() + '! Link copied.');
+      // Sync the URL to the ACTUAL server (post-fallback truth) so a
+      // re-copied link pins guests to the right signaling server.
+      try{
+        const u = new URL(location.href);
+        if(usingCustom && customHost){ u.searchParams.set('srv', customHost); u.searchParams.delete('cloud'); }
+        else { u.searchParams.delete('srv'); u.searchParams.set('cloud', '1'); }
+        history.replaceState(null, '', u.pathname + u.search);
+      }catch(e){}
       setTimeout(() => { netBroadcastSettings(); netBroadcastRoster(); }, 400);
 
       // Host also registers with relay server in the background for zero-UDP guests
@@ -16501,6 +16523,15 @@ async function netConnectPeer(room, isHost, forceFallback = false){
             }catch(e){}
             if(ok) return;
             if(linkOpen){
+              // Cap the extensions: a truly mute host must eventually fail
+              // instead of syncing forever (and blocking fresh invites).
+              NET._syncExt = (NET._syncExt || 0) + 1;
+              if(NET._syncExt > 4){
+                try{ if(typeof CG!=='undefined'&&CG&&typeof CG.leftRoom==='function')CG.leftRoom(); }catch(e){}
+                netToast('Host not responding.');
+                netLeaveRoom('Host not responding');
+                return;
+              }
               netToast('Syncing with host…');
               armGuestWatchdog(7000);
               return;
@@ -16561,6 +16592,18 @@ async function netConnectPeer(room, isHost, forceFallback = false){
 
   NET.peer.on('close', () => {
     try{ if(NET._rebuilding){ NET._rebuilding = false; return; } }catch(e){}
+    // Hosting is sticky: an empty lobby that loses signaling reconnects in
+    // place — never dump the host to the public directory.
+    try{
+      if(NET.isHost && NET.room && NET.hostInputs.size === 0 && (!NET.spectators || NET.spectators.length === 0)){
+        NET._hostReconn = (NET._hostReconn || 0) + 1;
+        if(NET._hostReconn <= 3){
+          netToast('Connection lost. Reconnecting…');
+          try{ netConnectPeer(NET.room, true); }catch(e){}
+          return;
+        }
+      }
+    }catch(e){}
     netToast('Online session ended');
     netLeaveRoom();
   });
@@ -16576,7 +16619,8 @@ function netWireConn(conn, isHostSide){
   const onReady = () => {
     // Only disarm the join watchdog once the host actually assigned us (open != joined)
     if(NET._guestTimeout && (NET.mySlot >= 0 || NET.isSpectator)){ clearTimeout(NET._guestTimeout); NET._guestTimeout = null; }
-    if(!isHostSide && !isFast){
+    if(!isHostSide && !NET._helloSent){
+      NET._helloSent = true; // first open wire wins (rel OR fast)
       const myProfile = netGetMyProfile();
       conn.send({ t: 'hello', ctrl: NET.myCtrl || 'WASD', name: myProfile.name, avatar: myProfile.avatar });
       netToast('Connected to host! Syncing menu…');
@@ -18215,6 +18259,22 @@ function netCycleMyColor(d){
 }
 
 function netHostAction(isPublic = true){
+  // Clean re-host: close the previous room and drop its session state, so a
+  // new room never inherits stale guests, timers, or directory ghosts. The
+  // host lobby stays put — never bounce to the public directory.
+  try{
+    if(NET && NET.room && NET.role !== null){
+      try{ fetch(netDirBase() + '/api/rooms/close', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ roomId: NET.room }), keepalive: true }).catch(()=>{}); }catch(e){}
+    }
+  }catch(e){}
+  try{
+    for(const pair of NET.conns.values()){ try{ pair.rel && pair.rel.close(); }catch(e){} try{ pair.fast && pair.fast.close(); }catch(e){} }
+  }catch(e){}
+  try{ NET.conns.clear(); NET.hostInputs.clear(); }catch(e){}
+  try{ if(NET.peerSlots) NET.peerSlots.clear(); if(NET.peerNames) NET.peerNames.clear(); if(NET.pings) NET.pings.clear(); }catch(e){}
+  try{ if(NET._fallbackTimer){ clearTimeout(NET._fallbackTimer); NET._fallbackTimer = null; } }catch(e){}
+  try{ if(NET._guestTimeout){ clearTimeout(NET._guestTimeout); NET._guestTimeout = null; } }catch(e){}
+  try{ NET._srvRetry = 0; NET._p2pRetry = 0; NET._syncExt = 0; NET._rebuilding = false; NET._helloSent = false; NET._hostReconn = 0; }catch(e){}
   const code = netMakeCode();
   NET.role = 'host';
   NET.isHost = true;
@@ -18308,6 +18368,15 @@ function netJoinAction(codeParam, hostPeerIdParam){
     if(sm){ const sh = decodeURIComponent(sm[1]).replace(/^https?:\/\//i, '').replace(/\/+$/, '').trim().slice(0, 64); if(/^[A-Za-z0-9.\-:]+$/.test(sh) && sh) NET._srvHintHost = sh; }
     else if(!NET._srvHintHost){ NET._srvHintHost = ''; } // keep boot/?srv= hint: bare codes carry no server info
   }catch(e){}
+  try{
+    // Host on public cloud pins guests via &cloud=1 (set by host URL sync).
+    const qp0 = new URLSearchParams(location.search);
+    if(qp0.get('cloud') === '1') NET._forceCloud = true;
+    else {
+      const cm = String(code).match(/[?&]cloud=1/);
+      if(cm) NET._forceCloud = true;
+    }
+  }catch(e){}
   if(code.includes('room=')){
     try{
       const u = new URL(code);
@@ -18334,6 +18403,7 @@ function netJoinAction(codeParam, hostPeerIdParam){
   NET.room = code;
   NET._srvRetry = 0;
   NET._p2pRetry = 0;
+  NET._syncExt = 0;
   NET.mySlot = -1;
   NET.myCtrl = 'WASD';
   NET.slotsReady = [false, false, false, false, false, false, false, false];
