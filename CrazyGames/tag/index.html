@@ -15152,6 +15152,22 @@ async function netRefreshIce(){
   return;
 }
 
+/* Relay capability probe: the live signaling server may predate the relay
+   endpoints (/api/turn, /tag-relay). Entering relay mode against such a
+   server hijacks a slow-but-working P2P link into a dead end. */
+function netProbeRelayCapable(){
+  return new Promise(resolve => {
+    try{
+      if(NET._relayOk === true || NET._relayOk === false){ resolve(NET._relayOk); return; }
+      const base = (typeof netDirBase === 'function' ? netDirBase() : 'https://tag-netplay-server.onrender.com');
+      let done = false;
+      const fin = (v) => { if(done) return; done = true; try{ NET._relayOk = !!v; }catch(e){} resolve(!!v); };
+      const to = setTimeout(() => fin(false), 2500);
+      fetch(base + '/api/turn', { cache: 'no-store' }).then(r => { clearTimeout(to); fin(r && r.ok); }).catch(() => { clearTimeout(to); fin(false); });
+    }catch(e){ resolve(false); }
+  });
+}
+
 /* === ZERO-UDP CAMPUS & INSTITUTIONAL FIREWALL RELAY (WSS + HTTP LONG-POLL) === */
 const RELAY = { mode: 'p2p', ws: null, pollTimer: null, room: '', pid: '', peerReady: false, deadline: 3500, _t0: 0 };
 function netRelayBase(){
@@ -16207,6 +16223,11 @@ function netGuestTryOtherServer(room){
     if(!NET || NET.role !== 'guest') return false;
     if(NET.mySlot >= 0 || NET.isSpectator) return false; // joined: never switch mid-session
     if((NET._srvRetry || 0) >= 1) return false;
+    try{
+      for(const pair of NET.conns.values()){
+        if((pair.rel && pair.rel.open) || (pair.fast && pair.fast.open)) return false; // live link: never destroy it
+      }
+    }catch(e){}
     if(NET._onCloud){
       const hasCustom = !!((NET._srv && NET._srv.host) || ((typeof PEER_SERVER_CONFIG !== 'undefined' ? PEER_SERVER_CONFIG.host : '') || ''));
       if(!hasCustom) return false;
@@ -16245,6 +16266,7 @@ async function netConnectPeer(room, isHost, forceFallback = false){
     RELAY.mode = 'p2p';
     RELAY.room = cleanRoom;
     RELAY.pid = id;
+    try{ netProbeRelayCapable(); }catch(e){} // warm relay-support cache for the 3.5s watchdog
     if(RELAY.ws){ try{ RELAY.ws.close(); }catch(e){} RELAY.ws = null; }
     if(RELAY.hostWs){ try{ RELAY.hostWs.close(); }catch(e){} RELAY.hostWs = null; }
     if(RELAY.pollTimer){ clearInterval(RELAY.pollTimer); RELAY.pollTimer = null; }
@@ -16376,10 +16398,16 @@ async function netConnectPeer(room, isHost, forceFallback = false){
           const pair = NET.conns.get(NET._hostId || hostId);
           const open = pair && ((pair.rel && pair.rel.open) || (pair.fast && pair.fast.open));
           if (!open) {
-            console.warn('[NET] P2P channel not open after 3.5s, switching to relay mode.');
-            netEnterRelay('no-p2p-3.5s');
-            const myProfile = netGetMyProfile();
-            netRelaySend(hostId, { t: 'hello', ctrl: NET.myCtrl || 'WASD', name: myProfile.name, avatar: myProfile.avatar });
+            // Only abandon P2P when this server actually supports relay —
+            // otherwise a dead relay hijacks a slow-but-working P2P link.
+            if(NET._relayOk === true){
+              console.warn('[NET] P2P channel not open after 3.5s, switching to relay mode.');
+              netEnterRelay('no-p2p-3.5s');
+              const myProfile = netGetMyProfile();
+              netRelaySend(hostId, { t: 'hello', ctrl: NET.myCtrl || 'WASD', name: myProfile.name, avatar: myProfile.avatar });
+            } else {
+              console.warn('[NET] P2P slow after 3.5s, no relay on this server — holding P2P window.');
+            }
           }
         } catch(e) {}
       }, RELAY.deadline || 3500);
@@ -16396,6 +16424,14 @@ async function netConnectPeer(room, isHost, forceFallback = false){
           }catch(e){}
           if(!ok){
             if(netGuestTryOtherServer(NET.room)){ netToast('Host not on this server. Retrying…'); return; }
+            if(!(NET._p2pRetry || 0)){
+              // Same-server re-gather: first attempt often stalls on slow ICE,
+              // a fresh Peer almost always connects. Final failure lands below.
+              NET._p2pRetry = 1;
+              netToast('Connection slow. Retrying…');
+              try{ netConnectPeer(NET.room, false, !!NET._onCloud); }catch(e){}
+              return;
+            }
             try{ if(typeof CG!=='undefined'&&CG&&typeof CG.leftRoom==='function')CG.leftRoom(); }catch(e){}
             netToast('Could not find host. Check the room code.');
             netLeaveRoom('Room unavailable');
@@ -16780,6 +16816,9 @@ function netOnData(m, c){
   } else if(m.t === 'spectator_init' && !NET.isHost){
     NET.isSpectator = true;
     NET.mySlot = -1;
+    // Host proof: we are talking to the host, so the join watchdog must die
+    // here (open != joined was killing slow-but-working joins at 7s).
+    try{ if(NET._guestTimeout){ clearTimeout(NET._guestTimeout); NET._guestTimeout = null; } }catch(e){}
     if(m.settings){
       settings.map = m.settings.map | 0;
       settings.doubleJump = !!m.settings.doubleJump;
@@ -16848,6 +16887,7 @@ function netOnData(m, c){
   } else if(m.t === 'assign' && !NET.isHost){
     NET.isSpectator = false;
     NET.mySlot = m.slot;
+    try{ if(NET._guestTimeout){ clearTimeout(NET._guestTimeout); NET._guestTimeout = null; } }catch(e){}
     if(m.settings){
       settings.map = m.settings.map | 0;
       settings.doubleJump = !!m.settings.doubleJump;
@@ -17429,11 +17469,20 @@ function netUpdateHostDirectory(){
     state: (match && screen === 'game') ? 'playing' : 'lobby'
   };
   try {
-    fetch(serverUrl + '/api/rooms/update', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    }).catch(() => {});
+    // One retry: the first POST often dies to Render cold-start, and a lost
+    // update makes a live room invisible in the directory until next heartbeat.
+    const doUpdate = (retryLeft) => {
+      fetch(serverUrl + '/api/rooms/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).then(r => {
+        if((!r || !r.ok) && retryLeft > 0){ setTimeout(() => { try{ doUpdate(retryLeft - 1); }catch(e){} }, 2000); }
+      }).catch(() => {
+        if(retryLeft > 0){ setTimeout(() => { try{ doUpdate(retryLeft - 1); }catch(e){} }, 2000); }
+      });
+    };
+    doUpdate(1);
   } catch(e){}
 
   // CrazyGames SDK v3 updateRoom (object form; locked/full rooms are not joinable)
@@ -17457,14 +17506,22 @@ function netUpdateHostDirectory(){
 async function netFetchPublicRooms(){
   const now = performance.now();
   if(now - NET.lastRoomFetch < 3000) return NET.publicRooms;
-  NET.lastRoomFetch = now;
   try{ netProbeServers(); }catch(e){} // background refresh of self/render pick while browsing
   const serverUrl = netDirBase();
   try {
-    const res = await fetch(serverUrl + '/api/rooms');
+    // Throttle applies to successful fetches only: a failed fetch must not
+    // make Refresh a 3s no-op, or the list wrongly stays empty.
+    let ctrl = null;
+    try{ if(typeof AbortController !== 'undefined') ctrl = new AbortController(); }catch(e){ ctrl = null; }
+    const opts = {};
+    if(ctrl) opts.signal = ctrl.signal;
+    const to = setTimeout(() => { try{ if(ctrl) ctrl.abort(); }catch(e){} }, 4000);
+    const res = await fetch(serverUrl + '/api/rooms', opts);
+    clearTimeout(to);
     if(res.ok){
       const data = await res.json();
       NET.publicRooms = data.rooms || [];
+      NET.lastRoomFetch = performance.now();
     }
   } catch(e){}
   return NET.publicRooms;
@@ -18189,6 +18246,7 @@ function netJoinAction(codeParam, hostPeerIdParam){
   NET.isSpectator = false;
   NET.room = code;
   NET._srvRetry = 0;
+  NET._p2pRetry = 0;
   NET.mySlot = -1;
   NET.myCtrl = 'WASD';
   NET.slotsReady = [false, false, false, false, false, false, false, false];
