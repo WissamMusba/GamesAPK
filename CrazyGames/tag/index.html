@@ -14955,19 +14955,61 @@ function telemetryTrackMatchEnded(reason = 'completed'){
     const durationStr = Math.floor(durationSec / 60) + "m " + (durationSec % 60) + "s";
     const mode = (typeof settings !== 'undefined' && settings && settings.gameMode) ? settings.gameMode.toUpperCase() : 'CLASSIC';
 
-    // Extract roster player names
+    // 1. Resolve human player's identity (CrazyGames username, localStorage, or Guest name e.g. Guest Robot)
+    let myName = "Guest";
+    try {
+      const prof = netGetMyProfile();
+      if(prof && prof.name && prof.name !== "Host") myName = prof.name;
+      else if(typeof CG !== "undefined" && CG && CG._user && CG._user.name) myName = cleanText(CG._user.name).slice(0, 16);
+      else if(typeof CG !== "undefined" && CG && typeof CG.getUser === "function" && CG.getUser() && CG.getUser().username) myName = cleanText(CG.getUser().username).slice(0, 16);
+      else {
+        const stored = localStorage.getItem("tag_player_name");
+        if(stored) myName = cleanText(stored).slice(0, 16);
+      }
+    } catch(e){}
+    if(!myName || myName === "Host") myName = "Guest";
+
+    // Also update NET.slotsName[0] if it was just 'Host'
+    if(typeof NET !== "undefined" && NET && (!NET.slotsName[0] || NET.slotsName[0] === "Host")){
+      NET.slotsName[0] = myName;
+    }
+
+    // 2. Extract roster player names with clear human vs bot distinction
     const playerNamesList = [];
     if(match.players && match.players.length){
       for(let pi=0; pi<match.players.length; pi++){
         const p = match.players[pi];
         let name = "P" + (pi + 1);
-        if(typeof NET !== "undefined" && NET && NET.slotsName && NET.slotsName[p.slot]) name = NET.slotsName[p.slot];
-        else if(pi === 0){ try{ name = netGetMyProfile().name; }catch(e){} }
-        else if(typeof isBotSlot === "function" && isBotSlot(p)) name = "Bot " + (pi + 1);
+        const isBot = (typeof isBotSlot === "function" && isBotSlot(p));
+
+        if(isBot){
+          name = "🤖 Bot " + (pi + 1);
+        } else if(typeof NET !== "undefined" && NET && NET.role === "host"){
+          if(p.slot === 0){
+            name = myName + " (Host)";
+          } else if(NET.slotsName && NET.slotsName[p.slot] && NET.slotsName[p.slot] !== "Host"){
+            name = NET.slotsName[p.slot];
+          } else {
+            name = "Guest P" + (pi + 1);
+          }
+        } else if(menu && (menu.tab === "2p" || menu.tab === "4p")){
+          if(pi === 0){
+            name = myName + " (P1)";
+          } else {
+            name = "P" + (pi + 1) + " (Local)";
+          }
+        } else {
+          // 1P Solo vs Bot or offline mode
+          if(pi === 0){
+            name = myName;
+          } else {
+            name = "🤖 Bot " + (pi + 1);
+          }
+        }
         playerNamesList.push(name);
       }
     }
-    const rosterStr = playerNamesList.length ? playerNamesList.join(", ") : "Players";
+    const rosterStr = playerNamesList.length ? playerNamesList.join(", ") : myName;
 
     let matchType = "🤖 Solo vs Bot";
     let pingSummary = "N/A (Local)";
@@ -14986,7 +15028,7 @@ function telemetryTrackMatchEnded(reason = 'completed'){
     let titleStr = isEarlyQuit ? '🚪 Match Session (Quit to Menu)' : '🏆 Match Completed';
     let cardColor = isEarlyQuit ? 0x94a3b8 : 0xf59e0b;
 
-    let winnerStr = isEarlyQuit ? "Exited Early (Quit to Menu)" : "Match Concluded";
+    let winnerStr = isEarlyQuit ? (myName + " (Quit to Menu)") : "Match Concluded";
     if(!isEarlyQuit){
       if(settings.gameMode === "crown"){
         const wIdx = match.result ? match.result.winner : 0;
@@ -15010,19 +15052,25 @@ function telemetryTrackMatchEnded(reason = 'completed'){
       }
     }
 
+    const descStr = isEarlyQuit
+      ? ("**" + myName + "** exited the match early after **" + durationStr + "**.")
+      : ("**" + myName + "** finished a **" + mode + "** match in **" + durationStr + "**.");
+
     const payload = {
       username: 'TAG Analytics • Sessions',
       avatar_url: isEarlyQuit ? 'https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/1f6aa.png' : 'https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/1f3c6.png',
       embeds: [{
         title: titleStr,
+        description: descStr,
         color: cardColor,
         fields: [
-          { name: 'Game Mode', value: mode, inline: true },
-          { name: 'Match Type', value: matchType, inline: true },
-          { name: 'Playtime Duration', value: '⏱️ ' + durationStr, inline: true },
-          { name: isEarlyQuit ? 'Session Status' : 'Result / Winner', value: isEarlyQuit ? '🚪 **Quit to Menu / Exited Early**' : ('👑 **' + winnerStr + '**'), inline: true },
-          { name: 'Player Latency', value: '⚡ ' + pingSummary, inline: true },
-          { name: 'Players in Match', value: rosterStr }
+          { name: '👤 Active Player', value: '**' + myName + '**', inline: true },
+          { name: '🎮 Game Mode', value: mode, inline: true },
+          { name: '🕹️ Match Type', value: matchType, inline: true },
+          { name: '⏱️ Playtime Duration', value: durationStr, inline: true },
+          { name: isEarlyQuit ? '🚪 Session Status' : '👑 Result / Winner', value: isEarlyQuit ? '🚪 **Quit to Menu / Exited Early**' : ('👑 **' + winnerStr + '**'), inline: true },
+          { name: '⚡ Player Latency', value: pingSummary, inline: true },
+          { name: '👥 Players in Match', value: rosterStr }
         ],
         footer: { text: isEarlyQuit ? 'TAG Analytics • Early Exit' : 'TAG Analytics Engine' },
         timestamp: new Date().toISOString()
@@ -16347,6 +16395,7 @@ async function netConnectPeer(room, isHost, forceFallback = false){
       }
     }, 5500);
   }
+  try{ NET._fallbackTimer = fallbackTimer; }catch(e){}
 
   if(typeof Peer === 'undefined'){
     netToast('Networking unavailable (blocked script). Playing offline.');
@@ -16365,6 +16414,7 @@ async function netConnectPeer(room, isHost, forceFallback = false){
   
   NET.peer.on('open', id2 => {
     if(fallbackTimer){ clearTimeout(fallbackTimer); fallbackTimer = null; }
+    try{ NET._fallbackTimer = null; }catch(e){}
     try{ NET._rebuilding = false; }catch(e){} // rebuild survived: future closes are real
     NET.myId = id2;
     NET.peerSlots.clear();
@@ -16381,6 +16431,7 @@ async function netConnectPeer(room, isHost, forceFallback = false){
       try {
         const base = netRelayBase();
         const hostRelayWs = new WebSocket(base + '/tag-relay');
+        try{ RELAY.hostWs = hostRelayWs; }catch(e){} // tracked so leave/connect can close it
         hostRelayWs.onopen = () => {
           try { hostRelayWs.send(JSON.stringify({ t: 'join', room: cleanRoom.toUpperCase(), peerId: id2 })); } catch(e){}
         };
@@ -16434,17 +16485,26 @@ async function netConnectPeer(room, isHost, forceFallback = false){
         } catch(e) {}
       }, RELAY.deadline || 3500);
 
-      NET._guestTimeout = setTimeout(() => {
-        try{
-          if(!NET || NET.role !== 'guest') return;
-          let ok = false;
+      // Join watchdog: only kills truly dead links. A live-but-unassigned
+      // link (host slow to answer) just gets more time — never destroyed.
+      const armGuestWatchdog = (ms) => {
+        try{ if(NET._guestTimeout){ clearTimeout(NET._guestTimeout); NET._guestTimeout = null; } }catch(e){}
+        NET._guestTimeout = setTimeout(() => {
           try{
-            const pair = NET.conns.get(NET._hostId || hostId);
-            const open = pair && ((pair.rel && pair.rel.open) || (pair.fast && pair.fast.open));
-            if(open && (NET.mySlot >= 0 || NET.isSpectator)) ok = true;
-            if(RELAY.mode === 'relay' && (NET.mySlot >= 0 || NET.isSpectator)) ok = true;
-          }catch(e){}
-          if(!ok){
+            if(!NET || NET.role !== 'guest') return;
+            let ok = false, linkOpen = false;
+            try{
+              const pair = NET.conns.get(NET._hostId || hostId);
+              linkOpen = !!(pair && ((pair.rel && pair.rel.open) || (pair.fast && pair.fast.open)));
+              if(linkOpen && (NET.mySlot >= 0 || NET.isSpectator)) ok = true;
+              if(RELAY.mode === 'relay' && (NET.mySlot >= 0 || NET.isSpectator)) ok = true;
+            }catch(e){}
+            if(ok) return;
+            if(linkOpen){
+              netToast('Syncing with host…');
+              armGuestWatchdog(7000);
+              return;
+            }
             if(netGuestTryOtherServer(NET.room)){ netToast('Host not on this server. Retrying…'); return; }
             if(!(NET._p2pRetry || 0)){
               // Same-server re-gather: first attempt often stalls on slow ICE,
@@ -16457,9 +16517,10 @@ async function netConnectPeer(room, isHost, forceFallback = false){
             try{ if(typeof CG!=='undefined'&&CG&&typeof CG.leftRoom==='function')CG.leftRoom(); }catch(e){}
             netToast('Could not find host. Check the room code.');
             netLeaveRoom('Room unavailable');
-          }
-        }catch(e){}
-      }, 7000);
+          }catch(e){}
+        }, ms || 7000);
+      };
+      armGuestWatchdog(7000);
     }
   });
 
@@ -16485,6 +16546,9 @@ async function netConnectPeer(room, isHost, forceFallback = false){
       if((NET._srvRetry || 0) > 0) return; // retry in flight: watchdog is the final arbiter
       netToast('Host not found. Room may be closed.');
     } else if(t.includes('unavailable-id')){
+      // Stale self-registration (re-host same code within server expiry).
+      // Never strand: back to menu with a clear message instead of a dead spinner.
+      if(isHost){ try{ netLeaveRoom('Room code taken, try again'); }catch(e){} return; }
       netToast('Room code already in use. Please try again.');
     } else {
       netToast('Network: ' + t.slice(0, 50));
@@ -18316,8 +18380,11 @@ function netLeaveRoom(reason){
   if(typeof RELAY !== "undefined"){
       RELAY.mode = "p2p";
       if(RELAY.ws){ try{ RELAY.ws.close(); }catch(e){} RELAY.ws = null; }
+      if(RELAY.hostWs){ try{ RELAY.hostWs.close(); }catch(e){} RELAY.hostWs = null; }
       if(RELAY.pollTimer){ clearInterval(RELAY.pollTimer); RELAY.pollTimer = null; }
     }
+  try{ if(NET._fallbackTimer){ clearTimeout(NET._fallbackTimer); NET._fallbackTimer = null; } }catch(e){}
+  try{ NET._rebuilding = false; }catch(e){}
   if(NET.heartbeatTimer){ clearInterval(NET.heartbeatTimer); NET.heartbeatTimer = null; }
   if(NET.pingTimer){ clearInterval(NET.pingTimer); NET.pingTimer = null; }
   if(_readyTimerInterval){ clearInterval(_readyTimerInterval); _readyTimerInterval = null; }
