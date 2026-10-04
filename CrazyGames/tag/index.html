@@ -5590,6 +5590,11 @@ var initCrownMode, updateCrownMode, checkCrownTag, drawCrownUI, drawCrownPlayer,
   }
 
   function addPointFloater(x, y, text, col) {
+    if (crownState.floaters.length >= 15) crownState.floaters.shift();
+    if (text && text.indexOf('IMMUNE') !== -1) {
+      const hasRecent = crownState.floaters.some(f => f.text && f.text.indexOf('IMMUNE') !== -1 && Math.abs(f.x - x) < 60 && Math.abs(f.y - y) < 60 && f.life > 0.25);
+      if (hasRecent) return;
+    }
     crownState.floaters.push({
       x: x + (Math.random() - 0.5) * 20,
       y: y,
@@ -5686,12 +5691,12 @@ var initCrownMode, updateCrownMode, checkCrownTag, drawCrownUI, drawCrownPlayer,
     if (crownState.floaters.length > 20) crownState.floaters.splice(0, crownState.floaters.length - 20);
     for (let i = crownState.floaters.length - 1; i >= 0; i--) {
       const fl = crownState.floaters[i];
+      if (!fl) { crownState.floaters.splice(i, 1); continue; }
       fl.y -= 44 * dt;
       fl.life -= dt;
       fl.scale = _clamp(fl.scale - dt * 0.8, 1.0, 1.6);
       if (fl.life <= 0){
-        crownState.floaters[i] = crownState.floaters[crownState.floaters.length - 1];
-        crownState.floaters.pop();
+        crownState.floaters.splice(i, 1);
       }
     }
 
@@ -6331,8 +6336,10 @@ var initCrownMode, updateCrownMode, checkCrownTag, drawCrownUI, drawCrownPlayer,
 
     // 3. Floating Score & Combat Floaters
     for (const fl of crownState.floaters) {
+      if (!fl || fl.life <= 0) continue;
+      const a = Math.min(1.0, Math.max(0, fl.life / (fl.maxLife * 0.4)));
+      if (a <= 0.01) continue;
       g.save();
-      const a = Math.min(1.0, fl.life / (fl.maxLife * 0.4));
       g.globalAlpha = a;
       g.translate(fl.x, fl.y);
       g.scale(fl.scale, fl.scale);
@@ -6342,8 +6349,10 @@ var initCrownMode, updateCrownMode, checkCrownTag, drawCrownUI, drawCrownPlayer,
 
     // 4. In-World Event Banners
     for (const bn of crownState.banners) {
+      if (!bn || bn.life <= 0) continue;
+      const a = Math.min(1.0, Math.max(0, bn.life / (bn.maxLife * 0.3)));
+      if (a <= 0.01) continue;
       g.save();
-      const a = Math.min(1.0, bn.life / (bn.maxLife * 0.3));
       g.globalAlpha = a;
       g.translate(bn.x, bn.y);
       g.scale(bn.scale, bn.scale);
@@ -9636,6 +9645,11 @@ function endMatch(){
         mode: 'crown',
         score: bestScore
       };
+      if(typeof crownState !== 'undefined' && crownState){
+        crownState.floaters = [];
+        crownState.banners = [];
+        crownState.shockwaves = [];
+      }
     }
   } else if(settings.gameMode === 'freeze'){
     if(!match.result || match.result.winningTeam == null){
@@ -17737,6 +17751,18 @@ function netOnData(m, c){
         }
       }
     }
+  } else if((m.t === 'crown_claim' || m.t === 'crown_steal') && NET.isHost){
+    if(match && match.state === 'playing' && typeof crownState !== 'undefined' && crownState && typeof claimCrown === 'function'){
+      const P = match.players;
+      const claimer = P.find(p => p.slot === m.from);
+      if(claimer && !claimer.isEliminated){
+        if(m.t === 'crown_claim' && !crownState.holder){
+          claimCrown(claimer, false, m.x, m.y);
+        } else if(m.t === 'crown_steal' && crownState.holder && crownState.immunityTimer <= 0){
+          claimCrown(claimer, true, m.x, m.y);
+        }
+      }
+    }
   } else if(m.t === 'hunter_vote' && NET.isHost){
     if(!NET.teamsLocked && m.voter >= 0 && m.voter < 8){
       if(match && (match.state === 'playing' || match.state === 'countdown' || match.state === 'paused')) return;
@@ -19644,6 +19670,13 @@ function frame(now){
           }
         }
         checkTag();
+        if(settings.gameMode === 'infection'){
+          try{ if(typeof updateInfection === 'function') updateInfection(dt); }catch(e){}
+        } else if(settings.gameMode === 'bomb'){
+          try{ if(typeof updateBombMode === 'function') updateBombMode(dt); }catch(e){}
+        } else if(settings.gameMode === 'crown'){
+          try{ if(typeof updateCrownMode === 'function') updateCrownMode(dt); }catch(e){}
+        }
         if(typeof updateVoiceProximity === 'function') updateVoiceProximity(dt);
         if(anyPressed(['KeyM']) && (!match || match.state !== 'result')) toggleSound();
         if(anyPressed(['KeyO'])) toggleFullscreen();
