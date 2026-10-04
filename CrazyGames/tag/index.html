@@ -6621,6 +6621,7 @@ function startMatch(){
     const curM = settings.gameMode || 'party';
     SESSION_METRICS.modesPlayed[curM] = (SESSION_METRICS.modesPlayed[curM] || 0) + 1;
     SESSION_METRICS.botDifficulty = menu.botDifficulty || 'hard';
+    try{ telemetrySendSessionPing('match_start'); }catch(e){}
   }catch(e){}
   if(match && !match._telemetrySent){ try{ telemetryTrackMatchEnded('quit'); }catch(e){} }
   if(menu.tab === 'solo'){
@@ -15368,9 +15369,13 @@ function telemetrySendSessionPing(reason){
     // 2. Transmit to server analytics endpoint
     const serverUrl = 'https://tag-netplay-server.onrender.com';
     const jsonStr = JSON.stringify(sessionPayload);
+    let sent = false;
     if(isUnload && navigator.sendBeacon){
-      navigator.sendBeacon(serverUrl + '/api/analytics/session', new Blob([jsonStr], { type: 'application/json' }));
-    } else {
+      try {
+        sent = navigator.sendBeacon(serverUrl + '/api/analytics/session', new Blob([jsonStr], { type: 'application/json' }));
+      } catch(e){ sent = false; }
+    }
+    if(!sent){
       fetch(serverUrl + '/api/analytics/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -15383,7 +15388,8 @@ function telemetrySendSessionPing(reason){
 function telemetryRecordSessionEnd(){
   telemetrySendSessionPing('unload');
 }
-setTimeout(() => telemetrySendSessionPing('boot'), 1000);
+setTimeout(() => telemetrySendSessionPing('boot'), 300);
+setTimeout(() => telemetrySendSessionPing('boot'), 2000);
 setInterval(() => telemetrySendSessionPing('heartbeat'), 30000);
 
 const NET = {
@@ -19408,6 +19414,7 @@ function startMatchNetGuest(p){
     SESSION_METRICS.currentMatchStartT = Date.now();
     const curM = settings.gameMode || 'party';
     SESSION_METRICS.modesPlayed[curM] = (SESSION_METRICS.modesPlayed[curM] || 0) + 1;
+    try{ telemetrySendSessionPing('match_start'); }catch(e){}
   }catch(e){}
   if(p.matchIndex != null) matchIndex = p.matchIndex;
   if(p.currentThemeIdx != null) currentThemeIdx = p.currentThemeIdx;

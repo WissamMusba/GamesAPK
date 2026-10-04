@@ -8,8 +8,9 @@ const path = require('path');
 const PORT = process.env.PORT || 9000;
 const app = express();
 
-// Enable JSON body parsing and permissive CORS for CrazyGames iframes and local dev
-app.use(express.json());
+// Enable JSON and text body parsing and permissive CORS for CrazyGames iframes and local dev
+app.use(express.json({ limit: '1mb' }));
+app.use(express.text({ type: ['text/*', 'application/*'], limit: '1mb' }));
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -244,7 +245,10 @@ function summarizeSessions(list) {
 
 app.post('/api/analytics/session', (req, res) => {
   try {
-    const s = req.body || {};
+    let s = req.body || {};
+    if (typeof s === 'string') {
+      try { s = JSON.parse(s); } catch (e) { s = {}; }
+    }
     if (!s.sessionId) s.sessionId = 'sess_' + Date.now().toString(36);
     s.receivedAt = Date.now();
     const existingIdx = analyticsSessions.findIndex(item => item.sessionId === s.sessionId);
@@ -264,6 +268,7 @@ app.post('/api/analytics/session', (req, res) => {
 
 app.get('/api/analytics/summary', (req, res) => {
   try {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     const globalSummary = summarizeSessions(analyticsSessions);
     const desktopSessions = analyticsSessions.filter(s => !s.device || !s.device.toLowerCase().includes('mobile'));
     const mobileSessions = analyticsSessions.filter(s => s.device && s.device.toLowerCase().includes('mobile'));
@@ -287,6 +292,9 @@ app.get('/api/analytics/reset', (req, res) => {
 });
 
 app.get('/dashboard', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   const p = path.join(__dirname, 'dashboard.html');
   if (fs.existsSync(p)) return res.sendFile(p);
   const tagDash = path.join(__dirname, '..', 'tag', 'dashboard.html');
