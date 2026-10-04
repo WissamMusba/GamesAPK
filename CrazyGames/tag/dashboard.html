@@ -64,8 +64,144 @@
       background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3);
       border-radius: 20px; font-size: 12px; font-weight: 700; color: #34d399;
     }
+    .badge-demo {
+      display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px;
+      background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3);
+      border-radius: 20px; font-size: 12px; font-weight: 700; color: #fbbf24;
+    }
     .pulse-dot { width: 8px; height: 8px; border-radius: 50%; background: #34d399; animation: pulse 1.8s infinite; }
     @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(1.3); } }
+
+    /* Device Filter Bar */
+    .device-filter-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 14px;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--card-border);
+      padding: 12px 18px;
+      border-radius: 14px;
+      backdrop-filter: blur(8px);
+    }
+    .device-tabs {
+      display: flex;
+      gap: 6px;
+      background: #0f172a;
+      padding: 4px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    .dev-tab {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .dev-tab:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .dev-tab.active {
+      background: #1e293b;
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+    .device-filter-info {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    /* Notice Banner for 0 data */
+    #zeroDataNotice {
+      display: none;
+      background: linear-gradient(135deg, rgba(6, 182, 212, 0.12), rgba(16, 185, 129, 0.12));
+      border: 1px solid rgba(6, 182, 212, 0.35);
+      border-radius: 12px;
+      padding: 14px 18px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 13.5px;
+      color: #e2e8f0;
+    }
+    #zeroDataNotice button {
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+    }
+
+    /* Side-by-Side Mobile vs Desktop Breakdown Card */
+    .split-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .split-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 16px;
+    }
+    .split-col {
+      background: rgba(30, 41, 59, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 14px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .split-col-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .split-col-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 16px;
+      font-weight: 800;
+    }
+    .split-col-count {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--accent-cyan);
+      background: rgba(6, 182, 212, 0.12);
+      padding: 4px 10px;
+      border-radius: 20px;
+    }
+    .split-stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+    }
+    .split-stat-label {
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+    .split-stat-val {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 800;
+      font-size: 14px;
+      color: #fff;
+    }
 
     /* KPI Grid */
     .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; }
@@ -162,20 +298,17 @@
       background: #1e293b; border: 1px solid var(--card-border);
       border-radius: 8px; padding: 8px 12px; font-size: 13px; color: #fff; outline: none;
     }
-    .table-wrap { overflow-x: auto; max-height: 420px; }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th { text-align: left; padding: 10px 12px; color: var(--text-muted); font-size: 11.5px; text-transform: uppercase; border-bottom: 1px solid var(--card-border); }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
+    th { padding: 12px; color: var(--text-muted); font-weight: 700; border-bottom: 1px solid var(--card-border); }
     td { padding: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); }
     tr:hover td { background: rgba(255, 255, 255, 0.02); }
-    .badge {
-      display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px;
-      border-radius: 6px; font-size: 11px; font-weight: 700;
-    }
-    .badge.win { background: rgba(16, 185, 129, 0.2); color: #34d399; }
-    .badge.loss { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
-    .badge.rage { background: rgba(239, 68, 68, 0.2); color: #f87171; }
-    .badge.quit { background: rgba(148, 163, 184, 0.2); color: #cbd5e1; }
-    .mono { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+    .badge-pill { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700; }
+    .badge-win { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+    .badge-botwin { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+    .badge-rage { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+    .badge-quit { background: rgba(148, 163, 184, 0.2); color: #cbd5e1; }
+    .badge-live-now { background: rgba(6, 182, 212, 0.2); color: #06b6d4; }
   </style>
 </head>
 <body>
@@ -192,9 +325,9 @@
           <span id="sourceLabel">Live Server</span>
         </div>
         <select class="source-select" id="sourceSelector" onchange="switchDataSource(this.value)">
-          <option value="server">🌐 Server API (/api/analytics)</option>
+          <option value="server">🌐 Live Server (Render)</option>
+          <option value="demo">🧪 100 Demo Plays (Sandbox)</option>
           <option value="local">💻 Client LocalStorage</option>
-          <option value="demo">🧪 100 Simulated Plays (Demo)</option>
         </select>
         <button onclick="fetchData()">🔄 Refresh</button>
         <button onclick="exportDataJSON()">📥 Export JSON</button>
@@ -202,12 +335,32 @@
       </div>
     </header>
 
+    <!-- Notice Banner for zero data -->
+    <div id="zeroDataNotice">
+      <div>
+        <span>📡 <strong>Connected to Live Server:</strong> 0 plays recorded yet. The server is listening for players from CrazyGames!</span>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button onclick="switchDataSource('demo')">🧪 Preview 100 Demo Plays</button>
+      </div>
+    </div>
+
+    <!-- Device Filter Segmented Bar -->
+    <div class="device-filter-bar">
+      <div class="device-tabs">
+        <button id="devTabAll" class="dev-tab active" onclick="setDeviceFilter('all')">🌐 All Devices (Together)</button>
+        <button id="devTabDesktop" class="dev-tab" onclick="setDeviceFilter('Desktop')">💻 Desktop / Laptop Only</button>
+        <button id="devTabMobile" class="dev-tab" onclick="setDeviceFilter('Mobile')">📱 Mobile / Touch Only</button>
+      </div>
+      <div class="device-filter-info" id="deviceFilterInfo">Filtering: All Devices</div>
+    </div>
+
     <!-- Top KPI Cards -->
     <div class="kpi-grid">
       <div class="kpi-card">
         <div class="kpi-label">Total Visitors / Opens <span>🚀</span></div>
         <div class="kpi-value" id="kpiTotalSessions">0</div>
-        <div class="kpi-sub"><span id="kpiDeviceSplit">100% Desktop</span></div>
+        <div class="kpi-sub"><span id="kpiDeviceSplit">0% Desktop • 0% Mobile</span></div>
       </div>
       <div class="kpi-card">
         <div class="kpi-label">Match Conversion Rate <span>🎯</span></div>
@@ -217,7 +370,7 @@
       <div class="kpi-card">
         <div class="kpi-label">Avg Tab Lifetime <span>⏱️</span></div>
         <div class="kpi-value" id="kpiAvgTabTime">0s</div>
-        <div class="kpi-sub">Link open to tab close</div>
+        <div class="kpi-sub" id="kpiTabSub">Link open to tab close</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-label">Avg Match Duration <span>🎮</span></div>
@@ -236,12 +389,95 @@
       </div>
     </div>
 
+    <!-- Side-by-Side Mobile vs Desktop Breakdown -->
+    <div class="split-card">
+      <div class="section-header">
+        <div>
+          <h2>📱 Mobile vs. 💻 Desktop Breakdown</h2>
+          <p>Direct side-by-side comparison of playtime, conversion, and behavior between phone and desktop players</p>
+        </div>
+      </div>
+      <div class="split-grid">
+        <!-- Desktop Column -->
+        <div class="split-col" style="border-top: 3px solid #38bdf8;">
+          <div class="split-col-header">
+            <div class="split-col-title">💻 Desktop / Laptop</div>
+            <div class="split-col-count" id="splitDesktopCount">0 sessions</div>
+          </div>
+          <div class="split-stat-row">
+            <span class="split-stat-label">Avg Match Playtime</span>
+            <span class="split-stat-val" id="splitDesktopMatchTime">0s</span>
+          </div>
+          <div class="split-stat-row">
+            <span class="split-stat-label">Avg Total Tab Lifetime</span>
+            <span class="split-stat-val" id="splitDesktopTabTime">0s</span>
+          </div>
+          <div class="split-stat-row">
+            <span class="split-stat-label">Match Conversion (Open &rarr; Play)</span>
+            <span class="split-stat-val" id="splitDesktopConversion">0%</span>
+          </div>
+          <div class="split-stat-row">
+            <span class="split-stat-label">Bounce Rate (&lt;15s)</span>
+            <span class="split-stat-val" id="splitDesktopBounce">0%</span>
+          </div>
+          <div class="split-stat-row">
+            <span class="split-stat-label">Rage Quit Rate</span>
+            <span class="split-stat-val" id="splitDesktopRage">0%</span>
+          </div>
+          <div class="split-stat-row">
+            <span class="split-stat-label">Human Win Rate</span>
+            <span class="split-stat-val" id="splitDesktopWin">0%</span>
+          </div>
+          <div class="split-stat-row">
+            <span class="split-stat-label">Avg FPS Health</span>
+            <span class="split-stat-val" id="splitDesktopFps">60 FPS</span>
+          </div>
+        </div>
+
+        <!-- Mobile Column -->
+        <div class="split-col" style="border-top: 3px solid #f59e0b;">
+          <div class="split-col-header">
+            <div class="split-col-title">📱 Mobile / Touch</div>
+            <div class="split-col-count" id="splitMobileCount" style="color:#f59e0b; background: rgba(245, 158, 11, 0.12);">0 sessions</div>
+          </div>
+          <div class="split-stat-row">
+            <span class="split-stat-label">Avg Match Playtime</span>
+            <span class="split-stat-val" id="splitMobileMatchTime">0s</span>
+          </div>
+          <div class="split-stat-row">
+            <span class="split-stat-label">Avg Total Tab Lifetime</span>
+            <span class="split-stat-val" id="splitMobileTabTime">0s</span>
+          </div>
+          <div class="split-stat-row">
+            <span class="split-stat-label">Match Conversion (Open &rarr; Play)</span>
+            <span class="split-stat-val" id="splitMobileConversion">0%</span>
+          </div>
+          <div class="split-stat-row">
+            <span class="split-stat-label">Bounce Rate (&lt;15s)</span>
+            <span class="split-stat-val" id="splitMobileBounce">0%</span>
+          </div>
+          <div class="split-stat-row">
+            <span class="split-stat-label">Rage Quit Rate</span>
+            <span class="split-stat-val" id="splitMobileRage">0%</span>
+          </div>
+          <div class="split-stat-row">
+            <span class="split-stat-label">Human Win Rate</span>
+            <span class="split-stat-val" id="splitMobileWin">0%</span>
+          </div>
+          <div class="split-stat-row">
+            <span class="split-stat-label">Avg FPS Health</span>
+            <span class="split-stat-val" id="splitMobileFps">60 FPS</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Conversion Funnel Card -->
     <div class="funnel-card">
       <div class="section-header">
         <div>
           <h2>📊 Player Conversion Funnel</h2>
-          <p>Drop-off tracking from initial CrazyGames link open through multi-match retention</p>
+          <p id="funnelSubtitle">Drop-off tracking from initial CrazyGames link open through multi-match retention</p>
         </div>
       </div>
       <div class="funnel-steps" id="funnelStepsContainer">
@@ -289,7 +525,7 @@
           <option value="hunter">Hunter Mode</option>
           <option value="freeze">Freeze Tag</option>
         </select>
-        <select id="deviceFilter" onchange="renderTable()">
+        <select id="tableDeviceFilter" onchange="renderTable()">
           <option value="all">All Devices</option>
           <option value="Desktop">Desktop</option>
           <option value="Mobile">Mobile</option>
@@ -320,12 +556,13 @@
 
   <script>
     let currentSource = 'server';
-    let rawData = null;
+    let rawSessions = [];
+    let activeDeviceFilter = 'all'; // 'all' | 'Desktop' | 'Mobile'
     let playtimeChart = null;
     let modesChart = null;
     let fpsChart = null;
+    let autoRefreshTimer = null;
 
-    // Format seconds to '1m 24s'
     function fmtSec(sec) {
       if (!sec || sec <= 0) return '0s';
       const m = Math.floor(sec / 60);
@@ -341,54 +578,22 @@
       return Math.floor(diff / 3600) + 'h ago';
     }
 
-    // Generate 100 realistic sample sessions for demo
-    function generateSampleData() {
-      const names = ['Guest Robot', 'Guest Pancake', 'Guest Falcon', 'Guest Ninja', 'Guest Pizza', 'Guest Tiger', 'Guest Waffle', 'Alex', 'Sam', 'Leo', 'Maya'];
-      const modes = ['party', 'bomb', 'crown', 'hunter', 'freeze'];
-      const sampleSessions = [];
-
-      for (let i = 0; i < 100; i++) {
-        const isBounced = Math.random() < 0.18;
-        const matchesStarted = isBounced ? 0 : Math.floor(Math.random() * 4) + 1;
-        const matchesCompleted = matchesStarted > 0 ? Math.floor(matchesStarted * (0.6 + Math.random() * 0.4)) : 0;
-        const matchSec = matchesStarted * (35 + Math.floor(Math.random() * 55));
-        const tabSec = isBounced ? (4 + Math.floor(Math.random() * 8)) : (matchSec + 25 + Math.floor(Math.random() * 90));
-        const rageQuits = (!isBounced && Math.random() < 0.22) ? 1 : 0;
-        const normalQuits = (!isBounced && !rageQuits && Math.random() < 0.3) ? 1 : 0;
-        const humanWins = matchesCompleted > 0 ? Math.floor(matchesCompleted * (0.4 + Math.random() * 0.4)) : 0;
-        const botWins = Math.max(0, matchesCompleted - humanWins);
-        const mode = modes[Math.floor(Math.random() * modes.length)];
-        const modesPlayed = {};
-        modesPlayed[mode] = matchesStarted;
-
-        let funnelStage = 'Stage 1: Bounced (<15s)';
-        if (matchesStarted >= 5) funnelStage = 'Stage 6: Power Player (5+)';
-        else if (matchesStarted >= 2) funnelStage = 'Stage 5: Retained (2+)';
-        else if (matchesCompleted >= 1) funnelStage = 'Stage 4: Completed Match';
-        else if (matchesStarted >= 1) funnelStage = 'Stage 3: Started Match';
-        else if (tabSec >= 15) funnelStage = 'Stage 2: Menu Explorer (>15s)';
-
-        sampleSessions.push({
-          sessionId: 'sess_' + i,
-          playerName: names[Math.floor(Math.random() * names.length)],
-          device: Math.random() < 0.35 ? 'Mobile' : 'Desktop',
-          tabLifetimeSec: tabSec,
-          totalMatchPlaytimeSec: matchSec,
-          matchesStarted: matchesStarted,
-          matchesCompleted: matchesCompleted,
-          rageQuits: rageQuits,
-          normalQuits: normalQuits,
-          humanWins: humanWins,
-          botWins: botWins,
-          botDifficulty: Math.random() < 0.7 ? 'hard' : 'easy',
-          avgFps: Math.random() < 0.12 ? (24 + Math.floor(Math.random() * 8)) : (56 + Math.floor(Math.random() * 5)),
-          funnelStage: funnelStage,
-          modesPlayed: modesPlayed,
-          timestamp: Date.now() - (i * 140000)
-        });
-      }
-
-      return processSessionsList(sampleSessions);
+    // Set top-level device filter
+    function setDeviceFilter(dev) {
+      activeDeviceFilter = dev;
+      document.getElementById('devTabAll').classList.toggle('active', dev === 'all');
+      document.getElementById('devTabDesktop').classList.toggle('active', dev === 'Desktop');
+      document.getElementById('devTabMobile').classList.toggle('active', dev === 'Mobile');
+      
+      const infoMap = {
+        'all': 'Filtering: 🌐 All Devices (Together)',
+        'Desktop': 'Filtering: 💻 Desktop / Laptop Only',
+        'Mobile': 'Filtering: 📱 Mobile / Touch Only'
+      };
+      document.getElementById('deviceFilterInfo').innerText = infoMap[dev] || 'Filtering: All Devices';
+      document.getElementById('tableDeviceFilter').value = dev;
+      
+      recomputeAndRender();
     }
 
     function processSessionsList(sessions) {
@@ -401,7 +606,7 @@
       const modes = {}, devices = { Desktop: 0, Mobile: 0 };
 
       for (const s of sessions) {
-        const tab = s.tabLifetimeSec || 0;
+        const tab = s.tabLifetimeSec || s.totalTabTimeSec || 0;
         const match = s.totalMatchPlaytimeSec || 0;
         totalTabSec += tab; totalMatchSec += match;
         totalStarted += (s.matchesStarted || 0);
@@ -420,7 +625,11 @@
         const dev = (s.device && s.device.toLowerCase().includes('mobile')) ? 'Mobile' : 'Desktop';
         devices[dev]++;
         if (s.modesPlayed) {
-          for (const [m, c] of Object.entries(s.modesPlayed)) { modes[m] = (modes[m] || 0) + c; }
+          if (Array.isArray(s.modesPlayed)) {
+            for (const m of s.modesPlayed) { modes[m] = (modes[m] || 0) + 1; }
+          } else if (typeof s.modesPlayed === 'object') {
+            for (const [m, c] of Object.entries(s.modesPlayed)) { modes[m] = (modes[m] || 0) + (typeof c === 'number' ? c : 1); }
+          }
         }
       }
 
@@ -428,95 +637,188 @@
         totalSessions,
         totalMatchesStarted: totalStarted,
         totalMatchesCompleted: totalCompleted,
-        avgTabTimeSec: totalSessions > 0 ? Math.round(totalTabSec / totalSessions) : 0,
-        avgMatchTimeSec: totalStarted > 0 ? Math.round(totalMatchSec / totalStarted) : 0,
+        avgTabTimeSec: totalSessions > 0 ? Math.round(totalTabTimeSec / totalSessions) : 0,
+        avgMatchTimeSec: totalStarted > 0 ? Math.round(totalMatchTimeSec / totalStarted) : (totalSessions > 0 ? Math.round(totalMatchSec / totalSessions) : 0),
         conversionRate: totalSessions > 0 ? Math.round((funnel.match1Started / totalSessions) * 100) : 0,
         bounceRate: totalSessions > 0 ? Math.round((totalBounces / totalSessions) * 100) : 0,
         rageQuitRate: (totalRage + totalNormal) > 0 ? Math.round((totalRage / (totalRage + totalNormal)) * 100) : 0,
         humanWinRate: (totalHWins + totalBWins) > 0 ? Math.round((totalHWins / (totalHWins + totalBWins)) * 100) : 50,
         avgFps: fpsCount > 0 ? Math.round((totalFps / fpsCount) * 10) / 10 : 60,
         funnel, modes, devices,
-        recentSessions: sessions.slice(0, 50)
+        sessions
       };
     }
 
+    function generateSampleData() {
+      const names = ['Guest Robot', 'Guest Pancake', 'Guest Falcon', 'Guest Ninja', 'Guest Pizza', 'Guest Tiger', 'Alex', 'Sam', 'Leo', 'Maya'];
+      const modes = ['party', 'bomb', 'crown', 'hunter', 'freeze'];
+      const list = [];
+
+      for (let i = 0; i < 100; i++) {
+        const isMobile = Math.random() < 0.42;
+        const isBounced = Math.random() < 0.16;
+        const matchesStarted = isBounced ? 0 : Math.floor(Math.random() * 4) + 1;
+        const matchesCompleted = matchesStarted > 0 ? Math.floor(matchesStarted * (0.6 + Math.random() * 0.4)) : 0;
+        // Mobile plays typically 30-70s, Desktop 45-110s
+        const matchSec = matchesStarted * (isMobile ? (32 + Math.floor(Math.random() * 38)) : (48 + Math.floor(Math.random() * 62)));
+        const tabSec = isBounced ? (4 + Math.floor(Math.random() * 8)) : (matchSec + 20 + Math.floor(Math.random() * 75));
+        const rageQuits = (!isBounced && Math.random() < (isMobile ? 0.28 : 0.15)) ? 1 : 0;
+        const normalQuits = (!isBounced && !rageQuits && Math.random() < 0.35) ? 1 : 0;
+        const humanWins = matchesCompleted > 0 ? Math.floor(matchesCompleted * (0.45 + Math.random() * 0.35)) : 0;
+        const botWins = Math.max(0, matchesCompleted - humanWins);
+        const mode = modes[Math.floor(Math.random() * modes.length)];
+
+        let funnelStage = 'Stage 1: Bounced (<15s)';
+        if (matchesStarted >= 5) funnelStage = 'Stage 6: Power Player (5+)';
+        else if (matchesStarted >= 2) funnelStage = 'Stage 5: Retained (2+)';
+        else if (matchesCompleted >= 1) funnelStage = 'Stage 4: Completed Match';
+        else if (matchesStarted >= 1) funnelStage = 'Stage 3: Started Match';
+        else if (tabSec >= 15) funnelStage = 'Stage 2: Menu Explorer (>15s)';
+
+        list.push({
+          sessionId: 'sess_sample_' + i,
+          playerName: names[Math.floor(Math.random() * names.length)],
+          device: isMobile ? 'Mobile' : 'Desktop',
+          tabLifetimeSec: tabSec,
+          totalMatchPlaytimeSec: matchSec,
+          matchesStarted: matchesStarted,
+          matchesCompleted: matchesCompleted,
+          rageQuits: rageQuits,
+          normalQuits: normalQuits,
+          humanWins: humanWins,
+          botWins: botWins,
+          botDifficulty: Math.random() < 0.65 ? 'hard' : 'easy',
+          avgFps: Math.random() < 0.10 ? (26 + Math.floor(Math.random() * 8)) : (57 + Math.floor(Math.random() * 4)),
+          funnelStage: funnelStage,
+          modesPlayed: [mode],
+          timestamp: Date.now() - (i * 120000)
+        });
+      }
+      return list;
+    }
+
     async function fetchData() {
+      const liveBadge = document.getElementById('liveBadge');
+      const sourceLabel = document.getElementById('sourceLabel');
+      const zeroNotice = document.getElementById('zeroDataNotice');
+
       if (currentSource === 'demo') {
-        rawData = generateSampleData();
-        updateDashboard();
+        liveBadge.className = 'badge-demo';
+        sourceLabel.innerText = '🧪 Demo Sandbox (100 Sample Plays)';
+        zeroNotice.style.display = 'none';
+        rawSessions = generateSampleData();
+        recomputeAndRender();
         return;
       }
 
       if (currentSource === 'local') {
+        liveBadge.className = 'badge-live';
+        sourceLabel.innerText = '💻 LocalStorage';
+        zeroNotice.style.display = 'none';
         try {
           const raw = localStorage.getItem('tag_analytics_sessions_v1');
-          const list = raw ? JSON.parse(raw) : [];
-          if (!list.length) {
-            alert('No local sessions found yet. Play a match or switch to Demo mode!');
-            rawData = generateSampleData();
-          } else {
-            rawData = processSessionsList(list.reverse());
-          }
-          updateDashboard();
-        } catch (e) {
-          rawData = generateSampleData();
-          updateDashboard();
+          rawSessions = raw ? JSON.parse(raw) : [];
+        } catch(e) { rawSessions = []; }
+        if (!rawSessions.length) {
+          zeroNotice.style.display = 'flex';
+          zeroNotice.querySelector('span').innerHTML = '⚠️ No local plays saved yet. Play a match locally or switch to Demo mode.';
         }
+        recomputeAndRender();
         return;
       }
 
-      // Live Server API
+      // Live Server Mode
       try {
         const res = await fetch('/api/analytics/summary');
         if (res.ok) {
-          rawData = await res.json();
-          if (!rawData.totalSessions) {
-            document.getElementById('sourceLabel').innerText = 'Server (0 Data - Showing Demo)';
-            rawData = generateSampleData();
+          const data = await res.json();
+          liveBadge.className = 'badge-live';
+          rawSessions = data.recentSessions || [];
+
+          if (rawSessions.length === 0) {
+            sourceLabel.innerText = 'Live Server (0 Plays)';
+            zeroNotice.style.display = 'flex';
+            zeroNotice.querySelector('span').innerHTML = '📡 <strong>Connected to Live Server:</strong> 0 plays recorded yet. The server is waiting for players from CrazyGames!';
           } else {
-            document.getElementById('sourceLabel').innerText = 'Live Server';
+            sourceLabel.innerText = `Live Server (${rawSessions.length} Plays)`;
+            zeroNotice.style.display = 'none';
           }
         } else {
-          document.getElementById('sourceLabel').innerText = 'Server Offline (Showing Demo)';
-          rawData = generateSampleData();
+          liveBadge.className = 'badge-demo';
+          sourceLabel.innerText = 'Server Responded Error';
+          zeroNotice.style.display = 'flex';
         }
       } catch (e) {
-        document.getElementById('sourceLabel').innerText = 'Local / Demo Mode';
-        rawData = generateSampleData();
+        liveBadge.className = 'badge-demo';
+        sourceLabel.innerText = 'Offline / Standalone';
+        zeroNotice.style.display = 'flex';
+        zeroNotice.querySelector('span').innerHTML = '⚠️ Cannot reach server API. You can preview with 100 simulated plays:';
       }
-      updateDashboard();
+
+      recomputeAndRender();
     }
 
     function switchDataSource(src) {
       currentSource = src;
+      document.getElementById('sourceSelector').value = src;
       fetchData();
     }
 
-    function updateDashboard() {
-      if (!rawData) return;
+    function recomputeAndRender() {
+      // 1. Separate Desktop and Mobile subsets
+      const desktopSessions = rawSessions.filter(s => !s.device || !s.device.toLowerCase().includes('mobile'));
+      const mobileSessions = rawSessions.filter(s => s.device && s.device.toLowerCase().includes('mobile'));
 
-      // KPIs
-      document.getElementById('kpiTotalSessions').innerText = rawData.totalSessions.toLocaleString();
-      const devDesk = rawData.devices ? (rawData.devices.Desktop || 0) : 0;
-      const devMob = rawData.devices ? (rawData.devices.Mobile || 0) : 0;
-      const devTot = (devDesk + devMob) || 1;
-      document.getElementById('kpiDeviceSplit').innerText = Math.round((devDesk / devTot) * 100) + '% Desk • ' + Math.round((devMob / devTot) * 100) + '% Mob';
+      const summaryAll = processSessionsList(rawSessions);
+      const summaryDesktop = processSessionsList(desktopSessions);
+      const summaryMobile = processSessionsList(mobileSessions);
 
-      document.getElementById('kpiConversionRate').innerText = rawData.conversionRate + '%';
-      document.getElementById('kpiBounceRate').innerText = rawData.bounceRate + '% Bounce';
-      document.getElementById('kpiAvgTabTime').innerText = fmtSec(rawData.avgTabTimeSec);
-      document.getElementById('kpiAvgMatchTime').innerText = fmtSec(rawData.avgMatchTimeSec);
-      document.getElementById('kpiTotalMatches').innerText = (rawData.totalMatchesStarted || 0).toLocaleString();
-      document.getElementById('kpiRageQuitRate').innerText = rawData.rageQuitRate + '%';
-      document.getElementById('kpiHumanWinRate').innerText = rawData.humanWinRate + '%';
+      // 2. Populate Side-by-Side Mobile vs Desktop Breakdown card
+      document.getElementById('splitDesktopCount').innerText = `${summaryDesktop.totalSessions} sessions (${summaryAll.totalSessions > 0 ? Math.round((summaryDesktop.totalSessions / summaryAll.totalSessions) * 100) : 0}%)`;
+      document.getElementById('splitDesktopMatchTime').innerText = fmtSec(summaryDesktop.avgMatchTimeSec);
+      document.getElementById('splitDesktopTabTime').innerText = fmtSec(summaryDesktop.avgTabTimeSec);
+      document.getElementById('splitDesktopConversion').innerText = summaryDesktop.conversionRate + '%';
+      document.getElementById('splitDesktopBounce').innerText = summaryDesktop.bounceRate + '%';
+      document.getElementById('splitDesktopRage').innerText = summaryDesktop.rageQuitRate + '%';
+      document.getElementById('splitDesktopWin').innerText = summaryDesktop.humanWinRate + '%';
+      document.getElementById('splitDesktopFps').innerText = summaryDesktop.avgFps + ' FPS';
 
-      // Funnel
-      renderFunnel(rawData.funnel, rawData.totalSessions);
+      document.getElementById('splitMobileCount').innerText = `${summaryMobile.totalSessions} sessions (${summaryAll.totalSessions > 0 ? Math.round((summaryMobile.totalSessions / summaryAll.totalSessions) * 100) : 0}%)`;
+      document.getElementById('splitMobileMatchTime').innerText = fmtSec(summaryMobile.avgMatchTimeSec);
+      document.getElementById('splitMobileTabTime').innerText = fmtSec(summaryMobile.avgTabTimeSec);
+      document.getElementById('splitMobileConversion').innerText = summaryMobile.conversionRate + '%';
+      document.getElementById('splitMobileBounce').innerText = summaryMobile.bounceRate + '%';
+      document.getElementById('splitMobileRage').innerText = summaryMobile.rageQuitRate + '%';
+      document.getElementById('splitMobileWin').innerText = summaryMobile.humanWinRate + '%';
+      document.getElementById('splitMobileFps').innerText = summaryMobile.avgFps + ' FPS';
 
-      // Charts
-      renderCharts(rawData);
+      // 3. Active filtered dataset for top KPIs, funnel, and charts
+      let activeSummary = summaryAll;
+      if (activeDeviceFilter === 'Desktop') activeSummary = summaryDesktop;
+      else if (activeDeviceFilter === 'Mobile') activeSummary = summaryMobile;
 
-      // Table
+      // Update KPI Cards
+      document.getElementById('kpiTotalSessions').innerText = activeSummary.totalSessions.toLocaleString();
+      
+      const deskShare = summaryAll.totalSessions > 0 ? Math.round((summaryDesktop.totalSessions / summaryAll.totalSessions) * 100) : 0;
+      const mobShare = summaryAll.totalSessions > 0 ? Math.round((summaryMobile.totalSessions / summaryAll.totalSessions) * 100) : 0;
+      document.getElementById('kpiDeviceSplit').innerText = `${deskShare}% Desktop • ${mobShare}% Mobile`;
+
+      document.getElementById('kpiConversionRate').innerText = activeSummary.conversionRate + '%';
+      document.getElementById('kpiBounceRate').innerText = activeSummary.bounceRate + '% Bounce';
+      document.getElementById('kpiAvgTabTime').innerText = fmtSec(activeSummary.avgTabTimeSec);
+      document.getElementById('kpiAvgMatchTime').innerText = fmtSec(activeSummary.avgMatchTimeSec);
+      document.getElementById('kpiTotalMatches').innerText = (activeSummary.totalMatchesStarted || 0).toLocaleString();
+      document.getElementById('kpiRageQuitRate').innerText = activeSummary.rageQuitRate + '%';
+      document.getElementById('kpiHumanWinRate').innerText = activeSummary.humanWinRate + '%';
+
+      // Update Funnel
+      renderFunnel(activeSummary.funnel, activeSummary.totalSessions);
+
+      // Update Charts
+      renderCharts(activeSummary);
+
+      // Update Table
       renderTable();
     }
 
@@ -535,7 +837,7 @@
       ];
 
       container.innerHTML = steps.map((s, idx) => {
-        const pctOfTotal = Math.round((s.count / base) * 100);
+        const pctOfTotal = total > 0 ? Math.round((s.count / base) * 100) : 0;
         const prevCount = idx > 0 ? steps[idx - 1].count : s.count;
         const dropPct = prevCount > 0 ? (100 - Math.round((s.count / prevCount) * 100)) : 0;
         const dropText = idx > 0 ? `-${dropPct}% drop` : 'Entry';
@@ -562,8 +864,8 @@
       if (playtimeChart) playtimeChart.destroy();
 
       const buckets = { '<1m': 0, '1-3m': 0, '3-7m': 0, '7-15m': 0, '15m+': 0 };
-      for (const s of (data.recentSessions || [])) {
-        const t = s.tabLifetimeSec || 0;
+      for (const s of (data.sessions || [])) {
+        const t = s.tabLifetimeSec || s.totalTabTimeSec || 0;
         if (t < 60) buckets['<1m']++;
         else if (t < 180) buckets['1-3m']++;
         else if (t < 420) buckets['3-7m']++;
@@ -578,7 +880,7 @@
           datasets: [{
             label: 'Sessions',
             data: Object.values(buckets),
-            backgroundColor: '#06b6d4',
+            backgroundColor: activeDeviceFilter === 'Mobile' ? '#f59e0b' : '#06b6d4',
             borderRadius: 6
           }]
         },
@@ -588,7 +890,7 @@
           plugins: { legend: { display: false } },
           scales: {
             x: { grid: { display: false }, ticks: { color: '#94a3b8' } },
-            y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } }
+            y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8', stepSize: 1 } }
           }
         }
       });
@@ -600,14 +902,15 @@
       const modeLabels = ['Classic', 'Bomb Tag', 'Crown King', 'Hunter', 'Freeze'];
       const modeKeys = ['party', 'bomb', 'crown', 'hunter', 'freeze'];
       const modeData = modeKeys.map(k => (data.modes && data.modes[k]) || 0);
+      const hasModeData = modeData.some(v => v > 0);
 
       modesChart = new Chart(mCtx, {
         type: 'doughnut',
         data: {
           labels: modeLabels,
           datasets: [{
-            data: modeData.some(v => v > 0) ? modeData : [45, 25, 18, 12, 10],
-            backgroundColor: ['#38bdf8', '#f87171', '#facc15', '#a855f7', '#60a5fa'],
+            data: hasModeData ? modeData : [1, 1, 1, 1, 1],
+            backgroundColor: hasModeData ? ['#38bdf8', '#f87171', '#facc15', '#a855f7', '#60a5fa'] : ['#334155', '#334155', '#334155', '#334155', '#334155'],
             borderWidth: 0
           }]
         },
@@ -625,13 +928,12 @@
       if (fpsChart) fpsChart.destroy();
 
       let smooth = 0, fine = 0, lag = 0;
-      for (const s of (data.recentSessions || [])) {
+      for (const s of (data.sessions || [])) {
         const f = s.avgFps || 60;
         if (f >= 55) smooth++;
         else if (f >= 35) fine++;
         else lag++;
       }
-      if (smooth + fine + lag === 0) { smooth = 88; fine = 9; lag = 3; }
 
       fpsChart = new Chart(fCtx, {
         type: 'bar',
@@ -649,78 +951,106 @@
           plugins: { legend: { display: false } },
           scales: {
             x: { grid: { display: false }, ticks: { color: '#94a3b8' } },
-            y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } }
+            y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8', stepSize: 1 } }
           }
         }
       });
     }
 
     function renderTable() {
-      if (!rawData || !rawData.recentSessions) return;
-      const search = (document.getElementById('searchInput').value || '').toLowerCase().trim();
-      const modeF = document.getElementById('modeFilter').value;
-      const devF = document.getElementById('deviceFilter').value;
       const tbody = document.getElementById('sessionsTableBody');
+      const search = (document.getElementById('searchInput').value || '').toLowerCase().trim();
+      const modeFilter = document.getElementById('modeFilter').value;
+      const deviceFilter = document.getElementById('tableDeviceFilter').value;
 
-      const filtered = rawData.recentSessions.filter(s => {
-        if (search && !(s.playerName || '').toLowerCase().includes(search)) return false;
-        if (devF !== 'all' && s.device !== devF) return false;
-        if (modeF !== 'all' && s.modesPlayed && !s.modesPlayed[modeF]) return false;
-        return true;
-      });
+      let list = rawSessions;
 
-      if (!filtered.length) {
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #94a3b8; padding: 24px;">No matching sessions found</td></tr>';
+      // Filter by active tab or table device dropdown
+      if (deviceFilter !== 'all') {
+        list = list.filter(s => (s.device || 'Desktop') === deviceFilter);
+      } else if (activeDeviceFilter !== 'all') {
+        list = list.filter(s => (s.device || 'Desktop') === activeDeviceFilter);
+      }
+
+      if (search) {
+        list = list.filter(s => (s.playerName || '').toLowerCase().includes(search) || (s.sessionId || '').toLowerCase().includes(search));
+      }
+
+      if (modeFilter !== 'all') {
+        list = list.filter(s => {
+          if (Array.isArray(s.modesPlayed)) return s.modesPlayed.includes(modeFilter);
+          if (s.modesPlayed && typeof s.modesPlayed === 'object') return !!s.modesPlayed[modeFilter];
+          return false;
+        });
+      }
+
+      if (!list.length) {
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:24px; color:#64748b;">No matching sessions found.</td></tr>`;
         return;
       }
 
-      tbody.innerHTML = filtered.map(s => {
-        let badgeHtml = '<span class="badge quit">🚪 Quit Menu</span>';
-        if (s.rageQuits) badgeHtml = '<span class="badge rage">💢 Rage Quit</span>';
-        else if (s.humanWins) badgeHtml = '<span class="badge win">👑 Human Win</span>';
-        else if (s.botWins) badgeHtml = '<span class="badge loss">🤖 Bot Win</span>';
-        else if (s.matchesCompleted) badgeHtml = '<span class="badge win">🏁 Completed</span>';
+      tbody.innerHTML = list.slice(0, 50).map(s => {
+        let badgeClass = 'badge-quit', badgeText = 'Exited Menu';
+        if (s.rageQuits > 0) { badgeClass = 'badge-rage'; badgeText = '💢 Rage Quit (<12s)'; }
+        else if (s.humanWins > 0) { badgeClass = 'badge-win'; badgeText = '🏆 Human Won'; }
+        else if (s.botWins > 0) { badgeClass = 'badge-botwin'; badgeText = '🤖 Bot Won'; }
+        else if ((s.matchesStarted || 0) === 0) { badgeClass = 'badge-quit'; badgeText = '🚪 Bounced'; }
 
-        const modeStr = s.modesPlayed ? Object.keys(s.modesPlayed).join(', ').toUpperCase() : 'PARTY';
-        const fpsCol = (s.avgFps >= 50) ? '#34d399' : (s.avgFps >= 30 ? '#fbbf24' : '#f87171');
+        let modesStr = 'Classic';
+        if (Array.isArray(s.modesPlayed) && s.modesPlayed.length) modesStr = s.modesPlayed.join(', ');
+        else if (s.modesPlayed && typeof s.modesPlayed === 'object') {
+          const keys = Object.keys(s.modesPlayed);
+          if (keys.length) modesStr = keys.join(', ');
+        }
+
+        const devIcon = (s.device === 'Mobile') ? '📱 Mobile' : '💻 Desktop';
+        const matchTime = fmtSec(s.totalMatchPlaytimeSec || 0);
+        const tabTime = fmtSec(s.tabLifetimeSec || s.totalTabTimeSec || 0);
+        const fps = (s.avgFps || 60) + ' fps';
 
         return `
           <tr>
-            <td style="color: #94a3b8;">${timeAgo(s.timestamp)}</td>
-            <td style="font-weight: 700; color: #fff;">${s.playerName || 'Guest'}</td>
-            <td>${s.device === 'Mobile' ? '📱 Mobile' : '💻 Desktop'}</td>
-            <td><span class="mono">${modeStr || 'CLASSIC'}</span></td>
-            <td class="mono">${fmtSec(s.totalMatchPlaytimeSec)}</td>
-            <td class="mono">${fmtSec(s.tabLifetimeSec)}</td>
-            <td>${badgeHtml}</td>
-            <td class="mono" style="color: ${fpsCol}; font-weight: 700;">${s.avgFps || 60}</td>
-            <td style="font-size: 11.5px; color: #94a3b8;">${s.funnelStage || 'Started'}</td>
+            <td style="color:#94a3b8; font-family:'JetBrains Mono';">${timeAgo(s.timestamp)}</td>
+            <td style="font-weight:700; color:#fff;">${s.playerName || 'Guest'}</td>
+            <td>${devIcon}</td>
+            <td><span style="text-transform:capitalize;">${modesStr}</span></td>
+            <td style="font-family:'JetBrains Mono';">${matchTime}</td>
+            <td style="font-family:'JetBrains Mono';">${tabTime}</td>
+            <td><span class="badge-pill ${badgeClass}">${badgeText}</span></td>
+            <td><span style="font-family:'JetBrains Mono'; color:${(s.avgFps||60)>=50 ? '#34d399' : '#f87171'}">${fps}</span></td>
+            <td><span style="font-size:12px; color:#cbd5e1;">${s.funnelStage || 'N/A'}</span></td>
           </tr>
         `;
       }).join('');
     }
 
     function exportDataJSON() {
-      if (!rawData) return;
-      const blob = new Blob([JSON.stringify(rawData, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'tag_analytics_report_' + new Date().toISOString().slice(0, 10) + '.json';
-      a.click();
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(rawSessions, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `tag_analytics_${activeDeviceFilter}_${Date.now()}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
     }
 
     async function resetDataPrompt() {
-      if (!confirm('Are you sure you want to reset analytics data?')) return;
-      localStorage.removeItem('tag_analytics_sessions_v1');
-      try { await fetch('/api/analytics/reset'); } catch (e) {}
+      if (!confirm('Are you sure you want to reset analytics sessions?')) return;
+      if (currentSource === 'server') {
+        try { await fetch('/api/analytics/reset'); } catch(e){}
+      } else if (currentSource === 'local') {
+        localStorage.removeItem('tag_analytics_sessions_v1');
+      }
       fetchData();
     }
 
-    // Initialize
+    // Auto-refresh every 8 seconds if in server mode
+    autoRefreshTimer = setInterval(() => {
+      if (currentSource === 'server') fetchData();
+    }, 8000);
+
+    // Initial load
     fetchData();
-    // Auto-refresh every 10 seconds
-    setInterval(fetchData, 10000);
   </script>
 </body>
 </html>

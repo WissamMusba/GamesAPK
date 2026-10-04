@@ -9699,6 +9699,7 @@ function endMatch(){
   sfx('win');
   if(!match._telemetrySent){
     try{ telemetryTrackMatchEnded(); }catch(e){}
+    try{ telemetrySendSessionPing('match_end'); }catch(e){}
   }
   if(typeof NET!=='undefined' && NET && NET.isHost && NET.midgameJoiner){
     netToast('New player joined — returning to lobby!');
@@ -15314,10 +15315,12 @@ function telemetryTrackMatchEnded(reason = 'completed'){
 }
 
 // F. Session Telemetry on Tab Close / Link Exit (Funnel & Total Conversion)
-function telemetryRecordSessionEnd(){
+function telemetrySendSessionPing(reason){
   try{
-    if(typeof SESSION_METRICS === 'undefined' || SESSION_METRICS.isEnded) return;
-    SESSION_METRICS.isEnded = true;
+    if(typeof SESSION_METRICS === 'undefined') return;
+    const isUnload = (reason === 'unload');
+    if(isUnload && SESSION_METRICS.isEnded) return;
+    if(isUnload) SESSION_METRICS.isEnded = true;
 
     const tabLifetimeSec = Math.max(1, Math.round((Date.now() - SESSION_METRICS.startTime) / 1000));
     let myName = "Guest";
@@ -15346,6 +15349,7 @@ function telemetryRecordSessionEnd(){
       device: (typeof isTouch !== 'undefined' && isTouch) ? 'Mobile' : 'Desktop',
       funnelStage: funnelStage,
       modesPlayed: SESSION_METRICS.modesPlayed,
+      reason: reason || 'heartbeat',
       timestamp: Date.now()
     };
 
@@ -15354,15 +15358,17 @@ function telemetryRecordSessionEnd(){
       let localHist = [];
       const raw = localStorage.getItem('tag_analytics_sessions_v1');
       if(raw) localHist = JSON.parse(raw);
-      localHist.push(sessionPayload);
+      const exIdx = localHist.findIndex(x => x.sessionId === sessionPayload.sessionId);
+      if(exIdx !== -1) localHist[exIdx] = sessionPayload;
+      else localHist.push(sessionPayload);
       if(localHist.length > 50) localHist.shift();
       localStorage.setItem('tag_analytics_sessions_v1', JSON.stringify(localHist));
     } catch(e){}
 
     // 2. Transmit to server analytics endpoint
-    const serverUrl = (typeof netDirBase === 'function') ? netDirBase() : 'https://tag-netplay-server.onrender.com';
+    const serverUrl = 'https://tag-netplay-server.onrender.com';
     const jsonStr = JSON.stringify(sessionPayload);
-    if(navigator.sendBeacon){
+    if(isUnload && navigator.sendBeacon){
       navigator.sendBeacon(serverUrl + '/api/analytics/session', new Blob([jsonStr], { type: 'application/json' }));
     } else {
       fetch(serverUrl + '/api/analytics/session', {
@@ -15374,6 +15380,11 @@ function telemetryRecordSessionEnd(){
     }
   }catch(e){}
 }
+function telemetryRecordSessionEnd(){
+  telemetrySendSessionPing('unload');
+}
+setTimeout(() => telemetrySendSessionPing('boot'), 1000);
+setInterval(() => telemetrySendSessionPing('heartbeat'), 30000);
 
 const NET = {
   peer: null,
