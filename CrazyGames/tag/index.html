@@ -18,8 +18,8 @@
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <link id="font-link-20" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Anton&family=Bangers&family=Black+Han+Sans&family=Luckiest+Guy&family=Righteous&family=Fredoka+One&family=Baloo+2:wght@700;800&family=Nunito:wght@800;900&family=Poppins:wght@700;800;900&family=Montserrat:wght@700;800;900&family=Titan+One&family=Chewy&family=MuseoModerno:wght@700;900&family=Comfortaa:wght@700&family=Space+Grotesk:wght@600;700&family=Orbitron:wght@700;900&family=Russo+One&family=Staatliches&display=swap" rel="stylesheet"/>
 <style>
-html,body{margin:0;padding:0;width:100%;height:100%;height:100dvh;overflow:hidden;background:#0b0f16;font-family:'Outfit','Rubik',system-ui,sans-serif}
-canvas{position:fixed;top:0;left:0;width:100%;height:100%;height:100dvh;display:block;outline:none;touch-action:none;
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#0b0f16;font-family:'Outfit','Rubik',system-ui,sans-serif}
+canvas{position:absolute;top:0;left:0;width:100%;height:100%;display:block;outline:none;touch-action:none;
  -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:none;-webkit-touch-callout:none}
 /* ---- netplay join modal (optional, only when manual code entry is clicked) ---- */
 #netUI{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;background:rgba(5,8,13,0.85);backdrop-filter:blur(4px);font-family:'Outfit','Rubik',system-ui,sans-serif}
@@ -110,18 +110,20 @@ let CW=0,CH=0,DPR=1;
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
 
 function resize(){
+  const docW = (document.documentElement && document.documentElement.clientWidth) ? document.documentElement.clientWidth : (window.innerWidth || 800);
+  const docH = (document.documentElement && document.documentElement.clientHeight) ? document.documentElement.clientHeight : (window.innerHeight || 600);
   const rect = cv.getBoundingClientRect();
-  const vW = (window.visualViewport && window.visualViewport.width) ? window.visualViewport.width : window.innerWidth;
-  const vH = (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight;
-  CW = Math.floor(Math.min(rect.width || vW, vW));
-  CH = Math.floor(Math.min(rect.height || vH, vH));
-  const maxDpr = 2.0;
+  const rawW = (rect.width > 0 && rect.width <= docW) ? rect.width : docW;
+  const rawH = (rect.height > 0 && rect.height <= docH) ? rect.height : docH;
+  CW = Math.floor(Math.min(rawW, docW));
+  CH = Math.floor(Math.min(rawH, docH));
+  const maxDpr = isTouch ? 1.5 : 2.0;
   DPR = Math.min(maxDpr, window.devicePixelRatio || 1);
   cv.width = Math.floor(CW * DPR);
   cv.height = Math.floor(CH * DPR);
 }
 window.addEventListener('resize', resize);
-window.addEventListener('orientationchange', () => setTimeout(resize, 140));
+window.addEventListener('orientationchange', () => { setTimeout(resize, 50); setTimeout(resize, 220); });
 if(window.visualViewport){
   window.visualViewport.addEventListener('resize', resize);
 }
@@ -12678,6 +12680,17 @@ function drawMenu(){
   const stageH = (menu.tab === 'online')
     ? (NET.role !== null ? Math.max(70, stripY - stageY - (isShortH ? 4 : 6)) : Math.max(70, CH - stageY - bottomMargin))
     : Math.max(70, stripY - stageY - (isShortH ? 4 : 6));
+
+  if(isTouch && CH > CW){
+    const pillW = Math.min(CW - 24, 250);
+    const pillH = 20;
+    const pillX = Math.floor(CW/2 - pillW/2);
+    const pillY = Math.floor(stageY + 1);
+    rr(g, pillX, pillY, pillW, pillH, 10);
+    g.fillStyle = 'rgba(234, 179, 8, 0.20)'; g.fill();
+    g.strokeStyle = '#eab308'; g.lineWidth = 1; g.stroke();
+    ptxt('🔄 ROTATE PHONE FOR WIDE VIEW', CW/2, pillY + pillH/2 + 1, FN(10, 900), '#fef08a');
+  }
 
   if(menu.tab === 'online'){
     drawOnlineHub(stageY, stageH);
