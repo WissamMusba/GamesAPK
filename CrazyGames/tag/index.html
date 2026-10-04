@@ -4655,7 +4655,10 @@ var initCrownMode, updateCrownMode, checkCrownTag, drawCrownUI, drawCrownPlayer,
    * active survivor roster, and Sudden Death indicators.
    */
   function drawBombUI() {
-    if (!BOMB_MODE.active) return;
+    if (!BOMB_MODE.active) {
+      try{ if(typeof settings !== 'undefined' && settings && settings.gameMode === 'bomb') BOMB_MODE.active = true; }catch(e){}
+      if (!BOMB_MODE.active) return;
+    }
     const ctx = getGlobalCtx();
     if (!ctx) return;
 
@@ -6360,7 +6363,10 @@ var initCrownMode, updateCrownMode, checkCrownTag, drawCrownUI, drawCrownPlayer,
      15. HUD & SCORE PROGRESS: drawCrownUI()
      ========================================================================== */
   function drawCrownUI() {
-    if (!crownState.active) return;
+    if (!crownState.active) {
+      try{ if(typeof settings !== 'undefined' && settings && settings.gameMode === 'crown') crownState.active = true; }catch(e){}
+      if (!crownState.active) return;
+    }
     const g = Cctx();
     if (!g) return;
 
@@ -8586,7 +8592,6 @@ function endHunterRound(wiperTeam){
 
   const isMatchOver = (match.hunterRound >= match.hunterMaxRounds);
   if(isMatchOver && !match._telemetrySent){
-    match._telemetrySent = true;
     try{ telemetryTrackMatchEnded(); }catch(e){}
   }
   match.roundSummary = {
@@ -9677,7 +9682,6 @@ function endMatch(){
   confetti();
   sfx('win');
   if(!match._telemetrySent){
-    match._telemetrySent = true;
     try{ telemetryTrackMatchEnded(); }catch(e){}
   }
   if(typeof NET!=='undefined' && NET && NET.isHost && NET.midgameJoiner){
@@ -11976,7 +11980,7 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
     const rowH = Math.floor(rowAvailH / 8);
     for(let s = 0; s < 8; s++){
       const ry = panelY + headH + 2 + s * rowH;
-      const isConn = (s === 0 ? true : (NET.isHost ? (NET.hostInputs.has(s) || menu.slotColor[s] >= 0) : menu.slotColor[s] >= 0));
+      const isConn = (s === 0 ? (menu.slotColor[s] >= 0 || !NET.isHost) : (NET.isHost ? (NET.hostInputs.has(s) || menu.slotColor[s] >= 0) : menu.slotColor[s] >= 0));
       const isMe = (s === NET.mySlot);
       const col = getSlotColor(s, menu.slotColor, menu.slotTeam);
       const isRdy = !!NET.slotsReady[s];
@@ -13992,6 +13996,7 @@ function drawFallbackTimerHUD(){
   }catch(e){ logModeErr('drawFallbackTimerHUD', e); }
 }
 function drawHUD(){
+  var _modeChromeDone = false;
   if(settings.gameMode === 'infection'){
     try{ if(typeof drawInfectionUI === 'function') drawInfectionUI(); else drawFallbackTimerHUD(); }
     catch(e){ logModeErr('drawInfectionUI', e); try{ drawFallbackTimerHUD(); }catch(e2){} }
@@ -14000,17 +14005,16 @@ function drawHUD(){
   if(settings.gameMode === 'bomb'){
     try{ if(typeof drawBombUI === 'function') drawBombUI(); else drawFallbackTimerHUD(); }
     catch(e){ logModeErr('drawBombUI', e); try{ drawFallbackTimerHUD(); }catch(e2){} }
-    return;
-  }
-  if(settings.gameMode === 'crown'){
+    _modeChromeDone = true;
+  } else if(settings.gameMode === 'crown'){
     try{ if(typeof drawCrownUI === 'function') drawCrownUI(); else drawFallbackTimerHUD(); }
     catch(e){ logModeErr('drawCrownUI', e); try{ drawFallbackTimerHUD(); }catch(e2){} }
-    return;
-  }
-  if(match && match.hunterMode){
+    _modeChromeDone = true;
+  } else if(match && match.hunterMode){
     drawHunterHUD();
     return;
   }
+  if(!_modeChromeDone){
   const urgent=match.timer<=10&&match.state==='playing';
   const tw=Math.min(150,CW*0.28),th=40;
   rr(g,CW/2-tw/2,8,tw,th,10);
@@ -14036,6 +14040,15 @@ function drawHUD(){
     rr(g, 14, y + (pillH - 16) / 2, 16, 16, 4); g.fill(); g.lineWidth = 1.8; g.strokeStyle = INK; g.stroke();
     txt(label, 36, y + pillH / 2 + 1, FN(P.length > 4 ? 10 : 11, 900), isIt ? '#3a2c00' : '#ffffff', 'left');
     g.restore();
+  }
+  }
+  /* Touch scoreboard tap for bomb/crown: classic timer pill is skipped above,
+     so re-add its tap zone here (same coords) when a mode header drew instead. */
+  if(_modeChromeDone && isTouch){
+    try{
+      const _tw2=Math.min(150,CW*0.28),_th2=40;
+      zone(CW/2-_tw2/2-6,2,_tw2+12,_th2+12,{fn:()=>{scoreboardOpen=!scoreboardOpen;sfx('ui');}});
+    }catch(e){}
   }
   
   /* In-game control bar: Pause, Sound, Fullscreen, Voice */
@@ -14650,7 +14663,7 @@ function netProbeServers(cb, force){
         commit(cfg);
         localStorage.setItem('tag_srv', JSON.stringify({ src: cfg ? cfg.source : 'none', t: Date.now() }));
       }catch(e){}
-      try{ console.log('[NET] server probe: self ' + (s.ok ? Math.round(s.ms) + 'ms' : 'down') + ' vs render ' + (r.ok ? Math.round(r.ms) + 'ms' : 'down') + ' => ' + (cfg ? cfg.source + ' ' + cfg.host : 'cloud fallback')); }catch(e){}
+      try{ if(location.search.indexOf('debug') >= 0) console.log('[NET] server probe: self ' + (s.ok ? Math.round(s.ms) + 'ms' : 'down') + ' vs render ' + (r.ok ? Math.round(r.ms) + 'ms' : 'down') + ' => ' + (cfg ? cfg.source + ' ' + cfg.host : 'cloud fallback')); }catch(e){}
       done(cfg);
     });
   }catch(e){ done(null); }
@@ -14718,6 +14731,7 @@ const SESSION_METRICS = {
 function isOrganicPlay(){
   try{
     if(typeof window === 'undefined') return false;
+    try{ if(new URLSearchParams(location.search).get('telemetry') === '1') return true; }catch(e){}
     // 1. Headless / automation flags
     if(navigator.webdriver) return false;
     if(window.__nightmare || window._phantom || window.callPhantom || window.__selenium_unwrapped || window.domAutomation || window.domAutomationController) return false;
@@ -14799,7 +14813,9 @@ function netNotifyRoomCreated(roomCode, hostName, isPublic, maxPlayers){
             { name: 'Game Mode', value: mode, inline: true },
             { name: 'Capacity', value: (maxPlayers || 8) + ' Players', inline: true },
             { name: 'Visibility', value: isPublic ? '🌐 Public' : '🔒 Private', inline: true },
-            { name: 'Time', value: timeStr, inline: true }
+            { name: 'Time', value: timeStr, inline: true },
+            { name: '🆔 Host ID', value: '`' + (function(){ try{ return getOrCreatePlayerId() || 'n/a'; }catch(e){ return 'n/a'; } })() + '`', inline: true },
+            { name: '🔗 Host Session', value: '`' + (function(){ try{ return (typeof SESSION_METRICS !== 'undefined' && SESSION_METRICS.sessionId) ? SESSION_METRICS.sessionId : 'n/a'; }catch(e){ return 'n/a'; } })() + '`', inline: true }
           ],
           footer: { text: 'TAG Multiplayer Watchdog • CrazyGames' },
           timestamp: new Date().toISOString()
@@ -14850,21 +14866,28 @@ function netNotifyPlayerJoinedLobby(guestName, peerId){
     const mode = (typeof settings !== 'undefined' && settings && settings.gameMode) ? settings.gameMode.toUpperCase() : 'CLASSIC';
     const rtt = NET.pings ? NET.pings.get(peerId) : null;
     const pingStr = rtt ? (rtt + "ms") : "Measuring...";
+    let guestPid = '', guestSess = '';
+    try{ if(NET.peerPid) guestPid = NET.peerPid.get(peerId) || ''; }catch(e){}
+    try{ if(NET.peerSess) guestSess = NET.peerSess.get(peerId) || ''; }catch(e){}
 
     const payload = {
       username: 'TAG Lobby Watchdog',
+      content: '`' + (guestPid || 'n/a') + ' | ' + (guestSess || 'n/a') + ' | JOIN ' + code + ' | waiting list`',
       avatar_url: 'https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/1f464.png',
       embeds: [{
-        title: '👤 Player Joined Lobby',
+        title: '👤 Player Joined Lobby (Waiting List)',
         description: "**" + (guestName || "Player") + "** entered room **" + code + "**!",
         color: 0x06b6d4,
         fields: [
           { name: 'Room Code', value: '`' + code + '`', inline: true },
           { name: 'Joining Player', value: '**' + (guestName || 'Player') + '**', inline: true },
+          { name: 'Status', value: '⏳ Waiting list (spectator)', inline: true },
           { name: 'Ping to Host', value: '⚡ ' + pingStr, inline: true },
           { name: 'Lobby Capacity', value: activeCount + ' / ' + max + ' Players', inline: true },
           { name: 'Game Mode', value: mode, inline: true },
-          { name: 'Players in Room', value: names.slice(0, 8).join(', ') || 'Host' }
+          { name: 'Players in Room', value: names.slice(0, 8).join(', ') || 'Host' },
+          { name: '🆔 Guest ID', value: '`' + (guestPid || 'n/a') + '`', inline: true },
+          { name: '🔗 Guest Session', value: '`' + (guestSess || 'n/a') + '`', inline: true }
         ],
         footer: { text: 'TAG Lobby Watchdog (Silent Alert)' },
         timestamp: new Date().toISOString()
@@ -14875,6 +14898,75 @@ function netNotifyPlayerJoinedLobby(guestName, peerId){
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
+    }).catch(()=>{});
+  }catch(e){}
+}
+function netNotifySlotTaken(name, slot, peerId){
+  try{
+    if(!isOrganicPlay()) return;
+    if(!NET_TELEMETRY_CONFIG || !NET_TELEMETRY_CONFIG.enabled || !NET_TELEMETRY_CONFIG.alertsWebhookUrl) return;
+    if(typeof NET === "undefined" || !NET || !NET.isHost) return;
+    const code = (NET.room || "").toUpperCase();
+    let pid = '', sess = '';
+    try{ if(NET.peerPid) pid = NET.peerPid.get(peerId) || ''; }catch(e){}
+    try{ if(NET.peerSess) sess = NET.peerSess.get(peerId) || ''; }catch(e){}
+    fetch(NET_TELEMETRY_CONFIG.alertsWebhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: 'TAG Lobby Watchdog',
+        content: '`' + (pid || 'n/a') + ' | ' + (sess || 'n/a') + ' | SLOT ' + code + ' P' + (slot + 1) + '`',
+        avatar_url: 'https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/1f464.png',
+        embeds: [{
+          title: '✅ Player Took Slot P' + (slot + 1),
+          description: "**" + (name || "Player") + "** is now playing as **P" + (slot + 1) + "** in room **" + code + "**.",
+          color: 0x22c55e,
+          fields: [
+            { name: 'Room Code', value: '`' + code + '`', inline: true },
+            { name: 'Player', value: '**' + (name || 'Player') + '**', inline: true },
+            { name: 'Slot', value: 'P' + (slot + 1), inline: true },
+            { name: '🆔 Guest ID', value: '`' + (pid || 'n/a') + '`', inline: true },
+            { name: '🔗 Guest Session', value: '`' + (sess || 'n/a') + '`', inline: true }
+          ],
+          footer: { text: 'TAG Lobby Watchdog (Silent Alert)' },
+          timestamp: new Date().toISOString()
+        }]
+      })
+    }).catch(()=>{});
+  }catch(e){}
+}
+function netNotifyPlayerLeftLobby(name, slot, peerId, wasPlayer){
+  try{
+    if(!isOrganicPlay()) return;
+    if(!NET_TELEMETRY_CONFIG || !NET_TELEMETRY_CONFIG.enabled || !NET_TELEMETRY_CONFIG.alertsWebhookUrl) return;
+    if(typeof NET === "undefined" || !NET || !NET.isHost) return;
+    const code = (NET.room || "").toUpperCase();
+    if(!code) return;
+    let pid = '', sess = '';
+    try{ if(NET.peerPid) pid = NET.peerPid.get(peerId) || ''; }catch(e){}
+    try{ if(NET.peerSess) sess = NET.peerSess.get(peerId) || ''; }catch(e){}
+    fetch(NET_TELEMETRY_CONFIG.alertsWebhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: 'TAG Lobby Watchdog',
+        content: '`' + (pid || 'n/a') + ' | ' + (sess || 'n/a') + ' | LEFT ' + code + (wasPlayer ? (' P' + (slot + 1)) : ' (spectator)') + '`',
+        avatar_url: 'https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/1f6aa.png',
+        embeds: [{
+          title: wasPlayer ? ('🚪 Player Left (was P' + (slot + 1) + ')') : '🚪 Spectator Left',
+          description: "**" + (name || "Player") + "** left room **" + code + "**.",
+          color: 0x64748b,
+          fields: [
+            { name: 'Room Code', value: '`' + code + '`', inline: true },
+            { name: 'Player', value: '**' + (name || 'Player') + '**', inline: true },
+            { name: 'Was', value: wasPlayer ? ('Playing P' + (slot + 1)) : 'Spectating', inline: true },
+            { name: '🆔 Guest ID', value: '`' + (pid || 'n/a') + '`', inline: true },
+            { name: '🔗 Guest Session', value: '`' + (sess || 'n/a') + '`', inline: true }
+          ],
+          footer: { text: 'TAG Lobby Watchdog (Silent Alert)' },
+          timestamp: new Date().toISOString()
+        }]
+      })
     }).catch(()=>{});
   }catch(e){}
 }
@@ -14903,9 +14995,13 @@ function telemetryTrackGameLaunch(){
     const roomQ = (qp.get('room') || qp.get('roomId') || '').toUpperCase();
     const isCg = !!(typeof location !== 'undefined' && location.host && location.host.includes('crazygames'));
     const source = isCg ? 'CrazyGames Portal' : (document.referrer ? document.referrer.slice(0, 50) : 'Direct URL');
+    let playerId = '', sessShort = '';
+    try{ playerId = getOrCreatePlayerId(); }catch(e){}
+    try{ sessShort = (typeof SESSION_METRICS !== 'undefined' && SESSION_METRICS.sessionId) ? SESSION_METRICS.sessionId : ''; }catch(e){}
 
     const payload = {
       username: 'TAG Analytics • Launches',
+      content: '`' + (playerId || 'n/a') + ' | ' + (sessShort || 'n/a') + ' | ' + (isMobile ? 'MOBILE' : 'DESKTOP') + ' | ' + source + ' | room ' + (roomQ || '-') + '`',
       avatar_url: 'https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/1f680.png',
       embeds: [{
         title: '🚀 Game Launched',
@@ -14917,7 +15013,9 @@ function telemetryTrackGameLaunch(){
           { name: 'Resolution', value: scrStr, inline: true },
           { name: 'Timezone / Region', value: '📍 ' + tz, inline: true },
           { name: 'Launch Source', value: source, inline: true },
-          { name: 'Joined via Code', value: roomQ ? ('`' + roomQ + '`') : 'No (Menu Boot)', inline: true }
+          { name: 'Joined via Code', value: roomQ ? ('`' + roomQ + '`') : 'No (Menu Boot)', inline: true },
+          { name: 'Player ID', value: '`' + (playerId || 'n/a') + '`', inline: true },
+          { name: 'Session', value: '`' + (sessShort || 'n/a') + '`', inline: true }
         ],
         footer: { text: 'TAG Analytics Engine' },
         timestamp: new Date().toISOString()
@@ -15005,7 +15103,7 @@ function telemetryTrackMatchEnded(reason = 'completed'){
     } catch(e){}
     if(!myName || myName === "Host") myName = "Guest";
 
-    if(typeof NET !== "undefined" && NET && (!NET.slotsName[0] || NET.slotsName[0] === "Host")){
+    if(typeof NET !== "undefined" && NET && (!NET.slotsName[0] || NET.slotsName[0] === "Host") && (!NET.isHost || NET.mySlot === 0)){
       NET.slotsName[0] = myName;
     }
 
@@ -15140,6 +15238,11 @@ function telemetryTrackMatchEnded(reason = 'completed'){
       ? ('⚡ ' + SESSION_METRICS.avgFps + ' FPS (Smooth)')
       : ('⚠️ ' + SESSION_METRICS.avgFps + ' FPS (Low FPS)');
 
+    let sessIdStr = '', playerIdStr = '', devShort = '';
+    try{ sessIdStr = (typeof SESSION_METRICS !== 'undefined' && SESSION_METRICS.sessionId) ? SESSION_METRICS.sessionId : ''; }catch(e){}
+    try{ playerIdStr = getOrCreatePlayerId(); }catch(e){}
+    try{ devShort = (typeof isTouch !== 'undefined' && isTouch) ? 'MOBILE' : 'DESKTOP'; }catch(e){ devShort = ''; }
+
     const matchHistoryStr = 'Match #' + SESSION_METRICS.matchesStarted + ((typeof CAREER !== 'undefined' && CAREER && CAREER.xp) ? (' • ⭐ Level ' + getCareerLevel(CAREER.xp)) : ' (New Player)');
 
     const descStr = isRageQuit
@@ -15150,6 +15253,7 @@ function telemetryTrackMatchEnded(reason = 'completed'){
 
     const payload = {
       username: 'TAG Analytics • Sessions',
+      content: '`' + (playerIdStr || 'n/a') + ' | ' + (sessIdStr || 'n/a') + ' | ' + devShort + ' | ' + mode + ' Map' + (settings.map + 1) + ' | ' + durationStr + ' | ' + (isRageQuit ? 'RAGEQUIT' : (isEarlyQuit ? 'QUIT' : 'COMPLETED')) + '`',
       avatar_url: isRageQuit ? 'https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/1f4a2.png' : (isEarlyQuit ? 'https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/1f6aa.png' : 'https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/1f3c6.png'),
       embeds: [{
         title: titleStr,
@@ -15164,7 +15268,9 @@ function telemetryTrackMatchEnded(reason = 'completed'){
           { name: '⚡ Performance', value: fpsRating, inline: true },
           { name: '🌟 Player Journey', value: matchHistoryStr, inline: true },
           { name: '🌐 Latency', value: pingSummary, inline: true },
-          { name: '👥 Players in Match', value: rosterStr }
+          { name: '👥 Players in Match', value: rosterStr },
+          { name: '🆔 Player ID', value: '`' + (playerIdStr || 'n/a') + '`', inline: true },
+          { name: '🔗 Session', value: '`' + (sessIdStr || 'n/a') + '`', inline: true }
         ],
         footer: { text: isRageQuit ? 'TAG Analytics • Rage Quit Alert' : (isEarlyQuit ? 'TAG Analytics • Early Exit' : 'TAG Analytics Engine') },
         timestamp: new Date().toISOString()
@@ -15332,6 +15438,16 @@ function netGetMyProfile(){
   }
   return { name: cleanText(stored).slice(0, 16), avatar: '' };
 }
+function getOrCreatePlayerId(){
+  try{
+    let pid = localStorage.getItem('tag_player_id_v1') || '';
+    if(!pid){
+      pid = 'pid_' + Math.random().toString(36).slice(2, 10);
+      try{ localStorage.setItem('tag_player_id_v1', pid); }catch(e){}
+    }
+    return pid;
+  }catch(e){ return ''; }
+}
 
 /* === INSTITUTIONAL FIREWALL TRAVERSAL: TURNS & STATIC RELAY CONFIG === */
 const TURN_STATIC_FALLBACK = [
@@ -15390,8 +15506,21 @@ function netRelayBase(){
 function netEnterRelay(reason){
   if(RELAY.mode === 'relay') return;
   RELAY.mode = 'relay';
-  try{ netToast('Strict network detected — relay mode (' + reason + ')'); }catch(e){}
-  try{ if(typeof VOICE !== 'undefined'){ VOICE.enabled = false; try{ voiceStopLocal(); }catch(e){} } }catch(e){}
+  try{ console.warn('[NET] relay mode (' + reason + ')'); }catch(e){}
+  try{
+    if(typeof VOICE !== 'undefined'){
+      try{
+        if(VOICE.enabled && VOICE.localStream){ try{ NET._voiceDisabledByRelay = true; }catch(e){} }
+      }catch(e){}
+      VOICE.enabled = false;
+      try{ if(typeof voiceStopLocal === 'function') voiceStopLocal(); }catch(e){}
+      try{
+        if(VOICE.localStream){
+          for(const tr of VOICE.localStream.getAudioTracks()){ try{ tr.enabled = false; }catch(e){} }
+        }
+      }catch(e){}
+    }
+  }catch(e){}
   const base = netRelayBase();
   const openWs = () => {
     try{
@@ -15426,7 +15555,21 @@ function netEnterRelay(reason){
   };
   openWs();
 }
-
+function netRestoreVoiceAfterRelay(){
+  try{
+    if(typeof VOICE === 'undefined') return;
+    if(!NET._voiceDisabledByRelay) return;
+    if(!VOICE.localStream) { try{ NET._voiceDisabledByRelay = false; }catch(e){} return; }
+    VOICE.enabled = true;
+    try{
+      const wantMute = !!(VOICE.muted || VOICE._proxMuted);
+      for(const tr of VOICE.localStream.getAudioTracks()){ try{ tr.enabled = !wantMute; }catch(e){} }
+    }catch(e){}
+    try{ NET._voiceDisabledByRelay = false; }catch(e){}
+    try{ console.warn('[NET] voice restored after relay'); }catch(e){}
+    try{ if(typeof voiceSyncAllPeers === 'function') voiceSyncAllPeers(); }catch(e){}
+  }catch(e){}
+}
 function netEnterPolling(){
   if(RELAY.pollTimer || RELAY.mode !== 'relay' || typeof NET === 'undefined' || !NET || NET.role === null) return;
   const base = (typeof netDirBase === 'function' ? netDirBase() : 'https://tag-netplay-server.onrender.com');
@@ -16379,7 +16522,7 @@ function inputForNet(p,dt){
 }
 inputFor = inputForNet;
 
-/* Host peer-id helpers: host ids are 'tag-<room>-host-<RAND4>'; guests resolve the full id */
+/* Host peer-id helpers: host ids are deterministic 'tag-<room>-host'; guests resolve via directory (netFetchHostPeerId) or hint; legacy ?h= suffix ignored */
 function netMakeSuffix(n){
   const a = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
   let s = '';
@@ -16498,6 +16641,7 @@ async function netConnectPeer(room, isHost, forceFallback = false){
     RELAY.mode = 'p2p';
     RELAY.room = cleanRoom;
     RELAY.pid = id;
+    try{ if(typeof netRestoreVoiceAfterRelay === 'function') netRestoreVoiceAfterRelay(); }catch(e){}
     try{ netProbeRelayCapable(); }catch(e){} // warm relay-support cache for the 3.5s watchdog
     try{ NET._helloSent = false; }catch(e){}
     if(RELAY.ws){ try{ RELAY.ws.close(); }catch(e){} RELAY.ws = null; }
@@ -16551,10 +16695,10 @@ async function netConnectPeer(room, isHost, forceFallback = false){
   let fallbackTimer = null;
   try{ NET._onCloud = !usingCustom; }catch(e){}
   if(usingCustom){
-    fallbackTimer = setTimeout(() => {
+      fallbackTimer = setTimeout(() => {
       if(!NET.peer || !NET.myId){
         console.warn('Custom server connection timed out, falling back to public PeerJS cloud.');
-        netToast('Custom server unreachable. Falling back to Cloud…');
+        try{ console.warn('[NET] cloud fallback'); }catch(e){}
         netConnectPeer(room, isHost, true);
       }
     }, 5500);
@@ -16586,6 +16730,7 @@ async function netConnectPeer(room, isHost, forceFallback = false){
       console.log('[NET] Connected to dedicated signaling server:', customHost);
     }
     if(isHost){
+      try{ NET._hostReconn = 0; NET._idRetry = 0; }catch(e){}
       NET.peerSlots.set(id2, 0);
       NET.peer.on('connection', c => netWireConn(c, true));
       netToast('Hosting room ' + room.toUpperCase() + '! Link copied.');
@@ -16648,8 +16793,7 @@ async function netConnectPeer(room, isHost, forceFallback = false){
             if(NET._relayOk === true){
               console.warn('[NET] P2P channel not open after 3.5s, switching to relay mode.');
               netEnterRelay('no-p2p-3.5s');
-              const myProfile = netGetMyProfile();
-              netRelaySend(hostId, { t: 'hello', ctrl: NET.myCtrl || 'WASD', name: myProfile.name, avatar: myProfile.avatar });
+              netRelaySend(hostId, netHelloPayload());
             } else {
               console.warn('[NET] P2P slow after 3.5s, no relay on this server — holding P2P window.');
             }
@@ -16682,16 +16826,16 @@ async function netConnectPeer(room, isHost, forceFallback = false){
                 netLeaveRoom('Host not responding');
                 return;
               }
-              netToast('Syncing with host…');
+              netToast('Syncing…');
               armGuestWatchdog(7000);
               return;
             }
-            if(netGuestTryOtherServer(NET.room)){ netToast('Host not on this server. Retrying…'); return; }
+            if(netGuestTryOtherServer(NET.room)){ try{ console.warn('[NET] retrying other server'); }catch(e){} return; }
             if(!(NET._p2pRetry || 0)){
               // Same-server re-gather: first attempt often stalls on slow ICE,
               // a fresh Peer almost always connects. Final failure lands below.
               NET._p2pRetry = 1;
-              netToast('Connection slow. Retrying…');
+              try{ console.warn('[NET] slow join, re-gathering ICE'); }catch(e){}
               try{ netConnectPeer(NET.room, false, !!NET._onCloud); }catch(e){}
               return;
             }
@@ -16714,7 +16858,7 @@ async function netConnectPeer(room, isHost, forceFallback = false){
     const t = String(e.type || e.message || 'error').toLowerCase();
     if(usingCustom && (t.includes('server-error') || t.includes('socket-error') || t.includes('network') || t.includes('could not connect'))){
       if(fallbackTimer){ clearTimeout(fallbackTimer); fallbackTimer = null; }
-      netToast('Custom server error. Switching to public cloud…');
+      try{ console.warn('[NET] custom server error, cloud fallback'); }catch(e){}
       netConnectPeer(room, isHost, true);
       return;
     }
@@ -16723,13 +16867,30 @@ async function netConnectPeer(room, isHost, forceFallback = false){
       return;
     }
     if(t.includes('peer-unavailable')){
-      if(!isHost && netGuestTryOtherServer(room)){ netToast('Host not on this server. Retrying…'); return; }
+      try{
+        if(!isHost && NET._dirHostId && NET._dirHostId !== (NET._joinHostId || '')){
+          NET._joinHostId = NET._dirHostId;
+          try{ NET._dirHostId = ''; }catch(e){}
+          try{ console.warn('[NET] retrying with directory host id'); }catch(e){}
+          try{ netConnectPeer(room, false, !!NET._onCloud); }catch(e){}
+          return;
+        }
+      }catch(e){}
+      if(!isHost && netGuestTryOtherServer(room)){ try{ console.warn('[NET] host not on this server, retrying other'); }catch(e){} return; }
       if((NET._srvRetry || 0) > 0) return; // retry in flight: watchdog is the final arbiter
       netToast('Host not found. Room may be closed.');
     } else if(t.includes('unavailable-id')){
       // Stale self-registration (re-host same code within server expiry).
-      // Never strand: back to menu with a clear message instead of a dead spinner.
-      if(isHost){ try{ netLeaveRoom('Room code taken, try again'); }catch(e){} return; }
+      // Retry with backoff first: the stale entry usually expires in seconds.
+      if(isHost){
+        NET._idRetry = (NET._idRetry || 0) + 1;
+        if(NET._idRetry <= 3){
+          try{ console.warn('[NET] id taken, retry ' + NET._idRetry + '/3 in ' + (2000 * NET._idRetry) + 'ms'); }catch(e){}
+          setTimeout(()=>{ try{ if(NET && NET.role === 'host' && NET.room) netConnectPeer(NET.room, true); }catch(e){} }, 2000 * NET._idRetry);
+          return;
+        }
+        try{ netLeaveRoom('Room code taken, try again'); }catch(e){} return;
+      }
       netToast('Room code already in use. Please try again.');
     } else {
       netToast('Network: ' + t.slice(0, 50));
@@ -16745,7 +16906,7 @@ async function netConnectPeer(room, isHost, forceFallback = false){
     // Hosting is sticky: an empty lobby that loses signaling reconnects in
     // place — never dump the host to the public directory.
     try{
-      if(NET.isHost && NET.room && NET.hostInputs.size === 0 && (!NET.spectators || NET.spectators.length === 0)){
+      if(NET.isHost && NET.room){
         NET._hostReconn = (NET._hostReconn || 0) + 1;
         if(NET._hostReconn <= 3){
           netToast('Connection lost. Reconnecting…');
@@ -16759,6 +16920,41 @@ async function netConnectPeer(room, isHost, forceFallback = false){
   });
 }
 
+function netHelloPayload(extra){
+  let base = { t: 'hello', ctrl: 'WASD', name: 'Player', avatar: '' };
+  try{
+    const prof = netGetMyProfile();
+    base.ctrl = NET.myCtrl || 'WASD';
+    base.name = prof.name;
+    base.avatar = prof.avatar || '';
+  }catch(e){}
+  try{ base.pid = getOrCreatePlayerId() || ''; }catch(e){ base.pid = ''; }
+  try{ base.sess = (typeof SESSION_METRICS !== 'undefined' && SESSION_METRICS.sessionId) ? SESSION_METRICS.sessionId : ''; }catch(e){ base.sess = ''; }
+  if(extra && typeof extra === 'object'){ try{ for(const k of Object.keys(extra)){ base[k] = extra[k]; } }catch(e){} }
+  return base;
+}
+function netRememberPeerIds(peerId, m){
+  try{
+    if(!NET) return;
+    if(!NET.peerPid){ NET.peerPid = new Map(); }
+    if(!NET.peerSess){ NET.peerSess = new Map(); }
+    if(m && m.pid) NET.peerPid.set(peerId, String(m.pid).slice(0, 24));
+    if(m && m.sess) NET.peerSess.set(peerId, String(m.sess).slice(0, 24));
+  }catch(e){}
+}
+function netForgetPeer(peerId){
+  try{ if(NET.peerPid) NET.peerPid.delete(peerId); }catch(e){}
+  try{ if(NET.peerSess) NET.peerSess.delete(peerId); }catch(e){}
+}
+function netLobbyDup(key, ms){
+  try{
+    const now = Date.now();
+    if(!NET._lobbyDup) NET._lobbyDup = {};
+    if(NET._lobbyDup[key] && (now - NET._lobbyDup[key]) < (ms || 30000)) return true;
+    NET._lobbyDup[key] = now;
+    return false;
+  }catch(e){ return false; }
+}
 function netWireConn(conn, isHostSide){
   const peerId = conn.peer;
   const pair = getOrCreateConnPair(peerId);
@@ -16772,7 +16968,7 @@ function netWireConn(conn, isHostSide){
     if(!isHostSide && !NET._helloSent){
       NET._helloSent = true; // first open wire wins (rel OR fast)
       const myProfile = netGetMyProfile();
-      conn.send({ t: 'hello', ctrl: NET.myCtrl || 'WASD', name: myProfile.name, avatar: myProfile.avatar });
+      conn.send(netHelloPayload());
       netToast('Connected to host! Syncing menu…');
       if(VOICE.enabled && VOICE.localStream){
         conn.send({ t: 'voice_req', peerId: NET.myId, hasStream: true });
@@ -16797,6 +16993,10 @@ function netWireConn(conn, isHostSide){
     if(isFast) pair.fast = null;
     else pair.rel = null;
     if(!pair.rel && !pair.fast){
+      let _leftName = '', _leftPid = '', _leftSess = '';
+      try{ _leftName = NET.peerNames.get(peerId) || ''; }catch(e){}
+      try{ if(NET.peerPid) _leftPid = NET.peerPid.get(peerId) || ''; }catch(e){}
+      try{ if(NET.peerSess) _leftSess = NET.peerSess.get(peerId) || ''; }catch(e){}
       NET.conns.delete(peerId);
       NET.pings.delete(peerId);
       NET.peerNames.delete(peerId);
@@ -16859,6 +17059,10 @@ function netWireConn(conn, isHostSide){
         netBroadcastRoster();
         netUpdateHostDirectory();
         netToast(removedSlot !== -1 ? ('P' + (removedSlot + 1) + ' disconnected') : 'A spectator left');
+        try{
+          const _ln = _leftName || (removedSlot !== -1 ? ('P' + (removedSlot + 1)) : 'Spectator');
+          if(typeof netNotifyPlayerLeftLobby === 'function') netNotifyPlayerLeftLobby(_ln, removedSlot, peerId, removedSlot !== -1);
+        }catch(e){}
         // Host left alone mid-match (and host has no pause menu online):
         // back to lobby with the room still open instead of running solo forever.
         if(match && (match.state === 'playing' || match.state === 'countdown') && match.players && match.players.length < 2){
@@ -16866,17 +17070,55 @@ function netWireConn(conn, isHostSide){
           quitToMenu();
         }
       } else {
-        netToast('Host disconnected. Returning to menu.');
-        netLeaveRoom();
+        try{
+          if(NET.role === 'guest' && !NET.isHost && typeof netRetrySameHost === 'function' && netRetrySameHost(peerId)) return;
+          if(typeof netStartMigration === 'function' && NET.role === 'guest' && !NET.isHost){
+            netToast('Host disconnected. Migrating…');
+            if(!netStartMigration('host-close')) netLeaveRoom('Host disconnected');
+          } else {
+            netToast('Host disconnected. Returning to menu.');
+            netLeaveRoom();
+          }
+        }catch(e){ try{ netLeaveRoom(); }catch(e2){} }
       }
+      try{ netForgetPeer(peerId); }catch(e){}
     }
   });
 
-  conn.on('error', () => {});
+  conn.on('error', (e) => {
+    try{
+      let em = '';
+      try{ em = String((e && (e.type || e.message)) || 'conn-error').slice(0, 80); }catch(ee){ em = 'conn-error'; }
+      try{ console.warn('[NET] conn error', peerId, em); }catch(ee){}
+      try{
+        const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+        if(!NET._lastConnErrToast || (now - NET._lastConnErrToast) > 8000){
+          NET._lastConnErrToast = now;
+          try{ console.warn('[NET] connection hiccup'); }catch(ee){}
+        }
+      }catch(ee){}
+      try{
+        if(!NET.isHost && NET.role === 'guest' && (NET.mySlot >= 0 || NET.isSpectator)){
+          let hostOpen = false;
+          try{
+            const hid2 = NET._hostId || peerId;
+            const hp = NET.conns.get(hid2);
+            if(hp && ((hp.rel && hp.rel.open) || (hp.fast && hp.fast.open))) hostOpen = true;
+          }catch(ee){}
+          if(!hostOpen && NET._relayOk === true && typeof RELAY !== 'undefined' && RELAY.mode !== 'relay'){ try{ netEnterRelay('conn-error'); }catch(ee){} }
+        }
+      }catch(ee){}
+    }catch(ee){}
+  });
 }
 
 function netOnData(m, c){
   if(!m || !m.t) return;
+  try{
+    if(NET && NET.role === 'guest' && !NET.isHost){
+      if(m.t === 'ping' || m.t === 'pong' || m.t === 'state' || m.t === 'roster_sync' || m.t === 'assign' || m.t === 'spectator_init' || m.t === 'midgame_start'){ NET._hostRetry = 0; }
+    }
+  }catch(e){}
 
   // 1. Live Ping / Pong exchange
   if(m.t === 'ping'){
@@ -16914,10 +17156,95 @@ function netOnData(m, c){
 
   // 3. Hello & join / spectator logic
   if(m.t === 'hello' && NET.isHost){
+    try{
+      if(m.migrated && m.oldSlot >= 1 && m.oldSlot < 8 && (NET._migratedHost || (NET._migrationPeers && NET._migrationPeers[c.peer] === (m.oldSlot | 0)))){
+        const wantSlot = m.oldSlot | 0;
+        const guestNameM = cleanText(m.name || 'Player').slice(0, 16);
+        NET.peerNames.set(c.peer, guestNameM);
+        try{ netRememberPeerIds(c.peer, m); }catch(e){}
+        var _wantEnt = null;
+        try{ _wantEnt = NET.hostInputs.get(wantSlot); }catch(e){}
+        if((!NET.hostInputs.has(wantSlot) || (_wantEnt && _wantEnt.owner === c.peer)) && menu.slotColor[wantSlot] >= 0){
+          NET.hostInputs.set(wantSlot, { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false, consumeEdge: false, owner: c.peer, seq: 0 });
+          NET.peerSlots.set(c.peer, wantSlot);
+          if(NET.spectators) NET.spectators = NET.spectators.filter(sp => sp.peerId !== c.peer);
+          const slotsPeerM = [NET.myId || '', '', '', '', '', '', '', ''];
+          for(let i = 1; i < 8; i++){ const ent = NET.hostInputs.get(i); if(ent && ent.owner) slotsPeerM[i] = ent.owner; }
+          try{ slotsPeerM[NET.mySlot] = ''; }catch(e){}
+          c.send({ t: 'assign', slot: wantSlot, settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, gameMode: settings.gameMode, hunterRed: settings.hunterRed, hunterBlue: settings.hunterBlue, hunterRotate: settings.hunterRotate, slotColor: menu.slotColor.slice(), slotTeam: menu.slotTeam.slice() }, mapData: MAPS[settings.map % MAPS.length], slotsCtrl: NET.slotsCtrl.slice(), slotsReady: NET.slotsReady.slice(), slotsName: NET.slotsName.slice(), botSlots: NET.botSlots ? NET.botSlots.slice() : [], slotsPeer: slotsPeerM });
+          netBroadcastRoster();
+          netUpdateHostDirectory();
+          netToast(guestNameM + ' rejoined as P' + (wantSlot + 1));
+          try{ NET._migrating = false; }catch(e){}
+          if(match && screen === 'game' && match.state && (match.state === 'playing' || match.state === 'countdown' || match.state === 'paused')){
+            try{
+              const payload = { it: match.it, cooldownN: match.cooldown, matchIndex: matchIndex, currentThemeIdx: currentThemeIdx, lastStartIT: lastStartIT, timer: match.timer, state: match.state, cd: match.cd, cdT: match.cdT, tags: (match.tags ? match.tags.slice() : []), hunterMode: !!match.hunterMode, hunterRed: settings.hunterRed, hunterBlue: settings.hunterBlue, hunterScores: match.hunterScores, hunterRound: match.hunterRound, cageT: match.cageT, players: match.players.map(p => packPlayer(p)), modeEnv: (typeof packModeState === 'function' ? packModeState() : null) };
+              netSendRel(c, { t: 'midgame_start', settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, gameMode: settings.gameMode, hunterRed: settings.hunterRed, hunterBlue: settings.hunterBlue, slotColor: menu.slotColor.slice(0, 8), slotTeam: (menu.slotTeam ? menu.slotTeam.slice(0, 8) : []) }, mapData: MAPS[settings.map % MAPS.length], payload: payload, isSpectator: false });
+            }catch(e){}
+          }
+          return;
+        }
+      }
+    }catch(e){}
+    try{
+      const _rePid = (m && m.pid) ? String(m.pid) : '';
+      if(_rePid && !m.migrated){
+        let _oldPeer = null;
+        try{
+          if(NET.peerPid){
+            for(const _e of NET.peerPid.entries()){ if(_e[1] === _rePid && _e[0] !== c.peer){ _oldPeer = _e[0]; break; } }
+          }
+        }catch(e){}
+        if(_oldPeer){
+          let _stillOpen = false;
+          try{ const _op = NET.conns.get(_oldPeer); if(_op && ((_op.rel && _op.rel.open) || (_op.fast && _op.fast.open))) _stillOpen = true; }catch(e){}
+          if(!_stillOpen){
+            try{ netRememberPeerIds(c.peer, m); }catch(e){}
+            const _reName = cleanText(m.name || 'Player').slice(0, 16);
+            NET.peerNames.set(c.peer, _reName);
+            let _oldSlot = -1;
+            try{ for(const _se of NET.hostInputs.entries()){ if(_se[1].owner === _oldPeer){ _oldSlot = _se[0]; break; } } }catch(e){}
+            try{
+              const _oo = NET.conns.get(_oldPeer);
+              if(_oo){ try{ _oo.rel && _oo.rel.close(); }catch(e){} try{ _oo.fast && _oo.fast.close(); }catch(e){} }
+              NET.conns.delete(_oldPeer);
+            }catch(e){}
+            try{ NET.peerSlots.delete(_oldPeer); }catch(e){}
+            try{ NET.peerNames.delete(_oldPeer); }catch(e){}
+            try{ NET.pings.delete(_oldPeer); }catch(e){}
+            try{ netForgetPeer(_oldPeer); }catch(e){}
+            try{ if(NET.spectators) NET.spectators = NET.spectators.filter(sp => sp.peerId !== _oldPeer); }catch(e){}
+            try{ if(typeof _remoteTargets !== 'undefined') _remoteTargets.delete(_oldSlot); }catch(e){}
+            if(_oldSlot >= 1){
+              try{ NET.hostInputs.delete(_oldSlot); }catch(e){}
+              NET.hostInputs.set(_oldSlot, { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false, consumeEdge: false, owner: c.peer, seq: 0 });
+              NET.peerSlots.set(c.peer, _oldSlot);
+              if(NET.spectators) NET.spectators = NET.spectators.filter(sp => sp.peerId !== c.peer);
+              const slotsPeerR = [NET.myId || '', '', '', '', '', '', '', ''];
+              for(let i = 1; i < 8; i++){ const ent = NET.hostInputs.get(i); if(ent && ent.owner) slotsPeerR[i] = ent.owner; }
+              c.send({ t: 'assign', slot: _oldSlot, settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, gameMode: settings.gameMode, hunterRed: settings.hunterRed, hunterBlue: settings.hunterBlue, hunterRotate: settings.hunterRotate, slotColor: menu.slotColor.slice(), slotTeam: menu.slotTeam.slice() }, mapData: MAPS[settings.map % MAPS.length], slotsCtrl: NET.slotsCtrl.slice(), slotsReady: NET.slotsReady.slice(), slotsName: NET.slotsName.slice(), botSlots: NET.botSlots ? NET.botSlots.slice() : [], slotsPeer: slotsPeerR });
+              netBroadcastSettings();
+              netBroadcastRoster();
+              netUpdateHostDirectory();
+              netToast(_reName + ' rejoined as P' + (_oldSlot + 1));
+              try{ NET._migrating = false; }catch(e){}
+              if(match && screen === 'game' && match.state && (match.state === 'playing' || match.state === 'countdown' || match.state === 'paused')){
+                try{
+                  const payload = { it: match.it, cooldownN: match.cooldown, matchIndex: matchIndex, currentThemeIdx: currentThemeIdx, lastStartIT: lastStartIT, timer: match.timer, state: match.state, cd: match.cd, cdT: match.cdT, tags: (match.tags ? match.tags.slice() : []), hunterMode: !!match.hunterMode, hunterRed: settings.hunterRed, hunterBlue: settings.hunterBlue, hunterScores: match.hunterScores, hunterRound: match.hunterRound, cageT: match.cageT, players: match.players.map(p => packPlayer(p)), modeEnv: (typeof packModeState === 'function' ? packModeState() : null) };
+                  netSendRel(c, { t: 'midgame_start', settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, gameMode: settings.gameMode, hunterRed: settings.hunterRed, hunterBlue: settings.hunterBlue, slotColor: menu.slotColor.slice(0, 8), slotTeam: (menu.slotTeam ? menu.slotTeam.slice(0, 8) : []) }, mapData: MAPS[settings.map % MAPS.length], payload: payload, isSpectator: false });
+                }catch(e){}
+              }
+              return;
+            }
+          }
+        }
+      }
+    }catch(e){}
     const guestName = cleanText(m.name || 'Player').slice(0, 16);
     const guestAvatar = m.avatar || '';
     NET.peerNames.set(c.peer, guestName);
-    try{ setTimeout(() => netNotifyPlayerJoinedLobby(guestName, c.peer), 350); }catch(e){}
+    try{ netRememberPeerIds(c.peer, m); }catch(e){}
+    try{ setTimeout(() => { try{ if(netLobbyDup('join:' + c.peer)) return; netNotifyPlayerJoinedLobby(guestName, c.peer); }catch(e){} }, 350); }catch(e){}
 
     // All new joiners start in the Waiting List / Spectator queue
     if(!NET.spectators) NET.spectators = [];
@@ -17080,6 +17407,7 @@ function netOnData(m, c){
       netBroadcastRoster();
       netUpdateHostDirectory();
       netToast(guestName + ' joined as P' + (reqSlot + 1));
+      try{ if(typeof netNotifySlotTaken === 'function' && !netLobbyDup('slot:' + c.peer + ':' + reqSlot)) netNotifySlotTaken(NET.slotsName[reqSlot] || guestName, reqSlot, c.peer); }catch(e){}
     }
     return;
   } else if(m.t === 'to_spectator' && NET.isHost){
@@ -17100,6 +17428,7 @@ function netOnData(m, c){
     // Host proof: we are talking to the host, so the join watchdog must die
     // here (open != joined was killing slow-but-working joins at 7s).
     try{ if(NET._guestTimeout){ clearTimeout(NET._guestTimeout); NET._guestTimeout = null; } }catch(e){}
+    try{ NET._lastHostMsgT = performance.now(); NET.lastRecvT = performance.now(); NET._migrating = false; }catch(e){}
     if(m.settings){
       settings.map = m.settings.map | 0;
       settings.doubleJump = !!m.settings.doubleJump;
@@ -17116,6 +17445,7 @@ function netOnData(m, c){
     netShow(false);
     netToast('Joined as Spectator 👁️');
   } else if(m.t === 'midgame_start' && !NET.isHost){
+    try{ NET._lastHostMsgT = performance.now(); NET.lastRecvT = performance.now(); NET._migrating = false; }catch(e){}
     if(m.isSpectator) NET.isSpectator = true;
     settings.map = m.settings.map | 0;
     settings.doubleJump = !!m.settings.doubleJump;
@@ -17169,6 +17499,7 @@ function netOnData(m, c){
     NET.isSpectator = false;
     NET.mySlot = m.slot;
     try{ if(NET._guestTimeout){ clearTimeout(NET._guestTimeout); NET._guestTimeout = null; } }catch(e){}
+    try{ NET._lastHostMsgT = performance.now(); NET.lastRecvT = performance.now(); NET._migrating = false; }catch(e){}
     if(m.settings){
       settings.map = m.settings.map | 0;
       settings.doubleJump = !!m.settings.doubleJump;
@@ -17199,6 +17530,8 @@ function netOnData(m, c){
       }
     }catch(e){}
   } else if(m.t === 'roster_sync'){
+    if(!NET.isHost && NET.role==='guest' && c && c.peer && NET._hostId && c.peer!==NET._hostId) return;
+    try{ if(!NET.isHost){ NET._lastHostMsgT = performance.now(); } }catch(e){}
     if(m.slotsCtrl) NET.slotsCtrl = m.slotsCtrl.slice();
     if(m.slotsReady) NET.slotsReady = m.slotsReady.slice();
     if(m.slotsName) NET.slotsName = m.slotsName.slice();
@@ -17502,11 +17835,13 @@ function netOnData(m, c){
       if(m.jumpEdge) ent.jumpQueue = Math.min(3, (ent.jumpQueue || 0) + 1);
     }
   } else if(m.t === 'state' && !NET.isHost){
+    if(!NET.isHost && NET.role==='guest' && c && c.peer && NET._hostId && c.peer!==NET._hostId) return;
     if(m.tick != null){
       if(m.tick <= NET.lastRecvTick) return;
       NET.lastRecvTick = m.tick;
     }
     NET.lastRecvT = performance.now();
+    try{ NET._lastHostMsgT = performance.now(); NET._migrating = false; }catch(e){}
     if(m.settings){
       settings.map = m.settings.map; settings.doubleJump = m.settings.doubleJump; settings.collision = m.settings.collision;
       if(m.settings.teams != null) settings.teams = !!m.settings.teams;
@@ -17827,6 +18162,8 @@ function netKickPlayer(slotOrPeer){
     if(pair) netSendRel(pair, { t: 'kicked' });
   }
   let wasBot = false;
+  let kickName = '';
+  try{ kickName = (targetSlot > 0 && NET.slotsName[targetSlot]) ? NET.slotsName[targetSlot] : (NET.peerNames.get(targetPeer) || 'Player'); }catch(e){}
   if(targetSlot > 0){
     NET.hostInputs.delete(targetSlot);
     menu.slotColor[targetSlot] = -1;
@@ -17851,6 +18188,7 @@ function netKickPlayer(slotOrPeer){
   if(targetPeer){
     NET.peerSlots.delete(targetPeer);
     NET.peerNames.delete(targetPeer);
+    try{ netForgetPeer(targetPeer); }catch(e){}
     NET.pings.delete(targetPeer);
     NET.spectators = NET.spectators.filter(s => s.peerId !== targetPeer);
   }
@@ -17858,6 +18196,7 @@ function netKickPlayer(slotOrPeer){
   netBroadcastRoster();
   netUpdateHostDirectory();
   netToast(wasBot ? '🤖 Bot removed' : 'Player removed');
+  try{ if(!wasBot && targetPeer && typeof netNotifyPlayerLeftLobby === 'function') netNotifyPlayerLeftLobby(kickName + ' (kicked)', targetSlot, targetPeer, targetSlot > 0); }catch(e){}
 }
 
 function netAdmitSpectator(peerId, targetSlot, teamIdx){
@@ -18215,6 +18554,7 @@ function netLockLobby(lock){
 
 /* 15-Second AFK Ready Countdown & Force Start */
 let _readyTimerInterval = null;
+let _botAutofillTimer = null;
 function netCheckReadyCountdown(){
   if(!NET.isHost || (match && screen === 'game')) return;
   const activeCount = menu.slotColor.filter(c => c >= 0).length;
@@ -18225,6 +18565,7 @@ function netCheckReadyCountdown(){
   // Check if at least 1 guest is ready
   let anyGuestReady = false;
   for(let i=1; i<8; i++){
+    if(NET.isHost && i === NET.mySlot) continue;
     if(menu.slotColor[i] >= 0 && NET.slotsReady[i]){
       anyGuestReady = true;
       break;
@@ -18254,6 +18595,7 @@ function netAutoDemoteAndStart(){
   if(!NET.isHost) return;
   // Demote unready guests to spectators
   for(let i=1; i<8; i++){
+    if(NET.isHost && i === NET.mySlot) continue;
     if(menu.slotColor[i] >= 0 && !NET.slotsReady[i]){
       const ent = NET.hostInputs.get(i);
       const peerId = ent ? ent.owner : null;
@@ -18422,6 +18764,8 @@ function netHostAction(isPublic = true){
   }catch(e){}
   try{ NET.conns.clear(); NET.hostInputs.clear(); }catch(e){}
   try{ if(NET.peerSlots) NET.peerSlots.clear(); if(NET.peerNames) NET.peerNames.clear(); if(NET.pings) NET.pings.clear(); }catch(e){}
+  try{ if(NET.peerPid) NET.peerPid.clear(); if(NET.peerSess) NET.peerSess.clear(); }catch(e){}
+  try{ NET._lobbyDup = {}; }catch(e){}
   try{ if(NET._fallbackTimer){ clearTimeout(NET._fallbackTimer); NET._fallbackTimer = null; } }catch(e){}
   try{ if(NET._guestTimeout){ clearTimeout(NET._guestTimeout); NET._guestTimeout = null; } }catch(e){}
   try{ NET._srvRetry = 0; NET._p2pRetry = 0; NET._syncExt = 0; NET._rebuilding = false; NET._helloSent = false; NET._hostReconn = 0; }catch(e){}
@@ -18447,7 +18791,18 @@ function netHostAction(isPublic = true){
   setMenuTab('online');
   menu.slotColor = [menu.slotColor[0] >= 0 ? menu.slotColor[0] : 0, -1, -1, -1, -1, -1, -1, -1];
   menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
-  history.replaceState(null, '', '?room=' + code);
+  try{
+    let keep = '';
+    try{
+      const qp0 = new URLSearchParams(location.search);
+      const ms = (qp0.get('server') || '').slice(0, 64);
+      if(ms && /^[A-Za-z0-9.\-:]+$/.test(ms.replace(/^https?:\/\//i, '').replace(/\/+$/, ''))) keep += '&server=' + encodeURIComponent(ms);
+      const sq = (qp0.get('srv') || '').slice(0, 64);
+      if(sq && /^[A-Za-z0-9.\-:]+$/.test(sq.replace(/^https?:\/\//i, '').replace(/\/+$/, ''))) keep += '&srv=' + encodeURIComponent(sq);
+      if(qp0.get('cloud') === '1') keep += '&cloud=1';
+    }catch(e){}
+    history.replaceState(null, '', '?room=' + code + keep);
+  }catch(e){ try{ history.replaceState(null, '', '?room=' + code); }catch(e2){} }
   
   netCopyLink();
   try{ netNotifyRoomCreated(code, myProfile.name, isPublic, (NET && NET.maxPlayers) || 8); }catch(e){}
@@ -18543,9 +18898,9 @@ function netJoinAction(codeParam, hostPeerIdParam){
   }
   try{
     if(hintHost) NET._joinHostId = hintHost;
-    else if(hHint) NET._joinHostId = 'tag-' + code.toLowerCase() + '-host-' + hHint;
     else NET._joinHostId = '';
     NET._hostId = '';
+    try{ NET._hHint = hHint || ''; }catch(e){}
   }catch(e){}
   NET.role = 'guest';
   NET.isHost = false;
@@ -18560,10 +18915,36 @@ function netJoinAction(codeParam, hostPeerIdParam){
   NET.midgameJoiner = false;
   menu.mode = 'rows';
   setMenuTab('online');
-  history.replaceState(null, '', '?room=' + code);
+  try{
+    let srvKeep = '';
+    try{
+      if(NET._srvHintHost) srvKeep = '&srv=' + encodeURIComponent(NET._srvHintHost);
+      else if(NET._srv && NET._srv.host) srvKeep = '&srv=' + encodeURIComponent(NET._srv.host);
+    }catch(e){}
+    let cloudKeep = '';
+    try{ if(NET._forceCloud) cloudKeep = '&cloud=1'; }catch(e){}
+    let serverKeep = '';
+    try{
+      const qpG = new URLSearchParams(location.search);
+      const svG = (qpG.get('server') || '').slice(0, 64);
+      if(svG && /^[A-Za-z0-9.\-:]+$/.test(svG.replace(/^https?:\/\//i, '').replace(/\/+$/, ''))) serverKeep = '&server=' + encodeURIComponent(svG);
+    }catch(e){}
+    history.replaceState(null, '', '?room=' + code + srvKeep + cloudKeep + serverKeep);
+  }catch(e){ try{ history.replaceState(null, '', '?room=' + code); }catch(e2){} }
   netShow(false);
   netToast('Joining room ' + code + '…');
-  netEnsureServer(()=>netConnectPeer(code, false)); // honor ?srv= hint or fresh pick before joining
+  netEnsureServer(()=>{
+    try{ netConnectPeer(code, false); }catch(e){}
+    try{
+      netFetchHostPeerId(code).then(hid=>{
+        try{
+          if(hid && NET.role === 'guest' && !NET.isHost && NET.mySlot < 0 && !NET.isSpectator){
+            if(hid !== NET._joinHostId) NET._dirHostId = hid;
+          }
+        }catch(e){}
+      }).catch(()=>{});
+    }catch(e){}
+  }); // fast connect first, directory lookup in background for retry
 
   if(NET.pingTimer) clearInterval(NET.pingTimer);
   NET.pingTimer = setInterval(() => {
@@ -18576,6 +18957,305 @@ function netJoinAction(codeParam, hostPeerIdParam){
   }, 2000);
 }
 
+/* Host migration: second-longest player (lowest active slot) becomes new host on silent/disconnect */
+function netElectMigrationHost(){
+  try{
+    const cands = [];
+    for(let s = 1; s < 8; s++){
+      try{
+        if(!(menu.slotColor && menu.slotColor[s] >= 0)) continue;
+        let pid = '';
+        try{
+          for(const [id, sl] of NET.peerSlots.entries()){ if(sl === s){ pid = id; break; } }
+          if(!pid && s === NET.mySlot && NET.myId) pid = NET.myId;
+        }catch(e){}
+        if(pid) cands.push({ slot: s, peerId: pid });
+      }catch(e){}
+    }
+    if(!cands.length && NET.mySlot >= 1 && NET.myId){
+      try{ if(menu.slotColor && menu.slotColor[NET.mySlot] >= 0) cands.push({ slot: NET.mySlot, peerId: NET.myId }); }catch(e){}
+    }
+    cands.sort((a, b) => a.slot - b.slot);
+    return cands.length ? cands[0] : null;
+  }catch(e){ return null; }
+}
+function netPromoteToHost(reason){
+  try{
+    if(NET.isHost) return;
+    const meSlot = NET.mySlot;
+    if(!(meSlot >= 1)) return;
+    try{ NET._migrating = true; }catch(e){}
+    const oldPeers = {};
+    try{
+      for(const [pid, sl] of NET.peerSlots.entries()){ oldPeers[pid] = sl; }
+      if(NET.myId) oldPeers[NET.myId] = meSlot;
+      NET._migrationPeers = oldPeers;
+    }catch(e){}
+    const oldHostPeer = NET._hostId || '';
+    try{
+      menu.slotColor[0] = -1; NET.slotsReady[0] = false; NET.slotsName[0] = '';
+      if(oldHostPeer){ try{ NET.peerSlots.delete(oldHostPeer); }catch(e){} try{ NET.peerNames.delete(oldHostPeer); }catch(e){} try{ netForgetPeer(oldHostPeer); }catch(e){} try{ NET.pings.delete(oldHostPeer); }catch(e){} try{ NET.conns.delete(oldHostPeer); }catch(e){} }
+    }catch(e){}
+    NET.isHost = true;
+    NET.role = 'host';
+    NET.isSpectator = false;
+    try{ NET._hostId = NET.myId; NET._joinHostId = ''; }catch(e){}
+    try{ NET.lobbyLocked = false; NET.teamsLocked = false; NET.readyCountdown = null; NET.midgameJoiner = false; }catch(e){}
+    try{ NET.slotsReady[meSlot] = true; }catch(e){}
+    try{ if(_readyTimerInterval){ clearInterval(_readyTimerInterval); _readyTimerInterval = null; } }catch(e){}
+    try{ if(NET._guestTimeout){ clearTimeout(NET._guestTimeout); NET._guestTimeout = null; } }catch(e){}
+    try{ NET._srvRetry = 0; NET._p2pRetry = 0; NET._syncExt = 0; NET._hostRetry = 0; NET._helloSent = false; NET._rebuilding = false; NET._dirHostId = ''; }catch(e){}
+    try{ if(!NET.spectators) NET.spectators = []; }catch(e){}
+    try{ if(NET.myId && NET.peerSlots && !NET.peerSlots.has(NET.myId)) NET.peerSlots.set(NET.myId, meSlot); }catch(e){}
+    try{
+      NET.hostInputs.clear();
+      for(let s = 1; s < 8; s++){
+        if(!(menu.slotColor && menu.slotColor[s] >= 0)) continue;
+        if(s === meSlot) continue;
+        let owner = null;
+        try{ for(const [pid, sl] of NET.peerSlots.entries()){ if(sl === s){ owner = pid; break; } } }catch(e){}
+        if(owner){ NET.hostInputs.set(s, { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false, consumeEdge: false, owner: owner, seq: 0 }); }
+        else if(NET.botSlots && NET.botSlots.includes(s)){ NET.hostInputs.set(s, { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false, consumeEdge: false, owner: 'bot', seq: 0 }); }
+      }
+    }catch(e){}
+    try{
+      if(match && match.players){
+        const oi = match.players.findIndex(p => p.slot === 0);
+        if(oi !== -1){
+          const wasIt = (match.it === oi);
+          const removedPlayer = match.players[oi];
+          match.players.splice(oi, 1);
+          if(match.tags) match.tags.splice(oi, 1);
+          if(match.players.length > 0){
+            if(wasIt){
+              let closestIdx = 0, closestDist = Infinity;
+              for(let pi = 0; pi < match.players.length; pi++){
+                const remP = match.players[pi];
+                const d2 = Math.hypot(remP.x - removedPlayer.x, remP.y - removedPlayer.y);
+                if(d2 < closestDist){ closestDist = d2; closestIdx = pi; }
+              }
+              match.it = closestIdx;
+              match.cooldown = 1.8;
+              match.freeze = 0.3;
+            } else if(match.it >= match.players.length){ match.it = 0; }
+          }
+        }
+        try{
+          if(match && match.players && match.players.length < 2 && (match.state === 'playing' || match.state === 'countdown')){
+            try{ netBroadcastReliable({ t: 'to_menu' }); }catch(e){}
+            try{ match = null; screen = 'menu'; }catch(e){}
+            try{ if(typeof menu !== 'undefined' && menu){ menu.tab = 'online'; menu.mode = 'rows'; } }catch(e){}
+          }
+        }catch(e){}
+      } else {
+        try{ if(typeof menu !== 'undefined' && menu && typeof screen !== 'undefined' && screen !== 'game'){ menu.mode = 'rows'; } }catch(e){}
+      }
+    }catch(e){}
+    try{
+      if(NET.peer && typeof NET.peer.on === 'function' && !NET.peer._netHostWired){ NET.peer.on('connection', function(c){ try{ netWireConn(c, true); }catch(e){} }); try{ NET.peer._netHostWired = true; }catch(e){} }
+      else if(NET.peer && NET.peer._netHostWired){ try{ console.warn('[NET] host listener already attached'); }catch(e){} }
+    }catch(e){}
+    try{ if(NET.heartbeatTimer){ clearInterval(NET.heartbeatTimer); NET.heartbeatTimer = null; } }catch(e){}
+    try{
+      NET.heartbeatTimer = setInterval(function(){ try{ if(NET.role === 'host' && NET.room && typeof netUpdateHostDirectory === 'function') netUpdateHostDirectory(); }catch(e){} }, 5000);
+    }catch(e){}
+    try{ if(NET.pingTimer){ clearInterval(NET.pingTimer); NET.pingTimer = null; } }catch(e){}
+    try{
+      NET.pingTimer = setInterval(function(){
+        try{
+          if(NET.role !== null){
+            var pingPayload = { t: 'ping', pingT: performance.now() };
+            for(const pair of NET.conns.values()){ try{ netSendFast(pair, pingPayload); }catch(e){} }
+          }
+        }catch(e){}
+      }, 2000);
+    }catch(e){}
+    try{ if(typeof _botAutofillTimer !== 'undefined' && _botAutofillTimer){ clearTimeout(_botAutofillTimer); _botAutofillTimer = null; } }catch(e){}
+    try{
+      var _promoteCode = NET.room;
+      _botAutofillTimer = setTimeout(function(){
+        try{
+          if(!NET.isHost || NET.role !== 'host' || NET.room !== _promoteCode || (match && screen === 'game')) return;
+          if(!NET.isPublic) return;
+          var act = activeSlots();
+          if(act.length <= 1 && NET.hostInputs.size === 0 && (!NET.botSlots || NET.botSlots.length === 0)){ try{ netAddBot(); }catch(e){} }
+        }catch(e){}
+      }, 5000);
+    }catch(e){}
+    try{
+      if(typeof WebSocket !== 'undefined' && typeof netRelayBase === 'function' && typeof netOnData === 'function'){
+        try{ if(typeof RELAY !== 'undefined' && RELAY.hostWs){ try{ RELAY.hostWs.close(); }catch(e){} try{ RELAY.hostWs = null; }catch(e){} } }catch(e){}
+        var _relayBase = netRelayBase();
+        var _relayRoom = (NET.room || '').toUpperCase();
+        var _relayPid = NET.myId || '';
+        if(_relayBase && _relayRoom && _relayPid){
+          var hostRelayWs2 = new WebSocket(_relayBase + '/tag-relay');
+          try{ RELAY.hostWs = hostRelayWs2; }catch(e){}
+          hostRelayWs2.onopen = function(){ try{ hostRelayWs2.send(JSON.stringify({ t: 'join', room: _relayRoom, peerId: _relayPid })); }catch(e){} };
+          hostRelayWs2.onmessage = function(ev){
+            try{
+              var m2 = JSON.parse(ev.data);
+              if(m2 && m2.from && m2.data){
+                var fakeConn2 = { peer: m2.from, open: true, send: function(d){ try{ if(hostRelayWs2.readyState === 1){ try{ hostRelayWs2.send(JSON.stringify({ to: m2.from, data: d })); return; }catch(e){} } try{ netRelaySend(m2.from, d); }catch(e){} }catch(e){} } };
+                try{ netOnData(m2.data, fakeConn2); }catch(e){}
+              }
+            }catch(e){}
+          };
+        }
+      }
+    }catch(e){}
+    try{ netBroadcastRoster(); }catch(e){}
+    try{ netBroadcastSettings(); }catch(e){}
+    try{ netUpdateHostDirectory(); }catch(e){}
+    try{ netCheckReadyCountdown(); }catch(e){}
+    try{ setTimeout(function(){ try{ if(NET.isHost && NET.room && typeof netUpdateHostDirectory === 'function') netUpdateHostDirectory(); }catch(e){} }, 1200); }catch(e){}
+    try{ setTimeout(function(){ try{ if(NET.isHost && NET.room && typeof netUpdateHostDirectory === 'function') netUpdateHostDirectory(); }catch(e){} }, 3500); }catch(e){}
+    try{ netToast('Host left — you are now host (P' + (meSlot + 1) + ')'); }catch(e){}
+    try{ NET._migrating = false; NET._migratedHost = true; NET.lastRecvT = performance.now(); NET._lastHostMsgT = performance.now(); }catch(e){}
+  }catch(e){ try{ NET._migrating = false; }catch(e2){} }
+}
+function netRejoinMigratedHost(newHostPeerId){
+  try{
+    if(NET.isHost) return;
+    if(!newHostPeerId) return;
+    try{ NET._migrating = true; }catch(e){}
+    try{
+      const oldHost = NET._hostId;
+      if(oldHost && NET.conns.has(oldHost)){
+        const pair = NET.conns.get(oldHost);
+        try{ pair.rel && pair.rel.close(); }catch(e){}
+        try{ pair.fast && pair.fast.close(); }catch(e){}
+        try{ NET.conns.delete(oldHost); }catch(e){}
+      }
+    }catch(e){}
+    try{
+      const connRel = NET.peer.connect(newHostPeerId, { reliable: true, label: 'rel' });
+      netWireConn(connRel, false);
+      const connFast = NET.peer.connect(newHostPeerId, { reliable: false, ordered: false, maxRetransmits: 0, label: 'fast' });
+      netWireConn(connFast, false);
+    }catch(e){}
+    try{ NET._hostId = newHostPeerId; }catch(e){}
+    try{
+      setTimeout(()=>{
+        try{
+          for(const pair of NET.conns.values()){ try{ netSendRel(pair, netHelloPayload({ migrated: true, oldSlot: NET.mySlot })); }catch(e){} break; }
+        }catch(e){}
+      }, 800);
+    }catch(e){}
+    try{ netToast('Host migrated, rejoining…'); }catch(e){}
+  }catch(e){ try{ NET._migrating = false; }catch(e2){} }
+}
+function netStartMigration(reason){
+  try{
+    if(!NET || NET.role !== 'guest' || NET.isHost) return false;
+    if(NET._migrating) return true;
+    if(NET._migrationCooldown && (performance.now() - NET._migrationCooldown) < 5000) return true;
+    try{ NET._migrationCooldown = performance.now(); }catch(e){}
+    const elected = netElectMigrationHost();
+    if(!elected){ try{ netLeaveRoom('Host left'); }catch(e){} return true; }
+    try{ NET._migrating = true; }catch(e){}
+    if(elected.slot === NET.mySlot){
+      try{
+        try{ NET._migrateCheckT = performance.now(); }catch(e){}
+        let _settled = false;
+        const _doPromote = ()=>{ if(_settled) return; _settled = true; try{ netPromoteToHost(reason); }catch(e){ try{ NET._migrating = false; }catch(e2){} } };
+        setTimeout(_doPromote, 3000);
+        netFetchHostPeerId(NET.room).then(hid=>{
+          if(_settled) return;
+          try{
+            if((NET._lastHostMsgT || 0) > (NET._migrateCheckT || 0)){ _settled = true; try{ console.warn('[NET] migration aborted, host still live'); }catch(e){} try{ NET._migrating = false; }catch(e){} try{ netRetrySameHost(NET._hostId); }catch(e){} return; }
+            if(hid && hid === NET._hostId && hid !== NET.myId){ _settled = true; try{ console.warn('[NET] migration aborted, directory still pins old host'); }catch(e){} try{ NET._migrating = false; }catch(e){} try{ netRetrySameHost(NET._hostId); }catch(e){} return; }
+          }catch(e){}
+          _doPromote();
+        }).catch(()=>{ _doPromote(); });
+      }catch(e){ try{ NET._migrating = false; }catch(e2){} }
+    } else {
+      try{ netRejoinMigratedHost(elected.peerId); }catch(e){ try{ NET._migrating = false; }catch(e2){} }
+      try{
+        setTimeout(()=>{
+          try{
+            if(!NET || NET.isHost || NET.role !== 'guest') return;
+            if(NET.mySlot >= 0 || NET.isSpectator){ try{ NET._migrating = false; }catch(e){} return; }
+            try{ NET._migrating = false; }catch(e){}
+            try{ netLeaveRoom('Rejoin failed'); }catch(e){}
+          }catch(e){}
+        }, 12000);
+      }catch(e){}
+    }
+    return true;
+  }catch(e){ return false; }
+}
+function netCheckSilentHost(){
+  try{
+    if(!NET || NET.role !== 'guest' || NET.isHost) return;
+    if(NET._migrating) return;
+    if(NET.mySlot < 0 && !NET.isSpectator) return;
+    try{
+      if(typeof match === 'undefined' || !match) return;
+      if(match.state !== 'playing' && match.state !== 'countdown' && match.state !== 'paused') return;
+    }catch(e){ return; }
+    const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    const lastT = NET._lastHostMsgT || NET.lastRecvT || 0;
+    if(!lastT) return;
+    if((now - lastT) > 10000){
+      try{ console.warn('[NET] silent host 10s, retry same host first'); }catch(e){}
+      try{ if(typeof netRetrySameHost === 'function' && netRetrySameHost(NET._hostId)) return; }catch(e){}
+      netStartMigration('silent-host');
+    }
+  }catch(e){}
+}
+function netRetrySameHost(hostPeerId){  try{
+    if(!NET || NET.role !== 'guest' || NET.isHost) return false;
+    if(NET._migrating) return true;
+    const hid = hostPeerId || NET._hostId;
+    if(!hid || !NET.peer || NET.peer.destroyed) return false;
+    NET._hostRetry = (NET._hostRetry || 0);
+    if(NET._hostRetry >= 3) return false;
+    NET._hostRetry++;
+    try{ console.warn('[NET] host link lost, retry ' + NET._hostRetry + '/3 to same host'); }catch(e){}
+    if(NET._hostRetry === 1){ try{ netToast('Connection lost. Reconnecting…'); }catch(e){} }
+    try{ NET._helloSent = false; }catch(e){}
+    setTimeout(()=>{
+      try{
+        if(!NET || NET.role !== 'guest' || NET.isHost) return;
+        const p = NET.conns.get(hid);
+        if(p && ((p.rel && p.rel.open) || (p.fast && p.fast.open))) { NET._hostRetry = 0; return; }
+        if(!NET.peer || NET.peer.destroyed) return;
+        const cR = NET.peer.connect(hid, { reliable: true, label: 'rel' });
+        netWireConn(cR, false);
+        const cF = NET.peer.connect(hid, { reliable: false, ordered: false, maxRetransmits: 0, label: 'fast' });
+        netWireConn(cF, false);
+        setTimeout(()=>{
+          try{
+            if(!NET || NET.role !== 'guest' || NET.isHost) return;
+            const p2 = NET.conns.get(hid);
+            const open2 = !!(p2 && ((p2.rel && p2.rel.open) || (p2.fast && p2.fast.open)));
+            if(open2) return;
+            if((NET._hostRetry || 0) < 3){ netRetrySameHost(hid); }
+            else { NET._hostRetry = 0; netStartMigration('host-retry-exhausted'); }
+          }catch(e){}
+        }, 3000);
+      }catch(e){}
+    }, 1200);
+    return true;
+  }catch(e){ return false; }
+}
+try{
+  if(typeof document !== 'undefined' && document.addEventListener){
+    document.addEventListener('visibilitychange', ()=>{
+      try{
+        if(document.visibilityState !== 'visible') return;
+        if(!NET || NET.role !== 'guest' || NET.isHost) return;
+        if(NET._migrating) return;
+        const hid = NET._hostId;
+        if(!hid) return;
+        const p = NET.conns.get(hid);
+        const open = !!(p && ((p.rel && p.rel.open) || (p.fast && p.fast.open)));
+        if(!open && typeof netRetrySameHost === 'function'){ netRetrySameHost(hid); }
+      }catch(e){}
+    });
+  }
+}catch(e){}
 function netLeaveRoom(reason){
   let wasInRoom = false;
   try{ wasInRoom = !!(NET && (NET.role !== null || NET.room)); }catch(e){}
@@ -18632,6 +19312,8 @@ function netLeaveRoom(reason){
   if(NET.peerSlots) NET.peerSlots.clear();
   if(NET.peerNames) NET.peerNames.clear();
   if(NET.pings) NET.pings.clear();
+  try{ if(NET.peerPid) NET.peerPid.clear(); if(NET.peerSess) NET.peerSess.clear(); }catch(e){}
+  try{ NET._lobbyDup = {}; }catch(e){}
   NET.spectators = [];
   NET.botSlots = [];
   NET.role = null;
@@ -18645,6 +19327,10 @@ function netLeaveRoom(reason){
   NET.slotsReady = [false, false, false, false, false, false, false, false];
   NET.slotsName = ['Host', '', '', '', '', '', '', ''];
   NET.lastRecvTick = -1;
+  try{ NET.lastRecvT = 0; NET._lastHostMsgT = 0; }catch(e){}
+  try{ NET._migrating = false; NET._migratedHost = false; NET._migrationPeers = null; NET._migrationCooldown = 0; NET._lastConnErrToast = 0; NET._hostRetry = 0; NET._dirHostId = ''; }catch(e){}
+  try{ NET._lobbyDup = {}; }catch(e){}
+  try{ if(typeof netRestoreVoiceAfterRelay === 'function') netRestoreVoiceAfterRelay(); }catch(e){}
   _remoteTargets.clear();
   menu.slotColor = [0, 2, -1, -1, -1, -1, -1, -1];
   menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
@@ -18667,6 +19353,12 @@ function netLeaveRoom(reason){
 
 /* Match bootstrap wrappers */
 function startMatchNetGuest(p){
+  try{
+    SESSION_METRICS.matchesStarted++;
+    SESSION_METRICS.currentMatchStartT = Date.now();
+    const curM = settings.gameMode || 'party';
+    SESSION_METRICS.modesPlayed[curM] = (SESSION_METRICS.modesPlayed[curM] || 0) + 1;
+  }catch(e){}
   if(p.matchIndex != null) matchIndex = p.matchIndex;
   if(p.currentThemeIdx != null) currentThemeIdx = p.currentThemeIdx;
   if(p.lastStartIT != null) lastStartIT = p.lastStartIT;
@@ -18767,6 +19459,8 @@ function netTick(dt){
       });
     }
   } else {
+    // Guest: silent-host detection works in lobby + match (roster/state timeout 10s)
+    try{ if(typeof netCheckSilentHost === 'function') netCheckSilentHost(); }catch(e){}
     // Guest: send local player position and state at 60Hz over fast WebRTC channel
     if(NET.mySlot === -1 || !match) return;
     _netInputT += dt;
@@ -19032,6 +19726,7 @@ document.addEventListener('visibilitychange', () => {
 
 const onTabCloseCloseRoom = () => {
   if(typeof match !== 'undefined' && match && !match._telemetrySent){ try{ telemetryTrackMatchEnded('quit'); }catch(e){} }
+  try{ telemetryRecordSessionEnd(); }catch(e){}
   if(typeof NET !== 'undefined' && NET && NET.isHost && NET.room){
     try {
       const serverUrl = netDirBase();
@@ -19079,6 +19774,32 @@ try{
 try{ if(!_cgBoot) _cgBoot = CG.boot(); }catch(e){}
 try{ setTimeout(()=>{ try{ netProbeServers(); }catch(e){} }, 2500); }catch(e){} // background self/render probe so Host/Join has a fresh pick
 requestAnimationFrame(frame);
+/*
+TOMORROW - LIVE DASHBOARD PLAN - ALL COMMENTED OUT - NOTHING RUNS
+GOAL: per-click playtime join-to-leave for all players, avg desktop vs mobile,
+returning players, total plays, live dashboard, conversion over 60s,
+time per mode and map, most played map and mode, solo-bot experience,
+lobby wait after host, private vs public counts, directory visibility.
+STEP 1 - BACKEND CHECK: confirm access to tag-netplay-server render code.
+If yes add 2 tables: sessions and events. If no create tiny backend first.
+STEP 2 - PLAYER ID: add persistent id in localStorage tag_player_id_v1.
+Use it in every event to count returning players and total plays.
+STEP 3 - ADD 3 MISSING EVENTS:
+ A session_start once per tab with playerId device mobile-touch resolution source roomQ.
+ B lobby_join and lobby_leave with room code slot peerId timestamp for per-click playtime.
+ C directory_view when server list opened plus wait_time firstJoin minus hostTime.
+STEP 4 - KEEP EXISTING: lobby_host public-private mode map, match_start match_end
+with mode map-name not just map-number players winner duration, invite shared.
+Add map-name to match_end payload.
+STEP 5 - SEND: change telemetryTrack functions to POST json to server api-track
+with keepalive and sendBeacon on close. Keep Discord only for alerts.
+STEP 6 - DASHBOARD PAGE: password page polling every 5s. Widgets:
+ online now, today plays, avg playtime desktop, avg playtime mobile,
+ conversion pct over 60s, top maps, top modes, avg duration per mode-map,
+ private vs public pie, avg lobby wait, solo humanWins vs botWins plus rageQuits.
+STEP 7 - PRIVACY: no full IP, no chat text, respect CrazyGames rules, add opt-out.
+Test with 3 players: kill host, check migration still works, check events arrive.
+*/
 </script>
 </body>
 </html>
