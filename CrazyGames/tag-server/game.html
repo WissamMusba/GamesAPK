@@ -1932,15 +1932,35 @@ function setMenuTab(tab){
     menu.gameMode = 'party';
     menu.slotColor = [0, 1, -1, -1, -1, -1, -1, -1];
     if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
-  } else if(tab === '2p'){
     menu.botOn = false;
     if(menu.slotColor[0] < 0) menu.slotColor[0] = 0;
     if(menu.slotColor[1] < 0) menu.slotColor[1] = 1;
+    ensureUniqueLocalColors();
   } else if(tab === 'online'){
     menu.botOn = false;
     if(typeof netRefreshPublicRooms === 'function') netRefreshPublicRooms();
   }
   sfx('ui');
+}
+function ensureUniqueLocalColors(){
+  const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
+  const max = isOnline ? 8 : 4;
+  const taken = new Set();
+  for(let i = 0; i < max; i++){
+    if(menu.slotColor[i] < 0) continue;
+    let col = menu.slotColor[i];
+    if(taken.has(col) || col >= PALETTE.length){
+      // Reassign to first untaken color in PALETTE
+      for(let p = 0; p < PALETTE.length; p++){
+        if(!taken.has(p)){
+          menu.slotColor[i] = p;
+          col = p;
+          break;
+        }
+      }
+    }
+    taken.add(col);
+  }
 }
 function activeSlots(){
   const max = (typeof NET !== 'undefined' && NET && NET.role !== null) ? 8 : 4;
@@ -1959,21 +1979,6 @@ function cycleTeam(i, d){
   if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
   const curTeam = (menu.slotTeam[i] || 0) % TEAMS.length;
   const targetTeam = (curTeam + d + TEAMS.length) % TEAMS.length;
-
-  if(settings.gameMode === 'hunter'){
-    // Disallow 3v1, 6v2, 5v3, etc. Keep team count difference max ±1!
-    const act = activeSlots();
-    let redCount = 0, blueCount = 0;
-    for(const s of act){
-      const t = (s === i ? targetTeam : (menu.slotTeam[s] || 0) % 2);
-      if(t === 0) redCount++; else blueCount++;
-    }
-    if(Math.abs(redCount - blueCount) > 1){
-      toast('⚠️ TEAMS MUST BE BALANCED (MAX ±1 DIFFERENCE)');
-      sfx('back');
-      return;
-    }
-  }
 
   menu.slotTeam[i] = targetTeam;
   sfx('ui');
@@ -2009,15 +2014,16 @@ function joinTeamFromPanel(teamIdx){
     let pick = -1;
     for(let pi = 0; pi < PALETTE.length; pi++){ if(!taken.includes(pi)){ pick = pi; break; } }
     menu.slotColor[free] = (pick >= 0 ? pick : free % PALETTE.length);
+    ensureUniqueLocalColors();
     if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
     menu.slotTeam[free] = teamIdx;
-    if(settings.gameMode === 'hunter'){ enforceHunterBalance(); validateHunterRoles(); }
+    if(settings.gameMode === 'hunter'){ validateHunterRoles(); }
     sfx('ok');
     toast('P' + (free + 1) + ' joined ' + teamName + '!');
     return true;
   }
   if(NET.mySlot >= 0){
-    // Already playing: move MY slot to the tapped team (balance-guarded)
+    // Already playing: move MY slot to the tapped team
     setPlayerTeam(NET.mySlot, teamIdx);
     return true;
   }
@@ -2028,7 +2034,7 @@ function joinTeamFromPanel(teamIdx){
   netClaimSlot(free, teamIdx);
   return true;
 }
-// Same lock + hunter-balance rules as cycleTeam.
+// Flexible team switching in lobby. Balance checked on Start!
 function setPlayerTeam(i, teamIdx){
   if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost && NET.teamsLocked){
     toast('TEAMS ARE LOCKED BY THE HOST');
@@ -2039,20 +2045,6 @@ function setPlayerTeam(i, teamIdx){
   const targetTeam = ((teamIdx % TEAMS.length) + TEAMS.length) % TEAMS.length;
   const curTeam = (menu.slotTeam[i] || 0) % TEAMS.length;
   if(curTeam === targetTeam){ sfx('ui'); return; }
-
-  if(settings.gameMode === 'hunter'){
-    const act = activeSlots();
-    let redCount = 0, blueCount = 0;
-    for(const s of act){
-      const t = (s === i ? targetTeam : (menu.slotTeam[s] || 0) % 2);
-      if(t === 0) redCount++; else blueCount++;
-    }
-    if(Math.abs(redCount - blueCount) > 1){
-      toast('⚠️ TEAMS MUST BE BALANCED (MAX ±1 DIFFERENCE)');
-      sfx('back');
-      return;
-    }
-  }
 
   menu.slotTeam[i] = targetTeam;
   sfx('ui');
@@ -2551,19 +2543,21 @@ function toggleTeams(){
   cycleGameMode(1);
 }
 function cycleSlot(i,d){
-  const taken=menu.slotColor.filter((c,k)=>c>=0&&k!==i);
-  const list=[-1].concat(PALETTE.map((p,idx)=>idx).filter(idx=>taken.indexOf(idx)<0));
-  let cur=list.indexOf(menu.slotColor[i]);
-  cur=(cur+d+list.length)%list.length;
-  menu.slotColor[i]=list[cur];
+  const max = (typeof NET !== 'undefined' && NET && NET.role !== null) ? 8 : 4;
+  const taken = [];
+  for(let k = 0; k < max; k++){
+    if(k !== i && menu.slotColor[k] >= 0) taken.push(menu.slotColor[k]);
+  }
+  const available = PALETTE.map((p,idx)=>idx).filter(idx => !taken.includes(idx));
+  if(available.length === 0) return;
+  let cur = available.indexOf(menu.slotColor[i]);
+  if(cur < 0) cur = 0;
+  cur = (cur + d + available.length) % available.length;
+  menu.slotColor[i] = available[cur];
+  ensureUniqueLocalColors();
   if(settings.gameMode === 'hunter'){
     enforceHunterBalance();
     validateHunterRoles();
-  }
-  if(menu.mode==='rows'&&activeSlots().length<2){
-    menu.mode='slots';
-    menu.row=0;
-    toast('CHOOSE AT LEAST 2 PLAYERS!');
   }
   sfx('ui');
 }
@@ -6665,15 +6659,18 @@ function startMatch(){
   }
   const act=activeSlots();
   const isHunter = (settings.gameMode === 'hunter');
-  if(isHunter){
-    enforceHunterBalance();
-    validateHunterRoles();
-    if(act.length < 4){
-      menu.mode = 'slots';
-      menu.row = 0;
-      toast('🎯 HUNTER MODE REQUIRES AT LEAST 4 PLAYERS!');
-      sfx('back');
-      return;
+  const isTeamBased = (settings.teams || isHunter || settings.gameMode === 'teams' || settings.gameMode === 'freeze');
+  if(isTeamBased){
+    if(isHunter){
+      enforceHunterBalance();
+      validateHunterRoles();
+      if(act.length < 4){
+        menu.mode = 'slots';
+        menu.row = 0;
+        toast('🎯 HUNTER MODE REQUIRES AT LEAST 4 PLAYERS!');
+        sfx('back');
+        return;
+      }
     }
     const counts = getHunterTeamCounts();
     if(counts.diff > 1){
@@ -6681,7 +6678,8 @@ function startMatch(){
       sfx('back');
       return;
     }
-  } else if((settings.gameMode === 'infection' || settings.gameMode === 'freeze') && act.length < 3){
+  }
+  if((settings.gameMode === 'infection' || settings.gameMode === 'freeze') && act.length < 3){
     toast('⚠️ ' + (settings.gameMode === 'infection' ? 'INFECTION' : 'FREEZE') + ' REQUIRES AT LEAST 3 PLAYERS!');
     sfx('back');
     return;
@@ -12302,9 +12300,15 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
       fn: () => netRequestSpectate()
     });
   } else {
-    // Host: Full Ready / Start Button
-    drawJuicyChip(cx - btnW/2, rdyY, btnW, rdyH, {
-      label: isMeReady ? 'READY ✓' : 'CLICK TO READY',
+    // Host: Ready Button + Spectate / Play Toggle side by side
+    const specBtnW = Math.max(72, Math.floor(btnW * 0.32));
+    const rdyBtnW = btnW - specBtnW - 6;
+    const rdyBtnX = cx - btnW/2;
+    const specBtnX = rdyBtnX + rdyBtnW + 6;
+
+    // Ready Button
+    drawJuicyChip(rdyBtnX, rdyY, rdyBtnW, rdyH, {
+      label: isMeReady ? 'READY ✓' : 'READY?',
       active: isMeReady,
       activeBg: '#27ae60',
       activeDarkBg: '#166534',
@@ -12312,6 +12316,18 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
       textColor: '#ffd166',
       fontSize: rdyFontSize,
       fn: () => netToggleMyReady()
+    });
+
+    // Host Spectate Toggle Button
+    drawJuicyChip(specBtnX, rdyY, specBtnW, rdyH, {
+      label: NET.isSpectator ? '▶ Play' : '👁️ Spec',
+      active: true,
+      activeBg: NET.isSpectator ? '#27ae60' : 'rgba(56, 189, 248, 0.25)',
+      activeDarkBg: NET.isSpectator ? '#166534' : 'rgba(2, 132, 199, 0.5)',
+      activeText: NET.isSpectator ? '#ffffff' : '#38bdf8',
+      activeBorder: NET.isSpectator ? '#22c55e' : '#38bdf8',
+      fontSize: clamp(rdyH * 0.38, 9.5, 11.5),
+      fn: () => netHostToggleSpectate()
     });
   }
 
@@ -12822,10 +12838,51 @@ function drawMenu(){
         }
       });
     }
+
+    // Bot Opponents Fill Bar (2, 3, 4 players)
+    if(!isHunterMode && actSlots.length >= 2 && CW >= 380){
+      const botBarY = pillY + ph + 4;
+      const botBarH = 22;
+      const curBotCount = actSlots.filter(s => s > 0 && isSlotBot(s)).length;
+      const maxBots = actSlots.length - 1; // Can keep slot 0 as human
+      const botOpts = [{ bots: 0, label: '👤 All Human' }];
+      for(let b = 1; b <= maxBots; b++){
+        botOpts.push({ bots: b, label: '🤖 +' + b + ' Bot' + (b > 1 ? 's' : '') });
+      }
+      const bChipW = clamp(Math.floor(CW * 0.18), 70, 92);
+      const totalBw = botOpts.length * bChipW + (botOpts.length - 1) * 6;
+      const bStartX = Math.floor(CW / 2 - totalBw / 2);
+
+      txt('BOT OPPONENTS:', bStartX - 8, botBarY + botBarH/2 + 1, FN(clamp(CW * 0.022, 9, 10.5), 900), 'rgba(255,209,102,0.85)', 'right');
+
+      for(let bi = 0; bi < botOpts.length; bi++){
+        const bOpt = botOpts[bi];
+        const bx = bStartX + bi * (bChipW + 6);
+        const isCurBot = (curBotCount === bOpt.bots);
+        drawJuicyChip(bx, botBarY, bChipW, botBarH, {
+          label: bOpt.label,
+          active: isCurBot,
+          activeBg: bOpt.bots === 0 ? '#38bdf8' : '#e056fd',
+          activeDarkBg: bOpt.bots === 0 ? '#0284c7' : '#9333ea',
+          activeText: '#ffffff',
+          fontSize: 9.5,
+          fn: () => {
+            if(!menu.slotIsBot) menu.slotIsBot = [false, false, false, false, false, false, false, false];
+            menu.slotIsBot[0] = false; // Player 1 is human
+            for(let si = 1; si < actSlots.length; si++){
+              const slot = actSlots[si];
+              menu.slotIsBot[slot] = (si >= actSlots.length - bOpt.bots);
+            }
+            sfx('ui');
+            toast(bOpt.bots === 0 ? '👤 ALL PLAYERS SET TO HUMAN' : ('🤖 +' + bOpt.bots + ' BOT OPPONENT(S) CONFIGURED'));
+          }
+        });
+      }
+    }
   }
 
-  const cardsAreaY = stageY + stageTopPad;
-  const cardsAreaH = stageH - stageTopPad;
+  const cardsAreaY = stageY + stageTopPad + ((!isHunterMode && actSlots.length >= 2 && CW >= 380) ? 24 : 0);
+  const cardsAreaH = stageH - stageTopPad - ((!isHunterMode && actSlots.length >= 2 && CW >= 380) ? 24 : 0);
 
   // Check if 4 cards should wrap to 2x2 grid on small mobile
   const use2x2 = (!isSolo && !isBots && actSlots.length === 4 && CW < 680);
@@ -13630,7 +13687,13 @@ function drawAddPlayerCard(cx, cardY, cardW, cardH, nextSlot){
   ptxt('(CLICK TO JOIN)', centerX, centerY + plusSz/2 + 20, FN(clamp(cardW * 0.058, 8.5, 10), 800), 'rgba(255,255,255,0.6)');
 
   zone(cx, cardY, cardW, cardH, { fn: () => {
-    menu.slotColor[nextSlot] = nextSlot;
+    const taken = menu.slotColor.filter(c => c >= 0);
+    let pick = -1;
+    for(let p = 0; p < PALETTE.length; p++){
+      if(!taken.includes(p)){ pick = p; break; }
+    }
+    menu.slotColor[nextSlot] = (pick >= 0 ? pick : nextSlot % PALETTE.length);
+    ensureUniqueLocalColors();
     if(settings.gameMode === 'hunter'){
       enforceHunterBalance();
       validateHunterRoles();
@@ -18531,8 +18594,61 @@ function netRequestJoinGame(){
   netClaimSlot(openSlot);
 }
 
+function netHostToggleSpectate(){
+  if(!NET.isHost) return;
+  const wasSpectator = !!NET.isSpectator;
+  if(!wasSpectator){
+    // Host switches to Spectator
+    NET.isSpectator = true;
+    NET.mySlot = -1;
+    menu.slotColor[0] = -1;
+    NET.slotsReady[0] = false;
+    NET.slotsName[0] = '';
+    const myProfile = netGetMyProfile();
+    if(!NET.spectators) NET.spectators = [];
+    if(!NET.spectators.some(sp => sp.peerId === (NET.myId || 'host'))){
+      NET.spectators.unshift({ peerId: NET.myId || 'host', name: myProfile.name + ' (Host)' });
+    }
+    sfx('back');
+    netToast('Host switched to 👁️ Spectator Mode');
+  } else {
+    // Host switches back to Playing: reclaim Slot 0 (or first open slot)
+    let claimSlot = 0;
+    if(menu.slotColor[0] !== -1){
+      for(let s = 0; s < 8; s++){
+        if(menu.slotColor[s] === -1 && !NET.hostInputs.has(s)){
+          claimSlot = s;
+          break;
+        }
+      }
+    }
+    NET.isSpectator = false;
+    NET.mySlot = claimSlot;
+    const taken = menu.slotColor.filter(c => c >= 0);
+    let pick = -1;
+    for(let p = 0; p < PALETTE.length; p++){
+      if(!taken.includes(p)){ pick = p; break; }
+    }
+    menu.slotColor[claimSlot] = (pick >= 0 ? pick : claimSlot % PALETTE.length);
+    NET.slotsReady[claimSlot] = true;
+    const myProfile = netGetMyProfile();
+    NET.slotsName[claimSlot] = myProfile.name || 'Host';
+    if(NET.spectators){
+      NET.spectators = NET.spectators.filter(sp => sp.peerId !== (NET.myId || 'host'));
+    }
+    sfx('go');
+    netToast('Host joined as Player (' + (claimSlot === 0 ? 'P1' : ('P' + (claimSlot+1))) + ')');
+  }
+  netBroadcastSettings();
+  netBroadcastRoster();
+}
+
 function netRequestSpectate(){
-  if(NET.role === null || NET.isHost) return;
+  if(NET.role === null) return;
+  if(NET.isHost){
+    netHostToggleSpectate();
+    return;
+  }
   if(NET.isSpectator || NET.mySlot === -1){
     netToast('Already spectating.');
     return;
@@ -18600,20 +18716,6 @@ function netSwapPlayerTeam(slot){
   if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
   const targetTeam = ((menu.slotTeam[slot] || 0) + 1) % TEAMS.length;
 
-  if(settings.gameMode === 'hunter'){
-    const act = activeSlots();
-    let redCount = 0, blueCount = 0;
-    for(const s of act){
-      const t = (s === slot ? targetTeam : (menu.slotTeam[s] || 0) % 2);
-      if(t === 0) redCount++; else blueCount++;
-    }
-    if(Math.abs(redCount - blueCount) > 1){
-      netToast('⚠️ TEAMS MUST BE BALANCED (MAX ±1 DIFFERENCE)');
-      sfx('back');
-      return;
-    }
-  }
-
   menu.slotTeam[slot] = targetTeam;
   sfx('ui');
   if(settings.gameMode === 'hunter') updateElectedHuntersFromVotes();
@@ -18625,20 +18727,6 @@ function netSetPlayerTeam(slot, teamIdx){
   if(menu.slotColor[slot] < 0) return;
   if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
   const targetTeam = teamIdx % TEAMS.length;
-
-  if(settings.gameMode === 'hunter'){
-    const act = activeSlots();
-    let redCount = 0, blueCount = 0;
-    for(const s of act){
-      const t = (s === slot ? targetTeam : (menu.slotTeam[s] || 0) % 2);
-      if(t === 0) redCount++; else blueCount++;
-    }
-    if(Math.abs(redCount - blueCount) > 1){
-      netToast('⚠️ TEAMS MUST BE BALANCED (MAX ±1 DIFFERENCE)');
-      sfx('back');
-      return;
-    }
-  }
 
   menu.slotTeam[slot] = targetTeam;
   sfx('ok');
@@ -18740,12 +18828,16 @@ function netAutoDemoteAndStart(){
 function netForceStart(){
   if(!NET.isHost) return;
   const activeCount = menu.slotColor.filter(c => c >= 0).length;
-  if(settings.gameMode === 'hunter'){
-    enforceHunterBalance();
-    validateHunterRoles();
-    if(activeCount < 4){
-      netToast('🎯 HUNTER MODE REQUIRES AT LEAST 4 PLAYERS!');
-      return;
+  const isHunter = (settings.gameMode === 'hunter');
+  const isTeamBased = (settings.teams || isHunter || settings.gameMode === 'teams' || settings.gameMode === 'freeze');
+  if(isTeamBased){
+    if(isHunter){
+      enforceHunterBalance();
+      validateHunterRoles();
+      if(activeCount < 4){
+        netToast('🎯 HUNTER MODE REQUIRES AT LEAST 4 PLAYERS!');
+        return;
+      }
     }
     const counts = getHunterTeamCounts();
     if(counts.diff > 1){
@@ -18772,7 +18864,7 @@ function netBroadcastSettings(){
 
 function netBroadcastRoster(){
   if(!NET.isHost) return;
-  const slotsPeer = [NET.myId || '', '', '', '', '', '', '', ''];
+  const slotsPeer = [(NET.isSpectator || NET.mySlot !== 0) ? '' : (NET.myId || ''), '', '', '', '', '', '', ''];
   for(let i=1; i<8; i++){
     const ent = NET.hostInputs.get(i);
     if(ent && ent.owner) slotsPeer[i] = ent.owner;
