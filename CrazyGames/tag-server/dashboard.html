@@ -729,7 +729,10 @@
 
       // Live Server Mode
       try {
-        const res = await fetch('/api/analytics/summary');
+        const apiBase = (location.hostname && !['localhost', '127.0.0.1'].includes(location.hostname) && location.protocol.startsWith('http')) 
+          ? '' 
+          : 'https://tag-netplay-server.onrender.com';
+        const res = await fetch(apiBase + '/api/analytics/summary');
         if (res.ok) {
           const data = await res.json();
           liveBadge.className = 'badge-live';
@@ -1037,7 +1040,10 @@
     async function resetDataPrompt() {
       if (!confirm('Are you sure you want to reset analytics sessions?')) return;
       if (currentSource === 'server') {
-        try { await fetch('/api/analytics/reset'); } catch(e){}
+        const apiBase = (location.hostname && !['localhost', '127.0.0.1'].includes(location.hostname) && location.protocol.startsWith('http')) 
+          ? '' 
+          : 'https://tag-netplay-server.onrender.com';
+        try { await fetch(apiBase + '/api/analytics/reset'); } catch(e){}
       } else if (currentSource === 'local') {
         localStorage.removeItem('tag_analytics_sessions_v1');
       }
