@@ -355,7 +355,7 @@
       <div class="device-filter-info" id="deviceFilterInfo">Filtering: All Devices</div>
     </div>
 
-    <!-- Top KPI Cards -->
+    <!-- Top 6 KPI Cards (Dynamically filters for All / Desktop / Mobile) -->
     <div class="kpi-grid">
       <div class="kpi-card">
         <div class="kpi-label">Total Visitors / Opens <span>🚀</span></div>
@@ -368,9 +368,9 @@
         <div class="kpi-sub"><span class="pos" id="kpiBounceRate">0% Bounce</span> (Left &lt;15s)</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-label">Avg Tab Lifetime <span>⏱️</span></div>
-        <div class="kpi-value" id="kpiAvgTabTime">0s</div>
-        <div class="kpi-sub" id="kpiTabSub">Link open to tab close</div>
+        <div class="kpi-label">Avg Active Screen Time <span>⏱️</span></div>
+        <div class="kpi-value" id="kpiAvgActiveTime">0s</div>
+        <div class="kpi-sub" id="kpiActiveSub">Actively on screen (pauses when hidden)</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-label">Avg Match Duration <span>🎮</span></div>
@@ -389,12 +389,31 @@
       </div>
     </div>
 
+    <!-- Active Playtime Conversion Milestones (1 Min • 4 Mins • 7+ Mins) -->
+    <div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); margin-top: -6px; margin-bottom: 24px;">
+      <div class="kpi-card" style="border-top: 3px solid #38bdf8;">
+        <div class="kpi-label">⚡ 1 Min Active Conversion <span>⏱️</span></div>
+        <div class="kpi-value" id="kpiConv1m" style="color: #38bdf8;">0%</div>
+        <div class="kpi-sub"><span id="kpiCount1m">0</span> players actively on screen &ge; 1 min</div>
+      </div>
+      <div class="kpi-card" style="border-top: 3px solid #10b981;">
+        <div class="kpi-label">🔥 4 Mins Active Conversion <span>🎮</span></div>
+        <div class="kpi-value" id="kpiConv4m" style="color: #34d399;">0%</div>
+        <div class="kpi-sub"><span id="kpiCount4m">0</span> players actively engaged &ge; 4 mins</div>
+      </div>
+      <div class="kpi-card" style="border-top: 3px solid #a855f7;">
+        <div class="kpi-label">⭐ 7+ Mins Power Retention <span>👑</span></div>
+        <div class="kpi-value" id="kpiConv7m" style="color: #c084fc;">0%</div>
+        <div class="kpi-sub"><span id="kpiCount7m">0</span> power players active on screen &ge; 7+ mins</div>
+      </div>
+    </div>
+
     <!-- Side-by-Side Mobile vs Desktop Breakdown -->
     <div class="split-card">
       <div class="section-header">
         <div>
           <h2>📱 Mobile vs. 💻 Desktop Breakdown</h2>
-          <p>Direct side-by-side comparison of playtime, conversion, and behavior between phone and desktop players</p>
+          <p>Direct side-by-side comparison of active playtime, milestone conversions, and behavior</p>
         </div>
       </div>
       <div class="split-grid">
@@ -403,6 +422,10 @@
           <div class="split-col-header">
             <div class="split-col-title">💻 Desktop / Laptop</div>
             <div class="split-col-count" id="splitDesktopCount">0 sessions</div>
+          </div>
+          <div class="split-stat-row">
+            <span class="split-stat-label">Avg Active Screen Time</span>
+            <span class="split-stat-val" id="splitDesktopActiveTime" style="color:#38bdf8; font-weight:700;">0s</span>
           </div>
           <div class="split-stat-row">
             <span class="split-stat-label">Avg Match Playtime</span>
@@ -415,6 +438,18 @@
           <div class="split-stat-row">
             <span class="split-stat-label">Match Conversion (Open &rarr; Play)</span>
             <span class="split-stat-val" id="splitDesktopConversion">0%</span>
+          </div>
+          <div class="split-stat-row">
+            <span class="split-stat-label">1 Min Active Conversion</span>
+            <span class="split-stat-val" id="splitDesktopConv1m">0%</span>
+          </div>
+          <div class="split-stat-row">
+            <span class="split-stat-label">4 Mins Active Conversion</span>
+            <span class="split-stat-val" id="splitDesktopConv4m">0%</span>
+          </div>
+          <div class="split-stat-row">
+            <span class="split-stat-label">7+ Mins Power Retention</span>
+            <span class="split-stat-val" id="splitDesktopConv7m">0%</span>
           </div>
           <div class="split-stat-row">
             <span class="split-stat-label">Bounce Rate (&lt;15s)</span>
@@ -441,6 +476,10 @@
             <div class="split-col-count" id="splitMobileCount" style="color:#f59e0b; background: rgba(245, 158, 11, 0.12);">0 sessions</div>
           </div>
           <div class="split-stat-row">
+            <span class="split-stat-label">Avg Active Screen Time</span>
+            <span class="split-stat-val" id="splitMobileActiveTime" style="color:#f59e0b; font-weight:700;">0s</span>
+          </div>
+          <div class="split-stat-row">
             <span class="split-stat-label">Avg Match Playtime</span>
             <span class="split-stat-val" id="splitMobileMatchTime">0s</span>
           </div>
@@ -451,6 +490,18 @@
           <div class="split-stat-row">
             <span class="split-stat-label">Match Conversion (Open &rarr; Play)</span>
             <span class="split-stat-val" id="splitMobileConversion">0%</span>
+          </div>
+          <div class="split-stat-row">
+            <span class="split-stat-label">1 Min Active Conversion</span>
+            <span class="split-stat-val" id="splitMobileConv1m">0%</span>
+          </div>
+          <div class="split-stat-row">
+            <span class="split-stat-label">4 Mins Active Conversion</span>
+            <span class="split-stat-val" id="splitMobileConv4m">0%</span>
+          </div>
+          <div class="split-stat-row">
+            <span class="split-stat-label">7+ Mins Power Retention</span>
+            <span class="split-stat-val" id="splitMobileConv7m">0%</span>
           </div>
           <div class="split-stat-row">
             <span class="split-stat-label">Bounce Rate (&lt;15s)</span>
@@ -598,25 +649,45 @@
 
     function processSessionsList(sessions) {
       const totalSessions = sessions.length;
-      let totalTabSec = 0, totalMatchSec = 0, totalStarted = 0, totalCompleted = 0;
+      let totalTabSec = 0, totalActiveSec = 0, totalMatchSec = 0, totalStarted = 0, totalCompleted = 0;
       let totalRage = 0, totalNormal = 0, totalBounces = 0, totalHWins = 0, totalBWins = 0;
       let totalFps = 0, fpsCount = 0;
+      let countActive1m = 0, countActive4m = 0, countActive7m = 0;
 
-      const funnel = { linkOpened: totalSessions, menuEngaged: 0, match1Started: 0, match1Completed: 0, multiMatches: 0, powerPlayers: 0 };
+      const funnel = {
+        linkOpened: totalSessions,
+        menuEngaged: 0,
+        active1m: 0,
+        match1Started: 0,
+        match1Completed: 0,
+        active4m: 0,
+        multiMatches: 0,
+        active7m: 0,
+        powerPlayers: 0
+      };
       const modes = {}, devices = { Desktop: 0, Mobile: 0 };
 
       for (const s of sessions) {
         const tab = s.tabLifetimeSec || s.totalTabTimeSec || 0;
+        const active = (typeof s.activeScreenTimeSec === 'number' && s.activeScreenTimeSec > 0) ? s.activeScreenTimeSec : tab;
         const match = s.totalMatchPlaytimeSec || 0;
-        totalTabSec += tab; totalMatchSec += match;
+        totalTabSec += tab;
+        totalActiveSec += active;
+        totalMatchSec += match;
         totalStarted += (s.matchesStarted || 0);
         totalCompleted += (s.matchesCompleted || 0);
-        if (tab < 15 && (s.matchesStarted || 0) === 0) totalBounces++;
-        if (tab >= 15 || (s.matchesStarted || 0) > 0) funnel.menuEngaged++;
+
+        if (active < 15 && (s.matchesStarted || 0) === 0) totalBounces++;
+        if (active >= 15 || tab >= 15 || (s.matchesStarted || 0) > 0) funnel.menuEngaged++;
         if ((s.matchesStarted || 0) >= 1) funnel.match1Started++;
         if ((s.matchesCompleted || 0) >= 1) funnel.match1Completed++;
         if ((s.matchesStarted || 0) >= 2) funnel.multiMatches++;
         if ((s.matchesStarted || 0) >= 5) funnel.powerPlayers++;
+
+        if (active >= 60) { countActive1m++; funnel.active1m++; }
+        if (active >= 240) { countActive4m++; funnel.active4m++; }
+        if (active >= 420) { countActive7m++; funnel.active7m++; }
+
         totalRage += (s.rageQuits || 0);
         totalNormal += (s.normalQuits || 0);
         totalHWins += (s.humanWins || 0);
@@ -637,14 +708,23 @@
         totalSessions,
         totalMatchesStarted: totalStarted,
         totalMatchesCompleted: totalCompleted,
-        avgTabTimeSec: totalSessions > 0 ? Math.round(totalTabTimeSec / totalSessions) : 0,
+        avgTabTimeSec: totalSessions > 0 ? Math.round(totalTabSec / totalSessions) : 0,
+        avgActiveTimeSec: totalSessions > 0 ? Math.round(totalActiveSec / totalSessions) : 0,
         avgMatchTimeSec: totalStarted > 0 ? Math.round(totalMatchTimeSec / totalStarted) : (totalSessions > 0 ? Math.round(totalMatchSec / totalSessions) : 0),
         conversionRate: totalSessions > 0 ? Math.round((funnel.match1Started / totalSessions) * 100) : 0,
         bounceRate: totalSessions > 0 ? Math.round((totalBounces / totalSessions) * 100) : 0,
         rageQuitRate: (totalRage + totalNormal) > 0 ? Math.round((totalRage / (totalRage + totalNormal)) * 100) : 0,
         humanWinRate: (totalHWins + totalBWins) > 0 ? Math.round((totalHWins / (totalHWins + totalBWins)) * 100) : 50,
         avgFps: fpsCount > 0 ? Math.round((totalFps / fpsCount) * 10) / 10 : 60,
-        funnel, modes, devices,
+        conv1mRate: totalSessions > 0 ? Math.round((countActive1m / totalSessions) * 100) : 0,
+        conv4mRate: totalSessions > 0 ? Math.round((countActive4m / totalSessions) * 100) : 0,
+        conv7mRate: totalSessions > 0 ? Math.round((countActive7m / totalSessions) * 100) : 0,
+        countActive1m,
+        countActive4m,
+        countActive7m,
+        funnel,
+        modes,
+        devices,
         sessions
       };
     }
@@ -659,9 +739,9 @@
         const isBounced = Math.random() < 0.16;
         const matchesStarted = isBounced ? 0 : Math.floor(Math.random() * 4) + 1;
         const matchesCompleted = matchesStarted > 0 ? Math.floor(matchesStarted * (0.6 + Math.random() * 0.4)) : 0;
-        // Mobile plays typically 30-70s, Desktop 45-110s
         const matchSec = matchesStarted * (isMobile ? (32 + Math.floor(Math.random() * 38)) : (48 + Math.floor(Math.random() * 62)));
         const tabSec = isBounced ? (4 + Math.floor(Math.random() * 8)) : (matchSec + 20 + Math.floor(Math.random() * 75));
+        const activeSec = isBounced ? tabSec : Math.max(12, Math.round(tabSec * (0.80 + Math.random() * 0.18)));
         const rageQuits = (!isBounced && Math.random() < (isMobile ? 0.28 : 0.15)) ? 1 : 0;
         const normalQuits = (!isBounced && !rageQuits && Math.random() < 0.35) ? 1 : 0;
         const humanWins = matchesCompleted > 0 ? Math.floor(matchesCompleted * (0.45 + Math.random() * 0.35)) : 0;
@@ -673,13 +753,14 @@
         else if (matchesStarted >= 2) funnelStage = 'Stage 5: Retained (2+)';
         else if (matchesCompleted >= 1) funnelStage = 'Stage 4: Completed Match';
         else if (matchesStarted >= 1) funnelStage = 'Stage 3: Started Match';
-        else if (tabSec >= 15) funnelStage = 'Stage 2: Menu Explorer (>15s)';
+        else if (activeSec >= 15) funnelStage = 'Stage 2: Menu Explorer (>15s)';
 
         list.push({
           sessionId: 'sess_sample_' + i,
           playerName: names[Math.floor(Math.random() * names.length)],
           device: isMobile ? 'Mobile' : 'Desktop',
           tabLifetimeSec: tabSec,
+          activeScreenTimeSec: activeSec,
           totalMatchPlaytimeSec: matchSec,
           matchesStarted: matchesStarted,
           matchesCompleted: matchesCompleted,
@@ -778,18 +859,26 @@
 
       // 2. Populate Side-by-Side Mobile vs Desktop Breakdown card
       document.getElementById('splitDesktopCount').innerText = `${summaryDesktop.totalSessions} sessions (${summaryAll.totalSessions > 0 ? Math.round((summaryDesktop.totalSessions / summaryAll.totalSessions) * 100) : 0}%)`;
+      document.getElementById('splitDesktopActiveTime').innerText = fmtSec(summaryDesktop.avgActiveTimeSec);
       document.getElementById('splitDesktopMatchTime').innerText = fmtSec(summaryDesktop.avgMatchTimeSec);
       document.getElementById('splitDesktopTabTime').innerText = fmtSec(summaryDesktop.avgTabTimeSec);
       document.getElementById('splitDesktopConversion').innerText = summaryDesktop.conversionRate + '%';
+      document.getElementById('splitDesktopConv1m').innerText = summaryDesktop.conv1mRate + '%';
+      document.getElementById('splitDesktopConv4m').innerText = summaryDesktop.conv4mRate + '%';
+      document.getElementById('splitDesktopConv7m').innerText = summaryDesktop.conv7mRate + '%';
       document.getElementById('splitDesktopBounce').innerText = summaryDesktop.bounceRate + '%';
       document.getElementById('splitDesktopRage').innerText = summaryDesktop.rageQuitRate + '%';
       document.getElementById('splitDesktopWin').innerText = summaryDesktop.humanWinRate + '%';
       document.getElementById('splitDesktopFps').innerText = summaryDesktop.avgFps + ' FPS';
 
       document.getElementById('splitMobileCount').innerText = `${summaryMobile.totalSessions} sessions (${summaryAll.totalSessions > 0 ? Math.round((summaryMobile.totalSessions / summaryAll.totalSessions) * 100) : 0}%)`;
+      document.getElementById('splitMobileActiveTime').innerText = fmtSec(summaryMobile.avgActiveTimeSec);
       document.getElementById('splitMobileMatchTime').innerText = fmtSec(summaryMobile.avgMatchTimeSec);
       document.getElementById('splitMobileTabTime').innerText = fmtSec(summaryMobile.avgTabTimeSec);
       document.getElementById('splitMobileConversion').innerText = summaryMobile.conversionRate + '%';
+      document.getElementById('splitMobileConv1m').innerText = summaryMobile.conv1mRate + '%';
+      document.getElementById('splitMobileConv4m').innerText = summaryMobile.conv4mRate + '%';
+      document.getElementById('splitMobileConv7m').innerText = summaryMobile.conv7mRate + '%';
       document.getElementById('splitMobileBounce').innerText = summaryMobile.bounceRate + '%';
       document.getElementById('splitMobileRage').innerText = summaryMobile.rageQuitRate + '%';
       document.getElementById('splitMobileWin').innerText = summaryMobile.humanWinRate + '%';
@@ -800,20 +889,38 @@
       if (activeDeviceFilter === 'Desktop') activeSummary = summaryDesktop;
       else if (activeDeviceFilter === 'Mobile') activeSummary = summaryMobile;
 
-      // Update KPI Cards
+      // Update Top 6 KPI Cards
       document.getElementById('kpiTotalSessions').innerText = activeSummary.totalSessions.toLocaleString();
       
-      const deskShare = summaryAll.totalSessions > 0 ? Math.round((summaryDesktop.totalSessions / summaryAll.totalSessions) * 100) : 0;
-      const mobShare = summaryAll.totalSessions > 0 ? Math.round((summaryMobile.totalSessions / summaryAll.totalSessions) * 100) : 0;
-      document.getElementById('kpiDeviceSplit').innerText = `${deskShare}% Desktop • ${mobShare}% Mobile`;
+      if (activeDeviceFilter === 'Desktop') {
+        document.getElementById('kpiDeviceSplit').innerText = `💻 Desktop Only (100%)`;
+      } else if (activeDeviceFilter === 'Mobile') {
+        document.getElementById('kpiDeviceSplit').innerText = `📱 Mobile Only (100%)`;
+      } else {
+        const deskShare = summaryAll.totalSessions > 0 ? Math.round((summaryDesktop.totalSessions / summaryAll.totalSessions) * 100) : 0;
+        const mobShare = summaryAll.totalSessions > 0 ? Math.round((summaryMobile.totalSessions / summaryAll.totalSessions) * 100) : 0;
+        document.getElementById('kpiDeviceSplit').innerText = `${deskShare}% Desktop • ${mobShare}% Mobile`;
+      }
 
       document.getElementById('kpiConversionRate').innerText = activeSummary.conversionRate + '%';
       document.getElementById('kpiBounceRate').innerText = activeSummary.bounceRate + '% Bounce';
-      document.getElementById('kpiAvgTabTime').innerText = fmtSec(activeSummary.avgTabTimeSec);
+      
+      // Active Screen Time (Card 3)
+      document.getElementById('kpiAvgActiveTime').innerText = fmtSec(activeSummary.avgActiveTimeSec);
+      document.getElementById('kpiActiveSub').innerText = `Actively on screen • Total Tab: ${fmtSec(activeSummary.avgTabTimeSec)}`;
+
       document.getElementById('kpiAvgMatchTime').innerText = fmtSec(activeSummary.avgMatchTimeSec);
       document.getElementById('kpiTotalMatches').innerText = (activeSummary.totalMatchesStarted || 0).toLocaleString();
       document.getElementById('kpiRageQuitRate').innerText = activeSummary.rageQuitRate + '%';
       document.getElementById('kpiHumanWinRate').innerText = activeSummary.humanWinRate + '%';
+
+      // Update 3 Milestone Conversion Cards (1m, 4m, 7m+)
+      document.getElementById('kpiConv1m').innerText = activeSummary.conv1mRate + '%';
+      document.getElementById('kpiCount1m').innerText = (activeSummary.countActive1m || 0).toLocaleString();
+      document.getElementById('kpiConv4m').innerText = activeSummary.conv4mRate + '%';
+      document.getElementById('kpiCount4m').innerText = (activeSummary.countActive4m || 0).toLocaleString();
+      document.getElementById('kpiConv7m').innerText = activeSummary.conv7mRate + '%';
+      document.getElementById('kpiCount7m').innerText = (activeSummary.countActive7m || 0).toLocaleString();
 
       // Update Funnel
       renderFunnel(activeSummary.funnel, activeSummary.totalSessions);
@@ -833,10 +940,12 @@
       const steps = [
         { label: '🔗 1. Link Opened', count: funnel.linkOpened || total, col: '#06b6d4' },
         { label: '🧭 2. Menu Engaged (>15s)', count: funnel.menuEngaged, col: '#38bdf8' },
-        { label: '⚔️ 3. First Match Started', count: funnel.match1Started, col: '#10b981' },
-        { label: '🏁 4. First Match Finished', count: funnel.match1Completed, col: '#22c55e' },
-        { label: '🔄 5. Retained (2+ Matches)', count: funnel.multiMatches, col: '#a855f7' },
-        { label: '⭐ 6. Power Players (5+)', count: funnel.powerPlayers, col: '#f59e0b' }
+        { label: '⚡ 3. Active 1 Min (Focused)', count: funnel.active1m || 0, col: '#0ea5e9' },
+        { label: '⚔️ 4. First Match Started', count: funnel.match1Started, col: '#10b981' },
+        { label: '🏁 5. First Match Finished', count: funnel.match1Completed, col: '#22c55e' },
+        { label: '🔥 6. Active 4 Mins (Engaged)', count: funnel.active4m || 0, col: '#14b8a6' },
+        { label: '🔄 7. Retained (2+ Matches)', count: funnel.multiMatches, col: '#a855f7' },
+        { label: '⭐ 8. Active 7+ Mins (Power)', count: funnel.active7m || 0, col: '#f59e0b' }
       ];
 
       container.innerHTML = steps.map((s, idx) => {

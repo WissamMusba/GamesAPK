@@ -149,6 +149,7 @@ const analyticsSessions = [];
 function summarizeSessions(list) {
   const totalSessions = list.length;
   let totalTabTimeSec = 0;
+  let totalActiveScreenTimeSec = 0;
   let totalMatchTimeSec = 0;
   let totalMatchesStarted = 0;
   let totalMatchesCompleted = 0;
@@ -160,13 +161,20 @@ function summarizeSessions(list) {
   let totalFpsSum = 0;
   let fpsCount = 0;
 
+  let countActive1m = 0;
+  let countActive4m = 0;
+  let countActive7m = 0;
+
   const funnel = {
     linkOpened: totalSessions,
     menuEngaged: 0,
     match1Started: 0,
     match1Completed: 0,
     multiMatches: 0,
-    powerPlayers: 0
+    powerPlayers: 0,
+    active1m: 0,
+    active4m: 0,
+    active7m: 0
   };
 
   const modes = {};
@@ -175,8 +183,10 @@ function summarizeSessions(list) {
 
   for (const s of list) {
     const tabSec = s.tabLifetimeSec || s.totalTabTimeSec || 0;
+    const activeSec = (typeof s.activeScreenTimeSec === 'number' && s.activeScreenTimeSec > 0) ? s.activeScreenTimeSec : tabSec;
     const matchSec = s.totalMatchPlaytimeSec || 0;
     totalTabTimeSec += tabSec;
+    totalActiveScreenTimeSec += activeSec;
     totalMatchTimeSec += matchSec;
 
     const started = s.matchesStarted || 0;
@@ -184,12 +194,16 @@ function summarizeSessions(list) {
     totalMatchesStarted += started;
     totalMatchesCompleted += completed;
 
-    if (tabSec < 15 && started === 0) totalBounces++;
-    if (tabSec >= 15 || started > 0) funnel.menuEngaged++;
+    if (activeSec < 15 && started === 0) totalBounces++;
+    if (activeSec >= 15 || tabSec >= 15 || started > 0) funnel.menuEngaged++;
     if (started >= 1) funnel.match1Started++;
     if (completed >= 1) funnel.match1Completed++;
     if (started >= 2) funnel.multiMatches++;
     if (started >= 5) funnel.powerPlayers++;
+
+    if (activeSec >= 60) { countActive1m++; funnel.active1m++; }
+    if (activeSec >= 240) { countActive4m++; funnel.active4m++; }
+    if (activeSec >= 420) { countActive7m++; funnel.active7m++; }
 
     totalRageQuits += s.rageQuits || 0;
     totalNormalQuits += s.normalQuits || 0;
@@ -216,7 +230,8 @@ function summarizeSessions(list) {
   }
 
   const avgTabTimeSec = totalSessions > 0 ? Math.round(totalTabTimeSec / totalSessions) : 0;
-  const avgMatchTimeSec = totalMatchesStarted > 0 ? Math.round(totalMatchTimeSec / totalMatchesStarted) : 0;
+  const avgActiveScreenTimeSec = totalSessions > 0 ? Math.round(totalActiveScreenTimeSec / totalSessions) : 0;
+  const avgMatchTimeSec = totalMatchesStarted > 0 ? Math.round(totalMatchTimeSec / totalMatchesStarted) : (totalSessions > 0 ? Math.round(totalMatchTimeSec / totalSessions) : 0);
   const conversionRate = totalSessions > 0 ? Math.round((funnel.match1Started / totalSessions) * 100) : 0;
   const completionRate = funnel.match1Started > 0 ? Math.round((funnel.match1Completed / funnel.match1Started) * 100) : 0;
   const bounceRate = totalSessions > 0 ? Math.round((totalBounces / totalSessions) * 100) : 0;
@@ -224,11 +239,16 @@ function summarizeSessions(list) {
   const humanWinRate = (totalHumanWins + totalBotWins) > 0 ? Math.round((totalHumanWins / (totalHumanWins + totalBotWins)) * 100) : 50;
   const avgFps = fpsCount > 0 ? Math.round((totalFpsSum / fpsCount) * 10) / 10 : 60;
 
+  const conv1mRate = totalSessions > 0 ? Math.round((countActive1m / totalSessions) * 100) : 0;
+  const conv4mRate = totalSessions > 0 ? Math.round((countActive4m / totalSessions) * 100) : 0;
+  const conv7mRate = totalSessions > 0 ? Math.round((countActive7m / totalSessions) * 100) : 0;
+
   return {
     totalSessions,
     totalMatchesStarted,
     totalMatchesCompleted,
     avgTabTimeSec,
+    avgActiveScreenTimeSec,
     avgMatchTimeSec,
     conversionRate,
     completionRate,
@@ -236,6 +256,12 @@ function summarizeSessions(list) {
     rageQuitRate,
     humanWinRate,
     avgFps,
+    conv1mRate,
+    conv4mRate,
+    conv7mRate,
+    countActive1m,
+    countActive4m,
+    countActive7m,
     funnel,
     modes,
     devices,

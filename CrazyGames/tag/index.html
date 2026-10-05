@@ -14738,6 +14738,9 @@ function netDirBase(){
 const SESSION_METRICS = {
   sessionId: 'sess_' + Math.random().toString(36).slice(2, 9),
   startTime: Date.now(),
+  activeTimeSec: 0,
+  _lastActiveT: Date.now(),
+  _isActive: true,
   matchesStarted: 0,
   matchesCompleted: 0,
   totalMatchPlaytimeSec: 0,
@@ -14755,6 +14758,31 @@ const SESSION_METRICS = {
   avgFps: 60,
   isEnded: false
 };
+
+function updateActiveSessionTime(){
+  try{
+    const now = Date.now();
+    const isVisible = (typeof document !== 'undefined') ? (!document.hidden && document.visibilityState === 'visible') : true;
+    if(SESSION_METRICS._isActive && isVisible){
+      const dt = Math.max(0, Math.min(30, (now - SESSION_METRICS._lastActiveT) / 1000));
+      SESSION_METRICS.activeTimeSec += dt;
+    }
+    SESSION_METRICS._lastActiveT = now;
+    SESSION_METRICS._isActive = isVisible;
+  }catch(e){}
+}
+if(typeof document !== 'undefined'){
+  document.addEventListener('visibilitychange', updateActiveSessionTime);
+  window.addEventListener('focus', () => {
+    SESSION_METRICS._isActive = true;
+    SESSION_METRICS._lastActiveT = Date.now();
+  });
+  window.addEventListener('blur', () => {
+    updateActiveSessionTime();
+    SESSION_METRICS._isActive = false;
+  });
+  setInterval(updateActiveSessionTime, 1000);
+}
 
 /* ================= DISCORD TELEMETRY & MULTI-CHANNEL SUITE ================= */
 function isOrganicPlay(){
@@ -15323,7 +15351,9 @@ function telemetrySendSessionPing(reason){
     if(isUnload && SESSION_METRICS.isEnded) return;
     if(isUnload) SESSION_METRICS.isEnded = true;
 
+    try{ updateActiveSessionTime(); }catch(e){}
     const tabLifetimeSec = Math.max(1, Math.round((Date.now() - SESSION_METRICS.startTime) / 1000));
+    const activeScreenTimeSec = Math.max(1, Math.min(tabLifetimeSec, Math.round(SESSION_METRICS.activeTimeSec || tabLifetimeSec)));
     let myName = "Guest";
     try { myName = netGetMyProfile().name || "Guest"; } catch(e){}
 
@@ -15332,12 +15362,13 @@ function telemetrySendSessionPing(reason){
     else if(SESSION_METRICS.matchesStarted >= 2) funnelStage = 'Stage 5: Retained (2+)';
     else if(SESSION_METRICS.matchesCompleted >= 1) funnelStage = 'Stage 4: Completed Match';
     else if(SESSION_METRICS.matchesStarted >= 1) funnelStage = 'Stage 3: Started Match';
-    else if(tabLifetimeSec >= 15) funnelStage = 'Stage 2: Menu Explorer (>15s)';
+    else if(activeScreenTimeSec >= 15 || tabLifetimeSec >= 15) funnelStage = 'Stage 2: Menu Explorer (>15s)';
 
     const sessionPayload = {
       sessionId: SESSION_METRICS.sessionId,
       playerName: myName,
       tabLifetimeSec: tabLifetimeSec,
+      activeScreenTimeSec: activeScreenTimeSec,
       totalMatchPlaytimeSec: SESSION_METRICS.totalMatchPlaytimeSec,
       matchesStarted: SESSION_METRICS.matchesStarted,
       matchesCompleted: SESSION_METRICS.matchesCompleted,
