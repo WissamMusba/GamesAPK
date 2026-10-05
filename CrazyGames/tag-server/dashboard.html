@@ -309,6 +309,112 @@
     .badge-rage { background: rgba(239, 68, 68, 0.2); color: #f87171; }
     .badge-quit { background: rgba(148, 163, 184, 0.2); color: #cbd5e1; }
     .badge-live-now { background: rgba(6, 182, 212, 0.2); color: #06b6d4; }
+    .badge-level {
+      background: rgba(250, 204, 21, 0.16);
+      color: #facc15;
+      border: 1px solid rgba(250, 204, 21, 0.35);
+      margin-left: 6px;
+      font-size: 11px;
+    }
+    .badge-repeat {
+      background: rgba(168, 85, 247, 0.18);
+      color: #c084fc;
+      border: 1px solid rgba(168, 85, 247, 0.35);
+      margin-left: 6px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .row-expand-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--card-border);
+      color: #94a3b8;
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 10px;
+      transition: all 0.18s ease;
+      user-select: none;
+      padding: 0;
+    }
+    .row-expand-btn:hover {
+      background: rgba(56, 189, 248, 0.25);
+      color: #38bdf8;
+      border-color: #38bdf8;
+    }
+    .row-expand-btn.open {
+      background: #38bdf8;
+      color: #0b1120;
+      border-color: #38bdf8;
+      transform: rotate(90deg);
+    }
+    .player-drawer-card {
+      background: linear-gradient(180deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.95) 100%);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 12px;
+      margin: 8px 12px 14px 12px;
+      padding: 16px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    }
+    .player-drawer-header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 12px;
+      margin-bottom: 12px;
+    }
+    .player-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .player-meta-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-size: 12px;
+      color: #94a3b8;
+    }
+    .meta-tag {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 3px 8px;
+      border-radius: 6px;
+    }
+    .meta-tag code {
+      color: #38bdf8;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .mini-sessions-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      margin-top: 8px;
+    }
+    .mini-sessions-table th {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 8px 10px;
+      color: #94a3b8;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .mini-sessions-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    }
+    .mini-sessions-table tr:hover td {
+      background: rgba(255, 255, 255, 0.03);
+    }
   </style>
 </head>
 <body>
@@ -586,12 +692,13 @@
         <table>
           <thead>
             <tr>
+              <th style="width: 38px; text-align: center;"></th>
               <th>Time</th>
-              <th>Player</th>
+              <th>Player & Level</th>
               <th>Device</th>
               <th>Mode</th>
               <th>Match Duration</th>
-              <th>Total Tab Time</th>
+              <th>Active Screen Time</th>
               <th>Outcome / Status</th>
               <th>FPS</th>
               <th>Funnel Stage</th>
@@ -730,11 +837,29 @@
     }
 
     function generateSampleData() {
-      const names = ['Guest Robot', 'Guest Pancake', 'Guest Falcon', 'Guest Ninja', 'Guest Pizza', 'Guest Tiger', 'Alex', 'Sam', 'Leo', 'Maya'];
+      const playerPool = [
+        { pid: 'pid_phoenix9', name: 'Guest Phoenix', level: 5, xp: 2450 },
+        { pid: 'pid_ninja22', name: 'Guest Ninja', level: 4, xp: 1720 },
+        { pid: 'pid_falcon01', name: 'Guest Falcon', level: 6, xp: 3600 },
+        { pid: 'pid_pancake', name: 'Guest Pancake', level: 3, xp: 950 },
+        { pid: 'pid_robot77', name: 'Guest Robot', level: 7, xp: 5100 },
+        { pid: 'pid_tiger4', name: 'Guest Tiger', level: 2, xp: 450 },
+        { pid: 'pid_sam99', name: 'Sam', level: 4, xp: 1800 },
+        { pid: 'pid_alex88', name: 'Alex', level: 5, xp: 2600 },
+        { pid: 'pid_maya', name: 'Maya', level: 3, xp: 1100 },
+        { pid: 'pid_leo3', name: 'Leo', level: 2, xp: 520 },
+        { pid: 'pid_shadow99', name: 'Guest Shadow', level: 8, xp: 6800 },
+        { pid: 'pid_viper', name: 'Guest Viper', level: 4, xp: 1650 },
+        { pid: 'pid_blaze', name: 'Guest Blaze', level: 3, xp: 1020 },
+        { pid: 'pid_frost', name: 'Guest Frost', level: 5, xp: 2750 },
+        { pid: 'pid_spark', name: 'Guest Spark', level: 1, xp: 80 }
+      ];
       const modes = ['party', 'bomb', 'crown', 'hunter', 'freeze'];
       const list = [];
 
       for (let i = 0; i < 100; i++) {
+        // Weighted selection so several players have 4, 5, or 6 sessions
+        const player = playerPool[Math.floor(Math.pow(Math.random(), 1.45) * playerPool.length)];
         const isMobile = Math.random() < 0.42;
         const isBounced = Math.random() < 0.16;
         const matchesStarted = isBounced ? 0 : Math.floor(Math.random() * 4) + 1;
@@ -757,7 +882,10 @@
 
         list.push({
           sessionId: 'sess_sample_' + i,
-          playerName: names[Math.floor(Math.random() * names.length)],
+          playerId: player.pid,
+          playerName: player.name,
+          level: player.level,
+          xp: player.xp,
           device: isMobile ? 'Mobile' : 'Desktop',
           tabLifetimeSec: tabSec,
           activeScreenTimeSec: activeSec,
@@ -1069,6 +1197,22 @@
       });
     }
 
+    const expandedPlayerDrawers = new Set();
+
+    function togglePlayerDrawer(rowKey) {
+      if (expandedPlayerDrawers.has(rowKey)) {
+        expandedPlayerDrawers.delete(rowKey);
+      } else {
+        expandedPlayerDrawers.add(rowKey);
+      }
+      renderTable();
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
     function renderTable() {
       const tbody = document.getElementById('sessionsTableBody');
       const search = (document.getElementById('searchInput').value || '').toLowerCase().trim();
@@ -1076,6 +1220,14 @@
       const deviceFilter = document.getElementById('tableDeviceFilter').value;
 
       let list = rawSessions;
+
+      // Group all sessions by PID (or playerName fallback) to know lifetime play count
+      const playerSessionsMap = new Map();
+      for (const s of rawSessions) {
+        const pKey = s.playerId || s.playerName || 'guest_unknown';
+        if (!playerSessionsMap.has(pKey)) playerSessionsMap.set(pKey, []);
+        playerSessionsMap.get(pKey).push(s);
+      }
 
       // Filter by active tab or table device dropdown
       if (deviceFilter !== 'all') {
@@ -1085,7 +1237,11 @@
       }
 
       if (search) {
-        list = list.filter(s => (s.playerName || '').toLowerCase().includes(search) || (s.sessionId || '').toLowerCase().includes(search));
+        list = list.filter(s => 
+          (s.playerName || '').toLowerCase().includes(search) || 
+          (s.playerId || '').toLowerCase().includes(search) || 
+          (s.sessionId || '').toLowerCase().includes(search)
+        );
       }
 
       if (modeFilter !== 'all') {
@@ -1097,11 +1253,25 @@
       }
 
       if (!list.length) {
-        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:24px; color:#64748b;">No matching sessions found.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:28px; color:#64748b;">No matching sessions found.</td></tr>`;
         return;
       }
 
-      tbody.innerHTML = list.slice(0, 50).map(s => {
+      let rowsHtml = '';
+      const displaySlice = list.slice(0, 50);
+
+      displaySlice.forEach((s, idx) => {
+        const pid = s.playerId || s.playerName || 'pid_guest';
+        const rowKey = s.sessionId || ('row_' + idx);
+        const pSessions = playerSessionsMap.get(pid) || [s];
+        const playCount = pSessions.length;
+
+        // Player Career Level & XP
+        const playerLvl = s.level || (pSessions.find(x => x.level) ? pSessions.find(x => x.level).level : 1);
+        const playerXp = s.xp || (pSessions.find(x => x.xp) ? pSessions.find(x => x.xp).xp : (playerLvl - 1) * (playerLvl - 1) * 100);
+
+        const isExpanded = expandedPlayerDrawers.has(rowKey);
+
         let badgeClass = 'badge-quit', badgeText = 'Exited Menu';
         if (s.rageQuits > 0) { badgeClass = 'badge-rage'; badgeText = '💢 Rage Quit (<12s)'; }
         else if (s.humanWins > 0) { badgeClass = 'badge-win'; badgeText = '🏆 Human Won'; }
@@ -1117,23 +1287,122 @@
 
         const devIcon = (s.device === 'Mobile') ? '📱 Mobile' : '💻 Desktop';
         const matchTime = fmtSec(s.totalMatchPlaytimeSec || 0);
+        const activeTime = fmtSec(s.activeScreenTimeSec || s.tabLifetimeSec || 0);
         const tabTime = fmtSec(s.tabLifetimeSec || s.totalTabTimeSec || 0);
         const fps = (s.avgFps || 60) + ' fps';
 
-        return `
-          <tr>
+        // Lifetime metrics for this player across all their sessions
+        const totalPlayerActiveSec = pSessions.reduce((acc, curr) => acc + (curr.activeScreenTimeSec || curr.tabLifetimeSec || 0), 0);
+        const totalPlayerMatches = pSessions.reduce((acc, curr) => acc + (curr.matchesStarted || 0), 0);
+        const totalPlayerWins = pSessions.reduce((acc, curr) => acc + (curr.humanWins || 0), 0);
+
+        // Main Session Row
+        rowsHtml += `
+          <tr style="${isExpanded ? 'background: rgba(56, 189, 248, 0.04);' : ''}">
+            <td style="text-align: center; width: 38px;">
+              <button class="row-expand-btn ${isExpanded ? 'open' : ''}" onclick="togglePlayerDrawer('${escapeHtml(rowKey)}')" title="Click arrow to inspect ${playCount} sessions for this player">
+                ${isExpanded ? '▼' : '▶'}
+              </button>
+            </td>
             <td style="color:#94a3b8; font-family:'JetBrains Mono';">${timeAgo(s.timestamp)}</td>
-            <td style="font-weight:700; color:#fff;">${s.playerName || 'Guest'}</td>
+            <td>
+              <div style="display:inline-flex; align-items:center; flex-wrap:wrap; gap:4px;">
+                <span style="font-weight:700; color:#fff;">${escapeHtml(s.playerName || 'Guest')}</span>
+                <span class="badge-pill badge-level" title="Career Level ${playerLvl} (${playerXp.toLocaleString()} XP)">⭐ Lv.${playerLvl}</span>
+                ${playCount > 1 ? `<span class="badge-pill badge-repeat" title="PID: ${escapeHtml(pid)} • Played ${playCount} times">🔁 ${playCount} Plays</span>` : ''}
+              </div>
+            </td>
             <td>${devIcon}</td>
             <td><span style="text-transform:capitalize;">${modesStr}</span></td>
             <td style="font-family:'JetBrains Mono';">${matchTime}</td>
-            <td style="font-family:'JetBrains Mono';">${tabTime}</td>
+            <td>
+              <div style="font-family:'JetBrains Mono'; color:#38bdf8; font-weight:700;">${activeTime}</div>
+              <div style="font-size:11px; color:#64748b;">Tab: ${tabTime}</div>
+            </td>
             <td><span class="badge-pill ${badgeClass}">${badgeText}</span></td>
             <td><span style="font-family:'JetBrains Mono'; color:${(s.avgFps||60)>=50 ? '#34d399' : '#f87171'}">${fps}</span></td>
             <td><span style="font-size:12px; color:#cbd5e1;">${s.funnelStage || 'N/A'}</span></td>
           </tr>
         `;
-      }).join('');
+
+        // Expandable Accordion Drawer Row
+        if (isExpanded) {
+          rowsHtml += `
+            <tr class="player-drawer-row">
+              <td colspan="10" style="padding: 0; background: rgba(15, 23, 42, 0.85); border-bottom: 2px solid rgba(56, 189, 248, 0.2);">
+                <div class="player-drawer-card">
+                  <div class="player-drawer-header">
+                    <div class="player-title">
+                      <span>👤</span>
+                      <strong>${escapeHtml(s.playerName || 'Guest')}</strong>
+                      <span class="badge-pill badge-level">⭐ Level ${playerLvl}</span>
+                      <span class="badge-pill badge-repeat">🎮 ${playCount} Sessions Recorded</span>
+                    </div>
+                    <div class="player-meta-tags">
+                      <span class="meta-tag">🆔 Player ID (PID): <code>${escapeHtml(pid)}</code></span>
+                      <span class="meta-tag">⚡ Career XP: <strong>${playerXp.toLocaleString()} XP</strong></span>
+                      <span class="meta-tag">⏱️ Lifetime Active Time: <strong>${fmtSec(totalPlayerActiveSec)}</strong></span>
+                      <span class="meta-tag">🏆 Lifetime Record: <strong>${totalPlayerWins} Wins in ${totalPlayerMatches} Matches</strong></span>
+                    </div>
+                  </div>
+
+                  <div style="font-size: 12px; font-weight: 700; color: #94a3b8; margin: 8px 0 6px 2px;">
+                    📜 All ${playCount} Recorded Session(s) for this Player (PID: <code style="color:#38bdf8;">${escapeHtml(pid)}</code>):
+                  </div>
+                  <div style="overflow-x: auto;">
+                    <table class="mini-sessions-table">
+                      <thead>
+                        <tr>
+                          <th>Session #</th>
+                          <th>Time</th>
+                          <th>Device</th>
+                          <th>Mode</th>
+                          <th>Match Duration</th>
+                          <th>Active Screen Time</th>
+                          <th>Outcome / Status</th>
+                          <th>Session ID</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${pSessions.map((ps, pIdx) => {
+                          let subBadgeClass = 'badge-quit', subBadgeText = 'Exited';
+                          if (ps.rageQuits > 0) { subBadgeClass = 'badge-rage'; subBadgeText = '💢 Rage Quit'; }
+                          else if (ps.humanWins > 0) { subBadgeClass = 'badge-win'; subBadgeText = '🏆 Won'; }
+                          else if (ps.botWins > 0) { subBadgeClass = 'badge-botwin'; subBadgeText = '🤖 Bot Won'; }
+                          else if ((ps.matchesStarted || 0) === 0) { subBadgeClass = 'badge-quit'; subBadgeText = '🚪 Bounced'; }
+
+                          let subMode = 'Classic';
+                          if (Array.isArray(ps.modesPlayed) && ps.modesPlayed.length) subMode = ps.modesPlayed.join(', ');
+                          else if (ps.modesPlayed && typeof ps.modesPlayed === 'object') subMode = Object.keys(ps.modesPlayed).join(', ');
+
+                          const isCurrentRow = (ps.sessionId === s.sessionId);
+
+                          return `
+                            <tr style="${isCurrentRow ? 'background: rgba(56, 189, 248, 0.08); font-weight: 600;' : ''}">
+                              <td style="color: #38bdf8; font-weight: 700; font-family:'JetBrains Mono';">
+                                Play #${playCount - pIdx} ${isCurrentRow ? '<span style="font-size:10px; color:#facc15;">(This Session)</span>' : ''}
+                              </td>
+                              <td style="color: #cbd5e1; font-family:'JetBrains Mono';">${timeAgo(ps.timestamp)}</td>
+                              <td>${ps.device === 'Mobile' ? '📱 Mobile' : '💻 Desktop'}</td>
+                              <td style="text-transform: capitalize;">${subMode || 'Classic'}</td>
+                              <td style="font-family:'JetBrains Mono';">${fmtSec(ps.totalMatchPlaytimeSec || 0)}</td>
+                              <td style="font-family:'JetBrains Mono'; color:#38bdf8;">${fmtSec(ps.activeScreenTimeSec || ps.tabLifetimeSec || 0)}</td>
+                              <td><span class="badge-pill ${subBadgeClass}" style="font-size:10px; padding:1px 6px;">${subBadgeText}</span></td>
+                              <td style="font-family:'JetBrains Mono'; font-size:11px; color:#64748b;"><code>${escapeHtml(ps.sessionId || 'n/a')}</code></td>
+                            </tr>
+                          `;
+                        }).join('')}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          `;
+        }
+      });
+
+      tbody.innerHTML = rowsHtml;
     }
 
     function exportDataJSON() {

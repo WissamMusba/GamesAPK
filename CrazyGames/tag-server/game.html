@@ -15364,8 +15364,21 @@ function telemetrySendSessionPing(reason){
     else if(SESSION_METRICS.matchesStarted >= 1) funnelStage = 'Stage 3: Started Match';
     else if(activeScreenTimeSec >= 15 || tabLifetimeSec >= 15) funnelStage = 'Stage 2: Menu Explorer (>15s)';
 
+    let myPid = '';
+    try{ myPid = getOrCreatePlayerId() || ''; }catch(e){}
+    let myLvl = 1, myXp = 0;
+    try{
+      if(typeof CAREER !== 'undefined' && CAREER){
+        myXp = CAREER.xp || 0;
+        myLvl = (typeof getCareerLevel === 'function') ? getCareerLevel(myXp) : (Math.floor(Math.sqrt(Math.max(0, myXp) / 100)) + 1);
+      }
+    }catch(e){}
+
     const sessionPayload = {
       sessionId: SESSION_METRICS.sessionId,
+      playerId: myPid,
+      level: myLvl,
+      xp: myXp,
       playerName: myName,
       tabLifetimeSec: tabLifetimeSec,
       activeScreenTimeSec: activeScreenTimeSec,
