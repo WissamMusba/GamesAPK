@@ -302,6 +302,19 @@ app.get('/dashboard', (req, res) => {
   res.send('Dashboard HTML not found.');
 });
 
+// Live Web Playable Test Link (Play immediately without downloading or installing)
+app.get('/play', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  const p = path.join(__dirname, 'game.html');
+  if (fs.existsSync(p)) return res.sendFile(p);
+  const tagGame = path.join(__dirname, '..', 'tag', 'index.html');
+  if (fs.existsSync(tagGame)) return res.sendFile(tagGame);
+  res.send('Game HTML not found.');
+});
+app.get('/game', (req, res) => res.redirect('/play'));
+
 // ================= ZERO-UDP WSS & HTTP LONG-POLL RELAY =================
 // roomId -> Map(peerId -> ws)
 const relayRooms = new Map();
