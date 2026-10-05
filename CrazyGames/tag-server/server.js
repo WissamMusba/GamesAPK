@@ -23,6 +23,18 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '2mb', strict: false }));
 app.use(express.text({ type: ['text/*', 'application/*'], limit: '2mb' }));
 
+// Graceful fallback for body parsing errors (ensures analytics pings never fail with 400)
+app.use((err, req, res, next) => {
+  if (err && (err instanceof SyntaxError || err.status === 400)) {
+    if (req.path.startsWith('/api/analytics')) {
+      req.body = {};
+      return next();
+    }
+    return res.status(400).json({ error: 'Malformed request body' });
+  }
+  next(err);
+});
+
 
 // In-Memory Active Rooms Directory for Public Matchmaking
 // roomId -> { roomId, name, hostName, isPublic, isLocked, players, maxPlayers, map, state: 'lobby'|'playing', lastPing }
@@ -252,6 +264,7 @@ function summarizeSessions(list) {
     totalMatchesCompleted,
     avgTabTimeSec,
     avgActiveScreenTimeSec,
+    avgActiveTimeSec: avgActiveScreenTimeSec,
     avgMatchTimeSec,
     conversionRate,
     completionRate,
@@ -277,6 +290,8 @@ app.post('/api/analytics/session', (req, res) => {
     let s = req.body || {};
     if (typeof s === 'string') {
       try { s = JSON.parse(s); } catch (e) { s = {}; }
+    } else if (Buffer.isBuffer(s)) {
+      try { s = JSON.parse(s.toString('utf8')); } catch (e) { s = {}; }
     }
     if (!s.sessionId) s.sessionId = 'sess_' + Date.now().toString(36);
     s.receivedAt = Date.now();

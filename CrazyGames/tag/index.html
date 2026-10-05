@@ -15411,20 +15411,32 @@ function telemetrySendSessionPing(reason){
     } catch(e){}
 
     // 2. Transmit to server analytics endpoint
-    const serverUrl = 'https://tag-netplay-server.onrender.com';
+    let serverUrl = 'https://tag-netplay-server.onrender.com';
+    try {
+      if (typeof location !== 'undefined' && location.hostname && (location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+        serverUrl = location.origin;
+      } else if (typeof netDirBase === 'function') {
+        serverUrl = netDirBase();
+      }
+    } catch(e){}
     const jsonStr = JSON.stringify(sessionPayload);
     let sent = false;
     if(isUnload && navigator.sendBeacon){
       try {
-        sent = navigator.sendBeacon(serverUrl + '/api/analytics/session', new Blob([jsonStr], { type: 'application/json' }));
-      } catch(e){ sent = false; }
+        sent = navigator.sendBeacon(serverUrl + '/api/analytics/session', jsonStr);
+      } catch(e){
+        try {
+          sent = navigator.sendBeacon(serverUrl + '/api/analytics/session', new Blob([jsonStr], { type: 'text/plain' }));
+        } catch(e2){ sent = false; }
+      }
     }
     if(!sent){
       fetch(serverUrl + '/api/analytics/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: jsonStr,
-        keepalive: true
+        keepalive: true,
+        mode: 'cors'
       }).catch(()=>{});
     }
   }catch(e){}
