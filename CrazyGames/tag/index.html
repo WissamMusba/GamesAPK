@@ -1068,23 +1068,28 @@ const LOCAL_CTRL_SCHEMES = [
   { id: 'arrows', label: 'ARROWS', map: { L: 'ArrowLeft', R: 'ArrowRight', U: ['ArrowUp','Numpad0'], D: 'ArrowDown' } },
   { id: 'ijkl', label: 'IJKL', map: { L: 'KeyJ', R: 'KeyL', U: 'KeyI', D: 'KeyK' } },
   { id: 'tfgh', label: 'TFGH', map: { L: 'KeyF', R: 'KeyH', U: 'KeyT', D: 'KeyG' } },
-  { id: 'controller', label: 'CONTROLLER', map: {} }
+  { id: 'controller', label: 'CONTROLLER', map: {} },
+  { id: 'bot', label: '🤖 BOT', map: {} }
 ];
 
 function cycleSlotCtrl(slot, d){
   if(!menu.slotCtrl) menu.slotCtrl = [0, 1, 2, 3];
   const total = LOCAL_CTRL_SCHEMES.length;
   let cur = menu.slotCtrl[slot] != null ? menu.slotCtrl[slot] : slot;
+  if(typeof isSlotBot === 'function' && isSlotBot(slot)){
+    cur = LOCAL_CTRL_SCHEMES.findIndex(s => s.id === 'bot');
+    if(cur < 0) cur = total - 1;
+  }
   
   // Find keyboard schemes already taken by other active players
   const taken = new Set();
   const act = (typeof activeSlots === 'function') ? activeSlots() : [0, 1];
   for(const other of act){
-    if(other !== slot){
+    if(other !== slot && !(typeof isSlotBot === 'function' && isSlotBot(other))){
       const otherIdx = menu.slotCtrl[other];
       if(otherIdx != null){
         const s = LOCAL_CTRL_SCHEMES[((otherIdx % total) + total) % total];
-        if(s && s.id !== 'controller'){
+        if(s && s.id !== 'controller' && s.id !== 'bot'){
           taken.add(s.id);
         }
       }
@@ -1096,8 +1101,16 @@ function cycleSlotCtrl(slot, d){
     const nextIdx = ((cur + d * step) % total + total) % total;
     const candidate = LOCAL_CTRL_SCHEMES[nextIdx];
     if(!candidate) continue;
-    if(!taken.has(candidate.id) || candidate.id === 'controller'){
+    if(!taken.has(candidate.id) || candidate.id === 'controller' || candidate.id === 'bot'){
       menu.slotCtrl[slot] = nextIdx;
+      if(!menu.slotIsBot) menu.slotIsBot = [false, false, false, false, false, false, false, false];
+      if(candidate.id === 'bot'){
+        menu.slotIsBot[slot] = true;
+        toast('🤖 P' + (slot+1) + ' SET TO BOT');
+      } else {
+        menu.slotIsBot[slot] = false;
+        toast('🎮 P' + (slot+1) + ': ' + candidate.label);
+      }
       break;
     }
   }
@@ -1886,7 +1899,7 @@ function demoOverlay(){ harnessOverlay(); }
 window.HARNESS = HARNESS;
 window.harnessStart = harnessStart;
 let screen='menu',tGlobal=0;
-const menu={tab:'2p',mode:'rows',slotColor:[0,1,-1,-1,-1,-1,-1,-1],slotTeam:[0,1,0,1,0,1,0,1],slotCtrl:[0,1,2,3],row:4,rule:0,toast:null,toastT:0,botOn:false,botDifficulty:'hard',mapModal:false,onlineModal:false,slotIsBot:[false,false,false,false,false,false,false,false],botSlots:null};
+const menu={tab:'2p',mode:'rows',slotColor:[0,1,-1,-1,-1,-1,-1,-1],slotTeam:[0,1,0,1,0,1,0,1],slotCtrl:[0,1,2,3],row:4,rule:0,toast:null,toastT:0,botOn:false,botDifficulty:'hard',slotBotDiff:['hard','hard','hard','hard','hard','hard','hard','hard'],mapModal:false,onlineModal:false,slotIsBot:[false,false,false,false,false,false,false,false],botSlots:null};
 function isSlotBot(slotIdx){
   if(menu.tab === 'solo') return slotIdx === 1;
   if(menu.tab === 'bots') return slotIdx === 0 || slotIdx === 1;
@@ -1905,11 +1918,26 @@ const ROWS=['CHANGE PLAYERS','MAP','TIMER','RULES','START'];
 const RULE_NAMES=['DOUBLE JUMP'];
 function toast(m){menu.toast=m;menu.toastT=2.2;}
 
+function getSlotBotDiff(slot){
+  if(menu.slotBotDiff && menu.slotBotDiff[slot]) return menu.slotBotDiff[slot];
+  return menu.botDifficulty || 'hard';
+}
+function toggleSlotBotDiff(slot){
+  if(!menu.slotBotDiff) menu.slotBotDiff = ['hard','hard','hard','hard','hard','hard','hard','hard'];
+  const cur = getSlotBotDiff(slot);
+  const next = (cur === 'easy') ? 'hard' : 'easy';
+  menu.slotBotDiff[slot] = next;
+  sfx('ok');
+  toast('🤖 BOT ' + (slot+1) + ': ' + next.toUpperCase() + (next === 'hard' ? ' 🔥 (SMART)' : ' 🌱 (RELAXED)'));
+}
+
 function setBotDifficulty(diff){
   if(diff !== 'easy' && diff !== 'hard') diff = 'hard';
   menu.botDifficulty = diff;
   settings.botDifficulty = diff;
-  toast('BOT DIFFICULTY: ' + diff.toUpperCase() + (diff === 'hard' ? ' (DEFAULT)' : ''));
+  if(!menu.slotBotDiff) menu.slotBotDiff = ['hard','hard','hard','hard','hard','hard','hard','hard'];
+  for(let i=0; i<8; i++) menu.slotBotDiff[i] = diff;
+  toast('ALL BOTS DIFFICULTY: ' + diff.toUpperCase() + (diff === 'hard' ? ' (DEFAULT)' : ''));
   sfx('ok');
 }
 function toggleBotDifficulty(){
@@ -6654,13 +6682,20 @@ function startMatch(){
     toast('HOST RESTARTS THE MATCH');
     return;
   }
-  // Auto-admit waiting spectators into open slots before starting next round
+  // Auto-admit waiting guest spectators into open slots before starting next round (never host)
   if(typeof NET !== 'undefined' && NET && NET.isHost && NET.spectators && NET.spectators.length > 0){
+    const guestSpecs = NET.spectators.filter(sp => sp.peerId !== (NET.myId || 'host') && sp.peerId !== 'host');
     for(let s = 1; s < 8; s++){
-      if(menu.slotColor[s] === -1 && !NET.hostInputs.has(s) && NET.spectators.length > 0){
-        const nextSpec = NET.spectators[0];
+      if(menu.slotColor[s] === -1 && !NET.hostInputs.has(s) && guestSpecs.length > 0){
+        const nextSpec = guestSpecs.shift();
         netAdmitSpectator(nextSpec.peerId, s);
       }
+    }
+  }
+  if(typeof NET !== 'undefined' && NET && NET.role !== null && NET.isSpectator){
+    NET.mySlot = -1;
+    if(NET.isHost && !NET.hostInputs.has(0)){
+      menu.slotColor[0] = -1;
     }
   }
   ensureUniqueLocalColors();
@@ -7187,7 +7222,8 @@ function botInputFor(p,dt){
   if(match && match.hunterMode && match.cageT > 0 && p.isHunter) return {dir:0,jumpEdge:false,jumpHeld:false,downHeld:false};
   let S=BOT.st[p.slot];
   if(!S){S=BOT.st[p.slot]={dir:0,jumpQ:false,jumpHoldT:0,decideT:Math.random()*0.09,thinkJit:0.85+Math.random()*0.3,px:p.x,py:p.y,stuckT:0,unstuckT:0,unstuckDir:0,bonks:0,bonkT:0,airT:0,dropHold:0,descLockT:0,descDir:0,airT2:0,exitX:0,hasExit:false,exitLockT:0,exitDir:0,exitGp:null,climbPlat:null,climbOut:0,climbT:0,bannedSide:0,banT:0,banTierY:0,dropNoJumpT:0,pinkJukePhase:0,pinkJukeT:0,pinkJukeCooldown:0,pinkJukePlat:null,pinkJukeDir:0,airBrakeT:0,airBrakeCooldown:0};}
-  const isEasy = ((menu.botDifficulty || settings.botDifficulty) === 'easy');
+  const slotDiff = (typeof getSlotBotDiff === 'function') ? getSlotBotDiff(p.slot) : (menu.botDifficulty || settings.botDifficulty || 'hard');
+  const isEasy = (slotDiff === 'easy');
   const botThinkRate = isEasy ? 0.16 : BOT.think;
   const stepDt=(typeof dt==='number'&&dt>0)?Math.min(0.05,dt):Math.min(0.033,1/60);
   const cx=p.x+p.w/2,cy=p.y+p.h/2;
@@ -13505,7 +13541,9 @@ function drawMenu(){
           sfx('back');
           return;
         } else if(activeSlots().length < 2){
-          menu.slotColor[0] = 0; menu.slotColor[1] = 1;
+          if(typeof NET === 'undefined' || !NET || NET.role === null || !NET.isSpectator){
+            menu.slotColor[0] = 0; menu.slotColor[1] = 1;
+          }
         }
         sfx('go');
         startMatch();
@@ -13586,9 +13624,35 @@ function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
   }
 
   // Avatar in middle
-  const avY = cardY + cardH * 0.40;
+  const avY = isBot ? (cardY + cardH * 0.36) : (cardY + cardH * 0.40);
   const charSz = clamp(cardH * 0.27, 20, 40);
   drawChar(g, centerX, avY, charSz, col, { face: isBot ? 'cool' : 'happy', grounded: true, seed: slotIdx * 3 });
+
+  // Per-Bot Difficulty Chip (Easy / Hard per bot)
+  if(isBot){
+    const diffH = clamp(cardH * 0.11, 15, 20);
+    const diffY = cardY + cardH * 0.50;
+    const diffW = cardW - 14;
+    const diffX = cx + 7;
+    const slotDiff = (typeof getSlotBotDiff === 'function') ? getSlotBotDiff(slotIdx) : 'hard';
+    const isHard = (slotDiff === 'hard');
+
+    rr(g, diffX, diffY, diffW, diffH, 5);
+    g.fillStyle = isHard ? 'rgba(235, 60, 40, 0.22)' : 'rgba(46, 204, 113, 0.22)';
+    g.fill();
+    g.lineWidth = 1.2;
+    g.strokeStyle = isHard ? '#ff6b81' : '#2ed573';
+    g.stroke();
+
+    ptxt('‹', diffX + 7, diffY + diffH/2 + 1, FT(10), '#ffffff');
+    ptxt('›', diffX + diffW - 7, diffY + diffH/2 + 1, FT(10), '#ffffff');
+
+    const diffFs = clamp(cardW * 0.065, 8.5, 10.5);
+    const diffLabel = isHard ? '🔥 HARD BOT' : '🌱 EASY BOT';
+    ptxt(diffLabel, centerX, diffY + diffH/2 + 1, FN(diffFs, 900), isHard ? '#ff6b81' : '#2ed573');
+
+    zone(diffX, diffY, diffW, diffH, { fn: () => toggleSlotBotDiff(slotIdx) });
+  }
 
   // Hunter Mode Role Badge / Picker
   if(settings.gameMode === 'hunter'){
@@ -13616,7 +13680,7 @@ function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
     }
   }
 
-  // Control Selector Bar (WASD / Arrows / IJKL / TFGH / Gamepads)
+  // Control Selector Bar (WASD / Arrows / IJKL / TFGH / CONTROLLER / 🤖 BOT)
   const ctrlH = clamp(cardH * 0.14, 18, 24);
   const ctrlY = cardY + cardH * 0.63;
   const ctrlW = cardW - 14;
@@ -13624,41 +13688,28 @@ function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
 
   rr(g, ctrlX, ctrlY, ctrlW, ctrlH, 6);
   g.fillStyle = 'rgba(255, 255, 255, 0.09)'; g.fill();
-  g.lineWidth = 1; g.strokeStyle = isBot ? 'rgba(255,255,255,0.25)' : 'rgba(255, 255, 255, 0.28)'; g.stroke();
+  g.lineWidth = 1; g.strokeStyle = isBot ? 'rgba(255,107,129,0.45)' : 'rgba(255, 255, 255, 0.28)'; g.stroke();
 
+  // Left arrow
+  ptxt('‹', ctrlX + 8, ctrlY + ctrlH/2 + 1, FT(11), '#ffffff');
+  zone(ctrlX, ctrlY, 22, ctrlH, { fn: () => cycleSlotCtrl(slotIdx, -1) });
+
+  // Right arrow
+  ptxt('›', ctrlX + ctrlW - 8, ctrlY + ctrlH/2 + 1, FT(11), '#ffffff');
+  zone(ctrlX + ctrlW - 22, ctrlY, 22, ctrlH, { fn: () => cycleSlotCtrl(slotIdx, 1) });
+
+  // Control Label
+  let ctrlLabel = 'WASD';
   if(isBot){
-    const isHard = ((menu.botDifficulty || 'hard') !== 'easy');
-    // Left arrow
-    ptxt('‹', ctrlX + 8, ctrlY + ctrlH/2 + 1, FT(11), '#ffffff');
-    zone(ctrlX, ctrlY, 22, ctrlH, { fn: () => toggleBotDifficulty() });
-
-    // Right arrow
-    ptxt('›', ctrlX + ctrlW - 8, ctrlY + ctrlH/2 + 1, FT(11), '#ffffff');
-    zone(ctrlX + ctrlW - 22, ctrlY, 22, ctrlH, { fn: () => toggleBotDifficulty() });
-
-    // Difficulty Label
-    const diffLabel = isHard ? '🔥 HARD (DEF)' : '⚡ EASY';
-    const diffCol = isHard ? '#ff6b81' : '#2ed573';
-    const ctrlFs = clamp(cardW * 0.066, 8.5, 11);
-    ptxt(diffLabel, centerX, ctrlY + ctrlH/2 + 1, FN(ctrlFs, 900), diffCol);
-    zone(ctrlX + 22, ctrlY, ctrlW - 44, ctrlH, { fn: () => toggleBotDifficulty() });
+    ctrlLabel = '🤖 BOT';
   } else {
-    // Left arrow
-    ptxt('‹', ctrlX + 8, ctrlY + ctrlH/2 + 1, FT(11), '#ffffff');
-    zone(ctrlX, ctrlY, 22, ctrlH, { fn: () => cycleSlotCtrl(slotIdx, -1) });
-
-    // Right arrow
-    ptxt('›', ctrlX + ctrlW - 8, ctrlY + ctrlH/2 + 1, FT(11), '#ffffff');
-    zone(ctrlX + ctrlW - 22, ctrlY, 22, ctrlH, { fn: () => cycleSlotCtrl(slotIdx, 1) });
-
-    // Control Label
     const curCtrlIdx = (menu.slotCtrl && menu.slotCtrl[slotIdx] != null) ? menu.slotCtrl[slotIdx] : slotIdx;
     const curCtrl = LOCAL_CTRL_SCHEMES[((curCtrlIdx % LOCAL_CTRL_SCHEMES.length) + LOCAL_CTRL_SCHEMES.length) % LOCAL_CTRL_SCHEMES.length];
-    const ctrlLabel = curCtrl ? curCtrl.label : 'WASD';
-    const ctrlFs = clamp(cardW * 0.065, 8.5, 10.5);
-    ptxt(ctrlLabel, centerX, ctrlY + ctrlH/2 + 1, FN(ctrlFs, 900), '#ffd166');
-    zone(ctrlX + 22, ctrlY, ctrlW - 44, ctrlH, { fn: () => cycleSlotCtrl(slotIdx, 1) });
+    ctrlLabel = curCtrl ? curCtrl.label : 'WASD';
   }
+  const ctrlFs = clamp(cardW * 0.065, 8.5, 10.5);
+  ptxt(ctrlLabel, centerX, ctrlY + ctrlH/2 + 1, FN(ctrlFs, 900), isBot ? '#ff6b81' : '#ffd166');
+  zone(ctrlX + 22, ctrlY, ctrlW - 44, ctrlH, { fn: () => cycleSlotCtrl(slotIdx, 1) });
 
   // Color Cycler Bar
   const barH = clamp(cardH * 0.14, 18, 24);
@@ -16704,7 +16755,7 @@ function inputForNet(p,dt){
       if(isBotSlot(p)){
         return botInputFor(p, dt);
       }
-      if(slot === NET.mySlot || slot === 0){
+      if(!NET.isSpectator && NET.mySlot >= 0 && slot === NET.mySlot){
         return sampleControls(NET.myCtrl || 'WASD');
       }
       const ext = NET.hostInputs.get(slot);
