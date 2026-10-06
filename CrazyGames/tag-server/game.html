@@ -7059,9 +7059,10 @@ var initCtfMode, updateCtf, checkCtfTag, drawCtfUI, drawCtfPlayer, drawCtfEntiti
           if (hit) {
             enemyFlag.state = 'carried';
             enemyFlag.carrier = p;
+            p.shieldT = 2.0; // 2.0s anti-camp immunity on flag pickup
             spawnCtfSparkles(enemyFlag.x, enemyFlag.y, enemyTeam === 0 ? '#ff4757' : '#38bdf8', 24);
-            addCtfFloater('FLAG STOLEN!', enemyFlag.x, enemyFlag.y - 40, '#ffd166', 2.0);
-            _toast((team === 0 ? '🔴 RED' : '🔵 BLUE') + ' TEAM STOLE THE ENEMY FLAG!');
+            addCtfFloater('FLAG STOLEN! (SHIELDED)', enemyFlag.x, enemyFlag.y - 40, '#ffd166', 2.0);
+            _toast((team === 0 ? '🔴 RED' : '🔵 BLUE') + ' TEAM STOLE FLAG! (🛡️ 2s IMMUNITY)');
             _sfx('boost');
             break;
           }
@@ -7169,21 +7170,7 @@ var initCtfMode, updateCtf, checkCtfTag, drawCtfUI, drawCtfPlayer, drawCtfEntiti
           continue;
         }
 
-        // Case C: Standard territory defense (intruder tagged by defender in home territory)
-        const midX = arenaW / 2;
-        if (!p1HasShield && p1.team === 1 && p1.x < midX - 60) {
-          // p1 (Blue) invaded Red half, tagged by p2 (Red defender)
-          handleCtfTagIntruder(p2, p1);
-        } else if (!p2HasShield && p2.team === 1 && p2.x < midX - 60) {
-          // p2 (Blue) invaded Red half, tagged by p1 (Red defender)
-          handleCtfTagIntruder(p1, p2);
-        } else if (!p1HasShield && p1.team === 0 && p1.x > midX + 60) {
-          // p1 (Red) invaded Blue half, tagged by p2 (Blue defender)
-          handleCtfTagIntruder(p2, p1);
-        } else if (!p2HasShield && p2.team === 0 && p2.x > midX + 60) {
-          // p2 (Red) invaded Blue half, tagged by p1 (Blue defender)
-          handleCtfTagIntruder(p1, p2);
-        }
+        // ONLY players carrying the enemy flag can be tagged. Non-carriers pass right through each other!
       }
     }
   }
@@ -14498,7 +14485,7 @@ function drawMenu(){
     // Chip 3: Game Mode (Party -> Teams -> Hunter)
     const chip3X = stripX + 18 + chipW * 2;
     const curGM_mob = settings.gameMode || (settings.teams ? 'teams' : 'party');
-    let gmLabel_mob = '👥 PARTY', gmBadge_mob = null, gmBadgeBg_mob = '#ff4757';
+    let gmLabel_mob = '👥 PARTY', gmBadge_mob = 'TRY NEW MODES!', gmBadgeBg_mob = '#ff4757';
     let gmActive_mob = false, gmBg_mob = '#f39c12', gmDarkBg_mob = '#b45309';
     let gmText_mob = '#cbd5e1', gmBorder_mob = 'rgba(255,255,255,0.2)';
 
@@ -14678,7 +14665,7 @@ function drawMenu(){
     // Chip 3: Game Mode (Party -> Teams -> Hunter)
     const chip3X = chipsX + chipW * 2 + 12;
     const curGM_desk = settings.gameMode || (settings.teams ? 'teams' : 'party');
-    let gmLabel_desk = '👥 FFA PARTY', gmBadge_desk = null, gmBadgeBg_desk = '#ff4757';
+    let gmLabel_desk = '👥 FFA PARTY', gmBadge_desk = 'TRY NEW MODES!', gmBadgeBg_desk = '#ff4757';
     let gmActive_desk = false, gmBg_desk = '#f39c12', gmDarkBg_desk = '#b45309';
     let gmText_desk = '#cbd5e1', gmBorder_desk = 'rgba(255,255,255,0.2)';
 
