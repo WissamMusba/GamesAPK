@@ -1058,7 +1058,7 @@ const TEAMS = [
   { name: 'YELLOW TEAM', icon: '🟡', base: '#f5a623', shades: ['#f5a623', '#feca57', '#ff9f43', '#ffeaa7'] }
 ];
 
-const MODES=['party','teams','hunter','freeze','infection','bomb','crown','ctf'];
+const MODES=['party','teams','ctf','freeze','infection','bomb','crown','hunter'];
 const TIMES=[60,120,180];
 const settings={map:0,randomMap:false,doubleJump:true,collision:false,timeIdx:1,teams:false,botDifficulty:'hard',gameMode:'party',ctfTargetCaptures:3,hunterRed:0,hunterBlue:1,hunterRotate:false};
 Object.defineProperty(settings,'time',{get(){return TIMES[this.timeIdx];}});
@@ -2271,12 +2271,12 @@ function validateHunterRoles(){
 const MAPVOTE_MODES = [
   {id:'party', icon:'👥', label:'PARTY'},
   {id:'teams', icon:'⚔️', label:'TEAMS'},
-  {id:'hunter', icon:'🎯', label:'HUNTER'},
+  {id:'ctf', icon:'🚩', label:'CTF'},
   {id:'freeze', icon:'❄️', label:'FREEZE'},
   {id:'infection', icon:'🧟', label:'INFECTION'},
   {id:'bomb', icon:'💣', label:'BOMB'},
   {id:'crown', icon:'👑', label:'CROWN'},
-  {id:'ctf', icon:'🚩', label:'CTF'}
+  {id:'hunter', icon:'🎯', label:'HUNTER'}
 ];
 function mapVoteVoters(){
   const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
@@ -2566,8 +2566,8 @@ function cycleGameMode(d){
     return;
   }
   const modes = (menu.tab === 'bots' || menu.tab === 'solo')
-    ? ['party', 'bomb', 'crown', 'ctf']
-    : ['party', 'teams', 'hunter', 'bomb', 'crown', 'ctf'];
+    ? ['party', 'ctf', 'bomb', 'crown']
+    : ['party', 'teams', 'ctf', 'bomb', 'crown', 'hunter'];
   let curIdx = modes.indexOf(settings.gameMode || (settings.teams ? 'teams' : 'party'));
   if(curIdx < 0) curIdx = 0;
   const nextIdx = (curIdx + (d || 1) + modes.length) % modes.length;
@@ -6666,13 +6666,13 @@ var initCtfMode, updateCtf, checkCtfTag, drawCtfUI, drawCtfPlayer, drawCtfEntiti
     RESPAWN_DELAY: 1.5,
     SHIELD_DURATION: 2.0,
     DEFAULT_TARGET_CAPTURES: 3,
-    FLAG_WIDTH: 26,
-    FLAG_HEIGHT: 18,
-    POLE_HEIGHT: 44,
-    PEDESTAL_W: 68,
-    PEDESTAL_H: 14,
-    PICKUP_RADIUS: 28,
-    CAPTURE_RADIUS: 34
+    FLAG_WIDTH: 44,
+    FLAG_HEIGHT: 28,
+    POLE_HEIGHT: 58,
+    PEDESTAL_W: 84,
+    PEDESTAL_H: 16,
+    PICKUP_RADIUS: 34,
+    CAPTURE_RADIUS: 42
   };
 
   const ctfState = {
@@ -6681,8 +6681,8 @@ var initCtfMode, updateCtf, checkCtfTag, drawCtfUI, drawCtfPlayer, drawCtfEntiti
     scores: [0, 0],
     lastCaptureTeam: null,
     bases: [
-      { team: 0, x: 260, y: 720, w: 68, h: 14, plat: null },
-      { team: 1, x: 2140, y: 720, w: 68, h: 14, plat: null }
+      { team: 0, x: 260, y: 720, w: 84, h: 16, plat: null },
+      { team: 1, x: 2140, y: 720, w: 84, h: 16, plat: null }
     ],
     flags: [
       { team: 0, state: 'home', carrier: null, x: 260, y: 700, homeX: 260, homeY: 700, bobT: 0 },
@@ -7241,6 +7241,107 @@ var initCtfMode, updateCtf, checkCtfTag, drawCtfUI, drawCtfPlayer, drawCtfEntiti
   }
 
   /* -------------------------------------------------------------------------
+     Helper: Draw High-Detail Swallowtail Pennant Flag
+     ------------------------------------------------------------------------- */
+  function drawPennantBanner(g, poleX, topY, fw, fh, dir, team, tG, isCarried, isStolen) {
+    g.save();
+    const baseCol = team === 0 ? '#dc2626' : '#2563eb';
+    const brightCol = team === 0 ? '#ff6b6b' : '#38bdf8';
+    const deepCol = team === 0 ? '#881337' : '#1e3a8a';
+    const trimCol = '#fef08a';
+
+    const waveFreq = isCarried ? 16.0 : 6.0;
+    const waveAmp = isCarried ? 7.0 : 4.5;
+    const w1 = Math.sin(tG * waveFreq) * waveAmp;
+    const w2 = Math.cos(tG * (waveFreq * 1.35)) * (waveAmp * 0.55);
+    const w3 = Math.sin(tG * (waveFreq * 0.8) + 1.2) * (waveAmp * 0.65);
+
+    // Tips of swallowtail fork
+    const tipTopX = poleX + dir * fw;
+    const tipTopY = topY + w1;
+
+    const tipBtmX = poleX + dir * fw;
+    const tipBtmY = topY + fh + w2;
+
+    // Inner chevron notch cut inward
+    const notchX = poleX + dir * (fw * 0.66);
+    const notchY = topY + fh * 0.5 + w3;
+
+    if (isStolen) {
+      // Pulsing holographic wireframe for stolen home flag
+      g.setLineDash([4, 4]);
+      g.lineWidth = 2.0;
+      g.strokeStyle = team === 0 ? 'rgba(244, 63, 94, 0.75)' : 'rgba(56, 189, 248, 0.75)';
+      g.beginPath();
+      g.moveTo(poleX, topY);
+      g.lineTo(tipTopX, tipTopY);
+      g.lineTo(notchX, notchY);
+      g.lineTo(tipBtmX, tipBtmY);
+      g.lineTo(poleX, topY + fh);
+      g.closePath();
+      g.stroke();
+      g.restore();
+      return;
+    }
+
+    // Dynamic S-curve swallowtail pennant path
+    g.beginPath();
+    g.moveTo(poleX, topY);
+
+    // Top rippling edge
+    const cp1X = poleX + dir * (fw * 0.38);
+    const cp1Y = topY - w2 * 0.75;
+    const cp2X = poleX + dir * (fw * 0.72);
+    const cp2Y = topY + w1 * 1.05;
+    g.bezierCurveTo(cp1X, cp1Y, cp2X, cp2Y, tipTopX, tipTopY);
+
+    // Inner fork notch
+    g.lineTo(notchX, notchY);
+
+    // Bottom fork tip
+    g.lineTo(tipBtmX, tipBtmY);
+
+    // Bottom rippling edge back to pole
+    const cp3X = poleX + dir * (fw * 0.72);
+    const cp3Y = topY + fh + w1 * 0.85;
+    const cp4X = poleX + dir * (fw * 0.38);
+    const cp4Y = topY + fh - w2 * 0.55;
+    g.bezierCurveTo(cp3X, cp3Y, cp4X, cp4Y, poleX, topY + fh);
+    g.closePath();
+
+    // 1. Silk cloth gradient fill
+    const clothGrad = g.createLinearGradient(poleX, topY, tipTopX, topY);
+    clothGrad.addColorStop(0.0, brightCol);
+    clothGrad.addColorStop(0.45, baseCol);
+    clothGrad.addColorStop(1.0, deepCol);
+    g.fillStyle = clothGrad;
+    g.fill();
+
+    // 2. Wave specular shading ripples across silk
+    const shadeGrad = g.createLinearGradient(poleX, topY, tipTopX, topY);
+    shadeGrad.addColorStop(0.0, 'rgba(255, 255, 255, 0.22)');
+    shadeGrad.addColorStop(0.25, 'rgba(0, 0, 0, 0.20)');
+    shadeGrad.addColorStop(0.52, 'rgba(255, 255, 255, 0.28)');
+    shadeGrad.addColorStop(0.78, 'rgba(0, 0, 0, 0.22)');
+    shadeGrad.addColorStop(1.0, 'rgba(255, 255, 255, 0.12)');
+    g.fillStyle = shadeGrad;
+    g.fill();
+
+    // 3. Embroidered golden silk trim border
+    g.strokeStyle = trimCol;
+    g.lineWidth = 1.8;
+    g.stroke();
+
+    // 4. Team Heraldic Insignia in center of pennant field
+    const emblemX = poleX + dir * (fw * 0.36);
+    const emblemY = topY + fh * 0.5 + 1 + (w1 + w2) * 0.25;
+    const emblemIcon = team === 0 ? '🔥' : '⚡';
+    _txt(g, emblemIcon, emblemX, emblemY, _fn(Math.round(fh * 0.52), 900), '#ffffff', 'center');
+
+    g.restore();
+  }
+
+  /* -------------------------------------------------------------------------
      Rendering: World Pedestals, Beacons, Flags & FX
      ------------------------------------------------------------------------- */
   function drawCtfEntities() {
@@ -7254,124 +7355,205 @@ var initCtfMode, updateCtf, checkCtfTag, drawCtfUI, drawCtfPlayer, drawCtfEntiti
     for (let t = 0; t < 2; t++) {
       const base = ctfState.bases[t];
       const flag = ctfState.flags[t];
-      const baseCol = t === 0 ? '#e8433f' : '#2f9be8';
+      const baseCol = t === 0 ? '#dc2626' : '#2563eb';
       const brightCol = t === 0 ? '#ff6b6b' : '#38bdf8';
-      const glowCol = t === 0 ? 'rgba(232, 67, 63, ' : 'rgba(47, 155, 232, ';
+      const glowCol = t === 0 ? 'rgba(220, 38, 38, ' : 'rgba(37, 99, 235, ';
 
       g.save();
 
-      // 1. Holographic vertical beacon beam
-      const beamW = 44 + Math.sin(tG * 4 + t) * 6;
-      const beamH = 600;
+      // 1. Majestic Volumetric Conical Beacon Beam
+      const beamH = 680;
+      const beamBaseW = 56 + Math.sin(tG * 3 + t) * 6;
+      const beamTopW = 130 + Math.sin(tG * 2.5 + t) * 12;
+
       const beamGrad = g.createLinearGradient(base.x, base.y - beamH, base.x, base.y);
       beamGrad.addColorStop(0, glowCol + '0)');
-      beamGrad.addColorStop(0.5, glowCol + '0.08)');
-      beamGrad.addColorStop(1, glowCol + '0.28)');
-      g.fillStyle = beamGrad;
-      g.fillRect(base.x - beamW / 2, base.y - beamH, beamW, beamH);
+      beamGrad.addColorStop(0.35, glowCol + '0.04)');
+      beamGrad.addColorStop(0.75, glowCol + '0.14)');
+      beamGrad.addColorStop(1, glowCol + '0.35)');
 
-      // 2. Base Platform Pedestal Slab
+      g.beginPath();
+      g.moveTo(base.x - beamBaseW / 2, base.y);
+      g.lineTo(base.x - beamTopW / 2, base.y - beamH);
+      g.lineTo(base.x + beamTopW / 2, base.y - beamH);
+      g.lineTo(base.x + beamBaseW / 2, base.y);
+      g.closePath();
+      g.fillStyle = beamGrad;
+      g.fill();
+
+      // Central vertical ray core
+      const coreW = 6 + Math.sin(tG * 6 + t) * 2;
+      const coreGrad = g.createLinearGradient(base.x, base.y - beamH, base.x, base.y);
+      coreGrad.addColorStop(0, 'rgba(255, 255, 255, 0)');
+      coreGrad.addColorStop(0.4, glowCol + '0.15)');
+      coreGrad.addColorStop(1, '#ffffff');
+      g.fillStyle = coreGrad;
+      g.fillRect(base.x - coreW / 2, base.y - beamH, coreW, beamH);
+
+      // Ascending energy motes inside beam volume
+      for (let m = 0; m < 5; m++) {
+        const motePhase = (tG * 75 + m * 137 + t * 50) % beamH;
+        const moteY = base.y - motePhase;
+        const progress = motePhase / beamH;
+        const curMoteSpan = beamBaseW + (beamTopW - beamBaseW) * progress;
+        const moteX = base.x + Math.sin(tG * 2.2 + m * 1.8) * (curMoteSpan * 0.35);
+        const moteAlpha = Math.sin(progress * Math.PI) * 0.75;
+        g.beginPath();
+        g.arc(moteX, moteY, 2.5 + (m % 2), 0, Math.PI * 2);
+        g.fillStyle = brightCol;
+        g.globalAlpha = moteAlpha;
+        g.fill();
+        g.globalAlpha = 1.0;
+      }
+
+      // 2. Base Platform Pedestal Altar
       const pw = base.w;
       const ph = base.h;
       const px = base.x - pw / 2;
       const py = base.y;
 
-      _rr(g, px, py, pw, ph, 6);
-      g.fillStyle = 'rgba(15, 23, 42, 0.95)';
+      // Lower Plinth Tier
+      _rr(g, px - 6, py + 4, pw + 12, ph - 2, 4);
+      g.fillStyle = '#090d16';
       g.fill();
-      g.lineWidth = 2.5;
+      g.strokeStyle = glowCol + '0.45)';
+      g.lineWidth = 1.5;
+      g.stroke();
+
+      // Main Upper Altar Slab
+      _rr(g, px, py, pw, ph, 5);
+      const pedGrad = g.createLinearGradient(px, py, px, py + ph);
+      pedGrad.addColorStop(0, '#1e293b');
+      pedGrad.addColorStop(0.5, '#0f172a');
+      pedGrad.addColorStop(1, '#020617');
+      g.fillStyle = pedGrad;
+      g.fill();
+      g.lineWidth = 2.0;
       g.strokeStyle = brightCol;
       g.stroke();
 
       // Glowing core line inside pedestal
       g.beginPath();
-      g.moveTo(px + 8, py + ph / 2);
-      g.lineTo(px + pw - 8, py + ph / 2);
+      g.moveTo(px + 10, py + ph / 2);
+      g.lineTo(px + pw - 10, py + ph / 2);
       g.lineWidth = 2.0;
       g.strokeStyle = brightCol;
       g.stroke();
 
-      // Pulsing Base Beacon Ring on pedestal floor
-      const ringPulse = 1.0 + Math.sin(tG * 5 + t * 2) * 0.15;
+      // Concentric Pulsing Base Beacon Rings on pedestal floor
+      const ringPulse1 = 28 + Math.sin(tG * 4 + t) * 2.5;
+      const ringPulse2 = 16 + Math.cos(tG * 3 + t) * 1.5;
       g.beginPath();
-      g.ellipse(base.x, py + 2, 28 * ringPulse, 7 * ringPulse, 0, 0, Math.PI * 2);
+      g.ellipse(base.x, py + 2, ringPulse1, 7, 0, 0, Math.PI * 2);
       g.strokeStyle = brightCol;
-      g.lineWidth = 2.0;
+      g.lineWidth = 1.8;
       g.stroke();
 
-      // Base Team Label Pill
-      _rr(g, base.x - 30, py + ph + 4, 60, 16, 4);
-      g.fillStyle = 'rgba(10, 16, 26, 0.85)';
-      g.fill();
-      g.strokeStyle = brightCol;
+      g.beginPath();
+      g.ellipse(base.x, py + 2, ringPulse2, 4, 0, 0, Math.PI * 2);
+      g.strokeStyle = '#ffffff';
       g.lineWidth = 1.2;
       g.stroke();
-      _txt(g, (t === 0 ? '🔴 RED BASE' : '🔵 BLUE BASE'), base.x, py + ph + 12, _fn(8.5, 900), '#ffffff', 'center');
 
-      // 3. Flag planted at base (or ghost hologram if stolen)
+      // Energetic flux dots circulating on the ring
+      for (let c = 0; c < 3; c++) {
+        const ang = tG * 2.8 + c * (Math.PI * 2 / 3);
+        const dotX = base.x + Math.cos(ang) * ringPulse1;
+        const dotY = py + 2 + Math.sin(ang) * 7;
+        g.beginPath();
+        g.arc(dotX, dotY, 2, 0, Math.PI * 2);
+        g.fillStyle = '#ffffff';
+        g.fill();
+      }
+
+      // Base Team Label Pill
+      const pillW = 86;
+      const pillH = 18;
+      _rr(g, base.x - pillW / 2, py + ph + 4, pillW, pillH, 5);
+      g.fillStyle = 'rgba(10, 16, 26, 0.90)';
+      g.fill();
+      g.strokeStyle = brightCol;
+      g.lineWidth = 1.5;
+      g.stroke();
+      _txt(g, (t === 0 ? '🔴 RED BASE' : '🔵 BLUE BASE'), base.x, py + ph + 13, _fn(9, 900), '#ffffff', 'center');
+
+      // 3. Flag Pole & Finial
       const poleX = base.x;
       const poleBaseY = py;
       const poleTopY = py - CTF_CONFIG.POLE_HEIGHT;
 
-      // Metallic silver flag pole
-      g.beginPath();
-      g.moveTo(poleX, poleBaseY);
-      g.lineTo(poleX, poleTopY);
-      g.lineWidth = 3.5;
-      g.strokeStyle = '#cbd5e1';
-      g.stroke();
-
-      // Gold sphere finial at top
-      g.beginPath();
-      g.arc(poleX, poleTopY, 4, 0, Math.PI * 2);
-      g.fillStyle = '#ffd700';
+      // Pole Socket Bracket on base
+      _rr(g, poleX - 7, poleBaseY - 5, 14, 6, 2);
+      g.fillStyle = '#64748b';
       g.fill();
-      g.strokeStyle = '#0a101d';
+      g.strokeStyle = '#cbd5e1';
       g.lineWidth = 1.0;
       g.stroke();
 
+      // Flagpole - shaded 3D gradient cylinder
+      const poleGrad = g.createLinearGradient(poleX - 2.5, poleBaseY, poleX + 2.5, poleBaseY);
+      poleGrad.addColorStop(0, '#64748b');
+      poleGrad.addColorStop(0.35, '#f8fafc');
+      poleGrad.addColorStop(0.7, '#94a3b8');
+      poleGrad.addColorStop(1, '#334155');
+
+      g.beginPath();
+      g.moveTo(poleX, poleBaseY);
+      g.lineTo(poleX, poleTopY);
+      g.lineWidth = 4.5;
+      g.strokeStyle = poleGrad;
+      g.stroke();
+
+      // Golden Cross Collar below finial
+      g.beginPath();
+      g.ellipse(poleX, poleTopY + 2, 4.5, 2, 0, 0, Math.PI * 2);
+      g.fillStyle = '#cbd5e1';
+      g.fill();
+
+      // Spearhead Finial (Golden Lance)
+      g.beginPath();
+      g.moveTo(poleX, poleTopY - 10);
+      g.lineTo(poleX + 5, poleTopY - 1);
+      g.lineTo(poleX, poleTopY + 1);
+      g.lineTo(poleX - 5, poleTopY - 1);
+      g.closePath();
+      const goldGrad = g.createLinearGradient(poleX - 5, poleTopY - 10, poleX + 5, poleTopY + 1);
+      goldGrad.addColorStop(0, '#fef08a');
+      goldGrad.addColorStop(0.5, '#eab308');
+      goldGrad.addColorStop(1, '#a16207');
+      g.fillStyle = goldGrad;
+      g.fill();
+      g.strokeStyle = '#fef9c3';
+      g.lineWidth = 1.0;
+      g.stroke();
+
+      // Radiant Star Flare on Finial Tip
+      const flareSize = 3.5 + Math.sin(tG * 6 + t) * 1.0;
+      g.beginPath();
+      g.arc(poleX, poleTopY - 10, flareSize * 0.7, 0, Math.PI * 2);
+      g.fillStyle = 'rgba(255, 255, 255, 0.9)';
+      g.fill();
+
+      // 4. Planted Home Flag Cloth (or Ghost Wireframe if stolen)
+      const fw = CTF_CONFIG.FLAG_WIDTH;
+      const fh = CTF_CONFIG.FLAG_HEIGHT;
+      const clothDir = t === 0 ? 1 : -1;
+
       if (flag.state === 'home') {
-        // Active waving home flag cloth
-        const wave = Math.sin(tG * 7 + t * 2) * 5;
-        const fw = CTF_CONFIG.FLAG_WIDTH;
-        const fh = CTF_CONFIG.FLAG_HEIGHT;
-        const clothDir = t === 0 ? 1 : -1;
-
-        g.beginPath();
-        g.moveTo(poleX, poleTopY + 2);
-        g.quadraticCurveTo(poleX + clothDir * (fw / 2), poleTopY + 2 + wave, poleX + clothDir * fw, poleTopY + 6);
-        g.lineTo(poleX + clothDir * (fw - 2), poleTopY + fh + 6);
-        g.quadraticCurveTo(poleX + clothDir * (fw / 2), poleTopY + fh + 2 + wave, poleX, poleTopY + fh);
-        g.closePath();
-
-        const clothGrad = g.createLinearGradient(poleX, poleTopY, poleX + clothDir * fw, poleTopY);
-        clothGrad.addColorStop(0, brightCol);
-        clothGrad.addColorStop(1, baseCol);
-        g.fillStyle = clothGrad;
-        g.fill();
-        g.lineWidth = 1.5;
-        g.strokeStyle = '#ffffff';
-        g.stroke();
-
-        // Little team icon inside cloth
-        _txt(g, '🚩', poleX + clothDir * 12, poleTopY + fh / 2 + 3, _fn(9, 900), '#ffffff', 'center');
+        drawPennantBanner(g, poleX, poleTopY + 3, fw, fh, clothDir, t, tG, false, false);
       } else {
-        // Flag stolen: render pulsing holographic outline
-        g.save();
-        g.setLineDash([3, 3]);
-        const fw = CTF_CONFIG.FLAG_WIDTH;
-        const fh = CTF_CONFIG.FLAG_HEIGHT;
-        const clothDir = t === 0 ? 1 : -1;
-        g.beginPath();
-        g.rect(poleX + (clothDir > 0 ? 0 : -fw), poleTopY + 2, fw, fh);
-        g.strokeStyle = 'rgba(255, 71, 87, 0.7)';
-        g.lineWidth = 1.5;
-        g.stroke();
-        g.restore();
+        drawPennantBanner(g, poleX, poleTopY + 3, fw, fh, clothDir, t, tG, false, true);
 
-        // Warning floater above pole
-        const warnPulse = 0.7 + 0.3 * Math.sin(tG * 8);
-        _txt(g, '⚠️ STOLEN!', poleX, poleTopY - 10, _fn(9, 900), 'rgba(255, 71, 87, ' + warnPulse + ')', 'center');
+        // Warning Hologram Floater above pole
+        const warnY = poleTopY - 22;
+        const warnPulse = 0.8 + 0.2 * Math.sin(tG * 8);
+        _rr(g, poleX - 48, warnY - 9, 96, 18, 4);
+        g.fillStyle = 'rgba(15, 23, 42, 0.90)';
+        g.fill();
+        g.strokeStyle = t === 0 ? '#f43f5e' : '#38bdf8';
+        g.lineWidth = 1.2;
+        g.stroke();
+        _txt(g, '⚠️ STOLEN!', poleX, warnY + 1, _fn(9, 900), (t === 0 ? '#fda4af' : '#7dd3fc'), 'center');
       }
 
       g.restore();
@@ -7490,67 +7672,98 @@ var initCtfMode, updateCtf, checkCtfTag, drawCtfUI, drawCtfPlayer, drawCtfEntiti
       g.restore();
     }
 
-    // 3. Flag Carrier Backpack Flag
+    // 3. Flag Carrier Backpack Flag & Hero Overhead Indicator
     const enemyTeam = 1 - (p.team != null ? (p.team % 2) : 0);
     const enemyFlag = ctfState.flags[enemyTeam];
     const isCarryingFlag = (enemyFlag && enemyFlag.state === 'carried' && enemyFlag.carrier === p);
 
     if (isCarryingFlag) {
       g.save();
-      const flagCol = enemyTeam === 0 ? '#e8433f' : '#2f9be8';
+      const flagCol = enemyTeam === 0 ? '#dc2626' : '#2563eb';
       const brightFlagCol = enemyTeam === 0 ? '#ff6b6b' : '#38bdf8';
 
-      // Pole originates behind player back and angles upward backward
-      const poleOriginX = cx - fdir * 12;
-      const poleOriginY = cy + 4;
-      const poleAngle = (fdir === 1 ? -0.45 : 0.45); // Tilted backward
-      const poleLen = 42;
-      const poleTipX = poleOriginX + Math.sin(poleAngle) * poleLen;
-      const poleTipY = poleOriginY - Math.cos(poleAngle) * poleLen;
+      // Backpack harness socket on runner's back
+      const harnessX = cx - fdir * 10;
+      const harnessY = cy + 2;
 
-      // Draw metallic pole
+      _rr(g, harnessX - 4, harnessY - 4, 8, 8, 2);
+      g.fillStyle = '#1e293b';
+      g.fill();
+      g.strokeStyle = brightFlagCol;
+      g.lineWidth = 1.2;
+      g.stroke();
+
+      // Dynamic Mast Angle responds to velocity
+      const vx = p.vx || 0;
+      const vy = p.vy || 0;
+      const baseTilt = (fdir === 1 ? -0.42 : 0.42);
+      const velTilt = -(vx * 0.00075) - (vy * 0.00035);
+      const mastAngle = baseTilt + velTilt;
+      const mastLen = 50;
+      const mastTipX = harnessX + Math.sin(mastAngle) * mastLen;
+      const mastTipY = harnessY - Math.cos(mastAngle) * mastLen;
+
+      // Metallic Mast
       g.beginPath();
-      g.moveTo(poleOriginX, poleOriginY);
-      g.lineTo(poleTipX, poleTipY);
-      g.lineWidth = 3.0;
+      g.moveTo(harnessX, harnessY);
+      g.lineTo(mastTipX, mastTipY);
+      g.lineWidth = 3.5;
       g.strokeStyle = '#cbd5e1';
       g.stroke();
 
-      // Golden tip
+      // Golden spear finial on mast tip
       g.beginPath();
-      g.arc(poleTipX, poleTipY, 3.5, 0, Math.PI * 2);
-      g.fillStyle = '#ffd700';
+      g.arc(mastTipX, mastTipY, 3.5, 0, Math.PI * 2);
+      g.fillStyle = '#facc15';
       g.fill();
-
-      // Waving cloth flapping behind player
-      const wave = Math.sin(tG * 14 + p.slot * 2) * 6;
-      const clothW = 28;
-      const clothH = 18;
-      const trailDir = -fdir; // Cloth flows opposite to running direction
-
-      const topCornerX = poleTipX + trailDir * clothW;
-      const topCornerY = poleTipY + 4;
-      const btmCornerX = poleTipX + trailDir * (clothW - 2);
-      const btmCornerY = poleTipY + clothH + 4;
-
-      g.beginPath();
-      g.moveTo(poleTipX, poleTipY + 2);
-      g.quadraticCurveTo(poleTipX + trailDir * (clothW / 2), poleTipY + 2 + wave, topCornerX, topCornerY);
-      g.lineTo(btmCornerX, btmCornerY);
-      g.quadraticCurveTo(poleTipX + trailDir * (clothW / 2), poleTipY + clothH + 2 + wave, poleOriginX, poleTipY + clothH);
-      g.closePath();
-
-      const clothGrad = g.createLinearGradient(poleTipX, poleTipY, topCornerX, poleTipY);
-      clothGrad.addColorStop(0, brightFlagCol);
-      clothGrad.addColorStop(1, flagCol);
-      g.fillStyle = clothGrad;
-      g.fill();
-      g.lineWidth = 1.5;
       g.strokeStyle = '#ffffff';
+      g.lineWidth = 1.0;
       g.stroke();
 
-      // Miniature icon
-      _txt(g, '🚩', poleTipX + trailDir * 12, poleTipY + clothH / 2 + 3, _fn(9, 900), '#ffffff', 'center');
+      // Trailing swallowtail pennant flowing behind runner
+      const clothW = 38;
+      const clothH = 24;
+      const trailDir = -fdir; // Pennant streams opposite to facing direction
+      drawPennantBanner(g, mastTipX, mastTipY + 2, clothW, clothH, trailDir, enemyTeam, tG, true, false);
+
+      // Trailing sparkle particles in runner's wake
+      if (Math.random() < 0.35) {
+        ctfState.particles.push({
+          x: mastTipX + (Math.random() - 0.5) * 6,
+          y: mastTipY + (Math.random() - 0.5) * 6,
+          vx: -vx * 0.2 + (Math.random() - 0.5) * 30,
+          vy: -vy * 0.2 + (Math.random() - 0.5) * 30,
+          grav: 40,
+          life: 0.25 + Math.random() * 0.2,
+          maxLife: 0.45,
+          size: 2.5 + Math.random() * 2,
+          col: brightFlagCol
+        });
+      }
+
+      // 4. Overhead Hero Marker / Flag Indicator
+      const markerY = cy - p.h / 2 - 34 + Math.sin(tG * 6) * 3;
+      const badgeW = 90;
+      const badgeH = 18;
+
+      _rr(g, cx - badgeW / 2, markerY - badgeH / 2, badgeW, badgeH, 6);
+      g.fillStyle = 'rgba(15, 23, 42, 0.92)';
+      g.fill();
+      g.strokeStyle = brightFlagCol;
+      g.lineWidth = 1.8;
+      g.stroke();
+
+      const teamName = enemyTeam === 0 ? 'RED' : 'BLUE';
+      _txt(g, '🚩 ' + teamName + ' FLAG', cx, markerY, _fn(8.5, 900), '#ffffff', 'center');
+
+      // Downward pointer arrow
+      g.beginPath();
+      g.moveTo(cx - 5, markerY + badgeH / 2 + 1);
+      g.lineTo(cx + 5, markerY + badgeH / 2 + 1);
+      g.lineTo(cx, markerY + badgeH / 2 + 6);
+      g.closePath();
+      g.fillStyle = brightFlagCol;
+      g.fill();
 
       g.restore();
     }
