@@ -8375,10 +8375,10 @@ function botSolidsNoDrop(){
   return _solidsNoDrop;
 }
 function botSolidBetween(ax,ay,bx,by,ignorePlat){
-  // Distance-based sampling (max 32px step) so thin walls & pillars never tunnel through
+  // Distance-based sampling (max 22px step; 26px pillars need the margin) so thin walls never tunnel through
   const dx=bx-ax, dy=by-ay;
   const dist=Math.hypot(dx,dy);
-  const steps=Math.max(3, Math.ceil(dist/32));
+  const steps=Math.max(3, Math.ceil(dist/22));
   const solids = botSolidsNoDrop();
   for(let i=1; i<steps; i++){
     const t=i/steps;
@@ -8865,7 +8865,7 @@ function botInputFor(p,dt){
   }
 
   if(S.decideT<=0){
-    S.decideT=botThinkRate*(S.thinkJit||1)+((p.slot%3)*0.025); // desync bots so they never think the same frame
+    S.decideT=botThinkRate*(S.thinkJit||1); // init jitter already desyncs bots; no additive phase (would retune difficulty per slot)
     let want=0;
     let isCornerJuke=false;
     let chaseWant = 0;
@@ -17523,8 +17523,7 @@ function packPlayer(p){
     cp: (p.crownPoints != null ? p.crownPoints : 0),
     ud: (p.underdogTimer > 0 ? Math.round(p.underdogTimer * 100) / 100 : 0),
     sh: (p.shieldT > 0 ? Math.round(p.shieldT * 100) / 100 : 0),
-    rsp: p.isRespawning ? 1 : 0,
-    sq: p._sq || 0
+    rsp: p.isRespawning ? 1 : 0
   };
 }
 
@@ -17551,8 +17550,7 @@ function packPlayerHot(p){
     el: p.isEliminated ? 1 : 0,
     fz: p.isFrozen ? 1 : 0,
     sh: (p.shieldT > 0 ? Math.round(p.shieldT * 100) / 100 : 0),
-    rsp: p.isRespawning ? 1 : 0,
-    sq: p._sq || 0
+    rsp: p.isRespawning ? 1 : 0
   };
 }
 
@@ -17581,7 +17579,7 @@ function unpackPlayer(d){
     underdogTimer: d.ud != null ? d.ud : (d.underdogTimer !== undefined ? d.underdogTimer : undefined),
     shieldT: d.sh != null ? d.sh : (d.shieldT || 0),
     isRespawning: d.rsp != null ? !!d.rsp : (!!d.isRespawning),
-    seq: (d.seq != null && d.seq > 0) ? d.seq : (d.sq != null ? d.sq : 0)
+    seq: d.seq || 0
   };
 }
 
@@ -17750,19 +17748,25 @@ function netUpdateRemoteTarget(slot, data, pCurrent){
     if(data.seq != null && tgt.seq != null && data.seq > 0 && tgt.seq > 0 && data.seq < tgt.seq) return;
     if(data.seq != null && data.seq > 0) tgt.seq = data.seq;
 
-    // Calculate error between where player visually was and new target
+    // Delay-biased render: compare against the LAG-compensated point so the
+    // residual converges to ~0 (true ~100ms lag, no double-counting).
     if(pCurrent){
-      const rawDx = pCurrent.x - data.x;
-      const rawDy = pCurrent.y - data.y;
-      // If warp / teleport > 400px, snap instantly without error bleed
-      if(rawDx * rawDx + rawDy * rawDy > 160000){
+      const bx = data.x - (data.vx || 0) * 0.1;
+      const by = data.grounded ? data.y : (data.y - (data.vy || 0) * 0.1);
+      const rawDx = pCurrent.x - bx;
+      const rawDy = pCurrent.y - by;
+      // Warp / teleport / respawn: snap instantly without error bleed
+      if(data.isRespawning || rawDx * rawDx + rawDy * rawDy > 160000){
         pCurrent.x = data.x;
         pCurrent.y = data.y;
         tgt.errX = 0;
         tgt.errY = 0;
       } else {
-        tgt.errX = rawDx;
-        tgt.errY = data.grounded ? 0 : rawDy;
+        // Zero residual on stop/reversal so old lag can't slingshot.
+        const vOldX = tgt.targetVx || 0, vNewX = data.vx || 0;
+        const vOldY = tgt.targetVy || 0, vNewY = data.vy || 0;
+        tgt.errX = (Math.sign(vNewX) !== Math.sign(vOldX) || (Math.abs(vNewX) < 60 && Math.abs(vOldX) >= 60)) ? 0 : rawDx;
+        tgt.errY = data.grounded ? 0 : ((Math.sign(vNewY) !== Math.sign(vOldY)) ? 0 : rawDy);
       }
     } else {
       tgt.errX = 0;
@@ -18115,7 +18119,7 @@ function updateVoiceProximity(dt){
   // gate don't need per-frame recompute (this was FFT + finds x peers @60Hz).
   NET._voiceT = (NET._voiceT || 0) + (dt || 0.016);
   if(NET._voiceT < 0.1) return;
-  NET._voiceT = 0;
+  NET._voiceDT = NET._voiceT; NET._voiceT = 0;
   const inGame = (match && screen === 'game' && match.players && match.players.length > 0);
   const isPlaying = (inGame && match.state === 'playing');
   let myP = null;
@@ -18136,7 +18140,7 @@ function updateVoiceProximity(dt){
       if(targetSlot === undefined){
         if(!NET.isHost && (typeof netIsHostPeerId==='function'?netIsHostPeerId(peerId):String(peerId||'').endsWith('-host'))) targetSlot = 0;
         else if(NET.isHost){
-          for(let s = 1; s < 8; s++){
+          for(let s = 1; s < (NET.maxPlayers || 8); s++){
             const ent = NET.hostInputs.get(s);
             if(ent && ent.owner === peerId){ targetSlot = s; break; }
           }
@@ -18180,7 +18184,7 @@ function updateVoiceProximity(dt){
     if(entry.audioEl){
       try {
         const curV = entry.audioEl.volume;
-        const nextV = curV + (targetVol - curV) * Math.min(1, dt * 14);
+        const nextV = curV + (targetVol - curV) * Math.min(1, (NET._voiceDT || 0.1) * 14);
         entry.audioEl.volume = isMutedByMe ? 0 : clamp(nextV, 0, 1.0);
         if(entry.audioEl.paused && entry.audioEl.srcObject && !isMutedByMe){
           entry.audioEl.play().catch(()=>{});
@@ -18262,7 +18266,7 @@ function isPlayerSpeaking(slot){
       if(pSlot === undefined){
         if(!NET.isHost && (typeof netIsHostPeerId==='function'?netIsHostPeerId(peerId):String(peerId||'').endsWith('-host'))) pSlot = 0;
         else if(NET.isHost){
-          for(let s = 1; s < 10; s++){ // slots up to 9 (10-player ready)
+          for(let s = 1; s < (NET.maxPlayers || 8); s++){
             const ent = NET.hostInputs.get(s);
             if(ent && ent.owner === peerId){ pSlot = s; break; }
           }
@@ -19105,7 +19109,14 @@ function netOnData(m, c){
   if(m.t === 'pong'){
     if(m.pingT){
       const rtt = Math.round(performance.now() - m.pingT);
-      NET.pings.set(c.peer, rtt);
+      // Min-filter with 30s expiry: stale low sticks after route worsens.
+      try{
+        NET._pingMin = NET._pingMin || {};
+        const nowP = performance.now();
+        const e = NET._pingMin[c.peer];
+        if(!e || rtt < e.rtt || (nowP - e.t) > 30000) NET._pingMin[c.peer] = { rtt: rtt, t: nowP };
+        NET.pings.set(c.peer, NET._pingMin[c.peer].rtt);
+      }catch(err){ NET.pings.set(c.peer, rtt); }
     }
     return;
   }
@@ -19941,7 +19952,7 @@ function netOnData(m, c){
             if(pData.underdogTimer !== undefined) pObj.underdogTimer = pData.underdogTimer;
             if(pData.shieldT !== undefined) pObj.shieldT = pData.shieldT;
             if(pData.isRespawning !== undefined) pObj.isRespawning = !!pData.isRespawning;
-            if((pData.seq == null || pData.seq <= 0) && m.tick != null) pData.seq = m.tick;
+            if(m.tick != null) pData.seq = m.tick;
             netUpdateRemoteTarget(slot, pData, pObj);
           }
         }
@@ -20902,7 +20913,7 @@ function netHostAction(isPublic = true){
     if(NET.role !== null){
       const pingPayload = { t: 'ping', pingT: performance.now() };
       for(const pair of NET.conns.values()){
-        netSendFast(pair, pingPayload); try{ netSendRel(pair, pingPayload); }catch(e){}
+        netSendFast(pair, pingPayload);
       }
     }
   }, 2000);
@@ -21004,7 +21015,7 @@ function netJoinAction(codeParam, hostPeerIdParam){
     if(NET.role !== null){
       const pingPayload = { t: 'ping', pingT: performance.now() };
       for(const pair of NET.conns.values()){
-        netSendFast(pair, pingPayload); try{ netSendRel(pair, pingPayload); }catch(e){}
+        netSendFast(pair, pingPayload);
       }
     }
   }, 2000);
@@ -21118,7 +21129,7 @@ function netPromoteToHost(reason){
         try{
           if(NET.role !== null){
             var pingPayload = { t: 'ping', pingT: performance.now() };
-            for(const pair of NET.conns.values()){ try{ netSendFast(pair, pingPayload); try{ netSendRel(pair, pingPayload); }catch(e){} }catch(e){} }
+            for(const pair of NET.conns.values()){ try{ netSendFast(pair, pingPayload); }catch(e){} }
           }
         }catch(e){}
       }, 2000);
@@ -21503,7 +21514,7 @@ function netTick(dt){
       if(_netStateT > 0.1) _netStateT = 0; // don't spiral after a hitch
       const nowMs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
       const full = !NET._lastSentState || (match.state !== NET._lastSentState) || (nowMs - (NET._lastFullT || 0) >= 2000);
-      const packedPlayers = match.players.map(p => { p._sq = (p._sq || 0) + 1; return full ? packPlayer(p) : packPlayerHot(p); });
+      const packedPlayers = match.players.map(p => full ? packPlayer(p) : packPlayerHot(p));
       const env = {
         players: packedPlayers,
         it: match.it,
@@ -21550,7 +21561,6 @@ function netTick(dt){
       if(_netInputT > 0.2) _netInputT = 0;
       const myP = getMyPlayer();
       if(myP){
-        myP._sq = (myP._sq || 0) + 1;
         const pData = packPlayerHot(myP);
         pData.t = 'p_state';
         pData.seq = ++NET.seq;
