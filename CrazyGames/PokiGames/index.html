@@ -5821,7 +5821,7 @@ var initCtfMode, updateCtf, checkCtfTag, drawCtfUI, drawCtfPlayer, drawCtfEntiti
           if (isOnlineGuest) {
             if (p.slot === NET.mySlot) {
               try {
-                netBroadcastReliable({ t: 'crown_claim', from: p.slot, x: crownState.x, y: crownState.y });
+                netSendClaimTriple({ t: 'crown_claim', from: p.slot, x: crownState.x, y: crownState.y });
                 match.cooldown = 0.5;
               } catch (e) {}
             }
@@ -5882,7 +5882,7 @@ var initCtfMode, updateCtf, checkCtfTag, drawCtfUI, drawCtfPlayer, drawCtfEntiti
         if (isOnlineGuest) {
           if (chaser.slot === NET.mySlot) {
             try {
-              netBroadcastReliable({
+              netSendClaimTriple({
                 t: 'crown_steal',
                 from: chaser.slot,
                 target: king.slot,
@@ -10697,7 +10697,7 @@ function checkTag(){
           const popX = (redHunter.x + runner.x) / 2 + 23, popY = (redHunter.y + runner.y) / 2 + 10;
           if(isOnlineGuest){
             if(redHunter.slot === NET.mySlot){
-              netBroadcastReliable({ t: 'tag_claim', from: redHunter.slot, target: runner.slot, x: popX, y: popY, hx: Math.round(redHunter.x), hy: Math.round(redHunter.y), tx: Math.round(runner.x), ty: Math.round(runner.y) });
+              netSendClaimTriple({ t: 'tag_claim', from: redHunter.slot, target: runner.slot, x: popX, y: popY, hx: Math.round(redHunter.x), hy: Math.round(redHunter.y), tx: Math.round(runner.x), ty: Math.round(runner.y) });
               match.cooldown = 0.6;
             }
             return;
@@ -10721,7 +10721,7 @@ function checkTag(){
           const popX = (blueHunter.x + runner.x) / 2 + 23, popY = (blueHunter.y + runner.y) / 2 + 10;
           if(isOnlineGuest){
             if(blueHunter.slot === NET.mySlot){
-              netBroadcastReliable({ t: 'tag_claim', from: blueHunter.slot, target: runner.slot, x: popX, y: popY, hx: Math.round(blueHunter.x), hy: Math.round(blueHunter.y), tx: Math.round(runner.x), ty: Math.round(runner.y) });
+              netSendClaimTriple({ t: 'tag_claim', from: blueHunter.slot, target: runner.slot, x: popX, y: popY, hx: Math.round(blueHunter.x), hy: Math.round(blueHunter.y), tx: Math.round(runner.x), ty: Math.round(runner.y) });
               match.cooldown = 0.6;
             }
             return;
@@ -10772,7 +10772,7 @@ function checkTag(){
           const popX = (hunter.x + runner.x) / 2 + 23, popY = (hunter.y + runner.y) / 2 + 10;
           if(isOnlineGuest){
             if(hunter.slot === NET.mySlot){
-              netBroadcastReliable({ t: 'tag_claim', from: hunter.slot, target: runner.slot, x: popX, y: popY, hx: Math.round(hunter.x), hy: Math.round(hunter.y), tx: Math.round(runner.x), ty: Math.round(runner.y) });
+              netSendClaimTriple({ t: 'tag_claim', from: hunter.slot, target: runner.slot, x: popX, y: popY, hx: Math.round(hunter.x), hy: Math.round(hunter.y), tx: Math.round(runner.x), ty: Math.round(runner.y) });
               match.cooldown = 0.6;
             }
             return;
@@ -10815,7 +10815,7 @@ function checkTag(){
           const popX = (hunter.x + runner.x) / 2 + 23, popY = (hunter.y + runner.y) / 2 + 10;
           if(isOnlineGuest){
             if(hunter.slot === NET.mySlot){
-              netBroadcastReliable({ t: 'tag_claim', from: hunter.slot, target: runner.slot, x: popX, y: popY, hx: Math.round(hunter.x), hy: Math.round(hunter.y), tx: Math.round(runner.x), ty: Math.round(runner.y) });
+              netSendClaimTriple({ t: 'tag_claim', from: hunter.slot, target: runner.slot, x: popX, y: popY, hx: Math.round(hunter.x), hy: Math.round(hunter.y), tx: Math.round(runner.x), ty: Math.round(runner.y) });
               match.cooldown = 0.6;
             }
             return;
@@ -10837,7 +10837,7 @@ function checkTag(){
       if(isOnlineGuest){
         if(it.slot === NET.mySlot){
           const popX = (it.x + P[j].x) / 2 + 23, popY = (it.y + P[j].y) / 2 + 10;
-          netBroadcastReliable({ t: 'tag_claim', from: it.slot, target: P[j].slot, x: popX, y: popY, hx: Math.round(it.x), hy: Math.round(it.y), tx: Math.round(P[j].x), ty: Math.round(P[j].y) });
+          netSendClaimTriple({ t: 'tag_claim', from: it.slot, target: P[j].slot, x: popX, y: popY, hx: Math.round(it.x), hy: Math.round(it.y), tx: Math.round(P[j].x), ty: Math.round(P[j].y) });
           match.cooldown = 0.6;
         }
         return;
@@ -17329,7 +17329,7 @@ function netSendFast(peerOrPair, msg){
   const pair = (typeof peerOrPair === 'string') ? NET.conns.get(peerOrPair) : peerOrPair;
   if(!pair) return;
   let c = (pair.fast && pair.fast.open) ? pair.fast : null;
-  if(!c && pair.rel && pair.rel.open) c = pair.rel;
+  if(!c) return; // never reroute state onto reliable: HOL blocking + backlog spikes
   if(c){
     try {
       const dc = c.dataChannel || c._dc;
@@ -17348,7 +17348,13 @@ function netSendRel(peerOrPair, msg){
   const pair = (typeof peerOrPair === 'string') ? NET.conns.get(peerOrPair) : peerOrPair;
   if(!pair) return;
   const c = (pair.rel && pair.rel.open) ? pair.rel : (pair.fast && pair.fast.open ? pair.fast : (pair.open ? pair : null));
-  if(c){ try{ c.send(msg); }catch(e){} }
+  if(c){
+    try{
+      const dc = c.dataChannel || c._dc;
+      if(dc && dc.bufferedAmount > 16384) return; // bounded reliable queue
+      c.send(msg);
+    }catch(e){}
+  }
 }
 
 function netBroadcastReliable(msg, excludePeerId){
@@ -17361,6 +17367,22 @@ function netBroadcastReliable(msg, excludePeerId){
     if(excludePeerId && pid === excludePeerId) continue;
     netSendRel(pair, msg);
   }
+}
+
+/* Tag claims ride fast triple-send (now/+25ms/+50ms); host dedups by _cid.
+   Reliable retransmit delay (50-300ms on loss) is what made tags feel late. */
+function netSendClaimTriple(msg){
+  try{ msg._cid = (NET.myId || 'x') + ':' + (++NET.seq); }catch(e){}
+  const fire = () => {
+    try{
+      if(typeof RELAY !== 'undefined' && RELAY.mode === 'relay'){ try{ netRelaySend(NET._hostId || '', msg); }catch(e){} return; }
+      if(typeof NET === 'undefined' || !NET || !NET.conns) return;
+      for(const pair of NET.conns.values()){ try{ netSendFast(pair, msg); }catch(e){} }
+    }catch(e){}
+  };
+  fire();
+  try{ setTimeout(fire, 25); }catch(e){}
+  try{ setTimeout(fire, 50); }catch(e){}
 }
 
 /* High-efficiency player state packing: reduces payload by 78% and cuts garbage collection pauses */
@@ -17392,6 +17414,32 @@ function packPlayer(p){
   };
 }
 
+/* Hot-path player packing (50Hz): position + visual state only.
+   Mode flags (inf/pz/ls/cp/ud) ride the 2s full snapshot instead —
+   unpackPlayer + netUpdateRemoteTarget already skip undefined fields. */
+function packPlayerHot(p){
+  return {
+    s: p.slot,
+    x: Math.round(p.x * 10) / 10,
+    y: Math.round(p.y * 10) / 10,
+    vx: Math.round(p.vx * 10) / 10,
+    vy: Math.round(p.vy * 10) / 10,
+    f: p.face || 1,
+    sx: Math.round((p.sx || 1) * 100) / 100,
+    sy: Math.round((p.sy || 1) * 100) / 100,
+    g: p.grounded ? 1 : 0,
+    aj: p.airJumps || 0,
+    po: p.padOn ? 1 : 0,
+    lt: Math.round((p.landT || 0) * 100) / 100,
+    tt: Math.round((p.tagT || 0) * 100) / 100,
+    b: p.blink > 0 ? 1 : 0,
+    el: p.isEliminated ? 1 : 0,
+    fz: p.isFrozen ? 1 : 0,
+    sh: (p.shieldT > 0 ? Math.round(p.shieldT * 100) / 100 : 0),
+    rsp: p.isRespawning ? 1 : 0
+  };
+}
+
 function unpackPlayer(d){
   return {
     slot: d.s != null ? d.s : d.slot,
@@ -17410,11 +17458,11 @@ function unpackPlayer(d){
     blink: d.b != null ? (d.b ? 0.12 : 0) : (d.blink || 0),
     isEliminated: d.el != null ? !!d.el : false,
     isFrozen: d.fz != null ? !!d.fz : false,
-    isInfected: d.inf != null ? !!d.inf : (!!d.isInfected),
-    isPatientZero: d.pz != null ? !!d.pz : (!!d.isPatientZero),
-    isLoneSurvivor: d.ls != null ? !!d.ls : (!!d.isLoneSurvivor),
-    crownPoints: d.cp != null ? d.cp : (d.crownPoints || 0),
-    underdogTimer: d.ud != null ? d.ud : (d.underdogTimer || 0),
+    isInfected: d.inf != null ? !!d.inf : (d.isInfected !== undefined ? !!d.isInfected : undefined),
+    isPatientZero: d.pz != null ? !!d.pz : (d.isPatientZero !== undefined ? !!d.isPatientZero : undefined),
+    isLoneSurvivor: d.ls != null ? !!d.ls : (d.isLoneSurvivor !== undefined ? !!d.isLoneSurvivor : undefined),
+    crownPoints: d.cp != null ? d.cp : (d.crownPoints !== undefined ? d.crownPoints : undefined),
+    underdogTimer: d.ud != null ? d.ud : (d.underdogTimer !== undefined ? d.underdogTimer : undefined),
     shieldT: d.sh != null ? d.sh : (d.shieldT || 0),
     isRespawning: d.rsp != null ? !!d.rsp : (!!d.isRespawning),
     seq: d.seq || 0
@@ -18749,8 +18797,8 @@ function netWireConn(conn, isHostSide){
   const onReady = () => {
     // Only disarm the join watchdog once the host actually assigned us (open != joined)
     if(NET._guestTimeout && (NET.mySlot >= 0 || NET.isSpectator)){ clearTimeout(NET._guestTimeout); NET._guestTimeout = null; }
-    if(!isHostSide && !NET._helloSent){
-      NET._helloSent = true; // first open wire wins (rel OR fast)
+    if(!isHostSide && !isFast && !NET._helloSent){
+      NET._helloSent = true; // hello rides reliable only (fast can lose it)
       const myProfile = netGetMyProfile();
       conn.send(netHelloPayload());
       netToast('Connected to host! Syncing menu…');
@@ -19422,6 +19470,14 @@ function netOnData(m, c){
     }
     netUpdateRemoteTarget(slot, pData, pObj);
   } else if(m.t === 'tag_claim' && NET.isHost){
+    try{
+      if(m._cid){
+        NET._seenClaims = NET._seenClaims || [];
+        if(NET._seenClaims.indexOf(m._cid) >= 0) return;
+        NET._seenClaims.push(m._cid);
+        if(NET._seenClaims.length > 60) NET._seenClaims.splice(0, NET._seenClaims.length - 60);
+      }
+    }catch(e){}
     if(match && match.state === 'playing' && match.cooldown <= 0){
       const P = match.players;
       const hunterIdx = P.findIndex(p => p.slot === m.from);
@@ -19506,6 +19562,14 @@ function netOnData(m, c){
       }
     }
   } else if((m.t === 'crown_claim' || m.t === 'crown_steal') && NET.isHost){
+    try{
+      if(m._cid){
+        NET._seenClaims = NET._seenClaims || [];
+        if(NET._seenClaims.indexOf(m._cid) >= 0) return;
+        NET._seenClaims.push(m._cid);
+        if(NET._seenClaims.length > 60) NET._seenClaims.splice(0, NET._seenClaims.length - 60);
+      }
+    }catch(e){}
     if(match && match.state === 'playing' && typeof crownState !== 'undefined' && crownState && typeof claimCrown === 'function'){
       const P = match.players;
       const claimer = P.find(p => p.slot === m.from);
@@ -21278,16 +21342,20 @@ let _netStateT = 0, _netInputT = 0;
 function netTick(dt){
   if(NET.role === null) return;
   if(NET.isHost){
-    // Host broadcasts all player positions & match state at 60Hz
+    // 50Hz hot state (positions + visual state) + full snapshot every 2s /
+    // on state change (round end, pause menu) / first tick. Static data
+    // (settings, tags, scores, mode envelope) never rides the hot path.
     _netStateT += dt;
-    if(_netStateT >= 0.015 && match && match.players){
-      _netStateT = 0;
-      const packedPlayers = match.players.map(p => packPlayer(p));
-      netBroadcastState({
+    if(_netStateT >= 0.02 && match && match.players){
+      _netStateT -= 0.02;
+      if(_netStateT > 0.1) _netStateT = 0; // don't spiral after a hitch
+      const nowMs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+      const full = !NET._lastSentState || (match.state !== NET._lastSentState) || (nowMs - (NET._lastFullT || 0) >= 2000);
+      const packedPlayers = match.players.map(p => full ? packPlayer(p) : packPlayerHot(p));
+      const env = {
         players: packedPlayers,
         it: match.it,
         itTeam: match.itTeam,
-        teamItTime: match.teamItTime ? match.teamItTime.slice() : null,
         cooldown: Math.round(match.cooldown * 100) / 100,
         timer: Math.round(match.timer * 10) / 10,
         payloadTagPop: match.tagPop,
@@ -21298,29 +21366,36 @@ function netTick(dt){
         freeze: match.freeze != null ? Math.round(match.freeze * 100) / 100 : 0,
         shake: match.shake != null ? Math.round(match.shake * 10) / 10 : 0,
         flash: match.flash != null ? Math.round(match.flash * 10) / 10 : 0,
-        result: match.result,
-        resultT: match.resultT != null ? Math.round(match.resultT * 100) / 100 : 0,
-        tags: match.tags.slice(),
-        tick: NET.tick++,
-        settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, gameMode: settings.gameMode },
-        modeEnv: (typeof packModeState === 'function' ? packModeState() : null),
-        hunterScores: match.hunterMode ? match.hunterScores : null,
-        hunterRound: match.hunterMode ? match.hunterRound : null,
         cageT: match.hunterMode ? Math.round(match.cageT * 100) / 100 : null,
-        roundSummary: match.roundSummary || null
-      });
+        tick: NET.tick++
+      };
+      if(full){
+        env.settings = { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, gameMode: settings.gameMode };
+        env.tags = match.tags.slice();
+        env.teamItTime = match.teamItTime ? match.teamItTime.slice() : null;
+        env.hunterScores = match.hunterMode ? match.hunterScores : null;
+        env.hunterRound = match.hunterMode ? match.hunterRound : null;
+        env.roundSummary = match.roundSummary || null;
+        env.result = match.result;
+        env.resultT = match.resultT != null ? Math.round(match.resultT * 100) / 100 : 0;
+        env.modeEnv = (typeof packModeState === 'function' ? packModeState() : null);
+      }
+      netBroadcastState(env);
+      NET._lastSentState = match.state;
+      if(full) NET._lastFullT = nowMs;
     }
   } else {
     // Guest: silent-host detection works in lobby + match (roster/state timeout 10s)
     try{ if(typeof netCheckSilentHost === 'function') netCheckSilentHost(); }catch(e){}
-    // Guest: send local player position and state at 60Hz over fast WebRTC channel
+    // Guest: send local player delta (position + visual state) at 20Hz over fast channel
     if(NET.mySlot === -1 || !match) return;
     _netInputT += dt;
-    if(_netInputT >= 0.015){
-      _netInputT = 0;
+    if(_netInputT >= 0.05){
+      _netInputT -= 0.05;
+      if(_netInputT > 0.2) _netInputT = 0;
       const myP = getMyPlayer();
       if(myP){
-        const pData = packPlayer(myP);
+        const pData = packPlayerHot(myP);
         pData.t = 'p_state';
         pData.seq = ++NET.seq;
         for(const pair of NET.conns.values()){
