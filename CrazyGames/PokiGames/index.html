@@ -100,7 +100,7 @@ function rgba(hex,a){const n=parseInt(hex.slice(1),16);return'rgba('+(n>>16)+','
 const FT=px=>'900 '+px+'px "'+FAMILIES[fontIdx]+'",system-ui,sans-serif';
 const FN=(px,w)=>(w||800)+' '+px+'px "'+FAMILIES[fontIdx]+'",system-ui,sans-serif';
 const FAMILIES=['Outfit','Bebas Neue','Anton','Bangers','Black Han Sans','Luckiest Guy','Righteous','Fredoka One','Baloo 2','Nunito','Poppins','Montserrat','Titan One','Chewy','MuseoModerno','Comfortaa','Space Grotesk','Orbitron','Russo One','Staatliches'];
-const PINNED_FONTIdx=8; // font #9 = Baloo 2
+const PINNED_FONTIdx=8; // font #9 = Baloo 2 — pinned for CrazyGames
 let fontIdx=PINNED_FONTIdx;
 function cycleFont(d){ toast('Fonts locked to pinned pick #' + (PINNED_FONTIdx+1) + ' — ' + FAMILIES[PINNED_FONTIdx]); }
 const INK='#141414';
@@ -803,7 +803,6 @@ const POKI = {
       if (!this.isPlaying && typeof PokiSDK !== 'undefined') {
         PokiSDK.gameplayStart();
         this.isPlaying = true;
-        console.log('[Poki] gameplayStart');
       }
     } catch(e){}
   },
@@ -813,7 +812,6 @@ const POKI = {
       if (this.isPlaying && typeof PokiSDK !== 'undefined') {
         PokiSDK.gameplayStop();
         this.isPlaying = false;
-        console.log('[Poki] gameplayStop');
       }
     } catch(e){}
   },
@@ -854,22 +852,10 @@ const POKI = {
     }
   },
 
-  happytime() {
-    // No-op for Poki
-  },
-
-  getUser() {
-    return null;
-  },
-
-  async getUserAsync() {
-    return null;
-  },
-
-  updateRoom(roomId, playerList, isJoinable) {
-    // No-op for Poki
-  },
-
+  happytime() {},
+  getUser() { return null; },
+  async getUserAsync() { return null; },
+  updateRoom(roomId, playerList, isJoinable) {},
   leftRoom() {},
   showInviteButton() { return false; },
   hideInviteButton() {},
@@ -889,7 +875,7 @@ const POKI = {
   }
 };
 
-// Internal backward-compatible alias
+// Backward-compatible alias
 const CG = POKI;
 let _cgBoot = null;
 function applySdkMute(m){sdkMuted=!!m;applyEffectiveMute();}
@@ -16448,11 +16434,13 @@ const NET_ALERTS_CONFIG = {
 
 function buildPokiPortalLink(roomCode){
   const code = (roomCode || '').toUpperCase();
+  let invitedBy = 'YS0WTkyqWaOxDpfJWLEv7hRzkJ73';
   try{
-    return location.origin + location.pathname + '?room=' + encodeURIComponent(code);
-  }catch(e){
-    return '?room=' + encodeURIComponent(code);
-  }
+    if(typeof CG !== 'undefined' && CG && CG._user && (CG._user.id || CG._user.userId)){
+      invitedBy = CG._user.id || CG._user.userId;
+    }
+  }catch(e){}
+  return '' + encodeURIComponent(invitedBy) + '&room=' + encodeURIComponent(code) + '&roomId=' + encodeURIComponent(code) + (function(){ try{ var s=((NET&&NET._srv&&NET._srv.host)||((typeof PEER_SERVER_CONFIG!=='undefined'?PEER_SERVER_CONFIG.host:'')||'')||'').replace(/^https?:\/\//i,'').replace(/\/+$/,'').trim(); if(/^[A-Za-z0-9.\-:]+$/.test(s)&&s) return '&srv='+encodeURIComponent(s); }catch(e){} return ''; })();
 }
 
 // A. #game-alerts: When Host starts a room (with @everyone ping)
@@ -16661,7 +16649,7 @@ function telemetryTrackGameLaunch(){
     const scrStr = (window.screen ? (window.screen.width + "x" + window.screen.height) : "Unknown");
     const qp = new URLSearchParams(location.search);
     const roomQ = (qp.get('room') || qp.get('roomId') || '').toUpperCase();
-    const isPoki = !!(typeof location !== 'undefined' && location.host && location.host.includes('poki'));
+    const isCg = !!(typeof location !== 'undefined' && location.host && location.host.includes('crazygames'));
     const source = isPoki ? 'Poki Portal' : (document.referrer ? document.referrer.slice(0, 50) : 'Direct URL');
     let playerId = '', sessShort = '';
     try{ playerId = getOrCreatePlayerId(); }catch(e){}
@@ -16757,7 +16745,7 @@ function telemetryTrackMatchEnded(reason = 'completed'){
     const durationStr = Math.floor(durationSec / 60) + "m " + (durationSec % 60) + "s";
     const mode = (typeof settings !== 'undefined' && settings && settings.gameMode) ? settings.gameMode.toUpperCase() : 'CLASSIC';
 
-    // 1. Resolve human player's identity (localStorage or Guest name)
+    // 1. Resolve human player's identity (CrazyGames username, localStorage, or Guest name)
     let myName = "Guest";
     try {
       const prof = netGetMyProfile();
@@ -18151,6 +18139,13 @@ function netLink(room){
     }
   }catch(e){}
 
+  const isCrazyHost = (typeof location !== 'undefined' && location.host && location.host.indexOf('crazygames') >= 0);
+  const isLocalOrFile = (typeof location === 'undefined' || !location.origin || location.origin.startsWith('file:') || location.origin.includes('localhost') || location.origin.includes('127.0.0.1'));
+  
+  if(isCrazyHost || isLocalOrFile){
+    return '' + encodeURIComponent(invitedBy) + '&room=' + encodeURIComponent(code) + '&roomId=' + encodeURIComponent(code) + (srvQ ? ('&srv=' + encodeURIComponent(srvQ)) : '');
+  }
+
   let p = location.pathname;
   if(p.endsWith('/')) p = p + 'index.html';
   else if(/\/[^\/]+\.[a-z]+$/i.test(p)) p = p.replace(/\/[^\/]*$/, '/');
@@ -18169,10 +18164,11 @@ function netCopyInviteToClipboard(doneMsg){
     }catch(e){}
   };
   try{
-    if(typeof POKI!=='undefined'&&POKI&&typeof POKI.getInviteLink==='function'&&NET&&NET.room){
-      POKI.getInviteLink(NET.room).then(sdkLink=>{
+    if(typeof CG!=='undefined'&&CG&&typeof CG.getInviteLink==='function'&&NET&&NET.room){
+      CG.getInviteLink(NET.room).then(sdkLink=>{
         let l = sdkLink;
         if(l && typeof l !== 'string'){ try{ l = String(l); }catch(e){ l = null; } }
+        try{if(l&&l.indexOf('poki.com')>=0) l=l.replace(/\/\?room=/,'/index.html?room=');}catch(e){}
         if(!l){ fallback(); return; }
         try{
           if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(l).then(()=>netToast(msg)).catch(()=>prompt('Copy invite link:', l));
@@ -18188,12 +18184,13 @@ function netCopyInviteToClipboard(doneMsg){
 async function netCopyLink(){
   let l = null;
   try{
-    if(typeof POKI!=='undefined'&&POKI&&typeof POKI.getInviteLink==='function'&&NET&&NET.room){
-      l = await POKI.getInviteLink(NET.room);
+    if(typeof CG!=='undefined'&&CG&&typeof CG.getInviteLink==='function'&&NET&&NET.room){
+      l = await CG.getInviteLink(NET.room);
       if(l && typeof l !== 'string'){ try{ l = String(l); }catch(e){ l = null; } }
     }
   }catch(e){ l = null; }
   if(!l) l = netLink(NET.room);
+  try{if(l&&l.indexOf('poki.com')>=0) l=l.replace(/\/\?room=/,'/index.html?room=');}catch(e){}
   if(navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(l).then(() => { netToast('Invite link copied! Send it to your friend.'); try{ telemetryTrackInviteShared(NET.room); }catch(e){} }).catch(() => prompt('Copy invite link:', l));
   } else {
@@ -19903,7 +19900,7 @@ function netUpdateHostDirectory(){
     doUpdate(1);
   } catch(e){}
 
-  // Update room state (locked/full rooms are not joinable)
+  // CrazyGames SDK v3 updateRoom (object form; locked/full rooms are not joinable)
   try {
     const pList = [];
     for(let i=0; i<8; i++){
