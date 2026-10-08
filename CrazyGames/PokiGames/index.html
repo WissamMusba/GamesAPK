@@ -3322,8 +3322,8 @@ var initCtfMode, updateCtf, checkCtfTag, drawCtfUI, drawCtfPlayer, drawCtfEntiti
           const popY = (hunter.y + runner.y) / 2 + runner.h / 2;
 
           if (isOnlineGuest) {
-            if (hunter.slot === __inet.mySlot && typeof gScope.netBroadcastReliable === 'function') {
-              gScope.netBroadcastReliable({
+            if (hunter.slot === __inet.mySlot && typeof gScope.netSendClaimTriple === 'function') {
+              gScope.netSendClaimTriple({
                 t: 'tag_claim',
                 from: hunter.slot,
                 target: runner.slot,
@@ -7943,6 +7943,7 @@ var CtfMode = (typeof window !== "undefined" && window.CtfMode) || (typeof globa
 
 function startMatch(){
   if(typeof NET !== 'undefined' && NET && (menu.tab === 'solo' || menu.tab === 'bots' || menu.tab === '2p' || NET.role === null)){ NET.isSpectator = false; }
+  try{ NET._lastSentState = null; NET._lastFullT = 0; NET._seenClaims = []; }catch(e){} // force full snapshot on first tick
   try{
     SESSION_METRICS.matchesStarted++;
     SESSION_METRICS.currentMatchStartT = Date.now();
@@ -17351,7 +17352,10 @@ function netSendRel(peerOrPair, msg){
   if(c){
     try{
       const dc = c.dataChannel || c._dc;
-      if(dc && dc.bufferedAmount > 16384) return; // bounded reliable queue
+      // Critical lobby/match messages bypass the drop cap; loss-tolerant
+      // traffic (chat/pings) is shed instead of queueing latency.
+      const critical = !!msg && !!msg.t && !!{ assign:1, start:1, midgame_start:1, roster_sync:1, settings:1, spectator_init:1, to_menu:1, kicked:1 }[msg.t];
+      if(dc && dc.bufferedAmount > (critical ? 65536 : 16384)) return;
       c.send(msg);
     }catch(e){}
   }
@@ -17372,17 +17376,27 @@ function netBroadcastReliable(msg, excludePeerId){
 /* Tag claims ride fast triple-send (now/+25ms/+50ms); host dedups by _cid.
    Reliable retransmit delay (50-300ms on loss) is what made tags feel late. */
 function netSendClaimTriple(msg){
-  try{ msg._cid = (NET.myId || 'x') + ':' + (++NET.seq); }catch(e){}
-  const fire = () => {
+  try{ NET._claimSeq = (NET._claimSeq || 0) + 1; msg._cid = (NET.myId || 'x') + ':' + NET._claimSeq; }catch(e){}
+  let snap = msg;
+  try{ snap = Object.assign({}, msg); }catch(e){ snap = msg; }
+  const fireFast = () => {
     try{
-      if(typeof RELAY !== 'undefined' && RELAY.mode === 'relay'){ try{ netRelaySend(NET._hostId || '', msg); }catch(e){} return; }
+      if(typeof RELAY !== 'undefined' && RELAY.mode === 'relay'){ try{ netRelaySend(NET._hostId || '', snap); }catch(e){} return; }
       if(typeof NET === 'undefined' || !NET || !NET.conns) return;
-      for(const pair of NET.conns.values()){ try{ netSendFast(pair, msg); }catch(e){} }
+      for(const pair of NET.conns.values()){ try{ netSendFast(pair, snap); }catch(e){} }
     }catch(e){}
   };
-  fire();
-  try{ setTimeout(fire, 25); }catch(e){}
-  try{ setTimeout(fire, 50); }catch(e){}
+  fireFast();
+  try{ setTimeout(fireFast, 25); }catch(e){}
+  try{ setTimeout(fireFast, 50); }catch(e){}
+  // Rel safety net: if fast is dead the tag still lands (~120ms late, deduped).
+  try{ setTimeout(() => {
+    try{
+      if(typeof RELAY !== 'undefined' && RELAY.mode === 'relay') return;
+      if(typeof NET === 'undefined' || !NET || !NET.conns) return;
+      for(const pair of NET.conns.values()){ try{ netSendRel(pair, snap); }catch(e){} }
+    }catch(e){}
+  }, 120); }catch(e){}
 }
 
 /* High-efficiency player state packing: reduces payload by 78% and cuts garbage collection pauses */
@@ -17415,8 +17429,9 @@ function packPlayer(p){
 }
 
 /* Hot-path player packing (50Hz): position + visual state only.
-   Mode flags (inf/pz/ls/cp/ud) ride the 2s full snapshot instead —
-   unpackPlayer + netUpdateRemoteTarget already skip undefined fields. */
+   Mode flags (inf/pz/ls/cp/ud) ride the 2s full snapshot instead.
+   Steady-state apply paths skip undefined fields; first-sight creation
+   defaults them (false/0) until the first full snapshot lands (<=2s). */
 function packPlayerHot(p){
   return {
     s: p.slot,
@@ -17621,9 +17636,11 @@ function netUpdateRemoteTarget(slot, data, pCurrent){
       grounded: !!data.grounded, airJumps: data.airJumps || 0,
       padOn: !!data.padOn, landT: data.landT || 0, tagT: data.tagT || 0,
       blink: data.blink || 0, seq: (data.seq != null ? data.seq : 0),
-      isInfected: !!data.isInfected, isPatientZero: !!data.isPatientZero,
-      isLoneSurvivor: !!data.isLoneSurvivor,
-      crownPoints: data.crownPoints || 0, underdogTimer: data.underdogTimer || 0,
+      isInfected: data.isInfected !== undefined ? !!data.isInfected : false,
+      isPatientZero: data.isPatientZero !== undefined ? !!data.isPatientZero : false,
+      isLoneSurvivor: data.isLoneSurvivor !== undefined ? !!data.isLoneSurvivor : false,
+      crownPoints: data.crownPoints !== undefined ? data.crownPoints : 0,
+      underdogTimer: data.underdogTimer !== undefined ? data.underdogTimer : 0,
       shieldT: data.shieldT || 0, isRespawning: !!data.isRespawning
     };
     _remoteTargets.set(slot, tgt);
@@ -18797,12 +18814,12 @@ function netWireConn(conn, isHostSide){
   const onReady = () => {
     // Only disarm the join watchdog once the host actually assigned us (open != joined)
     if(NET._guestTimeout && (NET.mySlot >= 0 || NET.isSpectator)){ clearTimeout(NET._guestTimeout); NET._guestTimeout = null; }
-    if(!isHostSide && !isFast && !NET._helloSent){
-      NET._helloSent = true; // hello rides reliable only (fast can lose it)
+    if(!isHostSide && !NET._helloSent){
+      NET._helloSent = true; // first open wire wins; host dedupes by peerId
       const myProfile = netGetMyProfile();
       conn.send(netHelloPayload());
       netToast('Connected to host! Syncing menu…');
-      if(VOICE.enabled && VOICE.localStream){
+      if(!isFast && VOICE.enabled && VOICE.localStream){
         conn.send({ t: 'voice_req', peerId: NET.myId, hasStream: true });
       }
     } else if(isHostSide && !isFast){
@@ -19709,7 +19726,13 @@ function netOnData(m, c){
       if(m.hunterScores) match.hunterScores = { ...m.hunterScores };
       if(m.hunterRound != null) match.hunterRound = m.hunterRound;
       if(m.cageT != null) match.cageT = m.cageT;
-      if(m.roundSummary) match.roundSummary = m.roundSummary;
+      // Continuous mode clocks ride hot (fuse/hold/immunity), never the 2s cold cadence.
+      if(m.fuse != null && typeof BOMB_MODE !== 'undefined' && BOMB_MODE){ BOMB_MODE.fuse = m.fuse; if(match) match.timer = m.fuse; }
+      if(m.hold != null && typeof crownState !== 'undefined' && crownState){ crownState.holdTimer = m.hold; }
+      if(m.cimm != null && typeof crownState !== 'undefined' && crownState){ crownState.immunityTimer = m.cimm; }
+      if(m.result !== undefined) match.result = m.result;
+      if(m.resultT !== undefined) match.resultT = m.resultT;
+      if(m.roundSummary !== undefined) match.roundSummary = m.roundSummary;
       if(m.state){
         if(match.state === 'paused' && match.pausedFrom){
           // Guest is in the pause menu (e.g. about to leave): hold the screen,
@@ -19725,8 +19748,6 @@ function netOnData(m, c){
       if(m.cd != null) match.cd = m.cd;
       if(m.cdT != null) match.cdT = m.cdT;
       if(m.goFlash != null) match.goFlash = m.goFlash;
-      if(m.result) match.result = m.result;
-      if(m.resultT != null) match.resultT = m.resultT;
       if(m.tags) match.tags = m.tags.slice();
       if(m.shake && m.shake > match.shake) match.shake = m.shake;
       if(m.flash && m.flash > match.flash) match.flash = m.flash;
@@ -20812,6 +20833,7 @@ function netJoinAction(codeParam, hostPeerIdParam){
   NET._srvRetry = 0;
   NET._p2pRetry = 0;
   NET._syncExt = 0;
+  try{ NET._seenClaims = []; }catch(e){}
   NET.mySlot = -1;
   NET.myCtrl = 'WASD';
   NET.slotsReady = [false, false, false, false, false, false, false, false];
@@ -21219,6 +21241,7 @@ function netLeaveRoom(reason){
   try{ NET._lobbyDup = {}; }catch(e){}
   NET.spectators = [];
   NET.botSlots = [];
+  try{ NET._lastSentState = null; NET._lastFullT = 0; NET._seenClaims = []; }catch(e){}
   NET.role = null;
   NET.room = '';
   NET.mySlot = -1;
@@ -21337,14 +21360,15 @@ function getMyPlayer(){
   return match.players.find(p => p.slot === NET.mySlot) || (NET.mySlot < match.players.length ? match.players[NET.mySlot] : null);
 }
 
-/* 60Hz Host physics broadcast + Guest state transmission */
+/* 50Hz Host hot-state broadcast + 20Hz Guest delta transmission (full snapshot every 2s / on state change) */
 let _netStateT = 0, _netInputT = 0;
 function netTick(dt){
   if(NET.role === null) return;
   if(NET.isHost){
-    // 50Hz hot state (positions + visual state) + full snapshot every 2s /
-    // on state change (round end, pause menu) / first tick. Static data
-    // (settings, tags, scores, mode envelope) never rides the hot path.
+    // 50Hz hot (positions, visual state, live clocks: timer/cooldown/fuse/
+    // hold/cageT) + full snapshot every 2s / on state change (round end,
+    // pause menu) / first tick. Infrequent data (settings, tags, scores,
+    // mode envelope) never rides the hot path.
     _netStateT += dt;
     if(_netStateT >= 0.02 && match && match.players){
       _netStateT -= 0.02;
@@ -21367,12 +21391,15 @@ function netTick(dt){
         shake: match.shake != null ? Math.round(match.shake * 10) / 10 : 0,
         flash: match.flash != null ? Math.round(match.flash * 10) / 10 : 0,
         cageT: match.hunterMode ? Math.round(match.cageT * 100) / 100 : null,
+        teamItTime: match.teamItTime ? match.teamItTime.slice() : null,
+        fuse: (settings.gameMode === 'bomb' && typeof BOMB_MODE !== 'undefined' && BOMB_MODE) ? Math.round(BOMB_MODE.fuse * 100) / 100 : null,
+        hold: (settings.gameMode === 'crown' && typeof crownState !== 'undefined' && crownState) ? Math.round(crownState.holdTimer * 100) / 100 : null,
+        cimm: (settings.gameMode === 'crown' && typeof crownState !== 'undefined' && crownState) ? Math.round(crownState.immunityTimer * 100) / 100 : null,
         tick: NET.tick++
       };
       if(full){
         env.settings = { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, gameMode: settings.gameMode };
         env.tags = match.tags.slice();
-        env.teamItTime = match.teamItTime ? match.teamItTime.slice() : null;
         env.hunterScores = match.hunterMode ? match.hunterScores : null;
         env.hunterRound = match.hunterMode ? match.hunterRound : null;
         env.roundSummary = match.roundSummary || null;
