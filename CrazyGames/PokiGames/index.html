@@ -8279,17 +8279,28 @@ function isBotSlot(p){
     return false;
   }catch(e){return false;}
 }
+/* Bot collision-query caches: SOLIDS is reassigned per buildLevel, so
+   identity comparison safely invalidates. Module-scope probe rect avoids
+   one allocation per sample (was ~100/throw). */
+let _solidsNoDrop = null, _solidsNoDropRef = null;
+let _padsCache = null, _padsCacheRef = null;
+const _botProbe = { x: 0, y: 0, w: 0, h: 0 };
+function botSolidsNoDrop(){
+  if(_solidsNoDropRef !== SOLIDS){ _solidsNoDropRef = SOLIDS; _solidsNoDrop = SOLIDS.filter(s => s.t !== 'drop'); }
+  return _solidsNoDrop;
+}
 function botSolidBetween(ax,ay,bx,by,ignorePlat){
-  // Distance-based sampling (max 22px step) so thin walls & pillars never tunnel through
+  // Distance-based sampling (max 32px step) so thin walls & pillars never tunnel through
   const dx=bx-ax, dy=by-ay;
   const dist=Math.hypot(dx,dy);
-  const steps=Math.max(3, Math.ceil(dist/22));
+  const steps=Math.max(3, Math.ceil(dist/32));
+  const solids = botSolidsNoDrop();
   for(let i=1; i<steps; i++){
-    const t=i/steps, px=ax+dx*t, py=ay+dy*t;
-    const pt={x:px-3, y:py-3, w:6, h:6};
-    for(const s of SOLIDS){
-      if(s.t==='drop'||s===ignorePlat)continue;
-      if(hitRect(pt,s))return s;
+    const t=i/steps;
+    _botProbe.x=ax+dx*t-3; _botProbe.y=ay+dy*t-3; _botProbe.w=6; _botProbe.h=6;
+    for(const s of solids){
+      if(s===ignorePlat)continue;
+      if(hitRect(_botProbe,s))return s;
     }
   }
   return null;
@@ -8330,12 +8341,14 @@ function botCeilAbove(p,dist){
   return null;
 }
 function botGetActivePads(){
+  if(_padsCacheRef === SOLIDS && _padsCache) return _padsCache;
   const speeds=[], boosts=[];
   for(const s of SOLIDS){
     if(s.t==='speed') speeds.push(s);
     else if(s.t==='boost') boosts.push(s);
   }
-  return { speeds, boosts };
+  _padsCacheRef = SOLIDS; _padsCache = { speeds, boosts };
+  return _padsCache;
 }
 function botFindSpeedPadMeta(p, target, dx, dy){
   const { speeds, boosts } = botGetActivePads();
@@ -8767,7 +8780,7 @@ function botInputFor(p,dt){
   }
 
   if(S.decideT<=0){
-    S.decideT=botThinkRate*(S.thinkJit||1);
+    S.decideT=botThinkRate*(S.thinkJit||1)+((p.slot%3)*0.025); // desync bots so they never think the same frame
     let want=0;
     let isCornerJuke=false;
     let chaseWant = 0;
@@ -12447,18 +12460,22 @@ function drawPlayers(){
     /* Draw crystalline ice cube over frozen players with blue glow */
     if(p.isFrozen){
       g.save();
+      const isLowFX = (typeof isTouch !== 'undefined' && isTouch);
       const icePulse = 0.85 + 0.15 * Math.sin(tGlobal * 5 + (p.seed || 0));
       g.shadowColor = '#38bdf8';
-      g.shadowBlur = 14 * icePulse;
+      g.shadowBlur = isLowFX ? 0 : 14 * icePulse;
 
       const bx = p.x - 4, by = p.y - 4, bw = p.w + 8, bh = p.h + 8;
-      const iceGrad = g.createLinearGradient(bx, by, bx + bw, by + bh);
-      iceGrad.addColorStop(0, 'rgba(186, 230, 253, 0.72)');
-      iceGrad.addColorStop(0.5, 'rgba(56, 189, 248, 0.40)');
-      iceGrad.addColorStop(1, 'rgba(14, 165, 233, 0.75)');
+      let iceGrad = null;
+      if(!isLowFX){
+        iceGrad = g.createLinearGradient(bx, by, bx + bw, by + bh);
+        iceGrad.addColorStop(0, 'rgba(186, 230, 253, 0.72)');
+        iceGrad.addColorStop(0.5, 'rgba(56, 189, 248, 0.40)');
+        iceGrad.addColorStop(1, 'rgba(14, 165, 233, 0.75)');
+      }
 
       rr(g, bx, by, bw, bh, 8);
-      g.fillStyle = iceGrad;
+      g.fillStyle = iceGrad || 'rgba(56, 189, 248, 0.55)';
       g.fill();
 
       g.lineWidth = 2.5;
@@ -17424,7 +17441,8 @@ function packPlayer(p){
     cp: (p.crownPoints != null ? p.crownPoints : 0),
     ud: (p.underdogTimer > 0 ? Math.round(p.underdogTimer * 100) / 100 : 0),
     sh: (p.shieldT > 0 ? Math.round(p.shieldT * 100) / 100 : 0),
-    rsp: p.isRespawning ? 1 : 0
+    rsp: p.isRespawning ? 1 : 0,
+    sq: p._sq || 0
   };
 }
 
@@ -17451,7 +17469,8 @@ function packPlayerHot(p){
     el: p.isEliminated ? 1 : 0,
     fz: p.isFrozen ? 1 : 0,
     sh: (p.shieldT > 0 ? Math.round(p.shieldT * 100) / 100 : 0),
-    rsp: p.isRespawning ? 1 : 0
+    rsp: p.isRespawning ? 1 : 0,
+    sq: p._sq || 0
   };
 }
 
@@ -17480,7 +17499,7 @@ function unpackPlayer(d){
     underdogTimer: d.ud != null ? d.ud : (d.underdogTimer !== undefined ? d.underdogTimer : undefined),
     shieldT: d.sh != null ? d.sh : (d.shieldT || 0),
     isRespawning: d.rsp != null ? !!d.rsp : (!!d.isRespawning),
-    seq: d.seq || 0
+    seq: (d.seq != null && d.seq > 0) ? d.seq : (d.sq != null ? d.sq : 0)
   };
 }
 
@@ -17653,8 +17672,8 @@ function netUpdateRemoteTarget(slot, data, pCurrent){
     if(pCurrent){
       const rawDx = pCurrent.x - data.x;
       const rawDy = pCurrent.y - data.y;
-      // If warp / teleport > 240px, snap instantly without error bleed
-      if(rawDx * rawDx + rawDy * rawDy > 57600){
+      // If warp / teleport > 400px, snap instantly without error bleed
+      if(rawDx * rawDx + rawDy * rawDy > 160000){
         pCurrent.x = data.x;
         pCurrent.y = data.y;
         tgt.errX = 0;
@@ -17701,23 +17720,27 @@ function netApplyRemoteTarget(p, dt){
     tgt.targetY += tgt.targetVy * dt;
   }
 
-  // Smooth exponential decay of error offset (half-life ~40ms: eliminates all micro-stutters and backward snapping)
-  const decay = Math.exp(-dt * 18);
+  // Smooth exponential decay of error offset (half-life ~70ms: glides
+  // instead of micro-snapping on every direction change)
+  const decay = Math.exp(-dt * 10);
   tgt.errX *= decay;
   tgt.errY *= decay;
 
-  // Visual position combines extrapolated target + smoothly decaying error offset
-  p.x = tgt.targetX + tgt.errX;
+  // Render ~100ms behind the authoritative target (delay-based smoothing:
+  // arrival jitter is absorbed instead of snapping). Residual error decays
+  // gently (half-life ~70ms) rather than popping.
+  const LAG = 0.1;
+  p.x = tgt.targetX - tgt.targetVx * LAG + tgt.errX;
   if(tgt.grounded){
     p.y = tgt.targetY;
     p.grounded = true;
     p.vy = 0;
   } else {
-    p.y = tgt.targetY + tgt.errY;
+    p.y = tgt.targetY - tgt.targetVy * LAG + tgt.errY;
     p.grounded = false;
-    p.vy = tgt.targetVy;
+    p.vy += (tgt.targetVy - p.vy) * Math.min(1, dt * 12);
   }
-  p.vx = tgt.targetVx;
+  p.vx += (tgt.targetVx - p.vx) * Math.min(1, dt * 12);
 
   p.face = tgt.face;
   p.sx += ((tgt.sx || 1) - p.sx) * Math.min(1, dt * 20);
@@ -17735,12 +17758,12 @@ function netApplyRemoteTarget(p, dt){
   if(tgt.shieldT !== undefined) p.shieldT = tgt.shieldT;
   if(tgt.isRespawning !== undefined) p.isRespawning = tgt.isRespawning;
 
-  // Ghost trail FX for remote sprinting player
+  // Ghost trail FX for remote sprinting player (capped at 2: remotes don't need full trails)
   if(p.trail){
     for(let tr of p.trail) tr.alpha -= dt * 1.8;
     if(Math.abs(p.vx) > 300 || p.padOn){
       p.trail.unshift({ x: p.x, y: p.y, alpha: 0.45 });
-      if(p.trail.length > 4) p.trail.pop();
+      if(p.trail.length > 2) p.trail.pop();
     } else if(p.trail.length > 0){
       p.trail.pop();
     }
@@ -18006,6 +18029,11 @@ function voiceWireCall(call){
 }
 
 function updateVoiceProximity(dt){
+  // 10Hz is plenty for ears: volume ladders, FFT speaking flags and the mic
+  // gate don't need per-frame recompute (this was FFT + finds x peers @60Hz).
+  NET._voiceT = (NET._voiceT || 0) + (dt || 0.016);
+  if(NET._voiceT < 0.1) return;
+  NET._voiceT = 0;
   const inGame = (match && screen === 'game' && match.players && match.players.length > 0);
   const isPlaying = (inGame && match.state === 'playing');
   let myP = null;
@@ -18120,6 +18148,19 @@ function updateVoiceProximity(dt){
   } else {
     VOICE.speaking = false;
   }
+  // Cached speaking-slot set so drawPlayers doesn't re-scan voice peers per player.
+  try{
+    const ss = NET._speakingSlots || (NET._speakingSlots = new Set());
+    ss.clear();
+    for(const [pid, entry] of VOICE.peers.entries()){
+      if(!entry.speaking || entry.remoteMuted) continue;
+      if(NET.peerMutes && NET.peerMutes.has(pid)) continue;
+      const sl = NET.peerSlots ? NET.peerSlots.get(pid) : undefined;
+      if(sl != null) ss.add(sl);
+    }
+    if(VOICE.speaking && NET.mySlot >= 0) ss.add(NET.mySlot);
+    NET._speakingT = performance.now();
+  }catch(e){}
 }
 
 function isPlayerSpeaking(slot){
@@ -18127,6 +18168,11 @@ function isPlayerSpeaking(slot){
   if(slot === NET.mySlot){
     return !!VOICE.speaking;
   }
+  try{
+    if(NET._speakingSlots && (performance.now() - (NET._speakingT || 0)) < 300){
+      return NET._speakingSlots.has(slot);
+    }
+  }catch(e){}
   for(const [peerId, entry] of VOICE.peers.entries()){
     const isMutedByMe = NET.peerMutes && NET.peerMutes.has(peerId);
     if(entry.speaking && !entry.remoteMuted && !isMutedByMe){
@@ -18134,7 +18180,7 @@ function isPlayerSpeaking(slot){
       if(pSlot === undefined){
         if(!NET.isHost && (typeof netIsHostPeerId==='function'?netIsHostPeerId(peerId):String(peerId||'').endsWith('-host'))) pSlot = 0;
         else if(NET.isHost){
-          for(let s = 1; s < 8; s++){
+          for(let s = 1; s < 10; s++){ // slots up to 9 (10-player ready)
             const ent = NET.hostInputs.get(s);
             if(ent && ent.owner === peerId){ pSlot = s; break; }
           }
@@ -19813,7 +19859,7 @@ function netOnData(m, c){
             if(pData.underdogTimer !== undefined) pObj.underdogTimer = pData.underdogTimer;
             if(pData.shieldT !== undefined) pObj.shieldT = pData.shieldT;
             if(pData.isRespawning !== undefined) pObj.isRespawning = !!pData.isRespawning;
-            if(m.tick != null) pData.seq = m.tick;
+            if((pData.seq == null || pData.seq <= 0) && m.tick != null) pData.seq = m.tick;
             netUpdateRemoteTarget(slot, pData, pObj);
           }
         }
@@ -20774,7 +20820,7 @@ function netHostAction(isPublic = true){
     if(NET.role !== null){
       const pingPayload = { t: 'ping', pingT: performance.now() };
       for(const pair of NET.conns.values()){
-        netSendFast(pair, pingPayload);
+        netSendFast(pair, pingPayload); try{ netSendRel(pair, pingPayload); }catch(e){}
       }
     }
   }, 2000);
@@ -20876,7 +20922,7 @@ function netJoinAction(codeParam, hostPeerIdParam){
     if(NET.role !== null){
       const pingPayload = { t: 'ping', pingT: performance.now() };
       for(const pair of NET.conns.values()){
-        netSendFast(pair, pingPayload);
+        netSendFast(pair, pingPayload); try{ netSendRel(pair, pingPayload); }catch(e){}
       }
     }
   }, 2000);
@@ -20990,7 +21036,7 @@ function netPromoteToHost(reason){
         try{
           if(NET.role !== null){
             var pingPayload = { t: 'ping', pingT: performance.now() };
-            for(const pair of NET.conns.values()){ try{ netSendFast(pair, pingPayload); }catch(e){} }
+            for(const pair of NET.conns.values()){ try{ netSendFast(pair, pingPayload); try{ netSendRel(pair, pingPayload); }catch(e){} }catch(e){} }
           }
         }catch(e){}
       }, 2000);
@@ -21375,7 +21421,7 @@ function netTick(dt){
       if(_netStateT > 0.1) _netStateT = 0; // don't spiral after a hitch
       const nowMs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
       const full = !NET._lastSentState || (match.state !== NET._lastSentState) || (nowMs - (NET._lastFullT || 0) >= 2000);
-      const packedPlayers = match.players.map(p => full ? packPlayer(p) : packPlayerHot(p));
+      const packedPlayers = match.players.map(p => { p._sq = (p._sq || 0) + 1; return full ? packPlayer(p) : packPlayerHot(p); });
       const env = {
         players: packedPlayers,
         it: match.it,
@@ -21422,6 +21468,7 @@ function netTick(dt){
       if(_netInputT > 0.2) _netInputT = 0;
       const myP = getMyPlayer();
       if(myP){
+        myP._sq = (myP._sq || 0) + 1;
         const pData = packPlayerHot(myP);
         pData.t = 'p_state';
         pData.seq = ++NET.seq;
