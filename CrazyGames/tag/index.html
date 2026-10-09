@@ -7038,10 +7038,54 @@ var initCtfMode, updateCtf, checkCtfTag, drawCtfUI, drawCtfPlayer, drawCtfEntiti
             });
           }
         }
+      } else if (flag.state === 'dropped') {
+        // Fumbled flag lies where it fell: 20s to recover, then replays home.
+        flag.dropTimer = (flag.dropTimer != null ? flag.dropTimer : 20) - dt;
+        if (flag.dropTimer <= 0) {
+          flag.state = 'home';
+          flag.carrier = null;
+          flag.x = flag.homeX;
+          flag.y = flag.homeY;
+          addCtfFloater('FLAG RETURNED!', flag.homeX, flag.homeY - 30, t === 0 ? '#ff6b6b' : '#38bdf8', 1.8);
+        }
       }
     }
 
     if (!inPlay || !isHostOrLocal) return;
+
+    // 4b. Dropped Flag Touch (teammate returns it / enemy picks it up)
+    for (let t = 0; t < 2; t++) {
+      const dFlag = ctfState.flags[t];
+      if (!dFlag || dFlag.state !== 'dropped') continue;
+      for (const p of m.players) {
+        if (p.isEliminated || p.isRespawning) continue;
+        const hitD = _hitRectInclusive(_tagBox(p), {
+          x: dFlag.x - CTF_CONFIG.PICKUP_RADIUS,
+          y: dFlag.y - CTF_CONFIG.PICKUP_RADIUS,
+          w: CTF_CONFIG.PICKUP_RADIUS * 2,
+          h: CTF_CONFIG.PICKUP_RADIUS * 2
+        });
+        if (!hitD) continue;
+        if (p.team === t) {
+          dFlag.state = 'home';
+          dFlag.carrier = null;
+          dFlag.x = dFlag.homeX;
+          dFlag.y = dFlag.homeY;
+          addCtfFloater('FLAG RETURNED!', dFlag.homeX, dFlag.homeY - 40, t === 0 ? '#ff6b6b' : '#38bdf8', 2.0);
+          _toast('🛡️ ' + (t === 0 ? 'RED' : 'BLUE') + ' TEAM RECOVERED THEIR FLAG!');
+          _sfx('ok');
+        } else {
+          dFlag.state = 'carried';
+          dFlag.carrier = p;
+          p.shieldT = 2.0;
+          spawnCtfSparkles(dFlag.x, dFlag.y, t === 0 ? '#ff4757' : '#38bdf8', 24);
+          addCtfFloater('FLAG RECOVERED! (SHIELDED)', dFlag.x, dFlag.y - 40, '#ffd166', 2.0);
+          _toast('🚩 ' + (p.team === 0 ? 'RED' : 'BLUE') + ' TEAM RECOVERED THE FLAG!');
+          _sfx('boost');
+        }
+        break;
+      }
+    }
 
     // 4. Flag Pickup Check (Runner touches enemy flag at base)
     for (let team = 0; team < 2; team++) {
@@ -7159,6 +7203,12 @@ var initCtfMode, updateCtf, checkCtfTag, drawCtfUI, drawCtfPlayer, drawCtfEntiti
         const p1HasEnemyFlag = (ctfState.flags[1 - p1.team] && ctfState.flags[1 - p1.team].carrier === p1);
         const p2HasEnemyFlag = (ctfState.flags[1 - p2.team] && ctfState.flags[1 - p2.team].carrier === p2);
 
+        // Case FUMBLE: two carriers collide head-on -> both drop flags on the
+        // spot + 0.8s stun. Loose flags are up for grabs (see dropped rules).
+        if (p1HasEnemyFlag && p2HasEnemyFlag && !p1HasShield && !p2HasShield) {
+          handleCtfFumble(p1, p2);
+          continue;
+        }
         // Case A: p1 has enemy flag and is tagged by defender p2
         if (p1HasEnemyFlag && !p1HasShield) {
           handleCtfTagCarrier(p2, p1, 1 - p1.team);
@@ -7173,6 +7223,29 @@ var initCtfMode, updateCtf, checkCtfTag, drawCtfUI, drawCtfPlayer, drawCtfEntiti
         // ONLY players carrying the enemy flag can be tagged. Non-carriers pass right through each other!
       }
     }
+  }
+
+  function handleCtfFumble(c1, c2){
+    // Both carriers drop their flag where they stand + short stun.
+    const drops = [
+      { carrier: c1, flag: ctfState.flags[1 - c1.team] },
+      { carrier: c2, flag: ctfState.flags[1 - c2.team] }
+    ];
+    for(const d of drops){
+      if(!d.flag || d.flag.carrier !== d.carrier) continue;
+      d.flag.state = 'dropped';
+      d.flag.carrier = null;
+      d.flag.x = d.carrier.x + d.carrier.w / 2;
+      d.flag.y = d.carrier.y + d.carrier.h / 2;
+      d.flag.dropTimer = 20.0;
+      d.carrier.fumbleT = 0.8;
+      d.carrier.vx = 0; d.carrier.vy = 0;
+      spawnCtfShockwave(d.flag.x, d.flag.y, '#ffd166');
+      spawnCtfSparkles(d.flag.x, d.flag.y, '#ffd166', 20);
+    }
+    addCtfFloater('💥 FLAG FUMBLE!', (c1.x + c2.x) / 2, Math.min(c1.y, c2.y) - 30, '#ffd166', 2.0);
+    _toast('💥 CARRIERS COLLIDE — BOTH FLAGS DROPPED!');
+    _sfx('tag');
   }
 
   function handleCtfTagCarrier(defender, carrier, flagTeam) {
@@ -9607,7 +9680,8 @@ function physUpdate(p,dt,allow){
   const wasG=p.grounded;
   if(wasG)p.coyote=0.11;else p.coyote-=dt;
   let dir=0,jumpP=false,jumpHeld=false,downHeld=false;
-  if(allow){const inp=inputFor(p,dt);dir=inp.dir;jumpP=inp.jumpEdge;jumpHeld=inp.jumpHeld;downHeld=inp.downHeld;}
+  if(p.fumbleT > 0){ p.fumbleT -= dt; dir=0; jumpP=false; jumpHeld=false; downHeld=false; } // CTF fumble stun
+  else if(allow){const inp=inputFor(p,dt);dir=inp.dir;jumpP=inp.jumpEdge;jumpHeld=inp.jumpHeld;downHeld=inp.downHeld;}
   const onSpeed=p.grounded&&!!zoneAtFeet(p,'speed');
   if(onSpeed&&!p.padOn)sfx('pad');
   p.padOn=onSpeed;
@@ -9625,7 +9699,9 @@ function physUpdate(p,dt,allow){
   } else if(settings.gameMode === 'crown' && typeof getCrownPlayerSpeed === 'function'){
     baseMax = getCrownPlayerSpeed(p);
   } else if(settings.gameMode === 'ctf'){
-    baseMax = RUN_SPEED;
+    // Carriers run at normal speed, everyone else hunts at IT speed.
+    const isCtfCarrier = (typeof ctfState !== 'undefined' && ctfState && ctfState.flags && ctfState.flags.some(f => f.carrier === p));
+    baseMax = isCtfCarrier ? RUN_SPEED : IT_SPEED;
   }
   const maxs=baseMax*(onSpeed?SPEED_MULT:1);
   if(!onSpeed&&Math.abs(p.vx)>maxs){
