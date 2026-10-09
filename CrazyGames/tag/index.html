@@ -13000,7 +13000,7 @@ function drawOnlineHub(stageY, stageH){
   // Check periodically for public room list updates if not in a room
   if(NET.role === null){
     const now = performance.now();
-    if(now - _lastOnlineFetch > 3500){
+    if(now - _lastOnlineFetch > 2500){
       _lastOnlineFetch = now;
       netFetchPublicRooms();
     }
@@ -16372,7 +16372,7 @@ function netProbeServers(cb, force){
   try{
     const self = netSelfCfg(), render = netRenderCfg();
     if(!self.host){ // self-host not configured: keep current behavior, still warm the cache
-      netTimedHealth(render, 1500).then(r=>{
+      netTimedHealth(render, 900).then(r=>{
         const cfg = r.ok ? render : null;
         try{
           commit(cfg);
@@ -16382,7 +16382,7 @@ function netProbeServers(cb, force){
       });
       return;
     }
-    Promise.all([netTimedHealth(self, 1500), netTimedHealth(render, 1500)]).then(([s, r])=>{
+    Promise.all([netTimedHealth(self, 900), netTimedHealth(render, 900)]).then(([s, r])=>{
       let cfg = null;
       if(s.ok && (!r.ok || s.ms <= r.ms + SELF_PREFER_MARGIN_MS)) cfg = self;
       else if(r.ok) cfg = render;
@@ -17264,9 +17264,6 @@ const TURN_STATIC_FALLBACK = [
 let ICE_SERVERS = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
-  { urls: 'stun:stun2.l.google.com:19302' },
-  { urls: 'stun:stun3.l.google.com:19302' },
-  { urls: 'stun:stun4.l.google.com:19302' },
   { urls: 'stun:global.stun.twilio.com:3478' },
   ...TURN_STATIC_FALLBACK
 ];
@@ -18666,7 +18663,7 @@ async function netConnectPeer(room, isHost, forceFallback = false){
     debug: 0,
     config: {
       iceServers: ICE_SERVERS,
-      iceCandidatePoolSize: 2,
+      iceCandidatePoolSize: 0,
       iceTransportPolicy: 'all'
     }
   };
@@ -18680,7 +18677,7 @@ async function netConnectPeer(room, isHost, forceFallback = false){
       debug: 0,
       config: {
         iceServers: ICE_SERVERS,
-        iceCandidatePoolSize: 2,
+        iceCandidatePoolSize: 0,
         iceTransportPolicy: 'all'
       }
     };
@@ -18695,7 +18692,7 @@ async function netConnectPeer(room, isHost, forceFallback = false){
         try{ console.warn('[NET] cloud fallback'); }catch(e){}
         netConnectPeer(room, isHost, true);
       }
-    }, 5500);
+    }, 4000); // fail fast: every extra second here delays cloud rescue
   }
   try{ NET._fallbackTimer = fallbackTimer; }catch(e){}
 
@@ -18814,7 +18811,7 @@ async function netConnectPeer(room, isHost, forceFallback = false){
               // Cap the extensions: a truly mute host must eventually fail
               // instead of syncing forever (and blocking fresh invites).
               NET._syncExt = (NET._syncExt || 0) + 1;
-              if(NET._syncExt > 4){
+              if(NET._syncExt > 2){
                 try{ if(typeof CG!=='undefined'&&CG&&typeof CG.leftRoom==='function')CG.leftRoom(); }catch(e){}
                 netToast('Host not responding.');
                 netLeaveRoom('Host not responding');
@@ -20157,8 +20154,11 @@ function netUpdateHostDirectory(){
 /* Public Room Browser directory fetch */
 async function netFetchPublicRooms(){
   const now = performance.now();
-  if(now - NET.lastRoomFetch < 3000) return NET.publicRooms;
+  if(now - NET.lastRoomFetch < 2000) return NET.publicRooms;
+  if(NET._roomsFetching) return NET.publicRooms; // Refresh spam: reuse in-flight fetch
+  NET._roomsFetching = true;
   try{ netProbeServers(); }catch(e){} // background refresh of self/render pick while browsing
+  try{ netProbeRelayCapable(); }catch(e){} // pre-warm so the 3.5s join decision is ready
   const serverUrl = netDirBase();
   try {
     // Throttle applies to successful fetches only: a failed fetch must not
@@ -20167,7 +20167,7 @@ async function netFetchPublicRooms(){
     try{ if(typeof AbortController !== 'undefined') ctrl = new AbortController(); }catch(e){ ctrl = null; }
     const opts = {};
     if(ctrl) opts.signal = ctrl.signal;
-    const to = setTimeout(() => { try{ if(ctrl) ctrl.abort(); }catch(e){} }, 4000);
+    const to = setTimeout(() => { try{ if(ctrl) ctrl.abort(); }catch(e){} }, 2500);
     const res = await fetch(serverUrl + '/api/rooms', opts);
     clearTimeout(to);
     if(res.ok){
@@ -20176,6 +20176,7 @@ async function netFetchPublicRooms(){
       NET.lastRoomFetch = performance.now();
     }
   } catch(e){}
+  try{ NET._roomsFetching = false; }catch(e){}
   return NET.publicRooms;
 }
 
