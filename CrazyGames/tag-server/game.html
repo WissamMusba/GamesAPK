@@ -17844,6 +17844,29 @@ function netApplyRemoteTarget(p, dt){
       p.trail.pop();
     }
   }
+
+  // Visual de-clip: a remote ghost must never RENDER inside a solid platform
+  // (extrapolation overshoot). Visual-only: authoritative state untouched.
+  // Pink drop-throughs and slopes excluded — passing through those is legal.
+  // Skipped off-screen for free.
+  try{
+    if(typeof SOLIDS !== 'undefined' && SOLIDS && p && p.w && typeof cam !== 'undefined' && cam){
+      const vs = 1 / (cam.s || 1);
+      const vx0 = cam.x - CW * vs / 2 - 60, vx1 = cam.x + CW * vs / 2 + 60;
+      const vy0 = cam.y - CH * vs / 2 - 60, vy1 = cam.y + CH * vs / 2 + 60;
+      if(p.x + p.w >= vx0 && p.x <= vx1 && p.y + p.h >= vy0 && p.y <= vy1){
+        for(const s of SOLIDS){
+          if(!s || s.t === 'drop' || s.dy) continue;
+          if(p.x < s.x + s.w && p.x + p.w > s.x && p.y < s.y + s.h && p.y + p.h > s.y){
+            const dx1 = (s.x + s.w) - p.x, dx0 = (p.x + p.w) - s.x;
+            const dy1 = (s.y + s.h) - p.y, dy0 = (p.y + p.h) - s.y;
+            if(Math.min(dx1, dx0) < Math.min(dy1, dy0)){ p.x += (dx1 < dx0) ? Math.min(dx1, dx0) : -Math.min(dx1, dx0); }
+            else { p.y += (dy1 < dy0) ? Math.min(dy1, dy0) : -Math.min(dy1, dy0); }
+          }
+        }
+      }
+    }
+  }catch(e){}
 }
 
 /* ================= proximity voice chat (WebRTC + HTML5 Audio + Web Audio API) ================= */
