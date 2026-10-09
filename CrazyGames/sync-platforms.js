@@ -188,16 +188,54 @@ function syncTagToPoki() {
 
   // 4. Clean portal link builders and invite links
   content = content.replace(/crazygames-tag-server-alerts/g, 'poki-tag-server-alerts');
-  content = content.replace(/buildCgPortalLink/g, 'buildPokiPortalLink');
-  content = content.replace(/https:\/\/www\.crazygames\.com\/game\/tag-arena-multiplayer\?[^'"]+/g, '');
   content = content.replace(/Click to Join Room on CrazyGames/g, 'Click to Join Room');
   content = content.replace(/TAG Multiplayer Watchdog • CrazyGames/g, 'TAG Multiplayer Watchdog • Poki');
-  content = content.replace(/isCg \? 'CrazyGames Portal'/g, "isPoki ? 'Poki Portal'");
   content = content.replace(/Game Portal', value: 'CrazyGames'/g, "Game Portal', value: 'Poki'");
   content = content.replace(/\/\* Local Player Profile detection via CrazyGames SDK v3 or fallback \*\//g, '/* Local Player Profile detection or fallback */');
+  content = content.replace(/\/\/ 1\. Resolve human player's identity \(CrazyGames username, localStorage, or Guest name\)/g, "// 1. Resolve human player's identity (localStorage or Guest name)");
+  content = content.replace(/\/\/ CrazyGames SDK v3 updateRoom[^\n]*/g, '// Update room state');
+  content = content.replace(/const PINNED_FONTIdx=8; \/\/ font #9 = Baloo 2 — pinned for CrazyGames/g, 'const PINNED_FONTIdx=8; // font #9 = Baloo 2');
   content = content.replace(/game-files\.crazygames\.com/g, 'poki.com');
   content = content.replace(/try\{\s*if\(!_cgBoot\)\s*_cgBoot\s*=\s*CG\.boot\(\);\s*\}catch\(e\)\{\}/g, 'try{ if(!_pokiBoot) _pokiBoot = POKI.boot(); }catch(e){}');
   content = content.replace(/respect CrazyGames rules/g, 'respect Poki rules');
+
+  // 5. Replace buildCgPortalLink with clean Poki portal link
+  const cgPortalFnRegex = /function buildCgPortalLink\s*\([^)]*\)\s*\{[\s\S]*?(?=\n\/\/ [A-Z]\. )/;
+  if (cgPortalFnRegex.test(content)) {
+    content = content.replace(cgPortalFnRegex, `function buildPokiPortalLink(roomCode){
+  const code = (roomCode || '').toUpperCase();
+  try{
+    return location.origin + location.pathname + '?room=' + encodeURIComponent(code);
+  }catch(e){
+    return '?room=' + encodeURIComponent(code);
+  }
+}\n`);
+    content = content.replace(/buildCgPortalLink\(/g, 'buildPokiPortalLink(');
+  }
+
+  // 6. Replace isCg telemetry detection with isPoki detection
+  content = content.replace(
+    /const isCg = !!\(typeof location !== 'undefined' && location\.host && location\.host\.includes\('crazygames'\)\);\s*\n\s*const source = isCg \? 'CrazyGames Portal' : \(document\.referrer \? document\.referrer\.slice\(0, 50\) : 'Direct URL'\);/,
+    `const isPoki = !!(typeof location !== 'undefined' && location.host && location.host.includes('poki'));\n    const source = isPoki ? 'Poki Portal' : (document.referrer ? document.referrer.slice(0, 50) : 'Direct URL');`
+  );
+
+  // 7. Replace netLink with clean Poki/generic room link
+  const netLinkFnRegex = /function netLink\s*\([^)]*\)\s*\{[\s\S]*?(?=\n\/\* Copy the portal invite link)/;
+  if (netLinkFnRegex.test(content)) {
+    content = content.replace(netLinkFnRegex, `function netLink(room){
+  const code = (room || '').toUpperCase();
+  let srvQ = '';
+  try{
+    srvQ = ((NET && NET._srv && NET._srv.host) || ((typeof PEER_SERVER_CONFIG !== 'undefined' ? PEER_SERVER_CONFIG.host : '') || '') || '').replace(/^https?:\\\/\\\//i, '').replace(/\\\/+$/, '').trim();
+    if(!/^[A-Za-z0-9.\\-:]+$/.test(srvQ)) srvQ = '';
+  }catch(e){ srvQ = ''; }
+  let p = location.pathname;
+  if(p.endsWith('/')) p = p + 'index.html';
+  else if(/\\\/[^\\\/]+\\.[a-z]+$/i.test(p)) p = p.replace(/\\\/[^\\\/]*$/, '/');
+  else p = p + '/';
+  return location.origin + p + '?room=' + code + (srvQ ? ('&srv=' + encodeURIComponent(srvQ)) : '');
+}\n`);
+  }
 
   // Write to PokiGames/index.html
   if (!fs.existsSync(path.dirname(POKI_FILE))) {
