@@ -17666,25 +17666,19 @@ function netUpdateRemoteTarget(slot, data, pCurrent){
     if(data.seq != null && tgt.seq != null && data.seq > 0 && tgt.seq > 0 && data.seq < tgt.seq) return;
     if(data.seq != null && data.seq > 0) tgt.seq = data.seq;
 
-    // Delay-biased render: compare against the LAG-compensated point so the
-    // residual converges to ~0 (true ~100ms lag, no double-counting).
+    // Calculate error between where player visually was and new target
     if(pCurrent){
-      const bx = data.x - (data.vx || 0) * 0.1;
-      const by = data.grounded ? data.y : (data.y - (data.vy || 0) * 0.1);
-      const rawDx = pCurrent.x - bx;
-      const rawDy = pCurrent.y - by;
-      // Warp / teleport / respawn: snap instantly without error bleed
-      if(data.isRespawning || rawDx * rawDx + rawDy * rawDy > 160000){
+      const rawDx = pCurrent.x - data.x;
+      const rawDy = pCurrent.y - data.y;
+      // Warp / teleport / respawn > 240px: snap instantly without error bleed
+      if(data.isRespawning || rawDx * rawDx + rawDy * rawDy > 57600){
         pCurrent.x = data.x;
         pCurrent.y = data.y;
         tgt.errX = 0;
         tgt.errY = 0;
       } else {
-        // Zero residual on stop/reversal so old lag can't slingshot.
-        const vOldX = tgt.targetVx || 0, vNewX = data.vx || 0;
-        const vOldY = tgt.targetVy || 0, vNewY = data.vy || 0;
-        tgt.errX = (Math.sign(vNewX) !== Math.sign(vOldX) || (Math.abs(vNewX) < 60 && Math.abs(vOldX) >= 60)) ? 0 : rawDx;
-        tgt.errY = data.grounded ? 0 : ((Math.sign(vNewY) !== Math.sign(vOldY)) ? 0 : rawDy);
+        tgt.errX = rawDx;
+        tgt.errY = data.grounded ? 0 : rawDy;
       }
     } else {
       tgt.errX = 0;
@@ -17724,27 +17718,23 @@ function netApplyRemoteTarget(p, dt){
     tgt.targetY += tgt.targetVy * dt;
   }
 
-  // Smooth exponential decay of error offset (half-life ~70ms: glides
-  // instead of micro-snapping on every direction change)
-  const decay = Math.exp(-dt * 10);
+  // Smooth exponential decay of error offset (half-life ~40ms: eliminates all micro-stutters and backward snapping)
+  const decay = Math.exp(-dt * 18);
   tgt.errX *= decay;
   tgt.errY *= decay;
 
-  // Render ~100ms behind the authoritative target (delay-based smoothing:
-  // arrival jitter is absorbed instead of snapping). Residual error decays
-  // gently (half-life ~70ms) rather than popping.
-  const LAG = 0.1;
-  p.x = tgt.targetX - tgt.targetVx * LAG + tgt.errX;
+  // Visual position combines extrapolated target + smoothly decaying error offset
+  p.x = tgt.targetX + tgt.errX;
   if(tgt.grounded){
     p.y = tgt.targetY;
     p.grounded = true;
     p.vy = 0;
   } else {
-    p.y = tgt.targetY - tgt.targetVy * LAG + tgt.errY;
+    p.y = tgt.targetY + tgt.errY;
     p.grounded = false;
-    p.vy += (tgt.targetVy - p.vy) * Math.min(1, dt * 12);
+    p.vy = tgt.targetVy;
   }
-  p.vx += (tgt.targetVx - p.vx) * Math.min(1, dt * 12);
+  p.vx = tgt.targetVx;
 
   p.face = tgt.face;
   p.sx += ((tgt.sx || 1) - p.sx) * Math.min(1, dt * 20);
