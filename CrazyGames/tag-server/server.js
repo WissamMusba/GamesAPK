@@ -104,7 +104,7 @@ app.get('/api/rooms', (req, res) => {
         hostName: r.hostName || 'Host',
         isLocked: !!r.isLocked,
         players: r.players || 1,
-        maxPlayers: r.maxPlayers || 8,
+        maxPlayers: r.maxPlayers || 10,
         map: r.map !== undefined ? r.map : 0,
         teams: !!r.teams,
         state: r.state || 'lobby',

@@ -901,7 +901,7 @@ const CG={
             let locked=false,full=false;
             if(typeof NET!=='undefined'&&NET)locked=!!NET.lobbyLocked;
             if(Array.isArray(playerList)){
-              const max=(typeof NET!=='undefined'&&NET&&NET.maxPlayers)||8;
+              const max=(typeof NET!=='undefined'&&NET&&NET.maxPlayers)||MAXP;
               if(playerList.length>=max)full=true;
             }
             join=!(locked||full);
@@ -911,7 +911,7 @@ const CG={
           roomId: roomId,
           isJoinable: join !== false,
           playerCount: Array.isArray(playerList) ? playerList.length : 0,
-          maxPlayers: (typeof NET!=='undefined'&&NET&&NET.maxPlayers)||8,
+          maxPlayers: (typeof NET!=='undefined'&&NET&&NET.maxPlayers)||MAXP,
           inviteParams: { room: roomId, roomId: roomId }
         });
         try{window._cgLastRoom={roomId:roomId,join:join!==false,t:Date.now()};}catch(e){}
@@ -1045,17 +1045,20 @@ const AIR_ACC=6240,AIR_DEC=4320; /* Responsive mid-air jukes without floaty slid
 const SPEED_MULT=1.55;
 const BOOST_MULT=1.31;           /* Blue pad jump: clean ~346px boost, just before apex of double jump! */
 
+// Online player cap: 10 slots (0..9). Offline/local stays 4.
+const MAXP = 10;
 const PALETTE=[
   {name:'CHERRY',c:'#e8433f'},{name:'SUNNY',c:'#f5a623'},{name:'SKY',c:'#2f9be8'},
   {name:'GRAPE',c:'#a06cd5'},{name:'MINT',c:'#27c487'},{name:'PINK',c:'#f06292'},
-  {name:'CYAN',c:'#00d2d3'},{name:'LIME',c:'#a8e024'}
+  {name:'CYAN',c:'#00d2d3'},{name:'LIME',c:'#a8e024'},
+  {name:'ORANGE',c:'#ff7f11'},{name:'SILVER',c:'#ecf0f1'}
 ];
 
 const TEAMS = [
-  { name: 'RED TEAM', icon: '🔴', base: '#e8433f', shades: ['#e8433f', '#ff6b6b', '#b81414', '#f06595'] },
-  { name: 'BLUE TEAM', icon: '🔵', base: '#2f9be8', shades: ['#2f9be8', '#00d2d3', '#1b4f9c', '#5f27cd'] },
-  { name: 'GREEN TEAM', icon: '🟢', base: '#27c487', shades: ['#27c487', '#a8e024', '#10ac84', '#1dd1a1'] },
-  { name: 'YELLOW TEAM', icon: '🟡', base: '#f5a623', shades: ['#f5a623', '#feca57', '#ff9f43', '#ffeaa7'] }
+  { name: 'RED TEAM', icon: '🔴', base: '#e8433f', shades: ['#e8433f', '#ff6b6b', '#b81414', '#f06595', '#ff8c42'] },
+  { name: 'BLUE TEAM', icon: '🔵', base: '#2f9be8', shades: ['#2f9be8', '#00d2d3', '#1b4f9c', '#5f27cd', '#7ed6ff'] },
+  { name: 'GREEN TEAM', icon: '🟢', base: '#27c487', shades: ['#27c487', '#a8e024', '#10ac84', '#1dd1a1', '#55efc4'] },
+  { name: 'YELLOW TEAM', icon: '🟡', base: '#f5a623', shades: ['#f5a623', '#feca57', '#ff9f43', '#ffeaa7', '#fff3b0'] }
 ];
 
 const MODES=['party','teams','ctf','freeze','infection','bomb','crown','hunter'];
@@ -1074,7 +1077,7 @@ const LOCAL_CTRL_SCHEMES = [
 ];
 
 function cycleSlotCtrl(slot, d){
-  if(!menu.slotCtrl) menu.slotCtrl = [0, 1, 2, 3];
+  if(!menu.slotCtrl) menu.slotCtrl = [0, 1, 2, 3, 0, 1, 2, 3, 0, 1];
   const total = LOCAL_CTRL_SCHEMES.length;
   let cur = menu.slotCtrl[slot] != null ? menu.slotCtrl[slot] : slot;
   if(typeof isSlotBot === 'function' && isSlotBot(slot)){
@@ -1104,7 +1107,7 @@ function cycleSlotCtrl(slot, d){
     if(!candidate) continue;
     if(!taken.has(candidate.id) || candidate.id === 'controller' || candidate.id === 'bot'){
       menu.slotCtrl[slot] = nextIdx;
-      if(!menu.slotIsBot) menu.slotIsBot = [false, false, false, false, false, false, false, false];
+      if(!menu.slotIsBot) menu.slotIsBot = [false, false, false, false, false, false, false, false, false, false];
       if(candidate.id === 'bot'){
         menu.slotIsBot[slot] = true;
         toast('🤖 P' + (slot+1) + ' SET TO BOT');
@@ -1126,7 +1129,9 @@ const SLOTS=[
   {label:'P5 (NET)',pad:4,map:{L:['KeyA'],R:'KeyD',U:['KeyW','Space'],D:'KeyS'}},
   {label:'P6 (NET)',pad:5,map:{L:['KeyA'],R:'KeyD',U:['KeyW','Space'],D:'KeyS'}},
   {label:'P7 (NET)',pad:6,map:{L:['KeyA'],R:'KeyD',U:['KeyW','Space'],D:'KeyS'}},
-  {label:'P8 (NET)',pad:7,map:{L:['KeyA'],R:'KeyD',U:['KeyW','Space'],D:'KeyS'}}
+  {label:'P8 (NET)',pad:7,map:{L:['KeyA'],R:'KeyD',U:['KeyW','Space'],D:'KeyS'}},
+  {label:'P9 (NET)',pad:8,map:{L:['KeyA'],R:'KeyD',U:['KeyW','Space'],D:'KeyS'}},
+  {label:'P10 (NET)',pad:9,map:{L:['KeyA'],R:'KeyD',U:['KeyW','Space'],D:'KeyS'}}
 ];
 
 function getPlayerColor(p, pList){
@@ -1154,7 +1159,7 @@ function getSlotColor(slot, slotColorArr, slotTeamArr){
     const teamIdx = (slotTeamArr && slotTeamArr[slot] != null) ? (slotTeamArr[slot] % TEAMS.length) : (slot % 2);
     const teamDef = TEAMS[teamIdx] || TEAMS[0];
     let rank = 0;
-    const max = (slotColorArr && slotColorArr.length) || 8;
+    const max = (slotColorArr && slotColorArr.length) || MAXP;
     for(let s = 0; s < slot; s++){
       if((slotColorArr ? slotColorArr[s] >= 0 : true) && slotTeamArr && slotTeamArr[s] === teamIdx) rank++;
     }
@@ -1459,7 +1464,7 @@ function harnessStart(mapIdx){
   harnessBuildCases(settings.map);
 
   menu.botOn = true;
-  menu.slotColor = [0, 1, -1, -1, -1, -1, -1, -1];
+  menu.slotColor = [0, 1, -1, -1, -1, -1, -1, -1, -1, -1];
   startMatch();
   match.state = 'playing';
   match.cooldown = 0;
@@ -1900,7 +1905,7 @@ function demoOverlay(){ harnessOverlay(); }
 window.HARNESS = HARNESS;
 window.harnessStart = harnessStart;
 let screen='menu',tGlobal=0;
-const menu={tab:'2p',mode:'rows',slotColor:[0,1,-1,-1,-1,-1,-1,-1],slotTeam:[0,1,0,1,0,1,0,1],slotCtrl:[0,1,2,3],row:4,rule:0,toast:null,toastT:0,botOn:false,botDifficulty:'hard',slotBotDiff:['hard','hard','hard','hard','hard','hard','hard','hard'],mapModal:false,onlineModal:false,slotIsBot:[false,false,false,false,false,false,false,false],botSlots:null};
+const menu={tab:'2p',mode:'rows',slotColor:[0,1,-1,-1,-1,-1,-1,-1,-1,-1],slotTeam:[0,1,0,1,0,1,0,1,0,1],slotCtrl:[0,1,2,3,0,1,2,3,0,1],row:4,rule:0,toast:null,toastT:0,botOn:false,botDifficulty:'hard',slotBotDiff:['hard','hard','hard','hard','hard','hard','hard','hard','hard','hard'],mapModal:false,onlineModal:false,slotIsBot:[false,false,false,false,false,false,false,false,false,false],botSlots:null};
 function isSlotBot(slotIdx){
   if(menu.tab === 'solo') return slotIdx === 1;
   if(menu.tab === 'bots') return slotIdx === 0 || slotIdx === 1;
@@ -1924,7 +1929,7 @@ function getSlotBotDiff(slot){
   return menu.botDifficulty || 'hard';
 }
 function toggleSlotBotDiff(slot){
-  if(!menu.slotBotDiff) menu.slotBotDiff = ['hard','hard','hard','hard','hard','hard','hard','hard'];
+  if(!menu.slotBotDiff) menu.slotBotDiff = ['hard','hard','hard','hard','hard','hard','hard','hard','hard','hard'];
   const cur = getSlotBotDiff(slot);
   const next = (cur === 'easy') ? 'hard' : 'easy';
   menu.slotBotDiff[slot] = next;
@@ -1936,8 +1941,8 @@ function setBotDifficulty(diff){
   if(diff !== 'easy' && diff !== 'hard') diff = 'hard';
   menu.botDifficulty = diff;
   settings.botDifficulty = diff;
-  if(!menu.slotBotDiff) menu.slotBotDiff = ['hard','hard','hard','hard','hard','hard','hard','hard'];
-  for(let i=0; i<8; i++) menu.slotBotDiff[i] = diff;
+  if(!menu.slotBotDiff) menu.slotBotDiff = ['hard','hard','hard','hard','hard','hard','hard','hard','hard','hard'];
+  for(let i=0; i<MAXP; i++) menu.slotBotDiff[i] = diff;
   toast('ALL BOTS DIFFICULTY: ' + diff.toUpperCase() + (diff === 'hard' ? ' (DEFAULT)' : ''));
   sfx('ok');
 }
@@ -1953,17 +1958,17 @@ function setMenuTab(tab){
     settings.teams = false;
     settings.gameMode = 'party';
     menu.gameMode = 'party';
-    menu.slotColor = [0, 1, -1, -1, -1, -1, -1, -1];
+    menu.slotColor = [0, 1, -1, -1, -1, -1, -1, -1, -1, -1];
   } else if(tab === 'bots'){
     menu.botOn = true;
     settings.teams = false;
     settings.gameMode = 'party';
     menu.gameMode = 'party';
-    menu.slotColor = [0, 1, -1, -1, -1, -1, -1, -1];
-    if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+    menu.slotColor = [0, 1, -1, -1, -1, -1, -1, -1, -1, -1];
+    if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1];
   } else if(tab === '2p'){
     menu.botOn = false;
-    menu.slotIsBot = [false, false, false, false, false, false, false, false];
+    menu.slotIsBot = [false, false, false, false, false, false, false, false, false, false];
     if(menu.slotColor[0] < 0) menu.slotColor[0] = 0;
     if(menu.slotColor[1] < 0) menu.slotColor[1] = 1;
     ensureUniqueLocalColors();
@@ -1976,7 +1981,7 @@ function setMenuTab(tab){
 }
 function ensureUniqueLocalColors(){
   const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
-  const max = isOnline ? 8 : 4;
+  const max = isOnline ? MAXP : 4;
   const taken = new Set();
   for(let i = 0; i < max; i++){
     if(menu.slotColor[i] < 0) continue;
@@ -1995,7 +2000,7 @@ function ensureUniqueLocalColors(){
   }
 }
 function activeSlots(){
-  const max = (typeof NET !== 'undefined' && NET && NET.role !== null) ? 8 : 4;
+  const max = (typeof NET !== 'undefined' && NET && NET.role !== null) ? MAXP : 4;
   const r = [];
   for(let i = 0; i < max; i++){
     if(menu.slotColor[i] >= 0) r.push(i);
@@ -2008,7 +2013,7 @@ function cycleTeam(i, d){
     sfx('back');
     return;
   }
-  if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+  if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1];
   const curTeam = (menu.slotTeam[i] || 0) % TEAMS.length;
   const targetTeam = (curTeam + d + TEAMS.length) % TEAMS.length;
 
@@ -2025,9 +2030,9 @@ function cycleTeam(i, d){
   }
 }
 
-// First free player slot (1..7) from my current roster view
+// First free player slot (1..9) from my current roster view
 function firstFreeSlot(){
-  for(let s = 1; s < 8; s++){
+  for(let s = 1; s < MAXP; s++){
     const takenHost = (typeof NET !== 'undefined' && NET && NET.isHost && NET.hostInputs) ? NET.hostInputs.has(s) : false;
     if(!takenHost && menu.slotColor[s] === -1) return s;
   }
@@ -2046,7 +2051,7 @@ function joinTeamFromPanel(teamIdx){
     let pick = -1;
     for(let pi = 0; pi < PALETTE.length; pi++){ if(!taken.includes(pi)){ pick = pi; break; } }
     menu.slotColor[free] = (pick >= 0 ? pick : free % PALETTE.length);
-    if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+    if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1];
     menu.slotTeam[free] = teamIdx;
     if(settings.gameMode === 'hunter'){ validateHunterRoles(); }
     sfx('ok');
@@ -2072,7 +2077,7 @@ function setPlayerTeam(i, teamIdx){
     sfx('back');
     return;
   }
-  if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+  if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1];
   const targetTeam = ((teamIdx % TEAMS.length) + TEAMS.length) % TEAMS.length;
   const curTeam = (menu.slotTeam[i] || 0) % TEAMS.length;
   menu.slotTeam[i] = targetTeam;
@@ -2110,7 +2115,7 @@ function enforceHunterBalance(){
     if(t === 0) red++; else blue++;
   }
   if(Math.abs(red - blue) > 1){
-    if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+    if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1];
     let r = 0, b = 0;
     for(let k = 0; k < act.length; k++){
       const s = act[k];
@@ -2520,18 +2525,18 @@ function setGameMode(newMode){
     sfx('ui');
   } else if(newMode === 'teams'){
     settings.teams = true;
-    if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+    if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1];
     toast('⚔️ TEAM TAG MODE: ON (RED VS BLUE)');
     sfx('ok');
   } else if(newMode === 'hunter'){
     settings.teams = true;
-    if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+    if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1];
     validateHunterRoles();
     toast('🎯 HUNTER MODE: CROSS-HUNT ELIMINATION (TRY NOW!)');
     sfx('ok');
   } else if(newMode === 'freeze'){
     settings.teams = true;
-    if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+    if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1];
     toast('❄️ FREEZE TAG: FREEZE ENEMY RUNNERS!');
     sfx('ok');
   } else if(newMode === 'infection'){
@@ -2548,7 +2553,7 @@ function setGameMode(newMode){
     sfx('ok');
   } else if(newMode === 'ctf'){
     settings.teams = true;
-    if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+    if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1];
     toast('🚩 CAPTURE THE FLAG: RED VS BLUE');
     sfx('ok');
   }
@@ -2579,7 +2584,7 @@ function toggleTeams(){
 }
 function cycleSlot(i,d){
   const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
-  const max = isOnline ? 8 : 4;
+  const max = isOnline ? MAXP : 4;
   const taken = new Set();
   for(let s = 0; s < max; s++){
     if(s !== i && menu.slotColor[s] >= 0){
@@ -3784,7 +3789,7 @@ var initCtfMode, updateCtf, checkCtfTag, drawCtfUI, drawCtfPlayer, drawCtfEntiti
     let phaseText = '☣️ PHASE 1: OUTBREAK';
     let phaseCol = '#86efac';
     if (infectionState.phase === 2) {
-      phaseText = '⚔️ PHASE 2: BALANCED 2v2';
+      phaseText = '⚔️ PHASE 2: BALANCED ' + numInfected + 'v' + numSurvivors;
       phaseCol = '#facc15';
     } else if (infectionState.phase === 3) {
       phaseText = '🛡️ PHASE 3: LAST STAND!';
@@ -4807,8 +4812,8 @@ var initCtfMode, updateCtf, checkCtfTag, drawCtfUI, drawCtfPlayer, drawCtfEntiti
     // -------------------------------------------------------------
     // 3. ACTIVE SURVIVOR ROSTER PILLS (Left side)
     // -------------------------------------------------------------
-    const pillH = P.length > 4 ? 22 : 26;
-    const pillGap = P.length > 4 ? 25 : 30;
+    const pillH = P.length > 7 ? 18 : (P.length > 4 ? 22 : 26);
+    const pillGap = P.length > 7 ? 21 : (P.length > 4 ? 25 : 30);
 
     for (let i = 0; i < P.length; i++) {
       const p = P[i];
@@ -4841,7 +4846,7 @@ var initCtfMode, updateCtf, checkCtfTag, drawCtfUI, drawCtfPlayer, drawCtfEntiti
       if (isDead) pLabel += ' 💀';
       else if (isCarrier) pLabel += ' 💣 BOMB';
 
-      ctx.font = getGlobalFont(P.length > 4 ? 10 : 11, 900);
+      ctx.font = getGlobalFont(P.length > 7 ? 9 : (P.length > 4 ? 10 : 11), 900);
       ctx.textAlign = 'left';
       ctx.fillStyle = isCarrier ? '#ffffff' : (isDead ? '#94a3b8' : '#ffffff');
       ctx.fillText(pLabel, 34, y + pillH / 2 + 1);
@@ -6447,8 +6452,8 @@ var initCtfMode, updateCtf, checkCtfTag, drawCtfUI, drawCtfPlayer, drawCtfEntiti
     // 2. Player Crown Points Progress Bars (Left Side)
     const players = (typeof match !== 'undefined' && match && match.players) ? match.players : [];
     const cardW = Math.min(210, cw * 0.28);
-    const cardH = players.length > 4 ? 26 : 32;
-    const cardGap = players.length > 4 ? 30 : 38;
+    const cardH = players.length > 7 ? 21 : (players.length > 4 ? 26 : 32);
+    const cardGap = players.length > 7 ? 24 : (players.length > 4 ? 30 : 38);
     const startY = 14;
 
     for (let i = 0; i < players.length; i++) {
@@ -6621,7 +6626,7 @@ var initCtfMode, updateCtf, checkCtfTag, drawCtfUI, drawCtfPlayer, drawCtfEntiti
  * 1. Mode Setup:
  *    - Mode ID: 'ctf', Mode Name: '🚩 CAPTURE THE FLAG'.
  *    - Red Team (Team 0, Left) vs Blue Team (Team 1, Right).
- *    - Supports 2, 3, 4 up to 8 players, works offline and online.
+  *    - Supports 2, 3, 4 up to 10 players, works offline and online.
  *    - Target Captures: 3 (or 5, configurable in settings).
  * 2. Base & Flag Mechanics:
  *    - Dynamic platform bases: Red Base (Left) & Blue Base (Right).
@@ -8126,11 +8131,11 @@ function startMatch(){
     settings.teams = (settings.gameMode === 'ctf');
     menu.gameMode = settings.gameMode;
     menu.botOn = true;
-    menu.slotColor = [0, 1, -1, -1, -1, -1, -1, -1];
+    menu.slotColor = [0, 1, -1, -1, -1, -1, -1, -1, -1, -1];
   } else if(menu.tab === 'teams') settings.teams = true;
   if(settings.gameMode === 'ctf'){
     settings.teams = true;
-    if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+    if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1];
   }
   if(settings.randomMap){
     settings.map = Math.floor(rand(MAPS.length));
@@ -8148,7 +8153,7 @@ function startMatch(){
   // Auto-admit waiting guest spectators into open slots before starting next round (never host)
   if(typeof NET !== 'undefined' && NET && NET.isHost && NET.spectators && NET.spectators.length > 0){
     const guestSpecs = NET.spectators.filter(sp => sp.peerId !== (NET.myId || 'host') && sp.peerId !== 'host');
-    for(let s = 1; s < 8; s++){
+    for(let s = 1; s < MAXP; s++){
       if(menu.slotColor[s] === -1 && !NET.hostInputs.has(s) && guestSpecs.length > 0){
         const nextSpec = guestSpecs.shift();
         netAdmitSpectator(nextSpec.peerId, s);
@@ -11286,9 +11291,10 @@ function updateCam(dt){
     }
     tx=mx/cnt+23;ty=my/cnt+23;
     const dx=maxX-minX,dy=maxY-minY;
-    const needW=dx+640+(N-2)*220,needH=dy+500+(N-2)*120;
+    const baseN=Math.min(N,8),extraN=Math.max(0,N-8);
+    const needW=dx+640+(baseN-2)*220+extraN*110,needH=dy+500+(baseN-2)*120+extraN*60;
     const minS=Math.min(CW/(W+140),CH/(H+140));
-    ts=clamp(Math.min(CW/needW,CH/needH),minS,N>=6?1.05:(N>=4?1.25:1.75));
+    ts=clamp(Math.min(CW/needW,CH/needH),minS,N>=9?0.95:(N>=6?1.05:(N>=4?1.25:1.75)));
   }
   const kp=1-Math.exp(-dt*5.5),ks=1-Math.exp(-dt*3.8);
   cam.x+=(tx-cam.x)*kp;cam.y+=(ty-cam.y)*kp;cam.s+=(ts-cam.s)*ks;
@@ -13232,7 +13238,7 @@ function drawOnlineHub(stageY, stageH){
       }
       txt(hostDisp, rightX + 16, ry + rowH/2, FN(11, 900), '#ffffff', 'left');
       // Players count
-      txt(rm.players + '/' + (rm.maxPlayers || 8), rightX + rightW * 0.44, ry + rowH/2, FN(11, 800), '#ffd166');
+      txt(rm.players + '/' + (rm.maxPlayers || MAXP), rightX + rightW * 0.44, ry + rowH/2, FN(11, 800), '#ffd166');
       // Map / Mode
       const mapName = (MAPS[rm.map % MAPS.length] || {}).name || ('Map ' + ((rm.map || 0) + 1));
       const modeLabel = rm.teams ? '⚔️ Teams' : 'FFA';
@@ -13389,7 +13395,7 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
   if(chatUIEl && !chatUIEl.classList.contains('online')) chatUIEl.classList.add('online');
 
   // Main 3-Column Layout:
-  // Left: People who are playing (8 Slots Roster)
+  // Left: People who are playing (10 Slots Roster)
   // Center: "YOU" Player Card (scaled for desktop/laptop and mobile)
   // Right: Waiting List / Spectators
   const contentY0 = stageY + topH + 6;
@@ -13419,7 +13425,7 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
 
   const headH = isShortH ? 24 : clamp(Math.floor(panelH * 0.09), 26, 32);
 
-  // --- 1. LEFT PANEL: People who are playing (8-slot Roster or Hunter Mode Split Teams) ---
+  // --- 1. LEFT PANEL: People who are playing (10-slot Roster or Hunter Mode Split Teams) ---
   if(settings.gameMode === 'hunter'){
     const gap = 8;
     const teamBoxH = Math.floor((panelH - gap) / 2);
@@ -13429,8 +13435,9 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
       const isRed = (teamIdx === 0);
       const teamColor = isRed ? '#ff4757' : '#38bdf8';
       const isConnSlot = (s) => (s === 0 ? true : (NET.isHost ? (NET.hostInputs.has(s) || menu.slotColor[s] >= 0) : menu.slotColor[s] >= 0));
-      const allTeam = [0, 1, 2, 3, 4, 5, 6, 7].filter(s => ((menu.slotTeam ? menu.slotTeam[s] : s) % 2) === teamIdx);
-      const connTeam = allTeam.filter(isConnSlot).slice(0, 4);
+      const allTeam = Array.from({length: MAXP}, (_, i) => i).filter(s => ((menu.slotTeam ? menu.slotTeam[s] : s) % 2) === teamIdx);
+      const nTeamRows = (typeof activeSlots === 'function' && activeSlots().length > 8) ? 5 : 4;
+      const connTeam = allTeam.filter(isConnSlot).slice(0, nTeamRows);
       const teamActive = connTeam;
       const electedHunter = isRed ? settings.hunterRed : settings.hunterBlue;
       // 'Fair pick' highlight: every connected voter on this team voted random
@@ -13457,7 +13464,7 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
 
       // Team Title
       g.textAlign = 'left';
-      const teamTitle = (isRed ? '🔴 RED (' : '🔵 BLUE (') + teamActive.length + '/4)';
+      const teamTitle = (isRed ? '🔴 RED (' : '🔵 BLUE (') + teamActive.length + '/' + nTeamRows + ')';
       txt(teamTitle, leftX + 8, boxY + teamHeadH/2 + 1, FN(clamp(teamHeadH * 0.42, 9.5, 11.5), 900), teamColor, 'left');
 
       // 🎲 Random Button in header
@@ -13471,11 +13478,11 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
       txt((isRandElected ? '👑 ' : '') + '🎲 Rand', randX + randW/2, randY + randH/2 + 1, FN(clamp(randH * 0.46, 8, 10), 900), isRandElected ? '#ffd166' : '#ffffff');
       zone(randX, randY, randW, randH, { fn: () => setTeamHunterChoice(teamIdx, 'random') });
 
-      // 4 Player Rows per team
+      // 4-5 Player Rows per team (tiered: <=8 keeps legacy 4 rows; 9-10 use 5)
       const rowAvailH = teamBoxH - teamHeadH - 4;
-      const rowH = Math.floor(rowAvailH / 4);
+      const rowH = Math.floor(rowAvailH / nTeamRows);
 
-      for(let i = 0; i < 4; i++){
+      for(let i = 0; i < nTeamRows; i++){
         const s = (i < connTeam.length) ? connTeam[i] : null;
         const ry = boxY + teamHeadH + 2 + i * rowH;
         const isConn = (s !== null && isConnSlot(s));
@@ -13565,7 +13572,7 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
     drawLobbyHunterTeam(0, panelY);
     drawLobbyHunterTeam(1, panelY + teamBoxH + gap);
   } else {
-    // --- 1. LEFT PANEL: People who are playing (8-slot Roster) ---
+    // --- 1. LEFT PANEL: People who are playing (10-slot Roster) ---
     rr(g, leftX, panelY, leftW, panelH, 10);
     g.fillStyle = 'rgba(14, 20, 32, 0.92)'; g.fill();
     g.lineWidth = 1.5; g.strokeStyle = 'rgba(255,255,255,0.2)'; g.stroke();
@@ -13573,12 +13580,13 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
     rr(g, leftX, panelY, leftW, headH, 8);
     g.fillStyle = 'rgba(24, 32, 48, 0.96)'; g.fill();
     const act = activeSlots();
-    ptxt('🎮 PLAYING (' + act.length + '/8)', leftX + leftW/2, panelY + headH/2 + 1, FN(clamp(headH * 0.42, 10, 12), 900), '#2ecc71');
+    ptxt('🎮 PLAYING (' + act.length + '/10)', leftX + leftW/2, panelY + headH/2 + 1, FN(clamp(headH * 0.42, 10, 12), 900), '#2ecc71');
 
-    // 8 Slot Rows
+    // 10 Slot Rows (tiered: <=8 keeps legacy 8-row rowH; 9-10 shrink to fit)
     const rowAvailH = panelH - headH - 4;
-    const rowH = Math.floor(rowAvailH / 8);
-    for(let s = 0; s < 8; s++){
+    const nLobbyRows = (act.length > 8) ? MAXP : 8;
+    const rowH = Math.floor(rowAvailH / nLobbyRows);
+    for(let s = 0; s < nLobbyRows; s++){
       const ry = panelY + headH + 2 + s * rowH;
       const isConn = (s === 0 ? (menu.slotColor[s] >= 0 || !NET.isHost) : (NET.isHost ? (NET.hostInputs.has(s) || menu.slotColor[s] >= 0) : menu.slotColor[s] >= 0));
       const isMe = (s === NET.mySlot);
@@ -14356,13 +14364,13 @@ function drawMenu(){
       }
       const isUneven = (redCount !== blueCount);
       const isLow = (actSlots.length < 4);
-      let statusStr = '🎯 HUNTER (REC 6 OR 8):';
+      let statusStr = '🎯 HUNTER (REC 6, 8 OR 10):';
       let statusCol = '#e056fd';
       if(isLow){
         statusStr = '⚠️ MIN 4 PLAYERS NEEDED:';
         statusCol = '#ff6b81';
       } else if(isUneven){
-        statusStr = '⚠️ UNEVEN (' + redCount + 'R v ' + blueCount + 'B) - REC 6-8:';
+        statusStr = '⚠️ UNEVEN (' + redCount + 'R v ' + blueCount + 'B) - REC 6-10:';
         statusCol = '#ffd166';
       }
       txt(statusStr, pillsStartX - 10, pillY + ph/2 + 1, FN(clamp(CW * 0.024, 9.5, 11.5), 900), statusCol, 'right');
@@ -14404,7 +14412,7 @@ function drawMenu(){
         activeText: '#ffffff',
         fontSize: 10.5,
         fn: () => {
-          for(let s = 0; s < 8; s++){
+          for(let s = 0; s < MAXP; s++){
             if(s < numP){
               if(menu.slotColor[s] < 0) menu.slotColor[s] = s % PALETTE.length;
             } else {
@@ -14444,9 +14452,9 @@ function drawMenu(){
       textColor: hasBots ? '#ffffff' : 'rgba(255,255,255,0.7)',
       fontSize: clamp(botBarH * 0.44, 9.5, 11),
       fn: () => {
-        if(!menu.slotIsBot) menu.slotIsBot = [false, false, false, false, false, false, false, false];
+        if(!menu.slotIsBot) menu.slotIsBot = [false, false, false, false, false, false, false, false, false, false];
         if(hasBots){
-          for(let s = 0; s < 8; s++) menu.slotIsBot[s] = false;
+          for(let s = 0; s < MAXP; s++) menu.slotIsBot[s] = false;
           sfx('back');
           toast('👤 ALL PLAYERS SET TO HUMAN');
         } else {
@@ -14473,7 +14481,7 @@ function drawMenu(){
           textColor: isSelected ? '#ffffff' : 'rgba(255,255,255,0.6)',
           fontSize: clamp(botBarH * 0.42, 9, 10.5),
           fn: () => {
-            if(!menu.slotIsBot) menu.slotIsBot = [false, false, false, false, false, false, false, false];
+            if(!menu.slotIsBot) menu.slotIsBot = [false, false, false, false, false, false, false, false, false, false];
             if(bc === 4){
               for(let s = 0; s < 4; s++){
                 if(menu.slotColor[s] < 0) menu.slotColor[s] = s % PALETTE.length;
@@ -14491,7 +14499,7 @@ function drawMenu(){
             }
             ensureUniqueLocalColors();
             const newAct = activeSlots();
-            for(let s = 0; s < 8; s++){
+            for(let s = 0; s < MAXP; s++){
               if(s === 0){
                 menu.slotIsBot[s] = false;
               } else if(newAct.includes(s)){
@@ -15192,7 +15200,7 @@ function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
   if(slotIdx > 0 && menu.tab !== 'bots' && menu.tab !== 'solo' && (typeof NET === 'undefined' || !NET || NET.role === null)){
     zone(cx, cardY, cardW - (canRemove ? 26 : 0), headTitleH + 6, {
       fn: () => {
-        if(!menu.slotIsBot) menu.slotIsBot = [false, false, false, false, false, false, false, false];
+        if(!menu.slotIsBot) menu.slotIsBot = [false, false, false, false, false, false, false, false, false, false];
         menu.slotIsBot[slotIdx] = !menu.slotIsBot[slotIdx];
         sfx('ui');
         toast((menu.slotIsBot[slotIdx] ? '🤖 BOT ' : '👤 HUMAN ') + 'ASSIGNED TO P' + (slotIdx + 1));
@@ -15817,8 +15825,8 @@ function drawHUD(){
   if(isTouch) zone(CW/2-tw/2-6,2,tw+12,th+12,{fn:()=>{scoreboardOpen=!scoreboardOpen;sfx('ui');}});
   
   const P=match.players;
-  const pillH = P.length > 4 ? 22 : 26;
-  const pillGap = P.length > 4 ? 25 : 30;
+  const pillH = P.length > 7 ? 18 : (P.length > 4 ? 22 : 26);
+  const pillGap = P.length > 7 ? 21 : (P.length > 4 ? 25 : 30);
   for(let i=0;i<P.length;i++){
     const p = P[i];
     const isIt = settings.teams ? (p.team === match.itTeam && match.state !== 'result') : (match.it === i && match.state !== 'result');
@@ -15829,7 +15837,7 @@ function drawHUD(){
     pill(10, y, isIt ? 128 : 98, pillH, isIt ? 'rgba(255,210,63,0.92)' : 'rgba(0,0,0,0.3)', isIt ? INK : 'rgba(0,0,0,0.5)');
     g.fillStyle = getPlayerColor(p);
     rr(g, 14, y + (pillH - 16) / 2, 16, 16, 4); g.fill(); g.lineWidth = 1.8; g.strokeStyle = INK; g.stroke();
-    txt(label, 36, y + pillH / 2 + 1, FN(P.length > 4 ? 10 : 11, 900), isIt ? '#3a2c00' : '#ffffff', 'left');
+    txt(label, 36, y + pillH / 2 + 1, FN(P.length > 7 ? 9 : (P.length > 4 ? 10 : 11), 900), isIt ? '#3a2c00' : '#ffffff', 'left');
     g.restore();
   }
   }
@@ -16643,7 +16651,7 @@ function netNotifyRoomCreated(roomCode, hostName, isPublic, maxPlayers){
             { name: 'Room Code', value: '`' + code + '`', inline: true },
             { name: 'Host Player', value: '**' + (hostName || 'Host') + '**', inline: true },
             { name: 'Game Mode', value: mode, inline: true },
-            { name: 'Capacity', value: (maxPlayers || 8) + ' Players', inline: true },
+            { name: 'Capacity', value: (maxPlayers || MAXP) + ' Players', inline: true },
             { name: 'Visibility', value: isPublic ? '🌐 Public' : '🔒 Private', inline: true },
             { name: 'Time', value: timeStr, inline: true },
             { name: '🆔 Host ID', value: '`' + (function(){ try{ return getOrCreatePlayerId() || 'n/a'; }catch(e){ return 'n/a'; } })() + '`', inline: true },
@@ -16684,7 +16692,7 @@ function netNotifyPlayerJoinedLobby(guestName, peerId){
     const code = (NET.room || "").toUpperCase();
     const myProfile = netGetMyProfile();
     const names = [myProfile.name || "Host"];
-    for(let i=1; i<8; i++){
+    for(let i=1; i<MAXP; i++){
       const n = NET.slotsName ? NET.slotsName[i] : "";
       if(n && n.trim()) names.push(n.trim());
     }
@@ -16694,7 +16702,7 @@ function netNotifyPlayerJoinedLobby(guestName, peerId){
       }
     }
     const activeCount = Math.max(names.length, 2);
-    const max = NET.maxPlayers || 8;
+    const max = NET.maxPlayers || MAXP;
     const mode = (typeof settings !== 'undefined' && settings && settings.gameMode) ? settings.gameMode.toUpperCase() : 'CLASSIC';
     const rtt = NET.pings ? NET.pings.get(peerId) : null;
     const pingStr = rtt ? (rtt + "ms") : "Measuring...";
@@ -16717,7 +16725,7 @@ function netNotifyPlayerJoinedLobby(guestName, peerId){
           { name: 'Ping to Host', value: '⚡ ' + pingStr, inline: true },
           { name: 'Lobby Capacity', value: activeCount + ' / ' + max + ' Players', inline: true },
           { name: 'Game Mode', value: mode, inline: true },
-          { name: 'Players in Room', value: names.slice(0, 8).join(', ') || 'Host' },
+          { name: 'Players in Room', value: names.slice(0, MAXP).join(', ') || 'Host' },
           { name: '🆔 Guest ID', value: '`' + (guestPid || 'n/a') + '`', inline: true },
           { name: '🔗 Guest Session', value: '`' + (guestSess || 'n/a') + '`', inline: true }
         ],
@@ -17235,14 +17243,14 @@ const NET = {
   lobbyLocked: false,
   teamsLocked: false,
   isPublic: true,
-  maxPlayers: 8,
+  maxPlayers: MAXP,
   myCtrl: 'WASD',
-  slotsCtrl: ['WASD', 'WASD', 'WASD', 'WASD', 'WASD', 'WASD', 'WASD', 'WASD'],
-  slotsReady: [false, false, false, false, false, false, false, false],
-  slotsName: ['Host', '', '', '', '', '', '', ''],
+  slotsCtrl: ['WASD', 'WASD', 'WASD', 'WASD', 'WASD', 'WASD', 'WASD', 'WASD', 'WASD', 'WASD'],
+  slotsReady: [false, false, false, false, false, false, false, false, false, false],
+  slotsName: ['Host', '', '', '', '', '', '', '', '', ''],
   spectators: [], // [{ peerId, name, avatar }]
   pings: new Map(), // peerId -> ms
-  peerSlots: new Map(), // peerId -> slot (0..7)
+  peerSlots: new Map(), // peerId -> slot (0..9)
   peerNames: new Map(), // peerId -> name
   peerMutes: new Set(), // peerId (local player mute toggles)
   readyCountdown: null, // number (seconds) or null
@@ -17273,11 +17281,11 @@ function getUniqueGuestName(baseName, slot){
   const clean = cleanText(baseName || ('Player ' + (slot + 1))).slice(0, 16);
   if(typeof NET === 'undefined' || !NET || !NET.slotsName) return clean;
   const taken = [];
-  for(let s = 0; s < 8; s++){
+  for(let s = 0; s < MAXP; s++){
     if(s !== slot && NET.slotsName[s]) taken.push(NET.slotsName[s].toLowerCase().trim());
   }
   if(!taken.includes(clean.toLowerCase().trim())) return clean;
-  for(let n = 2; n <= 8; n++){
+  for(let n = 2; n <= 12; n++){
     const cand = clean.slice(0, 13) + ' ' + n;
     if(!taken.includes(cand.toLowerCase().trim())) return cand;
   }
@@ -18226,7 +18234,7 @@ function updateVoiceProximity(dt){
       if(targetSlot === undefined){
         if(!NET.isHost && (typeof netIsHostPeerId==='function'?netIsHostPeerId(peerId):String(peerId||'').endsWith('-host'))) targetSlot = 0;
         else if(NET.isHost){
-          for(let s = 1; s < (NET.maxPlayers || 8); s++){
+          for(let s = 1; s < (NET.maxPlayers || MAXP); s++){
             const ent = NET.hostInputs.get(s);
             if(ent && ent.owner === peerId){ targetSlot = s; break; }
           }
@@ -18352,7 +18360,7 @@ function isPlayerSpeaking(slot){
       if(pSlot === undefined){
         if(!NET.isHost && (typeof netIsHostPeerId==='function'?netIsHostPeerId(peerId):String(peerId||'').endsWith('-host'))) pSlot = 0;
         else if(NET.isHost){
-          for(let s = 1; s < (NET.maxPlayers || 8); s++){
+          for(let s = 1; s < (NET.maxPlayers || MAXP); s++){
             const ent = NET.hostInputs.get(s);
             if(ent && ent.owner === peerId){ pSlot = s; break; }
           }
@@ -19069,7 +19077,7 @@ function netWireConn(conn, isHostSide){
       NET.peerNames.delete(peerId);
       if(NET.isHost){
         let removedSlot = -1;
-        for(let i=1; i<8; i++){
+        for(let i=1; i<MAXP; i++){
           const ent = NET.hostInputs.get(i);
           if(ent && ent.owner === peerId){
             removedSlot = i;
@@ -19242,8 +19250,8 @@ function netOnData(m, c){
           NET.hostInputs.set(wantSlot, { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false, consumeEdge: false, owner: c.peer, seq: 0 });
           NET.peerSlots.set(c.peer, wantSlot);
           if(NET.spectators) NET.spectators = NET.spectators.filter(sp => sp.peerId !== c.peer);
-          const slotsPeerM = [NET.myId || '', '', '', '', '', '', '', ''];
-          for(let i = 1; i < 8; i++){ const ent = NET.hostInputs.get(i); if(ent && ent.owner) slotsPeerM[i] = ent.owner; }
+          const slotsPeerM = [NET.myId || '', '', '', '', '', '', '', '', '', ''];
+          for(let i = 1; i < MAXP; i++){ const ent = NET.hostInputs.get(i); if(ent && ent.owner) slotsPeerM[i] = ent.owner; }
           try{ slotsPeerM[NET.mySlot] = ''; }catch(e){}
           c.send({ t: 'assign', slot: wantSlot, settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, gameMode: settings.gameMode, hunterRed: settings.hunterRed, hunterBlue: settings.hunterBlue, hunterRotate: settings.hunterRotate, slotColor: menu.slotColor.slice(), slotTeam: menu.slotTeam.slice() }, mapData: MAPS[settings.map % MAPS.length], slotsCtrl: NET.slotsCtrl.slice(), slotsReady: NET.slotsReady.slice(), slotsName: NET.slotsName.slice(), botSlots: NET.botSlots ? NET.botSlots.slice() : [], slotsPeer: slotsPeerM });
           netBroadcastRoster();
@@ -19253,7 +19261,7 @@ function netOnData(m, c){
           if(match && screen === 'game' && match.state && (match.state === 'playing' || match.state === 'countdown' || match.state === 'paused')){
             try{
               const payload = { it: match.it, cooldownN: match.cooldown, matchIndex: matchIndex, currentThemeIdx: currentThemeIdx, lastStartIT: lastStartIT, timer: match.timer, state: match.state, cd: match.cd, cdT: match.cdT, tags: (match.tags ? match.tags.slice() : []), hunterMode: !!match.hunterMode, hunterRed: settings.hunterRed, hunterBlue: settings.hunterBlue, hunterScores: match.hunterScores, hunterRound: match.hunterRound, cageT: match.cageT, players: match.players.map(p => packPlayer(p)), modeEnv: (typeof packModeState === 'function' ? packModeState() : null) };
-              netSendRel(c, { t: 'midgame_start', settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, gameMode: settings.gameMode, hunterRed: settings.hunterRed, hunterBlue: settings.hunterBlue, slotColor: menu.slotColor.slice(0, 8), slotTeam: (menu.slotTeam ? menu.slotTeam.slice(0, 8) : []) }, mapData: MAPS[settings.map % MAPS.length], payload: payload, isSpectator: false });
+              netSendRel(c, { t: 'midgame_start', settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, gameMode: settings.gameMode, hunterRed: settings.hunterRed, hunterBlue: settings.hunterBlue, slotColor: menu.slotColor.slice(), slotTeam: (menu.slotTeam ? menu.slotTeam.slice() : []) }, mapData: MAPS[settings.map % MAPS.length], payload: payload, isSpectator: false });
             }catch(e){}
           }
           return;
@@ -19294,8 +19302,8 @@ function netOnData(m, c){
               NET.hostInputs.set(_oldSlot, { dir: 0, jumpEdge: false, jumpHeld: false, downHeld: false, consumeEdge: false, owner: c.peer, seq: 0 });
               NET.peerSlots.set(c.peer, _oldSlot);
               if(NET.spectators) NET.spectators = NET.spectators.filter(sp => sp.peerId !== c.peer);
-              const slotsPeerR = [NET.myId || '', '', '', '', '', '', '', ''];
-              for(let i = 1; i < 8; i++){ const ent = NET.hostInputs.get(i); if(ent && ent.owner) slotsPeerR[i] = ent.owner; }
+              const slotsPeerR = [NET.myId || '', '', '', '', '', '', '', '', '', ''];
+              for(let i = 1; i < MAXP; i++){ const ent = NET.hostInputs.get(i); if(ent && ent.owner) slotsPeerR[i] = ent.owner; }
               c.send({ t: 'assign', slot: _oldSlot, settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, gameMode: settings.gameMode, hunterRed: settings.hunterRed, hunterBlue: settings.hunterBlue, hunterRotate: settings.hunterRotate, slotColor: menu.slotColor.slice(), slotTeam: menu.slotTeam.slice() }, mapData: MAPS[settings.map % MAPS.length], slotsCtrl: NET.slotsCtrl.slice(), slotsReady: NET.slotsReady.slice(), slotsName: NET.slotsName.slice(), botSlots: NET.botSlots ? NET.botSlots.slice() : [], slotsPeer: slotsPeerR });
               netBroadcastSettings();
               netBroadcastRoster();
@@ -19305,7 +19313,7 @@ function netOnData(m, c){
               if(match && screen === 'game' && match.state && (match.state === 'playing' || match.state === 'countdown' || match.state === 'paused')){
                 try{
                   const payload = { it: match.it, cooldownN: match.cooldown, matchIndex: matchIndex, currentThemeIdx: currentThemeIdx, lastStartIT: lastStartIT, timer: match.timer, state: match.state, cd: match.cd, cdT: match.cdT, tags: (match.tags ? match.tags.slice() : []), hunterMode: !!match.hunterMode, hunterRed: settings.hunterRed, hunterBlue: settings.hunterBlue, hunterScores: match.hunterScores, hunterRound: match.hunterRound, cageT: match.cageT, players: match.players.map(p => packPlayer(p)), modeEnv: (typeof packModeState === 'function' ? packModeState() : null) };
-                  netSendRel(c, { t: 'midgame_start', settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, gameMode: settings.gameMode, hunterRed: settings.hunterRed, hunterBlue: settings.hunterBlue, slotColor: menu.slotColor.slice(0, 8), slotTeam: (menu.slotTeam ? menu.slotTeam.slice(0, 8) : []) }, mapData: MAPS[settings.map % MAPS.length], payload: payload, isSpectator: false });
+                  netSendRel(c, { t: 'midgame_start', settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, gameMode: settings.gameMode, hunterRed: settings.hunterRed, hunterBlue: settings.hunterBlue, slotColor: menu.slotColor.slice(), slotTeam: (menu.slotTeam ? menu.slotTeam.slice() : []) }, mapData: MAPS[settings.map % MAPS.length], payload: payload, isSpectator: false });
                 }catch(e){}
               }
               return;
@@ -19325,8 +19333,8 @@ function netOnData(m, c){
     if(!NET.spectators.some(sp => sp.peerId === c.peer)){
       NET.spectators.push({ peerId: c.peer, name: guestName, avatar: guestAvatar });
     }
-    const slotsPeer = [NET.myId || '', '', '', '', '', '', '', ''];
-    for(let i=1; i<8; i++){
+    const slotsPeer = [NET.myId || '', '', '', '', '', '', '', '', '', ''];
+    for(let i=1; i<MAXP; i++){
       const ent = NET.hostInputs.get(i);
       if(ent && ent.owner) slotsPeer[i] = ent.owner;
     }
@@ -19343,10 +19351,10 @@ function netOnData(m, c){
         hunterRed: settings.hunterRed,
         hunterBlue: settings.hunterBlue,
         hunterRotate: settings.hunterRotate,
-        slotColor: menu.slotColor.slice(0, 8),
-        slotTeam: (menu.slotTeam ? menu.slotTeam.slice(0, 8) : []),
-        ready: NET.slotsReady.slice(0, 8),
-        names: NET.slotsName.slice(0, 8),
+        slotColor: menu.slotColor.slice(),
+        slotTeam: (menu.slotTeam ? menu.slotTeam.slice() : []),
+        ready: NET.slotsReady.slice(),
+        names: NET.slotsName.slice(),
         slotsPeer: slotsPeer
       },
       mapData: MAPS[settings.map % MAPS.length],
@@ -19384,7 +19392,7 @@ function netOnData(m, c){
       };
       netSendRel(c, {
         t: 'midgame_start',
-        settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, gameMode: settings.gameMode, hunterRed: settings.hunterRed, hunterBlue: settings.hunterBlue, slotColor: menu.slotColor.slice(0, 8), slotTeam: (menu.slotTeam ? menu.slotTeam.slice(0, 8) : []) },
+        settings: { map: settings.map, doubleJump: settings.doubleJump, collision: settings.collision, teams: settings.teams, gameMode: settings.gameMode, hunterRed: settings.hunterRed, hunterBlue: settings.hunterBlue, slotColor: menu.slotColor.slice(), slotTeam: (menu.slotTeam ? menu.slotTeam.slice() : []) },
         mapData: MAPS[settings.map % MAPS.length],
         payload: payload,
         isSpectator: true
@@ -19398,14 +19406,14 @@ function netOnData(m, c){
     }
     let reqSlot = m.slot | 0;
     const isBotSlotCandidate = (s) => (NET.botSlots && NET.botSlots.includes(s));
-    if(!(reqSlot >= 1 && reqSlot < 8 && (!NET.hostInputs.has(reqSlot) || isBotSlotCandidate(reqSlot)) && (menu.slotColor[reqSlot] === -1 || isBotSlotCandidate(reqSlot)))){
+    if(!(reqSlot >= 1 && reqSlot < MAXP && (!NET.hostInputs.has(reqSlot) || isBotSlotCandidate(reqSlot)) && (menu.slotColor[reqSlot] === -1 || isBotSlotCandidate(reqSlot)))){
       // Requested slot taken in a race: fall back to the first free slot (or first bot slot)
       reqSlot = -1;
-      for(let s = 1; s < 8; s++){
+      for(let s = 1; s < MAXP; s++){
         if(!NET.hostInputs.has(s) && menu.slotColor[s] === -1){ reqSlot = s; break; }
       }
       if(reqSlot < 0){
-        for(let s = 1; s < 8; s++){
+        for(let s = 1; s < MAXP; s++){
           if(isBotSlotCandidate(s)){ reqSlot = s; break; }
         }
       }
@@ -19444,9 +19452,9 @@ function netOnData(m, c){
       if(pick === -1) pick = reqSlot % PALETTE.length;
       menu.slotColor[reqSlot] = pick;
 
-      if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+      if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1];
       let redCount = 0, blueCount = 0;
-      for(let s=0; s<8; s++){
+      for(let s=0; s<MAXP; s++){
         if(menu.slotColor[s] >= 0){
           if(menu.slotTeam[s] === 0) redCount++; else blueCount++;
         }
@@ -19461,8 +19469,8 @@ function netOnData(m, c){
       }
       menu.slotTeam[reqSlot] = want;
 
-      const slotsPeer = [NET.myId || '', '', '', '', '', '', '', ''];
-      for(let i=1; i<8; i++){
+      const slotsPeer = [NET.myId || '', '', '', '', '', '', '', '', '', ''];
+      for(let i=1; i<MAXP; i++){
         const ent = NET.hostInputs.get(i);
         if(ent && ent.owner) slotsPeer[i] = ent.owner;
       }
@@ -19512,8 +19520,8 @@ function netOnData(m, c){
       if(m.settings.ctfTargetCaptures != null) settings.ctfTargetCaptures = m.settings.ctfTargetCaptures;
       if(m.settings.hunterRed != null) settings.hunterRed = m.settings.hunterRed;
       if(m.settings.hunterBlue != null) settings.hunterBlue = m.settings.hunterBlue;
-      if(m.settings.slotColor) menu.slotColor = m.settings.slotColor.slice(0, 8);
-      if(m.settings.slotTeam) menu.slotTeam = m.settings.slotTeam.slice(0, 8);
+      if(m.settings.slotColor) menu.slotColor = m.settings.slotColor.slice();
+      if(m.settings.slotTeam) menu.slotTeam = m.settings.slotTeam.slice();
     }
     if(m.mapData) MAPS[settings.map % MAPS.length] = m.mapData;
     buildLevel();
@@ -19530,8 +19538,8 @@ function netOnData(m, c){
     if(m.settings.ctfTargetCaptures != null) settings.ctfTargetCaptures = m.settings.ctfTargetCaptures;
     if(m.settings.hunterRed != null) settings.hunterRed = m.settings.hunterRed;
     if(m.settings.hunterBlue != null) settings.hunterBlue = m.settings.hunterBlue;
-    if(m.settings.slotColor) menu.slotColor = m.settings.slotColor.slice(0, 8);
-    if(m.settings.slotTeam) menu.slotTeam = m.settings.slotTeam.slice(0, 8);
+    if(m.settings.slotColor) menu.slotColor = m.settings.slotColor.slice();
+    if(m.settings.slotTeam) menu.slotTeam = m.settings.slotTeam.slice();
     if(m.mapData) MAPS[settings.map % MAPS.length] = m.mapData;
     buildLevel();
     startMatchNetGuest(m.payload);
@@ -19587,8 +19595,8 @@ function netOnData(m, c){
       if(m.settings.ctfTargetCaptures != null) settings.ctfTargetCaptures = m.settings.ctfTargetCaptures;
       if(m.settings.hunterRed != null) settings.hunterRed = m.settings.hunterRed;
       if(m.settings.hunterBlue != null) settings.hunterBlue = m.settings.hunterBlue;
-      if(m.settings.slotColor) menu.slotColor = m.settings.slotColor.slice(0, 8);
-      if(m.settings.slotTeam) menu.slotTeam = m.settings.slotTeam.slice(0, 8);
+      if(m.settings.slotColor) menu.slotColor = m.settings.slotColor.slice();
+      if(m.settings.slotTeam) menu.slotTeam = m.settings.slotTeam.slice();
     }
     if(m.mapData) MAPS[settings.map % MAPS.length] = m.mapData;
     if(m.slotsCtrl) NET.slotsCtrl = m.slotsCtrl.slice();
@@ -19620,10 +19628,10 @@ function netOnData(m, c){
     if(m.readyCountdown !== undefined) NET.readyCountdown = m.readyCountdown;
     if(m.botSlots && Array.isArray(m.botSlots)) NET.botSlots = m.botSlots.slice();
     if(m.slotColor){
-      menu.slotColor = m.slotColor.slice(0, 8);
+      menu.slotColor = m.slotColor.slice();
       buildLevel();
     }
-    if(m.slotTeam) menu.slotTeam = m.slotTeam.slice(0, 8);
+    if(m.slotTeam) menu.slotTeam = m.slotTeam.slice();
     if(m.hunterRed != null) settings.hunterRed = m.hunterRed;
     if(m.hunterBlue != null) settings.hunterBlue = m.hunterBlue;
     if(m.hunterVotes) menu.hunterVotes = { ...m.hunterVotes };
@@ -19652,8 +19660,8 @@ function netOnData(m, c){
   } else if(m.t === 'team'){
     if(NET.isHost && !NET.teamsLocked){
       if(match && (match.state === 'playing' || match.state === 'countdown' || match.state === 'paused')) return;
-      if(m.slot >= 0 && m.slot < 8 && m.team != null){
-        if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+      if(m.slot >= 0 && m.slot < MAXP && m.team != null){
+        if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1];
         menu.slotTeam[m.slot] = m.team;
         if(settings.gameMode === 'hunter') updateElectedHuntersFromVotes();
         netBroadcastRoster();
@@ -19661,7 +19669,7 @@ function netOnData(m, c){
     }
   } else if(m.t === 'ready'){
     if(NET.isHost){
-      if(m.slot >= 0 && m.slot < 8){
+      if(m.slot >= 0 && m.slot < MAXP){
         NET.slotsReady[m.slot] = !!m.ready;
         netBroadcastRoster();
         netCheckReadyCountdown();
@@ -19669,14 +19677,14 @@ function netOnData(m, c){
     }
   } else if(m.t === 'ctrl'){
     if(NET.isHost){
-      if(m.slot >= 0 && m.slot < 8 && m.ctrl){
+      if(m.slot >= 0 && m.slot < MAXP && m.ctrl){
         NET.slotsCtrl[m.slot] = m.ctrl;
         netBroadcastRoster();
       }
     }
   } else if(m.t === 'color'){
     if(NET.isHost && !NET.teamsLocked){
-      if(m.slot >= 0 && m.slot < 8 && m.color >= 0){
+      if(m.slot >= 0 && m.slot < MAXP && m.color >= 0){
         menu.slotColor[m.slot] = m.color;
         buildLevel();
         netBroadcastSettings();
@@ -19694,8 +19702,8 @@ function netOnData(m, c){
     if(m.settings.hunterRed != null) settings.hunterRed = m.settings.hunterRed;
     if(m.settings.hunterBlue != null) settings.hunterBlue = m.settings.hunterBlue;
     if(m.settings.hunterRotate != null) settings.hunterRotate = !!m.settings.hunterRotate;
-    if(m.settings.slotColor) menu.slotColor = m.settings.slotColor.slice(0, 8);
-    if(m.settings.slotTeam) menu.slotTeam = m.settings.slotTeam.slice(0, 8);
+    if(m.settings.slotColor) menu.slotColor = m.settings.slotColor.slice();
+    if(m.settings.slotTeam) menu.slotTeam = m.settings.slotTeam.slice();
     buildLevel();
   } else if(m.t === 'p_state' && NET.isHost){
     const slot = m.s != null ? m.s : m.slot;
@@ -20070,8 +20078,8 @@ function netOnData(m, c){
     if(m.settings.ctfTargetCaptures != null) settings.ctfTargetCaptures = m.settings.ctfTargetCaptures;
     if(m.settings.hunterRed != null) settings.hunterRed = m.settings.hunterRed;
     if(m.settings.hunterBlue != null) settings.hunterBlue = m.settings.hunterBlue;
-    if(m.settings.slotColor) menu.slotColor = m.settings.slotColor.slice(0, 8);
-    if(m.settings.slotTeam) menu.slotTeam = m.settings.slotTeam.slice(0, 8);
+    if(m.settings.slotColor) menu.slotColor = m.settings.slotColor.slice();
+    if(m.settings.slotTeam) menu.slotTeam = m.settings.slotTeam.slice();
     if(m.mapData) MAPS[settings.map % MAPS.length] = m.mapData;
     buildLevel();
     startMatchNetGuest(m.payload);
@@ -20188,7 +20196,7 @@ function netUpdateHostDirectory(){
     isPublic: !!NET.isPublic,
     isLocked: !!NET.lobbyLocked,
     players: activeCount,
-    maxPlayers: NET.maxPlayers || 8,
+    maxPlayers: NET.maxPlayers || MAXP,
     map: settings.map,
     teams: !!settings.teams,
     state: (match && screen === 'game') ? 'playing' : 'lobby'
@@ -20213,7 +20221,7 @@ function netUpdateHostDirectory(){
   // CrazyGames SDK v3 updateRoom (object form; locked/full rooms are not joinable)
   try {
     const pList = [];
-    for(let i=0; i<8; i++){
+    for(let i=0; i<MAXP; i++){
       if(menu.slotColor[i] >= 0){
         pList.push({ id: 'p' + i, username: NET.slotsName[i] || ('Player ' + (i+1)) });
       }
@@ -20221,7 +20229,7 @@ function netUpdateHostDirectory(){
     let joinable = true;
     try{
       if(NET.lobbyLocked) joinable = false;
-      else if(pList.length >= (NET.maxPlayers || 8)) joinable = false;
+      else if(pList.length >= (NET.maxPlayers || MAXP)) joinable = false;
     }catch(e){}
     if(typeof CG!=='undefined'&&CG&&typeof CG.updateRoom==='function')CG.updateRoom(NET.room, pList, joinable);
   } catch(e){}
@@ -20320,10 +20328,10 @@ function netAdmitSpectator(peerId, targetSlot, teamIdx){
 
   // Find open slot (prioritize targetSlot if specified and available)
   let slot = -1;
-  if(targetSlot != null && targetSlot >= 1 && targetSlot < 8 && !NET.hostInputs.has(targetSlot) && menu.slotColor[targetSlot] === -1){
+  if(targetSlot != null && targetSlot >= 1 && targetSlot < MAXP && !NET.hostInputs.has(targetSlot) && menu.slotColor[targetSlot] === -1){
     slot = targetSlot;
   } else {
-    for(let i=1; i<8; i++){
+    for(let i=1; i<MAXP; i++){
       if(!NET.hostInputs.has(i) && menu.slotColor[i] === -1){
         slot = i;
         break;
@@ -20331,7 +20339,7 @@ function netAdmitSpectator(peerId, targetSlot, teamIdx){
     }
   }
   if(slot === -1){
-    netToast('No open slots available (8 players max)');
+    netToast('No open slots available (10 players max)');
     return;
   }
 
@@ -20350,7 +20358,7 @@ function netAdmitSpectator(peerId, targetSlot, teamIdx){
   if(pick === -1) pick = slot % PALETTE.length;
   menu.slotColor[slot] = pick;
   // Honor the requested team panel (falls back to minority on ±1 clash)
-  if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+  if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1];
   let wantAdmit = (teamIdx === 0 || teamIdx === 1) ? teamIdx : -1;
   if(wantAdmit < 0){
     let r0 = 0, b0 = 0;
@@ -20371,8 +20379,8 @@ function netAdmitSpectator(peerId, targetSlot, teamIdx){
 
   const pair = NET.conns.get(peerId);
   if(pair){
-    const slotsPeer = [NET.myId || '', '', '', '', '', '', '', ''];
-    for(let i=1; i<8; i++){
+    const slotsPeer = [NET.myId || '', '', '', '', '', '', '', '', '', ''];
+    for(let i=1; i<MAXP; i++){
       const ent = NET.hostInputs.get(i);
       if(ent && ent.owner) slotsPeer[i] = ent.owner;
     }
@@ -20403,12 +20411,12 @@ function netAddBot(preferredSlot, preferredTeam){
     sfx('back');
     return;
   }
-  // Find open slot (1 to 7)
+  // Find open slot (1 to 9)
   let targetSlot = -1;
-  if(preferredSlot != null && preferredSlot >= 1 && preferredSlot < 8 && menu.slotColor[preferredSlot] === -1 && !NET.hostInputs.has(preferredSlot) && !NET.botSlots.includes(preferredSlot)){
+  if(preferredSlot != null && preferredSlot >= 1 && preferredSlot < MAXP && menu.slotColor[preferredSlot] === -1 && !NET.hostInputs.has(preferredSlot) && !NET.botSlots.includes(preferredSlot)){
     targetSlot = preferredSlot;
   } else {
-    for(let s = 1; s < 8; s++){
+    for(let s = 1; s < MAXP; s++){
       if(menu.slotColor[s] === -1 && !NET.hostInputs.has(s) && !NET.botSlots.includes(s)){
         targetSlot = s;
         break;
@@ -20416,7 +20424,7 @@ function netAddBot(preferredSlot, preferredTeam){
     }
   }
   if(targetSlot === -1){
-    netToast('Lobby is full! (8 players max)');
+    netToast('Lobby is full! (10 players max)');
     sfx('back');
     return;
   }
@@ -20437,7 +20445,7 @@ function netAddBot(preferredSlot, preferredTeam){
   menu.slotColor[targetSlot] = pick;
 
   // Assign team (balance if teams or hunter mode)
-  if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+  if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1];
   let wantTeam = (preferredTeam === 0 || preferredTeam === 1) ? preferredTeam : -1;
   if(wantTeam < 0){
     let r0 = 0, b0 = 0;
@@ -20492,7 +20500,7 @@ function netRemoveBot(slot){
 }
 
 function netClaimSlot(s, teamIdx){
-  if(s < 1 || s >= 8) return;
+  if(s < 1 || s >= MAXP) return;
   if(NET.isHost){
     if(NET.spectators && NET.spectators.length > 0){
       netAdmitSpectator(NET.spectators[0].peerId, s, teamIdx);
@@ -20523,7 +20531,7 @@ function netRequestJoinGame(){
     return;
   }
   let openSlot = -1;
-  for(let s=1; s<8; s++){
+  for(let s=1; s<MAXP; s++){
     if(menu.slotColor[s] === -1){
       openSlot = s;
       break;
@@ -20557,7 +20565,7 @@ function netHostToggleSpectate(){
     // Host switches back to Playing: reclaim Slot 0 (or first open slot)
     let claimSlot = 0;
     if(menu.slotColor[0] !== -1){
-      for(let s = 0; s < 8; s++){
+      for(let s = 0; s < MAXP; s++){
         if(menu.slotColor[s] === -1 && !NET.hostInputs.has(s)){
           claimSlot = s;
           break;
@@ -20603,7 +20611,7 @@ function netRequestSpectate(){
 }
 
 function netMovePlayerToWaitlist(slot){
-  if(!NET.isHost || slot <= 0 || slot >= 8) return;
+  if(!NET.isHost || slot <= 0 || slot >= MAXP) return;
   if(menu.slotColor[slot] < 0) return;
 
   let targetPeer = null;
@@ -20638,10 +20646,10 @@ function netMovePlayerToWaitlist(slot){
         hunterRed: settings.hunterRed,
         hunterBlue: settings.hunterBlue,
         hunterRotate: settings.hunterRotate,
-        slotColor: menu.slotColor.slice(0, 8),
-        slotTeam: menu.slotTeam.slice(0, 8),
-        ready: NET.slotsReady.slice(0, 8),
-        names: NET.slotsName.slice(0, 8)
+        slotColor: menu.slotColor.slice(),
+        slotTeam: menu.slotTeam.slice(),
+        ready: NET.slotsReady.slice(),
+        names: NET.slotsName.slice()
       }
     });
   }
@@ -20653,9 +20661,9 @@ function netMovePlayerToWaitlist(slot){
 }
 
 function netSwapPlayerTeam(slot){
-  if(!NET.isHost || NET.teamsLocked || slot < 0 || slot >= 8) return;
+  if(!NET.isHost || NET.teamsLocked || slot < 0 || slot >= MAXP) return;
   if(menu.slotColor[slot] < 0) return;
-  if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+  if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1];
   const targetTeam = ((menu.slotTeam[slot] || 0) + 1) % TEAMS.length;
 
   menu.slotTeam[slot] = targetTeam;
@@ -20665,9 +20673,9 @@ function netSwapPlayerTeam(slot){
 }
 
 function netSetPlayerTeam(slot, teamIdx){
-  if(!NET.isHost || slot < 0 || slot >= 8) return;
+  if(!NET.isHost || slot < 0 || slot >= MAXP) return;
   if(menu.slotColor[slot] < 0) return;
-  if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+  if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1];
   const targetTeam = teamIdx % TEAMS.length;
 
   menu.slotTeam[slot] = targetTeam;
@@ -20706,7 +20714,7 @@ function netCheckReadyCountdown(){
   }
   // Check if at least 1 guest is ready
   let anyGuestReady = false;
-  for(let i=1; i<8; i++){
+  for(let i=1; i<MAXP; i++){
     if(NET.isHost && i === NET.mySlot) continue;
     if(menu.slotColor[i] >= 0 && NET.slotsReady[i]){
       anyGuestReady = true;
@@ -20736,7 +20744,7 @@ function netCheckReadyCountdown(){
 function netAutoDemoteAndStart(){
   if(!NET.isHost) return;
   // Demote unready guests to spectators
-  for(let i=1; i<8; i++){
+  for(let i=1; i<MAXP; i++){
     if(NET.isHost && i === NET.mySlot) continue;
     if(menu.slotColor[i] >= 0 && !NET.slotsReady[i]){
       const ent = NET.hostInputs.get(i);
@@ -20810,11 +20818,11 @@ function netBroadcastSettings(){
 
 function netBroadcastRoster(){
   if(!NET.isHost) return;
-  const slotsPeer = ['', '', '', '', '', '', '', ''];
-  if(!NET.isSpectator && NET.mySlot >= 0 && NET.mySlot < 8){
+  const slotsPeer = ['', '', '', '', '', '', '', '', '', ''];
+  if(!NET.isSpectator && NET.mySlot >= 0 && NET.mySlot < MAXP){
     slotsPeer[NET.mySlot] = NET.myId || '';
   }
-  for(let i=0; i<8; i++){
+  for(let i=0; i<MAXP; i++){
     const ent = NET.hostInputs.get(i);
     if(ent && ent.owner) slotsPeer[i] = ent.owner;
   }
@@ -20854,7 +20862,7 @@ function netBroadcastState(state){
 function netToggleMyReady(){
   if(NET.role === null) return;
   const mySlot = NET.mySlot;
-  if(mySlot < 0 || mySlot >= 8) return;
+  if(mySlot < 0 || mySlot >= MAXP) return;
   const newReady = !NET.slotsReady[mySlot];
   NET.slotsReady[mySlot] = newReady;
   sfx('ui');
@@ -20874,7 +20882,7 @@ function netCycleMyControl(){
   NET.myCtrl = nextScheme;
   sfx('ui');
   const mySlot = NET.mySlot;
-  if(mySlot >= 0 && mySlot < 8){
+  if(mySlot >= 0 && mySlot < MAXP){
     NET.slotsCtrl[mySlot] = nextScheme;
     if(NET.isHost){
       netBroadcastRoster();
@@ -20936,14 +20944,14 @@ function netHostAction(isPublic = true){
   NET.mySlot = 0;
   NET.myCtrl = 'WASD';
   NET.slotsCtrl[0] = 'WASD';
-  NET.slotsReady = [false, false, false, false, false, false, false, false];
+  NET.slotsReady = [false, false, false, false, false, false, false, false, false, false];
   const myProfile = netGetMyProfile();
-  NET.slotsName = [myProfile.name, '', '', '', '', '', '', ''];
+  NET.slotsName = [myProfile.name, '', '', '', '', '', '', '', '', ''];
   NET.midgameJoiner = false;
   menu.mode = 'rows';
   setMenuTab('online');
-  menu.slotColor = [menu.slotColor[0] >= 0 ? menu.slotColor[0] : 0, -1, -1, -1, -1, -1, -1, -1];
-  menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+  menu.slotColor = [menu.slotColor[0] >= 0 ? menu.slotColor[0] : 0, -1, -1, -1, -1, -1, -1, -1, -1, -1];
+  menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1];
   try{
     let keep = '';
     try{
@@ -20958,7 +20966,7 @@ function netHostAction(isPublic = true){
   }catch(e){ try{ history.replaceState(null, '', '?room=' + code); }catch(e2){} }
   
   netCopyLink();
-  try{ netNotifyRoomCreated(code, myProfile.name, isPublic, (NET && NET.maxPlayers) || 8); }catch(e){}
+  try{ netNotifyRoomCreated(code, myProfile.name, isPublic, (NET && NET.maxPlayers) || MAXP); }catch(e){}
   try{
     if(typeof CG !== 'undefined' && CG && typeof CG.updateRoom === 'function'){
       CG.updateRoom(code, [{ id: 'p0', username: myProfile.name }], true);
@@ -21065,7 +21073,7 @@ function netJoinAction(codeParam, hostPeerIdParam){
   try{ NET._seenClaims = []; }catch(e){}
   NET.mySlot = -1;
   NET.myCtrl = 'WASD';
-  NET.slotsReady = [false, false, false, false, false, false, false, false];
+  NET.slotsReady = [false, false, false, false, false, false, false, false, false, false];
   NET.midgameJoiner = false;
   menu.mode = 'rows';
   setMenuTab('online');
@@ -21115,7 +21123,7 @@ function netJoinAction(codeParam, hostPeerIdParam){
 function netElectMigrationHost(){
   try{
     const cands = [];
-    for(let s = 1; s < 8; s++){
+    for(let s = 1; s < MAXP; s++){
       try{
         if(!(menu.slotColor && menu.slotColor[s] >= 0)) continue;
         let pid = '';
@@ -21163,7 +21171,7 @@ function netPromoteToHost(reason){
     try{ if(NET.myId && NET.peerSlots && !NET.peerSlots.has(NET.myId)) NET.peerSlots.set(NET.myId, meSlot); }catch(e){}
     try{
       NET.hostInputs.clear();
-      for(let s = 1; s < 8; s++){
+      for(let s = 1; s < MAXP; s++){
         if(!(menu.slotColor && menu.slotColor[s] >= 0)) continue;
         if(s === meSlot) continue;
         let owner = null;
@@ -21479,16 +21487,16 @@ function netLeaveRoom(reason){
   try{ NET._hostId = ''; NET._hostSuffix = ''; NET._joinHostId = ''; }catch(e){}
   NET.midgameJoiner = false;
   NET.hostInputs.clear();
-  NET.slotsReady = [false, false, false, false, false, false, false, false];
-  NET.slotsName = ['Host', '', '', '', '', '', '', ''];
+  NET.slotsReady = [false, false, false, false, false, false, false, false, false, false];
+  NET.slotsName = ['Host', '', '', '', '', '', '', '', '', ''];
   NET.lastRecvTick = -1;
   try{ NET.lastRecvT = 0; NET._lastHostMsgT = 0; }catch(e){}
   try{ NET._migrating = false; NET._migratedHost = false; NET._migrationPeers = null; NET._migrationCooldown = 0; NET._lastConnErrToast = 0; NET._hostRetry = 0; NET._dirHostId = ''; }catch(e){}
   try{ NET._lobbyDup = {}; }catch(e){}
   try{ if(typeof netRestoreVoiceAfterRelay === 'function') netRestoreVoiceAfterRelay(); }catch(e){}
   _remoteTargets.clear();
-  menu.slotColor = [0, 2, -1, -1, -1, -1, -1, -1];
-  menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1];
+  menu.slotColor = [0, 2, -1, -1, -1, -1, -1, -1, -1, -1];
+  menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1];
   // If we were mid-match (host quit, kicked, or failed join), actually leave the
   // arena for the menu — otherwise guests stare at a frozen game that will never sync.
   try{
