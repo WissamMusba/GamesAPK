@@ -2,10 +2,10 @@
    v1 rules: greedy X + jump only if no solid between, detour to platform
    edge when blocked above, bonk counter fallback. Pink drops are
    jump-through (ok to jump), solids are not. */
-if(typeof IT_SPEED === 'undefined') var IT_SPEED = 582;
-if(typeof RUN_SPEED === 'undefined') var RUN_SPEED = 504;
-if(typeof zoneAtFeet !== 'function') var zoneAtFeet = function(){ return null; };
-if(typeof SOLIDS === 'undefined') var SOLIDS = [];
+if(typeof globalThis.IT_SPEED === 'undefined') try{ IT_SPEED; }catch(e){ globalThis.IT_SPEED = 582; }
+if(typeof globalThis.RUN_SPEED === 'undefined') try{ RUN_SPEED; }catch(e){ globalThis.RUN_SPEED = 504; }
+if(typeof globalThis.zoneAtFeet !== 'function') try{ zoneAtFeet; }catch(e){ globalThis.zoneAtFeet = function(){ return null; }; }
+if(typeof globalThis.SOLIDS === 'undefined') try{ SOLIDS; }catch(e){ globalThis.SOLIDS = []; }
 const BOT={st:{},think:0.09};
 function botReset(){BOT.st={};}
 function isBotSlot(p){

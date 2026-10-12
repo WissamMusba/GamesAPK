@@ -1,6 +1,6 @@
 /* ================= MENU ================= */
-if(typeof easeOut !== 'function') var easeOut = function(t){ t = Math.max(0, Math.min(1, t)); return 1 - Math.pow(1 - t, 3); };
-if(typeof easeBack !== 'function') var easeBack = function(t){ t = Math.max(0, Math.min(1, t)); const c = 1.70158; return 1 + (c+1)*Math.pow(t-1,3) + c*Math.pow(t-1,2); };
+if(typeof globalThis.easeOut !== 'function') try{ easeOut; }catch(e){ globalThis.easeOut = function(t){ t = Math.max(0, Math.min(1, t)); return 1 - Math.pow(1 - t, 3); }; }
+if(typeof globalThis.easeBack !== 'function') try{ easeBack; }catch(e){ globalThis.easeBack = function(t){ t = Math.max(0, Math.min(1, t)); const c = 1.70158; return 1 + (c+1)*Math.pow(t-1,3) + c*Math.pow(t-1,2); }; }
 /* ================= MENU (Fully Responsive Layout) ================= */
 function slotCardRects(){
   const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);

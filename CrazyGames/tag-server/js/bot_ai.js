@@ -613,7 +613,7 @@ function harnessOverlay(){
 function demoOverlay(){ harnessOverlay(); }
 window.HARNESS = HARNESS;
 window.harnessStart = harnessStart;
-var screen = (typeof globalThis !== 'undefined' && globalThis.screen) ? globalThis.screen : 'menu', tGlobal = (typeof globalThis !== 'undefined' && globalThis.tGlobal) ? globalThis.tGlobal : 0;
+var screen = (typeof globalThis !== 'undefined' && typeof globalThis.screen === 'string') ? globalThis.screen : 'menu', tGlobal = (typeof globalThis !== 'undefined' && typeof globalThis.tGlobal === 'number') ? globalThis.tGlobal : 0;
 const menu = ((typeof globalThis !== 'undefined' && globalThis.menu) || (typeof window !== 'undefined' && window.menu)) ? ((typeof globalThis !== 'undefined' && globalThis.menu) || window.menu) : {tab:'solo',mode:'rows',slotColor:[0,1,-1,-1,-1,-1,-1,-1,-1,-1],slotTeam:[0,1,0,1,0,1,0,1,0,1],slotCtrl:[0,1,2,3,0,1,2,3,0,1],row:4,rule:0,toast:null,toastT:0,botOn:false,botDifficulty:'hard',slotBotDiff:['hard','hard','hard','hard','hard','hard','hard','hard','hard','hard'],mapModal:false,onlineModal:false,slotIsBot:[false,false,false,false,false,false,false,false,false,false],botSlots:null};
 if(typeof window !== 'undefined') window.menu = menu;
 if(typeof globalThis !== 'undefined') globalThis.menu = menu;
