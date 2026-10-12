@@ -1427,6 +1427,14 @@ function drawMenu(){
   g.fillStyle = 'rgba(10, 8, 20, 0.72)';
   g.fillRect(0, 0, CW, CH);
 
+  // If modern Hybrid DOM menu overlay is present and active, it handles controls and cards
+  if(typeof document !== 'undefined' && document.getElementById){
+    const domOverlay = document.getElementById('ui-overlay');
+    if(domOverlay && domOverlay.classList.contains('active')){
+      return;
+    }
+  }
+
   const isShortH = (CH < 500);
   const isNarrowW = (CW < 560);
   const isMobile = (CW < 700 || CH < 500);

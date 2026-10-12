@@ -1,5 +1,6 @@
 /* ================= main loop ================= */
 function render(){
+  if(typeof syncDOMUI==='function')syncDOMUI();
   zones.length=0;
   g.setTransform(DPR,0,0,DPR,0,0);
   if(NET.role!==null && NET.isHost && match && screen==='game'){
