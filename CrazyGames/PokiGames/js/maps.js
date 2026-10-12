@@ -102,18 +102,18 @@ function buildLevel(){
   for(const a of M.boosts){const p=P46(a);p.t='boost';SOLIDS.push(p);}
 }
 
-/* ================= 10 PLAIN, MINIMALIST GRADIENT THEMES (ZERO CLUTTER) ================= */
+/* ================= 10 VIBRANT, ENERGETIC ARCADE THEMES (BRIGHT & CLEAR) ================= */
 const THEMES=[
-  {name:'SUNSET GLOW', top:'#141022', mid:'#3a1d2e', bot:'#5c2b34', wallCol:'#351924'},
-  {name:'MIDNIGHT NAVY', top:'#091122', mid:'#12213d', bot:'#1a3156', wallCol:'#172338'},
-  {name:'SLATE CHARCOAL', top:'#11151a', mid:'#1c232c', bot:'#2a3442', wallCol:'#1d252f'},
-  {name:'FOREST SAGE', top:'#0a1914', mid:'#122c22', bot:'#1c4232', wallCol:'#172a22'},
-  {name:'DUSK PLUM', top:'#170e1c', mid:'#2d1a33', bot:'#45264c', wallCol:'#2f1935'},
-  {name:'GOLDEN DUSK', top:'#1a110d', mid:'#3b2118', bot:'#5e3220', wallCol:'#381e14'},
-  {name:'ARCTIC TEAL', top:'#08151b', mid:'#0f2732', bot:'#173d4d', wallCol:'#142a34'},
-  {name:'PASTEL TWILIGHT', top:'#15162a', mid:'#282744', bot:'#3e395c', wallCol:'#2b2742'},
-  {name:'VOLCANIC SLATE', top:'#140c0e', mid:'#2b1316', bot:'#42191d', wallCol:'#2d1316'},
-  {name:'DEEP COBALT', top:'#0a0d22', mid:'#131a40', bot:'#1d285c', wallCol:'#161c3c'}
+  {name:'SUNSET BLAZE', top:'#4a044e', mid:'#9d174d', bot:'#ea580c', wallCol:'#701a75'},
+  {name:'CYBER ARCADE', top:'#1e1b4b', mid:'#3730a3', bot:'#06b6d4', wallCol:'#312e81'},
+  {name:'ELECTRIC TEAL', top:'#064e3b', mid:'#0f766e', bot:'#14b8a6', wallCol:'#115e59'},
+  {name:'GOLDEN DAWN', top:'#78350f', mid:'#b45309', bot:'#f59e0b', wallCol:'#92400e'},
+  {name:'COBALT SKY', top:'#1e3a8a', mid:'#2563eb', bot:'#38bdf8', wallCol:'#1e40af'},
+  {name:'NEON VIOLET', top:'#3b0764', mid:'#7c3aed', bot:'#c084fc', wallCol:'#581c87'},
+  {name:'LIME BURST', top:'#14532d', mid:'#16a34a', bot:'#84cc16', wallCol:'#166534'},
+  {name:'CORAL PUNCH', top:'#881337', mid:'#e11d48', bot:'#fb923c', wallCol:'#9f1239'},
+  {name:'ARCTIC FROST', top:'#0c4a6e', mid:'#0284c7', bot:'#67e8f9', wallCol:'#075985'},
+  {name:'TROPICAL MINT', top:'#1e1b4b', mid:'#047857', bot:'#10b981', wallCol:'#065f46'}
 ];
 
 let currentThemeIdx=0;

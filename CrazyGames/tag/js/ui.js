@@ -1423,9 +1423,24 @@ function drawMenu(){
   drawWorld();
   g.restore();
 
-  // Frosted dark overlay so menu controls pop cleanly
-  g.fillStyle = 'rgba(10, 8, 20, 0.72)';
+  // Luminous arcade ambient wash (bright, energetic and vibrant!)
+  const bgGrad = g.createRadialGradient(CW * 0.5, CH * 0.45, 60, CW * 0.5, CH * 0.5, Math.max(CW, CH) * 0.85);
+  bgGrad.addColorStop(0, 'rgba(25, 32, 70, 0.22)');
+  bgGrad.addColorStop(0.65, 'rgba(16, 22, 52, 0.36)');
+  bgGrad.addColorStop(1, 'rgba(10, 14, 36, 0.46)');
+  g.fillStyle = bgGrad;
   g.fillRect(0, 0, CW, CH);
+
+  // Top corner ambient glows for colorful arcade pop
+  const g1 = g.createRadialGradient(0, 0, 10, 0, 0, CW * 0.45);
+  g1.addColorStop(0, 'rgba(0, 240, 255, 0.14)');
+  g1.addColorStop(1, 'rgba(0, 240, 255, 0)');
+  g.fillStyle = g1; g.fillRect(0, 0, CW * 0.5, CH * 0.5);
+
+  const g2 = g.createRadialGradient(CW, 0, 10, CW, 0, CW * 0.45);
+  g2.addColorStop(0, 'rgba(255, 107, 129, 0.14)');
+  g2.addColorStop(1, 'rgba(255, 107, 129, 0)');
+  g.fillStyle = g2; g.fillRect(CW * 0.5, 0, CW * 0.5, CH * 0.5);
 
   const isShortH = (CH < 500);
   const isNarrowW = (CW < 560);
@@ -1440,27 +1455,28 @@ function drawMenu(){
   const headY = isShortH ? 6 : 10;
   const headH = clamp(CH * 0.08, isShortH ? 30 : 36, 46);
 
-  // Sound & Theme buttons on top-right
+  // Sound & Theme buttons on top-right (Crisp SVG vector icons!)
   const si = Math.floor(clamp(headH * 0.88, 28, 38));
   const soundX = CW - si - 12;
   drawJuicyIconBtn(soundX, headY, si, {
     r: 8,
     depth: 3,
-    bg: 'rgba(255, 255, 255, 0.92)',
+    bg: 'rgba(255, 255, 255, 0.94)',
     darkBg: 'rgba(203, 213, 225, 0.95)',
     renderContent: (x, y, sz) => {
-      g.fillStyle = '#3a5a3a';
-      g.beginPath();
-      g.moveTo(x + 8, y + sz/2 - 4);
-      g.lineTo(x + 8, y + sz/2 + 4);
-      g.lineTo(x + 14, y + sz/2 + 4);
-      g.lineTo(x + 21, y + sz/2 + 10);
-      g.lineTo(x + 21, y + sz/2 - 10);
-      g.lineTo(x + 14, y + sz/2 - 4);
-      g.closePath(); g.fill();
-      if(muted){
-        g.strokeStyle = '#c0392b'; g.lineWidth = 3;
-        g.beginPath(); g.moveTo(x + 23, y + sz/2 - 7); g.lineTo(x + 32, y + sz/2 + 7); g.stroke();
+      if(typeof drawSvgSound === 'function'){
+        drawSvgSound(g, x + sz/2, y + sz/2, sz * 0.72, muted ? '#ef4444' : '#10b981', muted);
+      } else {
+        g.fillStyle = '#3a5a3a';
+        g.beginPath();
+        g.moveTo(x + 8, y + sz/2 - 4); g.lineTo(x + 8, y + sz/2 + 4);
+        g.lineTo(x + 14, y + sz/2 + 4); g.lineTo(x + 21, y + sz/2 + 10);
+        g.lineTo(x + 21, y + sz/2 - 10); g.lineTo(x + 14, y + sz/2 - 4);
+        g.closePath(); g.fill();
+        if(muted){
+          g.strokeStyle = '#c0392b'; g.lineWidth = 3;
+          g.beginPath(); g.moveTo(x + 23, y + sz/2 - 7); g.lineTo(x + 32, y + sz/2 + 7); g.stroke();
+        }
       }
     },
     fn: () => { muted = !muted; applyEffectiveMute(); }
@@ -1470,10 +1486,15 @@ function drawMenu(){
   drawJuicyIconBtn(themeX, headY, si, {
     r: 8,
     depth: 3,
-    bg: 'rgba(255, 255, 255, 0.92)',
+    bg: 'rgba(255, 255, 255, 0.94)',
     darkBg: 'rgba(203, 213, 225, 0.95)',
-    icon: '🎨',
-    iconSize: Math.floor(si * 0.44),
+    renderContent: (x, y, sz) => {
+      if(typeof drawSvgPalette === 'function'){
+        drawSvgPalette(g, x + sz/2, y + sz/2, sz * 0.70);
+      } else {
+        ptxt('🎨', x + sz/2, y + sz/2 + 1, FN(Math.floor(sz * 0.44), 900), '#000000');
+      }
+    },
     fn: () => { cycleTheme(); }
   });
 
@@ -1482,12 +1503,11 @@ function drawMenu(){
   const logoW = 76;
   ptxt('TAG!', 14 + logoW * 0.4, headY + headH * 0.52, FT(logoFs), '#ffffff');
 
-  // Mode Navigation Tabs (Pills in Center: Local Party & 1P Solo with BETA badge)
-  // NOTE: WATCH BOTS hidden for now (logic kept — re-add entry to restore).
+  // Mode Navigation Tabs (Pills in Center with crisp SVG icons)
   const modeTabs = [
-    { id: '2p', label: '👥 2-4P PARTY', short: '👥 PARTY' },
-    { id: 'solo', label: '🤖 1P SOLO', short: '🤖 SOLO', badge: 'BETA' },
-    { id: 'online', label: '🌐 ONLINE HUB', short: '🌐 ONLINE' }
+    { id: '2p', label: '2-4P PARTY', short: 'PARTY', icon: 'users' },
+    { id: 'solo', label: '1P SOLO', short: 'SOLO', icon: 'robot', badge: 'BETA' },
+    { id: 'online', label: 'ONLINE HUB', short: 'ONLINE', icon: 'globe' }
   ];
   const tabW = clamp((themeX - 14 - logoW - 20) / modeTabs.length, isNarrowW ? 62 : 90, 150);
   const tabH = clamp(headH * 0.84, 28, 36);
@@ -1503,15 +1523,29 @@ function drawMenu(){
     const tFs = clamp(tabW * 0.095, 11, 13.5);
 
     drawJuicyBtn(tx, ty, tabW, tabH, {
-      label: tLabel,
       bg: isAct ? '#ffffff' : 'rgba(255, 255, 255, 0.14)',
       darkBg: isAct ? '#cbd5e1' : 'rgba(0, 0, 0, 0.32)',
       textColor: isAct ? '#0f172a' : '#cbd5e1',
       textShadow: isAct ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.4)',
       r: 8,
       depth: 3,
-      fontSize: tFs,
       badge: tab.badge,
+      renderContent: (bx, by, bw, bh, textCol) => {
+        g.font = FT(tFs);
+        const tw = g.measureText(tLabel).width;
+        const isz = 15;
+        const gap = 5;
+        const totalW = isz + gap + tw;
+        const ix = bx + bw/2 - totalW/2 + isz/2;
+        const iy = by + bh/2 + 1;
+        const cCol = isAct ? '#0f172a' : '#ffffff';
+
+        if(tab.icon === 'users' && typeof drawSvgUsers === 'function') drawSvgUsers(g, ix, iy, isz, cCol);
+        else if(tab.icon === 'robot' && typeof drawSvgRobot === 'function') drawSvgRobot(g, ix, iy, isz, isAct ? '#ff6b81' : '#ffffff');
+        else if(tab.icon === 'globe' && typeof drawSvgGlobe === 'function') drawSvgGlobe(g, ix, iy, isz, isAct ? '#0284c7' : '#38bdf8');
+
+        txt(tLabel, ix + isz/2 + gap + tw/2, iy, FN(tFs, 900), cCol);
+      },
       fn: () => setMenuTab(tab.id)
     });
   }
@@ -1564,21 +1598,25 @@ function drawMenu(){
     if(menu.slotColor[3] >= 0) actSlots.push(3);
   }
 
-  // Top sub-header in stage: Player count pills, Team Tag header, or Bot Difficulty pills
-  const stageTopPad = clamp(stageH * 0.13, 24, 30);
+  // --- SIDE MULTIPLAYER WIDGET SIZING & DOCKING ---
+  const showSideWidget = (CW >= 820 && menu.tab !== 'online');
+  const sideWidgetW = showSideWidget ? clamp(CW * 0.22, 185, 215) : 0;
+  const centerStageW = CW - (showSideWidget ? (sideWidgetW + 16) : 0);
+
+  // Top header in stage: Player count pills (2-4P) or Bot Difficulty pills (1P Solo)
   const pillY = stageY + 2;
-  const ph = stageTopPad - 4;
+  const ph = 22;
 
   if(isSolo || isBots){
     const diffOpts = [
-      { id: 'easy', label: '⚡ EASY', col: '#2ed573' },
-      { id: 'hard', label: '🔥 HARD (DEF)', col: '#ff4757' }
+      { id: 'easy', label: 'EASY BOT', col: '#2ed573' },
+      { id: 'hard', label: 'HARD BOT (DEF)', col: '#ff4757' }
     ];
-    const pw = clamp(CW * 0.20, 78, 115);
+    const pw = clamp(centerStageW * 0.20, 84, 120);
     const totalPillsW = diffOpts.length * pw + (diffOpts.length - 1) * 8;
-    const pillsStartX = Math.floor(CW / 2 - totalPillsW / 2);
+    const pillsStartX = Math.floor(centerStageW / 2 - totalPillsW / 2);
 
-    txt('BOT DIFFICULTY:', pillsStartX - 10, pillY + ph/2 + 1, FN(clamp(CW * 0.024, 10, 11.5), 900), 'rgba(255,255,255,0.75)', 'right');
+    txt('BOT DIFFICULTY:', pillsStartX - 10, pillY + ph/2 + 1, FN(clamp(centerStageW * 0.024, 10, 11.5), 900), 'rgba(255,255,255,0.75)', 'right');
 
     for(let k = 0; k < diffOpts.length; k++){
       const opt = diffOpts[k];
@@ -1595,58 +1633,16 @@ function drawMenu(){
       });
     }
   } else {
+    // Local player count quick switcher (2P, 3P, 4P)
     const isHunterMode = (settings.gameMode === 'hunter');
-    // Touch: P3/P4 have no on-screen controls, so only 2-player is offered.
     const countOpts = (typeof isTouch !== 'undefined' && isTouch)
       ? (isHunterMode ? [4] : [2])
       : (isHunterMode ? [4, 6, 8] : [2, 3, 4]);
-    const pw = clamp(CW * 0.16, 56, 84);
+    const pw = clamp(centerStageW * 0.16, 68, 92);
     const totalPillsW = countOpts.length * pw + (countOpts.length - 1) * 6;
-    const pillsStartX = Math.floor(CW / 2 - totalPillsW / 2);
+    const pillsStartX = Math.floor(centerStageW / 2 - totalPillsW / 2);
 
-    if(isHunterMode){
-      let redCount = 0, blueCount = 0;
-      for(const s of actSlots){
-        const t = (menu.slotTeam && menu.slotTeam[s] != null) ? (menu.slotTeam[s] % 2) : (s % 2);
-        if(t === 0) redCount++; else blueCount++;
-      }
-      const isUneven = (redCount !== blueCount);
-      const isLow = (actSlots.length < 4);
-      let statusStr = '🎯 HUNTER (REC 6, 8 OR 10):';
-      let statusCol = '#e056fd';
-      if(isLow){
-        statusStr = '⚠️ MIN 4 PLAYERS NEEDED:';
-        statusCol = '#ff6b81';
-      } else if(isUneven){
-        statusStr = '⚠️ UNEVEN (' + redCount + 'R v ' + blueCount + 'B) - REC 6-10:';
-        statusCol = '#ffd166';
-      }
-      txt(statusStr, pillsStartX - 10, pillY + ph/2 + 1, FN(clamp(CW * 0.024, 9.5, 11.5), 900), statusCol, 'right');
-    } else if(settings.gameMode === 'ctf'){
-      let redCount = 0, blueCount = 0;
-      for(const s of actSlots){
-        const t = (menu.slotTeam && menu.slotTeam[s] != null) ? (menu.slotTeam[s] % 2) : (s % 2);
-        if(t === 0) redCount++; else blueCount++;
-      }
-      const ctfRatioStr = '🚩 ' + redCount + ' RED vs ' + blueCount + ' BLUE:';
-      txt(ctfRatioStr, pillsStartX - 10, pillY + ph/2 + 1, FN(clamp(CW * 0.024, 10, 12), 900), '#ff6b6b', 'right');
-    } else if(isTeams){
-      let redCount = 0, blueCount = 0;
-      for(const s of actSlots){
-        const t = (menu.slotTeam && menu.slotTeam[s] != null) ? (menu.slotTeam[s] % 2) : (s % 2);
-        if(t === 0) redCount++; else blueCount++;
-      }
-      const ratioStr = '⚔️ ' + redCount + ' RED vs ' + blueCount + ' BLUE:';
-      txt(ratioStr, pillsStartX - 10, pillY + ph/2 + 1, FN(clamp(CW * 0.024, 10, 12), 900), '#ffd166', 'right');
-    } else if(settings.gameMode === 'crown'){
-      txt('👑 CROWN (REC 3-4P):', pillsStartX - 10, pillY + ph/2 + 1, FN(clamp(CW * 0.024, 9.5, 11.5), 900), '#facc15', 'right');
-    } else if(settings.gameMode === 'bomb'){
-      const isDuo = (actSlots.length === 2);
-      const bStr = isDuo ? '💣 BOMB (20s DUEL - REC 3+):' : '💣 BOMB TAG (REC 3+):';
-      txt(bStr, pillsStartX - 10, pillY + ph/2 + 1, FN(clamp(CW * 0.024, 9.5, 11.5), 900), '#f87171', 'right');
-    } else {
-      txt('LOCAL PLAYERS:', pillsStartX - 10, pillY + ph/2 + 1, FN(10.5, 900), 'rgba(255,255,255,0.75)', 'right');
-    }
+    txt('LOCAL PLAYERS:', pillsStartX - 10, pillY + ph/2 + 1, FN(10.5, 900), 'rgba(255,255,255,0.75)', 'right');
 
     for(let k = 0; k < countOpts.length; k++){
       const numP = countOpts[k];
@@ -1658,7 +1654,7 @@ function drawMenu(){
         activeBg: '#2ed573',
         activeDarkBg: '#166534',
         activeText: '#ffffff',
-        fontSize: 10.5,
+        fontSize: 10,
         fn: () => {
           for(let s = 0; s < MAXP; s++){
             if(s < numP){
@@ -1676,106 +1672,123 @@ function drawMenu(){
     }
   }
 
-  // Local Multiplayer Bot Opponents Tick Box & Selector (2, 3, 4 players)
-  const showBotBar = (!isSolo && !isBots && actSlots.length >= 2 && (typeof NET === 'undefined' || !NET || NET.role === null));
-  if(showBotBar){
-    const botBarY = pillY + ph + 4;
-    const botBarH = 22;
-    const curBotCount = actSlots.filter(s => isSlotBot(s)).length;
-    const hasBots = (curBotCount > 0);
+  // --- SELECTION 0: 2-ROW GAME MODE SELECTOR ---
+  // Solo modes on top row, Team modes on bottom row, distinct vibrant color for each!
+  const modeSelW = Math.min(centerStageW - 20, 740);
+  const modeSelX = Math.floor(centerStageW / 2 - modeSelW / 2);
+  const mLabelW = clamp(modeSelW * 0.13, 62, 80);
+  const mGridW = modeSelW - mLabelW - 8;
+  const mBtnW = Math.floor((mGridW - 3 * 5) / 4);
+  const mBtnH = clamp(stageH * 0.072, 21, 26);
 
-    const tickW = clamp(Math.floor(CW * 0.22), 110, 135);
-    const optW = clamp(Math.floor(CW * 0.11), 48, 64);
-    const botCounts = [1, 2, 3, 4];
-    const totalBarW = tickW + (hasBots ? (botCounts.length * (optW + 5) + 6) : 0);
-    const barStartX = Math.floor(CW / 2 - totalBarW / 2);
+  const row1Y = pillY + ph + 4;
+  const row2Y = row1Y + mBtnH + 4;
 
-    // Draw Tick Box Chip
-    drawJuicyChip(barStartX, botBarY, tickW, botBarH, {
-      label: hasBots ? '☑ Play vs Bots' : '☐ Play vs Bots',
-      active: hasBots,
-      activeBg: '#e056fd',
-      activeDarkBg: '#9333ea',
+  const curGM = settings.gameMode || (settings.teams ? 'teams' : 'party');
+
+  const soloModes = [
+    { id: 'party', label: 'FFA PARTY', col: '#10b981', dark: '#059669', icon: 'flame' },
+    { id: 'bomb', label: 'BOMB TAG', col: '#ef4444', dark: '#b91c1c', icon: 'bomb' },
+    { id: 'crown', label: 'CROWN KING', col: '#f59e0b', dark: '#b45309', icon: 'crown' },
+    { id: 'infection', label: 'INFECTION', col: '#06b6d4', dark: '#0891b2', icon: 'biohazard' }
+  ];
+
+  const teamModes = [
+    { id: 'teams', label: 'TEAM TAG', col: '#3b82f6', dark: '#1d4ed8', icon: 'users' },
+    { id: 'ctf', label: 'CAPTURE FLAG', col: '#a855f7', dark: '#7e22ce', icon: 'flag' },
+    { id: 'freeze', label: 'FREEZE TAG', col: '#38bdf8', dark: '#0284c7', icon: 'snowflake' },
+    { id: 'hunter', label: 'HUNTER TAG', col: '#f97316', dark: '#c2410c', icon: 'flame' }
+  ];
+
+  // Row 1 Label: SOLO / FFA
+  ptxt('SOLO / FFA:', modeSelX + mLabelW/2, row1Y + mBtnH/2 + 1, FT(clamp(mBtnH * 0.44, 9, 10.5)), '#10b981');
+  // Row 1 Buttons
+  for(let i = 0; i < soloModes.length; i++){
+    const m = soloModes[i];
+    const bx = modeSelX + mLabelW + 8 + i * (mBtnW + 5);
+    const isAct = (curGM === m.id);
+    drawJuicyChip(bx, row1Y, mBtnW, mBtnH, {
+      label: m.label,
+      active: isAct,
+      activeBg: m.col,
+      activeDarkBg: m.dark,
+      activeBorder: '#ffffff',
       activeText: '#ffffff',
-      textColor: hasBots ? '#ffffff' : 'rgba(255,255,255,0.7)',
-      fontSize: clamp(botBarH * 0.44, 9.5, 11),
-      fn: () => {
-        if(!menu.slotIsBot) menu.slotIsBot = [false, false, false, false, false, false, false, false, false, false];
-        if(hasBots){
-          for(let s = 0; s < MAXP; s++) menu.slotIsBot[s] = false;
-          sfx('back');
-          toast('👤 ALL PLAYERS SET TO HUMAN');
-        } else {
-          // Default to 1 bot opponent
-          const targetSlot = (actSlots.length > 1) ? actSlots[actSlots.length - 1] : 1;
-          menu.slotIsBot[targetSlot] = true;
-          sfx('ok');
-          toast('🤖 1 BOT OPPONENT ENABLED');
-        }
-      }
-    });
+      bg: 'rgba(255, 255, 255, 0.08)',
+      border: m.col,
+      textColor: m.col,
+      fontSize: 9.5,
+      renderContent: (x, y, w, h, col, active) => {
+        const isz = 12;
+        const fs = 9.5;
+        g.font = FN(fs, 900);
+        const tw = g.measureText(m.label).width;
+        const totalW = isz + 4 + tw;
+        const ix = x + w/2 - totalW/2 + isz/2;
+        const iy = y + h/2 + 1;
+        const icCol = active ? '#ffffff' : m.col;
 
-    if(hasBots){
-      let chipX = barStartX + tickW + 6;
-      for(let bi = 0; bi < botCounts.length; bi++){
-        const bc = botCounts[bi];
-        const isSelected = (curBotCount === bc);
-        drawJuicyChip(chipX, botBarY, optW, botBarH, {
-          label: bc === 1 ? '1 Bot' : (bc + ' Bots'),
-          active: isSelected,
-          activeBg: '#a855f7',
-          activeDarkBg: '#7e22ce',
-          activeText: '#ffffff',
-          textColor: isSelected ? '#ffffff' : 'rgba(255,255,255,0.6)',
-          fontSize: clamp(botBarH * 0.42, 9, 10.5),
-          fn: () => {
-            if(!menu.slotIsBot) menu.slotIsBot = [false, false, false, false, false, false, false, false, false, false];
-            if(bc === 4){
-              for(let s = 0; s < 4; s++){
-                if(menu.slotColor[s] < 0) menu.slotColor[s] = s % PALETTE.length;
-                menu.slotIsBot[s] = true;
-              }
-              ensureUniqueLocalColors();
-              sfx('ui');
-              toast('🤖 4 BOTS CONFIGURED (ALL BOTS)');
-              return;
-            }
-            menu.slotIsBot[0] = false; // P1 is human
-            const neededSlots = Math.max(actSlots.length, bc + 1);
-            for(let s = 0; s < neededSlots; s++){
-              if(menu.slotColor[s] < 0) menu.slotColor[s] = s % PALETTE.length;
-            }
-            ensureUniqueLocalColors();
-            const newAct = activeSlots();
-            for(let s = 0; s < MAXP; s++){
-              if(s === 0){
-                menu.slotIsBot[s] = false;
-              } else if(newAct.includes(s)){
-                menu.slotIsBot[s] = (s >= newAct.length - bc);
-              } else {
-                menu.slotIsBot[s] = false;
-              }
-            }
-            sfx('ui');
-            toast('🤖 PLAYING AGAINST ' + bc + ' BOT' + (bc > 1 ? 'S' : '') + '!');
-          }
-        });
-        chipX += optW + 5;
-      }
-    }
+        if(m.icon === 'flame' && typeof drawSvgFlame === 'function') drawSvgFlame(g, ix, iy, isz, icCol);
+        else if(m.icon === 'bomb' && typeof drawSvgBomb === 'function') drawSvgBomb(g, ix, iy, isz, icCol);
+        else if(m.icon === 'crown' && typeof drawSvgCrown === 'function') drawSvgCrown(g, ix, iy, isz, icCol);
+        else if(m.icon === 'biohazard' && typeof drawSvgBiohazard === 'function') drawSvgBiohazard(g, ix, iy, isz, icCol);
+
+        ptxt(m.label, ix + isz/2 + 4 + tw/2, iy, FN(fs, 900), active ? '#ffffff' : m.col);
+      },
+      fn: () => setGameMode(m.id)
+    });
   }
 
-  const botBarOffset = showBotBar ? 26 : 0;
-  const cardsAreaY = stageY + stageTopPad + botBarOffset;
-  const cardsAreaH = stageH - stageTopPad - botBarOffset;
+  // Row 2 Label: TEAMS
+  ptxt('TEAMS:', modeSelX + mLabelW/2, row2Y + mBtnH/2 + 1, FT(clamp(mBtnH * 0.44, 9, 10.5)), '#3b82f6');
+  // Row 2 Buttons
+  for(let i = 0; i < teamModes.length; i++){
+    const m = teamModes[i];
+    const bx = modeSelX + mLabelW + 8 + i * (mBtnW + 5);
+    const isAct = (curGM === m.id);
+    drawJuicyChip(bx, row2Y, mBtnW, mBtnH, {
+      label: m.label,
+      active: isAct,
+      activeBg: m.col,
+      activeDarkBg: m.dark,
+      activeBorder: '#ffffff',
+      activeText: '#ffffff',
+      bg: 'rgba(255, 255, 255, 0.08)',
+      border: m.col,
+      textColor: m.col,
+      fontSize: 9.5,
+      renderContent: (x, y, w, h, col, active) => {
+        const isz = 12;
+        const fs = 9.5;
+        g.font = FN(fs, 900);
+        const tw = g.measureText(m.label).width;
+        const totalW = isz + 4 + tw;
+        const ix = x + w/2 - totalW/2 + isz/2;
+        const iy = y + h/2 + 1;
+        const icCol = active ? '#ffffff' : m.col;
+
+        if(m.icon === 'users' && typeof drawSvgUsers === 'function') drawSvgUsers(g, ix, iy, isz, icCol);
+        else if(m.icon === 'flag' && typeof drawSvgFlag === 'function') drawSvgFlag(g, ix, iy, isz, icCol);
+        else if(m.icon === 'snowflake' && typeof drawSvgSnowflake === 'function') drawSvgSnowflake(g, ix, iy, isz, icCol);
+        else if(m.icon === 'flame' && typeof drawSvgFlame === 'function') drawSvgFlame(g, ix, iy, isz, icCol);
+
+        ptxt(m.label, ix + isz/2 + 4 + tw/2, iy, FN(fs, 900), active ? '#ffffff' : m.col);
+      },
+      fn: () => setGameMode(m.id)
+    });
+  }
+
+  // Cards layout area sits directly below the 2 mode rows
+  const cardsAreaY = row2Y + mBtnH + 6;
+  const cardsAreaH = stageH - (cardsAreaY - stageY);
 
   // Check if 4 cards should wrap to 2x2 grid on small mobile
-  const use2x2 = (!isSolo && !isBots && actSlots.length === 4 && CW < 680);
-  const showAddCard = (!isSolo && !isBots && actSlots.length < 4 && CW >= 580 && !use2x2 && !isTouch);
+  const use2x2 = (!isSolo && !isBots && actSlots.length === 4 && centerStageW < 600);
+  const showAddCard = (!isSolo && !isBots && actSlots.length < 4 && centerStageW >= 540 && !use2x2 && !isTouch);
   const totalItems = actSlots.length + (showAddCard ? 1 : 0);
 
-  const cardGap = clamp(CW * 0.016, 6, 14);
-  const maxGridW = Math.min(CW - 20, 920);
+  const cardGap = clamp(centerStageW * 0.016, 6, 12);
+  const maxGridW = Math.min(centerStageW - 20, 680);
 
   if(use2x2){
     // 2x2 grid on small phones for 4 players
@@ -1784,16 +1797,16 @@ function drawMenu(){
     for(let idx = 0; idx < 4; idx++){
       const colIdx = idx % 2;
       const rowIdx = Math.floor(idx / 2);
-      const cx = Math.floor(CW / 2 - maxGridW / 2) + colIdx * (cW + cardGap);
+      const cx = Math.floor(centerStageW / 2 - maxGridW / 2) + colIdx * (cW + cardGap);
       const cy = cardsAreaY + rowIdx * (cH + cardGap);
       drawPlayerCard(cx, cy, cW, cH, actSlots[idx], isSlotBot(actSlots[idx]), !isSolo && !isBots && actSlots[idx] >= 2);
     }
   } else {
     // Single horizontal row
-    const cardW = Math.floor(clamp((maxGridW - (totalItems - 1) * cardGap) / totalItems, 95, 205));
-    const cardH = Math.floor(clamp(cardsAreaH * 0.94, Math.min(80, cardsAreaH), 215));
+    const cardW = Math.floor(clamp((maxGridW - (totalItems - 1) * cardGap) / totalItems, 95, 175));
+    const cardH = Math.floor(clamp(cardsAreaH * 0.94, Math.min(80, cardsAreaH), 205));
     const totalRowW = totalItems * cardW + (totalItems - 1) * cardGap;
-    const startX = Math.floor(CW / 2 - totalRowW / 2);
+    const startX = Math.floor(centerStageW / 2 - totalRowW / 2);
     const cardY = Math.floor(cardsAreaY + (cardsAreaH - cardH) / 2);
 
     for(let k = 0; k < actSlots.length; k++){
@@ -1811,135 +1824,119 @@ function drawMenu(){
     }
   }
 
-  const isMobilePhone = (typeof isTouch !== 'undefined' && isTouch) || (CW < 780);
+  // --- SELECTION 4: SIDE MULTIPLAYER WIDGET (Quick Join & Live Lobbies) ---
+  if(showSideWidget){
+    const stickW = sideWidgetW;
+    const stickH = clamp(cardsAreaH * 0.96, 185, 230);
+    const stickX = CW - stickW - 12;
+    const stickY = cardsAreaY + (cardsAreaH - stickH) / 2;
 
-  // 4b. COMING SOON promo sticker (Cycles: 🗺️ NEW MAPS <-> 🧟 INFECTED <-> ❄️ FREEZE TAG)
-  // Hide when 4 players are active in local multiplayer to avoid overlapping 4th player card
-  const curPCount = (actSlots && actSlots.length) ? actSlots.length : 2;
-  const hideSticker4P = (curPCount >= 4 && menu.tab !== 'solo' && menu.tab !== 'bots');
-
-  if(!hideSticker4P){
-    const isWideScreen = (CW >= 880);
-    const isMediumScreen = (CW >= 680 && CW < 880);
-    let stickW, stickH, stickX, stickY, stickTilt;
-    if(isMobilePhone){
-      stickW = clamp(CW * 0.25, 118, 146);
-      stickH = clamp(CH * 0.14, 48, 62);
-      stickX = CW - stickW - 6;
-      stickY = headY + headH + 4;
-      stickTilt = -0.04;
-    } else if(isWideScreen){
-      stickW = 186; stickH = 88;
-      stickX = CW - stickW - 20;
-      stickY = headY + headH + 18;
-      stickTilt = -0.06 + 0.02 * Math.sin(tGlobal * 1.3);
-    } else {
-      stickW = 152; stickH = 76;
-      stickX = CW - stickW - 14;
-      stickY = headY + headH + 12;
-      stickTilt = -0.06 + 0.02 * Math.sin(tGlobal * 1.3);
+    // Periodically fetch rooms
+    const nowT = performance.now();
+    if(typeof NET !== 'undefined' && (!NET.role || NET.role === null)){
+      if(nowT - _lastOnlineFetch > 3500){
+        _lastOnlineFetch = nowT;
+        try{ netFetchPublicRooms(); }catch(e){}
+      }
     }
-
-    // Rotating spotlight every 3s: 0: 🗺️ NEW MAPS, 1: 🧟 INFECTED, 2: ❄️ FREEZE TAG
-    const promoStage = Math.floor(tGlobal / 3) % 3;
-    let promoMode = 'maps';
-    let promoIcon = '🗺️';
-    let promoName = 'NEW MAPS';
-    let promoDesc = 'Fresh arenas & layouts';
-    let promoGlow = '56,189,248'; // Cyan
-    let cornerIcon1 = '🗺️', cornerIcon2 = '🧭';
-
-    if(promoStage === 1){
-      promoMode = 'infected';
-      promoIcon = '🧟';
-      promoName = 'INFECTED';
-      promoDesc = 'Outrun Patient Zero';
-      promoGlow = '34,197,94'; // Toxic Green
-      cornerIcon1 = '🧟'; cornerIcon2 = '☣️';
-    } else if(promoStage === 2){
-      promoMode = 'freeze';
-      promoIcon = '❄️';
-      promoName = 'FREEZE TAG';
-      promoDesc = 'Freeze the whole crew';
-      promoGlow = '103,232,249'; // Frost Cyan
-      cornerIcon1 = '❄️'; cornerIcon2 = '🧊';
-    }
-    const switchPulse = Math.max(0, 1 - (tGlobal % 3) * 2.5); // name pops right after each switch
-
-    g.save();
-    const scx = stickX + stickW / 2;
-    const scy = stickY + stickH / 2;
-    g.translate(scx, scy);
-    g.rotate(stickTilt);
-    g.translate(-stickW / 2, -stickH / 2);
 
     // Soft drop shadow
-    rr(g, 3, 5, stickW, stickH, isMobilePhone ? 9 : 12);
+    rr(g, stickX + 3, stickY + 5, stickW, stickH, 12);
     g.fillStyle = 'rgba(0, 0, 0, 0.45)'; g.fill();
 
     // Die-cut white vinyl border
-    rr(g, -2.5, -2.5, stickW + 5, stickH + 5, isMobilePhone ? 11 : 14);
+    rr(g, stickX - 2.5, stickY - 2.5, stickW + 5, stickH + 5, 14);
     g.fillStyle = '#ffffff'; g.fill();
     g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
 
-    // Sticker inner body
-    rr(g, 0, 0, stickW, stickH, isMobilePhone ? 8 : 11);
-    g.fillStyle = '#161329'; g.fill();
+    // Inner Body
+    rr(g, stickX, stickY, stickW, stickH, 12);
+    g.fillStyle = 'rgba(16, 22, 36, 0.96)'; g.fill();
+    g.lineWidth = 2; g.strokeStyle = '#00f0ff'; g.stroke();
 
-    // Glowing border pulse in matching mode color
-    const stickerPulse = 0.55 + 0.35 * Math.sin(tGlobal * 5);
-    g.lineWidth = isMobilePhone ? 1.5 : 2;
-    g.strokeStyle = 'rgba(' + promoGlow + ', ' + stickerPulse + ')';
-    g.stroke();
+    // Header: Globe + MULTIPLAYER
+    drawSvgGlobe(g, stickX + 16, stickY + 16, 16, '#00f0ff');
+    ptxt('MULTIPLAYER', stickX + stickW/2 + 4, stickY + 16, FT(11.5), '#00f0ff');
 
-    if(isMobilePhone){
-      // 1. "✨ COMING SOON" eyebrow in gold
-      ptxt('✨ COMING SOON', stickW / 2, stickH * 0.18, FN(clamp(stickH * 0.15, 8, 9.5), 900), '#ffd166');
-      // 2. Rotating name
-      const nameFsMob = clamp(stickH * 0.23, 10.5, 13) * (1 + 0.10 * switchPulse);
-      ptxt(promoIcon + ' ' + promoName, stickW / 2, stickH * 0.45, FT(nameFsMob), '#ffffff');
-      // 3. Pill
-      const pillWMob = stickW - 14;
-      const pillHMob = Math.floor(stickH * 0.26);
-      const pillYMob = stickH - pillHMob - 4;
-      pill(7, pillYMob, pillWMob, pillHMob, 'rgba(' + promoGlow + ', 0.22)', 'rgba(' + promoGlow + ', 0.85)');
-      txt('OCT 12TH (TENT.)', stickW / 2, pillYMob + pillHMob / 2 + 1, FN(clamp(pillHMob * 0.52, 7.5, 9.5), 900), '#ffffff');
-    } else {
-      // 1. "✨ COMING SOON" eyebrow in gold
-      ptxt('✨ COMING SOON', stickW / 2, stickH * 0.17, FN(clamp(stickH * 0.11, 8, 9.5), 900), '#ffd166');
+    // Live green status dot
+    g.beginPath();
+    g.arc(stickX + stickW - 14, stickY + 16, 4, 0, Math.PI * 2);
+    g.fillStyle = '#22c55e'; g.fill();
 
-      // 2. Rotating name, pops on every switch
-      const nameFs = clamp(stickH * 0.21, 12, 16) * (1 + 0.12 * switchPulse);
-      ptxt(promoIcon + ' ' + promoName, stickW / 2, stickH * 0.42, FT(nameFs), '#ffffff');
-
-      // 3. Hook line
-      const smallFs = clamp(stickH * 0.13, 8.5, 10.5);
-      txt(promoDesc, stickW / 2, stickH * 0.60, FN(smallFs, 800), '#e2e8f0');
-
-      // 4. Note pill + floating corner icons riding the tilt
-      const notePillW = stickW - 16;
-      const notePillH = Math.floor(stickH * 0.22);
-      const notePillY = stickH - notePillH - 6;
-      pill(8, notePillY, notePillW, notePillH, 'rgba(' + promoGlow + ', 0.20)', 'rgba(' + promoGlow + ', 0.75)');
-      txt('COMING SOON • OCT 12TH', stickW / 2, notePillY + notePillH / 2 + 1, FN(clamp(notePillH * 0.48, 8, 9.5), 900), '#ffffff');
-      const bobA = Math.sin(tGlobal * 2.2) * 2.5, bobB = Math.sin(tGlobal * 2.2 + 2.1) * 2.5;
-      ptxt(cornerIcon1, 2, 12 + bobA, FN(13, 900), '#ffffff');
-      ptxt(cornerIcon2, stickW - 2, stickH - 2 + bobB, FN(13, 900), '#ffffff');
-    }
-    g.restore();
-
-    // Click zone for the sticker
-    zone(stickX - 6, stickY - 6, stickW + 12, stickH + 12, {
+    // ⚡ QUICK JOIN Button
+    const qjH = 36;
+    const qjY = stickY + 32;
+    drawJuicyBtn(stickX + 8, qjY, stickW - 16, qjH, {
+      label: '⚡ QUICK JOIN',
+      sub: 'Instant Matchmaking',
+      bg: '#0284c7',
+      darkBg: '#0369a1',
+      borderColor: '#38bdf8',
+      shine: true,
+      depth: 3,
+      fontSize: 12,
+      boldFont: true,
       fn: () => {
-        if(promoStage === 0){
-          toast('🗺️ NEW MAPS COMING SOON! TENTATIVE DATE: OCT 12TH');
-        } else if(promoStage === 1){
-          toast('🧟 INFECTED MODE COMING SOON! TENTATIVE DATE: OCT 12TH');
+        sfx('go');
+        const openRoom = (NET.publicRooms || []).find(r => !r.isLocked && r.players < (r.maxPlayers || MAXP));
+        if(openRoom){
+          toast('🚀 CONNECTING TO ' + openRoom.roomId);
+          netJoinAction(openRoom.roomId, openRoom.hostPeerId || openRoom.hostId || '');
         } else {
-          toast('❄️ FREEZE TAG COMING SOON! TENTATIVE DATE: OCT 12TH');
+          toast('🌐 OPENING ONLINE HUB');
+          setMenuTab('online');
         }
-        sfx('ui');
       }
+    });
+
+    // Sub-header: LIVE LOBBIES
+    const lobY = qjY + qjH + 12;
+    txt('ONLINE LOBBIES', stickX + stickW/2, lobY + 4, FN(9.5, 900), '#94a3b8');
+
+    // Lobbies feed
+    const rooms = (NET.publicRooms && NET.publicRooms.length > 0)
+      ? NET.publicRooms.slice(0, 2)
+      : [
+          { roomId: 'ARENA-1', players: 2, maxPlayers: 4, map: 0 },
+          { roomId: 'PARTY-X', players: 1, maxPlayers: 4, map: 1 }
+        ];
+
+    const rowH = 26;
+    for(let ri = 0; ri < rooms.length; ri++){
+      const rm = rooms[ri];
+      const ry = lobY + 14 + ri * (rowH + 5);
+
+      rr(g, stickX + 8, ry, stickW - 16, rowH, 5);
+      g.fillStyle = 'rgba(255, 255, 255, 0.05)'; g.fill();
+      g.lineWidth = 1; g.strokeStyle = 'rgba(255, 255, 255, 0.15)'; g.stroke();
+
+      txt(rm.roomId, stickX + 16, ry + rowH/2 + 1, FN(9.5, 900), '#ffffff', 'left');
+      txt(rm.players + '/' + (rm.maxPlayers || 4), stickX + stickW - 54, ry + rowH/2 + 1, FN(9, 800), '#ffd166');
+
+      // Mini Join chip
+      drawJuicyChip(stickX + stickW - 40, ry + 3, 32, rowH - 6, {
+        label: 'JOIN',
+        active: true,
+        activeBg: '#22c55e',
+        activeDarkBg: '#15803d',
+        activeText: '#ffffff',
+        fontSize: 8.5,
+        fn: () => {
+          sfx('go');
+          if(rm.hostPeerId || rm.hostId){
+            netJoinAction(rm.roomId, rm.hostPeerId || rm.hostId);
+          } else {
+            setMenuTab('online');
+          }
+        }
+      });
+    }
+
+    // Bottom link
+    const linkY = stickY + stickH - 12;
+    txt('BROWSE ALL LOBBIES ➔', stickX + stickW/2, linkY, FN(9.5, 900), '#38bdf8');
+    zone(stickX + 8, linkY - 10, stickW - 16, 20, {
+      fn: () => { sfx('ui'); setMenuTab('online'); }
     });
   }
   }
@@ -1993,19 +1990,19 @@ function drawMenu(){
       }
     });
 
-    // Row 2: Chips (2x Jump, 120s Timer, and NEW GAMEMODE: Teams)
+    // Row 2: Double Jump + 3 Wide Timer Buttons (60s, 120s, 180s)
     const chipsY = stripY + rowH1 + 1;
-    const chipW = Math.floor((stripW - 24) / 3);
+    const jumpW = clamp(Math.floor(stripW * 0.22), 64, 82);
     const chipH = rowH1 - 6;
 
     // Chip 1: Double Jump
-    drawJuicyChip(stripX + 6, chipsY, chipW, chipH, {
+    drawJuicyChip(stripX + 6, chipsY, jumpW, chipH, {
       label: '2x JUMP',
       active: settings.doubleJump,
       activeBg: '#2ed573',
       activeDarkBg: '#166534',
       activeText: '#ffffff',
-      fontSize: 10.5,
+      fontSize: 10,
       fn: () => {
         if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST CONTROLS ROOM MODIFIERS'); sfx('back'); return; }
         settings.doubleJump = !settings.doubleJump; sfx('ui');
@@ -2013,121 +2010,64 @@ function drawMenu(){
       }
     });
 
-    // Chip 2: Timer (or Target Captures if CTF)
+    // 3 Wide Timer Buttons (Selection 3: 3 buttons and wider)
+    const tAreaX = stripX + 6 + jumpW + 8;
+    const tAreaW = stripW - (tAreaX - stripX) - 6;
     const isCtf_mob = (settings.gameMode === 'ctf');
-    const chip2Label_mob = isCtf_mob ? ('🎯 ' + (settings.ctfTargetCaptures || 3) + ' CAPS') : ('⏱️ ' + settings.time + 's');
-    const chip2Bg_mob = isCtf_mob ? 'rgba(239, 68, 68, 0.25)' : 'rgba(255, 209, 102, 0.22)';
-    const chip2DarkBg_mob = isCtf_mob ? 'rgba(153, 27, 27, 0.5)' : 'rgba(180, 83, 9, 0.45)';
-    const chip2Text_mob = isCtf_mob ? '#ff6b6b' : '#ffd166';
-    const chip2Border_mob = isCtf_mob ? 'rgba(239, 68, 68, 0.6)' : 'rgba(255, 209, 102, 0.55)';
-    drawJuicyChip(stripX + 12 + chipW, chipsY, chipW, chipH, {
-      label: chip2Label_mob,
-      active: true,
-      activeBg: chip2Bg_mob,
-      activeDarkBg: chip2DarkBg_mob,
-      activeText: chip2Text_mob,
-      activeBorder: chip2Border_mob,
-      fontSize: 10.5,
-      fn: () => {
-        if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){
-          toast(isCtf_mob ? 'HOST CONTROLS TARGET CAPTURES' : 'HOST CONTROLS ROOM TIMER');
-          sfx('back'); return;
-        }
-        if(isCtf_mob){
-          settings.ctfTargetCaptures = (settings.ctfTargetCaptures === 3 ? 5 : 3);
-          toast('🎯 TARGET CAPTURES: ' + settings.ctfTargetCaptures);
-          sfx('ui');
-        } else {
-          settings.timeIdx = (settings.timeIdx + 1) % TIMES.length;
-          sfx('ui');
-        }
-        if(typeof NET !== 'undefined' && NET && NET.isHost) netBroadcastSettings();
+
+    if(isCtf_mob){
+      const ctfOpts = [3, 5];
+      const cW = Math.floor((tAreaW - 6) / 2);
+      for(let ci = 0; ci < ctfOpts.length; ci++){
+        const caps = ctfOpts[ci];
+        const isCur = ((settings.ctfTargetCaptures || 3) === caps);
+        drawJuicyChip(tAreaX + ci * (cW + 6), chipsY, cW, chipH, {
+          label: caps + ' CAPS',
+          active: isCur,
+          activeBg: '#ef4444',
+          activeDarkBg: '#991b1b',
+          activeText: '#ffffff',
+          fontSize: 10,
+          fn: () => {
+            if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST CONTROLS TARGET CAPTURES'); sfx('back'); return; }
+            settings.ctfTargetCaptures = caps;
+            toast('🎯 TARGET CAPTURES: ' + caps);
+            sfx('ui');
+            if(typeof NET !== 'undefined' && NET && NET.isHost) netBroadcastSettings();
+          }
+        });
       }
-    });
-
-    // Chip 3: Game Mode (Party -> Teams -> Hunter)
-    const chip3X = stripX + 18 + chipW * 2;
-    const curGM_mob = settings.gameMode || (settings.teams ? 'teams' : 'party');
-    let gmLabel_mob = '👥 PARTY', gmBadge_mob = 'TRY NEW MODES!', gmBadgeBg_mob = '#ff4757';
-    let gmActive_mob = false, gmBg_mob = '#f39c12', gmDarkBg_mob = '#b45309';
-    let gmText_mob = '#cbd5e1', gmBorder_mob = 'rgba(255,255,255,0.2)';
-
-    if(curGM_mob === 'hunter'){
-      gmLabel_mob = '🎯 HUNTER';
-      gmBadge_mob = 'TRY NOW!';
-      gmBadgeBg_mob = '#e056fd';
-      gmActive_mob = true;
-      gmBg_mob = '#8b5cf6';
-      gmDarkBg_mob = '#4c1d95';
-      gmText_mob = '#ffffff';
-      gmBorder_mob = '#e056fd';
-    } else if(curGM_mob === 'teams'){
-      gmLabel_mob = '⚔️ TEAMS';
-      gmBadge_mob = 'NEW!';
-      gmBadgeBg_mob = '#e056fd';
-      gmActive_mob = true;
-      gmBg_mob = '#f39c12';
-      gmDarkBg_mob = '#b45309';
-      gmText_mob = '#0f172a';
-      gmBorder_mob = '#ffffff';
-    } else if(curGM_mob === 'freeze'){
-      gmLabel_mob = '❄️ FREEZE';
-      gmActive_mob = true;
-      gmBg_mob = '#0ea5e9';
-      gmDarkBg_mob = '#0369a1';
-      gmText_mob = '#ffffff';
-      gmBorder_mob = '#38bdf8';
-    } else if(curGM_mob === 'infection'){
-      gmLabel_mob = '🧟 INFECTION';
-      gmBadge_mob = 'HOT!';
-      gmBadgeBg_mob = '#10b981';
-      gmActive_mob = true;
-      gmBg_mob = '#059669';
-      gmDarkBg_mob = '#065f46';
-      gmText_mob = '#ffffff';
-      gmBorder_mob = '#34d399';
-    } else if(curGM_mob === 'bomb'){
-      gmLabel_mob = '💣 BOMB';
-      gmBadge_mob = 'WILD!';
-      gmBadgeBg_mob = '#ef4444';
-      gmActive_mob = true;
-      gmBg_mob = '#dc2626';
-      gmDarkBg_mob = '#991b1b';
-      gmText_mob = '#ffffff';
-      gmBorder_mob = '#f87171';
-    } else if(curGM_mob === 'crown'){
-      gmLabel_mob = '👑 CROWN';
-      gmBadge_mob = 'NEW!';
-      gmBadgeBg_mob = '#eab308';
-      gmActive_mob = true;
-      gmBg_mob = '#ca8a04';
-      gmDarkBg_mob = '#854d0e';
-      gmText_mob = '#ffffff';
-      gmBorder_mob = '#fef08a';
-    } else if(curGM_mob === 'ctf'){
-      gmLabel_mob = '🚩 CTF';
-      gmBadge_mob = 'NEW!';
-      gmBadgeBg_mob = '#ef4444';
-      gmActive_mob = true;
-      gmBg_mob = '#dc2626';
-      gmDarkBg_mob = '#991b1b';
-      gmText_mob = '#ffffff';
-      gmBorder_mob = '#f87171';
+    } else {
+      const timeOpts = [60, 120, 180];
+      const tBtnW = Math.floor((tAreaW - 2 * 5) / 3);
+      for(let ti = 0; ti < timeOpts.length; ti++){
+        const val = timeOpts[ti];
+        const isCur = (settings.time === val);
+        const bx = tAreaX + ti * (tBtnW + 5);
+        drawJuicyChip(bx, chipsY, tBtnW, chipH, {
+          label: val + 's',
+          active: isCur,
+          activeBg: '#f59e0b',
+          activeDarkBg: '#b45309',
+          activeBorder: '#ffffff',
+          activeText: '#ffffff',
+          bg: 'rgba(255, 255, 255, 0.08)',
+          border: 'rgba(255, 209, 102, 0.4)',
+          textColor: '#ffd166',
+          fontSize: 10,
+          renderContent: (x, y, w, h, col, active) => {
+            drawSvgStopwatch(g, x + 10, y + h/2 + 1, 11, active ? '#ffffff' : '#f59e0b');
+            ptxt(val + 's', x + w/2 + 5, y + h/2 + 1, FN(10, 900), active ? '#ffffff' : '#ffd166');
+          },
+          fn: () => {
+            if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST CONTROLS ROOM TIMER'); sfx('back'); return; }
+            settings.timeIdx = TIMES.indexOf(val);
+            sfx('ui');
+            if(typeof NET !== 'undefined' && NET && NET.isHost) netBroadcastSettings();
+          }
+        });
+      }
     }
-
-    drawJuicyChip(chip3X, chipsY, chipW, chipH, {
-      label: gmLabel_mob,
-      active: gmActive_mob,
-      activeBg: gmBg_mob,
-      activeDarkBg: gmDarkBg_mob,
-      activeText: gmText_mob,
-      activeBorder: gmBorder_mob,
-      textColor: curGM_mob === 'hunter' ? '#ffffff' : (curGM_mob === 'teams' ? '#ffd166' : '#cbd5e1'),
-      fontSize: 10.5,
-      badge: gmBadge_mob,
-      badgeBg: gmBadgeBg_mob,
-      fn: () => cycleGameMode(1)
-    });
 
   } else {
     // Single sleek horizontal dock for desktop & tablets
@@ -2173,19 +2113,19 @@ function drawMenu(){
       }
     });
 
-    // Right side: 3 Modifier Chips
+    // Right side: 2x Jump and 3 Wide Timer Buttons (Selection 3: 3 buttons and wider)
     const chipsX = stripX + 6 + mapBoxW + 12;
     const chipsAvailW = stripW - (chipsX - stripX) - 10;
-    const chipW = Math.floor((chipsAvailW - 12) / 3);
+    const jumpW = clamp(Math.floor(chipsAvailW * 0.24), 78, 96);
 
     // Chip 1: Double Jump
-    drawJuicyChip(chipsX, itemY, chipW, itemH, {
+    drawJuicyChip(chipsX, itemY, jumpW, itemH, {
       label: '2x JUMP',
       active: settings.doubleJump,
       activeBg: '#2ed573',
       activeDarkBg: '#166534',
       activeText: '#ffffff',
-      fontSize: 11.5,
+      fontSize: 11,
       fn: () => {
         if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST CONTROLS ROOM MODIFIERS'); sfx('back'); return; }
         settings.doubleJump = !settings.doubleJump; sfx('ui');
@@ -2193,121 +2133,67 @@ function drawMenu(){
       }
     });
 
-    // Chip 2: Timer (or Target Captures if CTF)
+    // 3 Wide Timer Buttons side-by-side
+    const tAreaX = chipsX + jumpW + 8;
+    const tAreaW = chipsAvailW - jumpW - 8;
     const isCtf_desk = (settings.gameMode === 'ctf');
-    const chip2Label_desk = isCtf_desk ? ('🎯 ' + (settings.ctfTargetCaptures || 3) + ' CAPS') : ('⏱️ ' + settings.time + 's');
-    const chip2Bg_desk = isCtf_desk ? 'rgba(239, 68, 68, 0.25)' : 'rgba(255, 209, 102, 0.22)';
-    const chip2DarkBg_desk = isCtf_desk ? 'rgba(153, 27, 27, 0.5)' : 'rgba(180, 83, 9, 0.45)';
-    const chip2Text_desk = isCtf_desk ? '#ff6b6b' : '#ffd166';
-    const chip2Border_desk = isCtf_desk ? 'rgba(239, 68, 68, 0.6)' : 'rgba(255, 209, 102, 0.55)';
-    drawJuicyChip(chipsX + chipW + 6, itemY, chipW, itemH, {
-      label: chip2Label_desk,
-      active: true,
-      activeBg: chip2Bg_desk,
-      activeDarkBg: chip2DarkBg_desk,
-      activeText: chip2Text_desk,
-      activeBorder: chip2Border_desk,
-      fontSize: 11.5,
-      fn: () => {
-        if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){
-          toast(isCtf_desk ? 'HOST CONTROLS TARGET CAPTURES' : 'HOST CONTROLS ROOM TIMER');
-          sfx('back'); return;
-        }
-        if(isCtf_desk){
-          settings.ctfTargetCaptures = (settings.ctfTargetCaptures === 3 ? 5 : 3);
-          toast('🎯 TARGET CAPTURES: ' + settings.ctfTargetCaptures);
-          sfx('ui');
-        } else {
-          settings.timeIdx = (settings.timeIdx + 1) % TIMES.length;
-          sfx('ui');
-        }
-        if(typeof NET !== 'undefined' && NET && NET.isHost) netBroadcastSettings();
+
+    if(isCtf_desk){
+      const ctfOpts = [3, 5];
+      const ctfW = Math.floor((tAreaW - 8) / 2);
+      for(let ci = 0; ci < ctfOpts.length; ci++){
+        const caps = ctfOpts[ci];
+        const isCur = ((settings.ctfTargetCaptures || 3) === caps);
+        const bx = tAreaX + ci * (ctfW + 8);
+        drawJuicyChip(bx, itemY, ctfW, itemH, {
+          label: caps + ' CAPS',
+          active: isCur,
+          activeBg: '#ef4444',
+          activeDarkBg: '#991b1b',
+          activeBorder: '#ffffff',
+          activeText: '#ffffff',
+          fontSize: 11,
+          fn: () => {
+            if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST CONTROLS TARGET CAPTURES'); sfx('back'); return; }
+            settings.ctfTargetCaptures = caps;
+            toast('🎯 TARGET CAPTURES: ' + caps);
+            sfx('ui');
+            if(typeof NET !== 'undefined' && NET && NET.isHost) netBroadcastSettings();
+          }
+        });
       }
-    });
-
-    // Chip 3: Game Mode (Party -> Teams -> Hunter)
-    const chip3X = chipsX + chipW * 2 + 12;
-    const curGM_desk = settings.gameMode || (settings.teams ? 'teams' : 'party');
-    let gmLabel_desk = '👥 FFA PARTY', gmBadge_desk = 'TRY NEW MODES!', gmBadgeBg_desk = '#ff4757';
-    let gmActive_desk = false, gmBg_desk = '#f39c12', gmDarkBg_desk = '#b45309';
-    let gmText_desk = '#cbd5e1', gmBorder_desk = 'rgba(255,255,255,0.2)';
-
-    if(curGM_desk === 'hunter'){
-      gmLabel_desk = '🎯 HUNTER MODE';
-      gmBadge_desk = 'TRY NOW!';
-      gmBadgeBg_desk = '#e056fd';
-      gmActive_desk = true;
-      gmBg_desk = '#8b5cf6';
-      gmDarkBg_desk = '#4c1d95';
-      gmText_desk = '#ffffff';
-      gmBorder_desk = '#e056fd';
-    } else if(curGM_desk === 'teams'){
-      gmLabel_desk = '⚔️ TEAMS';
-      gmBadge_desk = 'NEW!';
-      gmBadgeBg_desk = '#e056fd';
-      gmActive_desk = true;
-      gmBg_desk = '#f39c12';
-      gmDarkBg_desk = '#b45309';
-      gmText_desk = '#0f172a';
-      gmBorder_desk = '#ffffff';
-    } else if(curGM_desk === 'freeze'){
-      gmLabel_desk = '❄️ FREEZE TAG';
-      gmActive_desk = true;
-      gmBg_desk = '#0ea5e9';
-      gmDarkBg_desk = '#0369a1';
-      gmText_desk = '#ffffff';
-      gmBorder_desk = '#38bdf8';
-    } else if(curGM_desk === 'infection'){
-      gmLabel_desk = '🧟 INFECTION';
-      gmBadge_desk = 'HOT!';
-      gmBadgeBg_desk = '#10b981';
-      gmActive_desk = true;
-      gmBg_desk = '#059669';
-      gmDarkBg_desk = '#065f46';
-      gmText_desk = '#ffffff';
-      gmBorder_desk = '#34d399';
-    } else if(curGM_desk === 'bomb'){
-      gmLabel_desk = '💣 BOMB TAG';
-      gmBadge_desk = 'WILD!';
-      gmBadgeBg_desk = '#ef4444';
-      gmActive_desk = true;
-      gmBg_desk = '#dc2626';
-      gmDarkBg_desk = '#991b1b';
-      gmText_desk = '#ffffff';
-      gmBorder_desk = '#f87171';
-    } else if(curGM_desk === 'crown'){
-      gmLabel_desk = '👑 CROWN KING';
-      gmBadge_desk = 'NEW!';
-      gmBadgeBg_desk = '#eab308';
-      gmActive_desk = true;
-      gmBg_desk = '#ca8a04';
-      gmDarkBg_desk = '#854d0e';
-      gmText_desk = '#ffffff';
-      gmBorder_desk = '#fef08a';
-    } else if(curGM_desk === 'ctf'){
-      gmLabel_desk = '🚩 CTF MODE';
-      gmBadge_desk = 'NEW!';
-      gmBadgeBg_desk = '#ef4444';
-      gmActive_desk = true;
-      gmBg_desk = '#dc2626';
-      gmDarkBg_desk = '#991b1b';
-      gmText_desk = '#ffffff';
-      gmBorder_desk = '#f87171';
+    } else {
+      const timeOpts = [60, 120, 180];
+      const tBtnW = Math.floor((tAreaW - 2 * 6) / 3);
+      for(let ti = 0; ti < timeOpts.length; ti++){
+        const val = timeOpts[ti];
+        const isCur = (settings.time === val);
+        const bx = tAreaX + ti * (tBtnW + 6);
+        drawJuicyChip(bx, itemY, tBtnW, itemH, {
+          label: val + 's',
+          active: isCur,
+          activeBg: '#f59e0b',
+          activeDarkBg: '#b45309',
+          activeBorder: '#ffffff',
+          activeText: '#ffffff',
+          bg: 'rgba(255, 255, 255, 0.08)',
+          border: 'rgba(255, 209, 102, 0.45)',
+          textColor: '#ffd166',
+          fontSize: 11,
+          renderContent: (x, y, w, h, col, active) => {
+            const isz = 13;
+            drawSvgStopwatch(g, x + 12, y + h/2 + 1, isz, active ? '#ffffff' : '#f59e0b');
+            ptxt(val + 's', x + w/2 + 6, y + h/2 + 1, FN(11, 900), active ? '#ffffff' : '#ffd166');
+          },
+          fn: () => {
+            if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST CONTROLS ROOM TIMER'); sfx('back'); return; }
+            settings.timeIdx = TIMES.indexOf(val);
+            sfx('ui');
+            if(typeof NET !== 'undefined' && NET && NET.isHost) netBroadcastSettings();
+          }
+        });
+      }
     }
-
-    drawJuicyChip(chip3X, itemY, chipW, itemH, {
-      label: gmLabel_desk,
-      active: gmActive_desk,
-      activeBg: gmBg_desk,
-      activeDarkBg: gmDarkBg_desk,
-      activeText: gmText_desk,
-      activeBorder: gmBorder_desk,
-      textColor: curGM_desk === 'hunter' ? '#ffffff' : (curGM_desk === 'teams' ? '#ffd166' : '#cbd5e1'),
-      fontSize: 11.5,
-      badge: gmBadge_desk,
-      badgeBg: gmBadgeBg_desk,
-      fn: () => cycleGameMode(1)
-    });
   }
   }
 
@@ -2426,6 +2312,7 @@ function drawMenu(){
   // 8. Modals (draw on top if open)
   drawMapModal();
   drawOnlineComingSoonModal();
+  drawColorPickerModal();
 }
 
 /* Helper to render an individual Player Card with interactive controls */
@@ -2441,12 +2328,56 @@ function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
   g.fillStyle = 'rgba(16, 22, 34, 0.90)'; g.fill();
   g.lineWidth = 2; g.strokeStyle = isBot ? '#ff4757' : (isHunter ? '#ffd166' : col); g.stroke();
 
-  // Header Title
+  // Record card rect for in-place color picker floating menu
+  menu.cardRects = menu.cardRects || {};
+  menu.cardRects[slotIdx] = { x: cx, y: cardY, w: cardW, h: cardH };
+
+  // Header Title & Selection 5: Dedicated BOT Tick Button
   const headTitleH = clamp(cardH * 0.16, 16, 24);
-  const pTitle = isBot ? ('🤖 BOT' + ((menu.tab === 'bots') ? ' ' + (slotIdx + 1) : '')) : ('PLAYER ' + (slotIdx + 1));
-  ptxt(pTitle, centerX, cardY + headTitleH * 0.62, FT(clamp(cardW * 0.082, 10.5, 13.5)), isBot ? '#ff6b81' : col);
-  if(slotIdx > 0 && menu.tab !== 'bots' && menu.tab !== 'solo' && (typeof NET === 'undefined' || !NET || NET.role === null)){
-    zone(cx, cardY, cardW - (canRemove ? 26 : 0), headTitleH + 6, {
+
+  if(slotIdx === 0 && menu.tab !== 'bots'){
+    // P1 (Human player)
+    ptxt('PLAYER 1', centerX, cardY + headTitleH * 0.62, FT(clamp(cardW * 0.082, 10.5, 13.5)), col);
+  } else {
+    // P2, P3, P4: Prominent Tick Button [☑ BOT] / [☐ BOT]
+    const tickW = clamp(cardW * 0.62, 68, 88);
+    const tickH = clamp(headTitleH * 0.95, 18, 22);
+    const tickX = Math.floor(centerX - tickW / 2);
+    const tickY = cardY + 3;
+
+    rr(g, tickX, tickY, tickW, tickH, 5);
+    g.fillStyle = isBot ? 'rgba(168, 85, 247, 0.28)' : 'rgba(255, 255, 255, 0.08)';
+    g.fill();
+    g.lineWidth = 1.2;
+    g.strokeStyle = isBot ? '#c084fc' : 'rgba(255, 255, 255, 0.35)';
+    g.stroke();
+
+    // Checkbox square
+    const cbSz = 13;
+    const cbX = tickX + 5, cbY = tickY + (tickH - cbSz)/2;
+    rr(g, cbX, cbY, cbSz, cbSz, 3);
+    g.fillStyle = isBot ? '#9333ea' : 'rgba(0, 0, 0, 0.45)';
+    g.fill();
+    g.lineWidth = 1;
+    g.strokeStyle = isBot ? '#c084fc' : 'rgba(255, 255, 255, 0.45)';
+    g.stroke();
+
+    if(isBot && typeof drawSvgCheck === 'function'){
+      drawSvgCheck(g, cbX + cbSz/2, cbY + cbSz/2, 9, '#ffffff');
+    }
+
+    // Label next to checkbox
+    const lX = cbX + cbSz + 6;
+    const lY = tickY + tickH/2 + 1;
+    if(isBot){
+      if(typeof drawSvgRobot === 'function') drawSvgRobot(g, lX + 6, lY, 12, '#ff6b81');
+      ptxt('BOT', lX + 22, lY, FT(10), '#c084fc');
+    } else {
+      if(typeof drawSvgPerson === 'function') drawSvgPerson(g, lX + 5, lY, 12, '#cbd5e1');
+      ptxt('P' + (slotIdx + 1), lX + 20, lY, FT(10), '#cbd5e1');
+    }
+
+    zone(tickX, tickY, tickW, tickH, {
       fn: () => {
         if(!menu.slotIsBot) menu.slotIsBot = [false, false, false, false, false, false, false, false, false, false];
         menu.slotIsBot[slotIdx] = !menu.slotIsBot[slotIdx];
@@ -2459,7 +2390,7 @@ function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
   // Remove Button (✕) on P3 / P4 cards
   if(canRemove){
     const rxSz = clamp(cardW * 0.12, 18, 22);
-    const rxX = cx + cardW - rxSz - 4, rxY = cardY + 4;
+    const rxX = cx + cardW - rxSz - 4, rxY = cardY + 3;
     drawJuicyIconBtn(rxX, rxY, rxSz, {
       r: 6,
       depth: 2,
@@ -2565,45 +2496,91 @@ function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
   ptxt(ctrlLabel, centerX, ctrlY + ctrlH/2 + 1, FN(ctrlFs, 900), isBot ? '#ff6b81' : '#ffd166');
   zone(ctrlX + 22, ctrlY, ctrlW - 44, ctrlH, { fn: () => cycleSlotCtrl(slotIdx, 1) });
 
-  // Color Cycler Bar
+  // --- SELECTION 2: COLOR CYCLER BAR & IN-PLACE PALETTE POPUP ---
+  // Left/Right arrow chevrons step colors; clicking middle swatch toggles in-place menu!
   const barH = clamp(cardH * 0.14, 18, 24);
   const barY = cardY + cardH - barH - 7;
   const barW = cardW - 14;
   const barX = cx + 7;
 
   rr(g, barX, barY, barW, barH, 6);
-  g.fillStyle = 'rgba(0,0,0,0.5)'; g.fill();
-  g.lineWidth = 1; g.strokeStyle = 'rgba(255,255,255,0.2)'; g.stroke();
+  g.fillStyle = 'rgba(0, 0, 0, 0.55)'; g.fill();
+  g.lineWidth = 1.2; g.strokeStyle = 'rgba(255, 255, 255, 0.25)'; g.stroke();
 
-  // Left = RED, Right = BLUE (direct pick, no toggle)
-  const cardTeam = settings.teams ? ((menu.slotTeam && menu.slotTeam[slotIdx] != null) ? (menu.slotTeam[slotIdx] % TEAMS.length) : (slotIdx % 2)) : -1;
-  ptxt('🔴', barX + 8, barY + barH/2 + 1, FT(12), (!settings.teams || cardTeam === 0) ? '#ffd166' : 'rgba(255,255,255,0.45)');
-  zone(barX, barY, 20, barH, { fn: () => {
-    if(settings.teams) setPlayerTeam(slotIdx, 0); else cycleSlot(slotIdx, -1);
-  }});
+  const arrowBtnW = 20;
 
-  // Right Arrow
-  ptxt('🔵', barX + barW - 8, barY + barH/2 + 1, FT(12), (!settings.teams || cardTeam === 1) ? '#ffd166' : 'rgba(255,255,255,0.45)');
-  zone(barX + barW - 20, barY, 20, barH, { fn: () => {
-    if(settings.teams) setPlayerTeam(slotIdx, 1); else cycleSlot(slotIdx, 1);
-  }});
-
-  // Color / Team Name in Middle
-  let colName = '';
-  if(settings.teams){
-    const tIdx = (menu.slotTeam && menu.slotTeam[slotIdx] != null) ? (menu.slotTeam[slotIdx] % TEAMS.length) : (slotIdx % 2);
-    const teamDef = TEAMS[tIdx] || TEAMS[0];
-    colName = teamDef ? teamDef.name : 'TEAM';
+  // Left Arrow ‹
+  if(typeof drawSvgChevron === 'function'){
+    drawSvgChevron(g, barX + arrowBtnW/2, barY + barH/2 + 1, 9, 'left', '#ffffff');
   } else {
-    const curCol = (menu.slotColor[slotIdx] >= 0) ? menu.slotColor[slotIdx] : slotIdx;
-    colName = (PALETTE[curCol % PALETTE.length] || PALETTE[0]).name;
+    ptxt('‹', barX + arrowBtnW/2, barY + barH/2 + 1, FT(11), '#ffffff');
   }
-  ptxt(colName, centerX, barY + barH/2 + 1, FN(clamp(cardW * 0.068, 8.5, 10.5), 900), '#ffffff');
-  if(!settings.teams){
-    zone(barX + 20, barY, barW - 40, barH, { fn: () => {
-      cycleSlot(slotIdx, 1);
-    }});
+  zone(barX, barY, arrowBtnW, barH, {
+    fn: () => {
+      if(settings.teams) setPlayerTeam(slotIdx, 0);
+      else cycleSlot(slotIdx, -1);
+    }
+  });
+
+  // Right Arrow ›
+  if(typeof drawSvgChevron === 'function'){
+    drawSvgChevron(g, barX + barW - arrowBtnW/2, barY + barH/2 + 1, 9, 'right', '#ffffff');
+  } else {
+    ptxt('›', barX + barW - arrowBtnW/2, barY + barH/2 + 1, FT(11), '#ffffff');
   }
+  zone(barX + barW - arrowBtnW, barY, arrowBtnW, barH, {
+    fn: () => {
+      if(settings.teams) setPlayerTeam(slotIdx, 1);
+      else cycleSlot(slotIdx, 1);
+    }
+  });
+
+  // Middle Clickable Color Swatch & Name
+  const midX = barX + arrowBtnW;
+  const midW = barW - arrowBtnW * 2;
+  const midCenterX = midX + midW / 2;
+
+  const curColIdx = (menu.slotColor[slotIdx] >= 0) ? menu.slotColor[slotIdx] : slotIdx;
+  const curPal = PALETTE[curColIdx % PALETTE.length] || PALETTE[0];
+  const colName = settings.teams
+    ? (((TEAMS[(menu.slotTeam && menu.slotTeam[slotIdx] != null ? menu.slotTeam[slotIdx] : slotIdx) % TEAMS.length] || TEAMS[0]).name))
+    : curPal.name;
+
+  // Draw miniature color pip
+  const pipR = 4.5;
+  const nameFs = clamp(cardW * 0.066, 8.5, 10.5);
+  g.font = FN(nameFs, 900);
+  const nameW = g.measureText(colName).width;
+  const totalMidW = pipR * 2 + 5 + nameW + 8;
+  const pipX = midCenterX - totalMidW/2 + pipR;
+
+  g.beginPath();
+  g.arc(pipX, barY + barH/2 + 1, pipR, 0, Math.PI * 2);
+  g.fillStyle = col;
+  g.fill();
+  g.lineWidth = 1;
+  g.strokeStyle = '#ffffff';
+  g.stroke();
+
+  ptxt(colName, pipX + pipR + 5 + nameW/2, barY + barH/2 + 1, FN(nameFs, 900), '#ffffff');
+
+  // Small dropdown chevron indicator ▾
+  if(typeof drawSvgChevron === 'function'){
+    drawSvgChevron(g, pipX + pipR + 5 + nameW + 5, barY + barH/2 + 1, 6, 'down', 'rgba(255,255,255,0.7)');
+  }
+
+  // Click middle zone to toggle floating color picker menu!
+  zone(midX, barY, midW, barH, {
+    fn: () => {
+      if(settings.teams){
+        const curT = (menu.slotTeam && menu.slotTeam[slotIdx] != null) ? menu.slotTeam[slotIdx] : (slotIdx % 2);
+        setPlayerTeam(slotIdx, 1 - (curT % 2));
+      } else {
+        menu.activeColorPicker = (menu.activeColorPicker === slotIdx) ? -1 : slotIdx;
+        sfx('ui');
+      }
+    }
+  });
 }
 
 /* Helper to render "+ ADD PLAYER" card */
@@ -2652,6 +2629,112 @@ function drawAddPlayerCard(cx, cardY, cardW, cardH, nextSlot){
     sfx('ok');
   }});
 }
+
+/* Floating In-Place Color Palette Menu for Player Cards (Selection 2) */
+function drawColorPickerModal(){
+  if(menu.activeColorPicker == null || menu.activeColorPicker < 0) return;
+  const slotIdx = menu.activeColorPicker;
+  const r = (menu.cardRects && menu.cardRects[slotIdx]) ? menu.cardRects[slotIdx] : { x: CW/2 - 95, y: CH/2 - 70, w: 190, h: 200 };
+
+  const popW = clamp(r.w + 36, 210, 250);
+  const popH = 142;
+  const popX = Math.floor(clamp(r.x + r.w/2 - popW/2, 10, CW - popW - 10));
+  const popY = Math.floor(clamp(r.y + r.h * 0.22, 50, CH - popH - 40));
+
+  // Dismiss catcher if click outside pop card
+  zone(0, 0, CW, CH, {
+    fn: () => {
+      menu.activeColorPicker = -1;
+    }
+  });
+
+  // Ambient Drop Shadow
+  rr(g, popX + 4, popY + 6, popW, popH, 12);
+  g.fillStyle = 'rgba(0, 0, 0, 0.65)'; g.fill();
+
+  // Die-cut white vinyl border
+  rr(g, popX - 2.5, popY - 2.5, popW + 5, popH + 5, 14);
+  g.fillStyle = '#ffffff'; g.fill();
+  g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
+
+  // Floating Card Body
+  rr(g, popX, popY, popW, popH, 12);
+  g.fillStyle = 'rgba(15, 23, 42, 0.98)'; g.fill();
+  g.lineWidth = 2; g.strokeStyle = '#00f0ff'; g.stroke();
+
+  // Header: Palette SVG + CHOOSE COLOR
+  if(typeof drawSvgPalette === 'function') drawSvgPalette(g, popX + 16, popY + 16, 16);
+  ptxt('CHOOSE COLOR (P' + (slotIdx + 1) + ')', popX + popW/2, popY + 16, FT(11.5), '#ffd166');
+
+  // Close X button on top-right
+  drawJuicyIconBtn(popX + popW - 24, popY + 5, 20, {
+    r: 5, depth: 2,
+    bg: '#ef4444', darkBg: '#991b1b',
+    icon: '✕', iconColor: '#ffffff', iconSize: 10,
+    fn: () => { menu.activeColorPicker = -1; sfx('back'); }
+  });
+
+  // 10 Color Swatches Grid (2 rows of 5)
+  const curColIdx = (menu.slotColor[slotIdx] >= 0) ? menu.slotColor[slotIdx] : slotIdx;
+  const circleR = 13;
+  const startCircleX = popX + 24;
+  const colSpacing = (popW - 48) / 4;
+
+  for(let i = 0; i < PALETTE.length; i++){
+    const row = Math.floor(i / 5);
+    const colI = i % 5;
+    const cx = startCircleX + colI * colSpacing;
+    const cy = popY + 44 + row * 38;
+    const isCur = (curColIdx % PALETTE.length === i);
+    const palCol = PALETTE[i].c;
+
+    // 3D Shadow
+    g.beginPath();
+    g.arc(cx, cy + 2, circleR, 0, Math.PI * 2);
+    g.fillStyle = 'rgba(0,0,0,0.45)'; g.fill();
+
+    // Circle Face
+    g.beginPath();
+    g.arc(cx, cy, circleR, 0, Math.PI * 2);
+    g.fillStyle = palCol; g.fill();
+    g.lineWidth = isCur ? 2.5 : 1.5;
+    g.strokeStyle = isCur ? '#ffffff' : INK;
+    g.stroke();
+
+    // Gloss
+    g.save();
+    g.beginPath();
+    g.arc(cx, cy, circleR, 0, Math.PI * 2);
+    g.clip();
+    const gGrad = g.createLinearGradient(cx, cy - circleR, cx, cy);
+    gGrad.addColorStop(0, 'rgba(255, 255, 255, 0.45)');
+    gGrad.addColorStop(1, 'rgba(255, 255, 255, 0.05)');
+    g.fillStyle = gGrad;
+    g.fillRect(cx - circleR, cy - circleR, circleR * 2, circleR);
+    g.restore();
+
+    // Active Checkmark
+    if(isCur && typeof drawSvgCheck === 'function'){
+      drawSvgCheck(g, cx, cy, 11, '#ffffff');
+    }
+
+    // Swatch Click Zone
+    zone(cx - circleR - 3, cy - circleR - 3, (circleR + 3) * 2, (circleR + 3) * 2, {
+      fn: () => {
+        menu.slotColor[slotIdx] = i;
+        ensureUniqueLocalColors();
+        menu.activeColorPicker = -1;
+        sfx('ok');
+        toast('🎨 ' + PALETTE[i].name + ' SELECTED');
+      }
+    });
+  }
+
+  // Footer: currently selected color name
+  const activePal = PALETTE[curColIdx % PALETTE.length] || PALETTE[0];
+  ptxt(activePal.name, popX + popW/2, popY + popH - 14, FN(10.5, 900), activePal.c);
+}
+
 /* ================= HUD / pause / result ================= */
 function tri(x,y,r,dir){
   g.beginPath();
@@ -3038,9 +3121,9 @@ function drawFallbackTimerHUD(){
     ptxt(fmtTime(match.timer), CW / 2, 8 + th / 2 + 1, FT(Math.min(22, th * 0.54)), '#ffffff');
   }catch(e){ logModeErr('drawFallbackTimerHUD', e); }
 }
-if (typeof scoreboardOpen === 'undefined') var scoreboardOpen = false;
-if (typeof drawJuicyIconBtn !== 'function') {
-  var drawJuicyIconBtn = function(x, y, sz, o){
+if (typeof globalThis.scoreboardOpen === 'undefined') globalThis.scoreboardOpen = false;
+if (typeof globalThis.drawJuicyIconBtn !== 'function') {
+  globalThis.drawJuicyIconBtn = function(x, y, sz, o){
     if (typeof zone === 'function') zone(x, y, sz, sz, { fn: o && o.fn });
     if (o && typeof o.renderContent === 'function' && typeof g !== 'undefined' && g) {
       try { o.renderContent(x, y, sz); } catch(e){}

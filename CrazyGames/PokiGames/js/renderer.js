@@ -112,7 +112,9 @@ function drawJuicyBtn(x, y, w, h, o){
   const cy = y + pushY + h / 2;
   const cx = x + w / 2;
   
-  if(o.label){
+  if(o.renderContent){
+    o.renderContent(x, y + pushY, w, h, textCol);
+  } else if(o.label){
     const fs = o.fontSize || clamp(h * 0.40, 11, 18);
     const sub = o.sub;
     const fontStr = o.font || (o.boldFont ? FT(fs) : FN(fs, 900));
@@ -356,7 +358,10 @@ function drawJuicyChip(x, y, w, h, o){
   g.strokeStyle = active ? (o.activeBorder || INK) : (o.border || 'rgba(255, 255, 255, 0.25)');
   g.stroke();
   
-  if(o.label){
+  if(o.renderContent){
+    const col = active ? (o.activeText || '#ffffff') : (o.textColor || '#94a3b8');
+    o.renderContent(x, y + pushY, w, h, col, active);
+  } else if(o.label){
     const fs = o.fontSize || 11;
     const col = active ? (o.activeText || '#ffffff') : (o.textColor || '#94a3b8');
     g.font = FN(fs, 900);
