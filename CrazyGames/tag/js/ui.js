@@ -1612,11 +1612,11 @@ function drawMenu(){
       { id: 'easy', label: 'EASY BOT', col: '#2ed573' },
       { id: 'hard', label: 'HARD BOT (DEF)', col: '#ff4757' }
     ];
-    const pw = clamp(centerStageW * 0.20, 84, 120);
+    const pw = clamp(CW * 0.085, 84, 115);
     const totalPillsW = diffOpts.length * pw + (diffOpts.length - 1) * 8;
-    const pillsStartX = Math.floor(centerStageW / 2 - totalPillsW / 2);
+    const pillsStartX = Math.floor(CW / 2 - totalPillsW / 2);
 
-    txt('BOT DIFFICULTY:', pillsStartX - 10, pillY + ph/2 + 1, FN(clamp(centerStageW * 0.024, 10, 11.5), 900), 'rgba(255,255,255,0.75)', 'right');
+    txt('BOT DIFFICULTY:', pillsStartX - 10, pillY + ph/2 + 1, FN(clamp(CW * 0.016, 10, 11.5), 900), 'rgba(255,255,255,0.75)', 'right');
 
     for(let k = 0; k < diffOpts.length; k++){
       const opt = diffOpts[k];
@@ -1638,9 +1638,9 @@ function drawMenu(){
     const countOpts = (typeof isTouch !== 'undefined' && isTouch)
       ? (isHunterMode ? [4] : [2])
       : (isHunterMode ? [4, 6, 8] : [2, 3, 4]);
-    const pw = clamp(centerStageW * 0.16, 68, 92);
+    const pw = clamp(CW * 0.07, 68, 92);
     const totalPillsW = countOpts.length * pw + (countOpts.length - 1) * 6;
-    const pillsStartX = Math.floor(centerStageW / 2 - totalPillsW / 2);
+    const pillsStartX = Math.floor(CW / 2 - totalPillsW / 2);
 
     txt('LOCAL PLAYERS:', pillsStartX - 10, pillY + ph/2 + 1, FN(10.5, 900), 'rgba(255,255,255,0.75)', 'right');
 
@@ -1674,8 +1674,9 @@ function drawMenu(){
 
   // --- SELECTION 0: 2-ROW GAME MODE SELECTOR ---
   // Solo modes on top row, Team modes on bottom row, distinct vibrant color for each!
-  const modeSelW = Math.min(centerStageW - 20, 740);
-  const modeSelX = Math.floor(centerStageW / 2 - modeSelW / 2);
+  const maxSelW = showSideWidget ? Math.min(CW - sideWidgetW - 30, 740) : Math.min(CW - 40, 740);
+  const modeSelW = Math.min(maxSelW, 740);
+  const modeSelX = Math.floor(CW / 2 - modeSelW / 2);
   const mLabelW = clamp(modeSelW * 0.13, 62, 80);
   const mGridW = modeSelW - mLabelW - 8;
   const mBtnW = Math.floor((mGridW - 3 * 5) / 4);
@@ -1783,12 +1784,13 @@ function drawMenu(){
   const cardsAreaH = stageH - (cardsAreaY - stageY);
 
   // Check if 4 cards should wrap to 2x2 grid on small mobile
-  const use2x2 = (!isSolo && !isBots && actSlots.length === 4 && centerStageW < 600);
-  const showAddCard = (!isSolo && !isBots && actSlots.length < 4 && centerStageW >= 540 && !use2x2 && !isTouch);
+  const use2x2 = (!isSolo && !isBots && actSlots.length === 4 && CW < 600);
+  const showAddCard = (!isSolo && !isBots && actSlots.length < 4 && CW >= 540 && !use2x2 && !isTouch);
   const totalItems = actSlots.length + (showAddCard ? 1 : 0);
 
-  const cardGap = clamp(centerStageW * 0.016, 6, 12);
-  const maxGridW = Math.min(centerStageW - 20, 680);
+  const cardGap = clamp(CW * 0.012, 8, 14);
+  const maxAvailCardsW = showSideWidget ? (CW - sideWidgetW - 40) : (CW - 40);
+  const maxGridW = Math.min(maxAvailCardsW, 720);
 
   if(use2x2){
     // 2x2 grid on small phones for 4 players
@@ -1797,16 +1799,19 @@ function drawMenu(){
     for(let idx = 0; idx < 4; idx++){
       const colIdx = idx % 2;
       const rowIdx = Math.floor(idx / 2);
-      const cx = Math.floor(centerStageW / 2 - maxGridW / 2) + colIdx * (cW + cardGap);
+      const cx = Math.floor(CW / 2 - maxGridW / 2) + colIdx * (cW + cardGap);
       const cy = cardsAreaY + rowIdx * (cH + cardGap);
       drawPlayerCard(cx, cy, cW, cH, actSlots[idx], isSlotBot(actSlots[idx]), !isSolo && !isBots && actSlots[idx] >= 2);
     }
   } else {
-    // Single horizontal row
-    const cardW = Math.floor(clamp((maxGridW - (totalItems - 1) * cardGap) / totalItems, 95, 175));
+    // Single horizontal row — centered on canvas center CW / 2!
+    const cardW = Math.floor(clamp((maxGridW - (totalItems - 1) * cardGap) / totalItems, 105, 180));
     const cardH = Math.floor(clamp(cardsAreaH * 0.94, Math.min(80, cardsAreaH), 205));
     const totalRowW = totalItems * cardW + (totalItems - 1) * cardGap;
-    const startX = Math.floor(centerStageW / 2 - totalRowW / 2);
+    let startX = Math.floor(CW / 2 - totalRowW / 2);
+    if(showSideWidget && (startX + totalRowW > CW - sideWidgetW - 14)){
+      startX = CW - sideWidgetW - 14 - totalRowW;
+    }
     const cardY = Math.floor(cardsAreaY + (cardsAreaH - cardH) / 2);
 
     for(let k = 0; k < actSlots.length; k++){
@@ -1883,8 +1888,13 @@ function drawMenu(){
           toast('🚀 CONNECTING TO ' + openRoom.roomId);
           netJoinAction(openRoom.roomId, openRoom.hostPeerId || openRoom.hostId || '');
         } else {
-          toast('🌐 OPENING ONLINE HUB');
-          setMenuTab('online');
+          toast('⚡ QUICK MATCH STARTING...');
+          if(activeSlots().length < 2){
+            menu.slotColor[0] = 0; menu.slotColor[1] = 1;
+            if(!menu.slotIsBot) menu.slotIsBot = [false, false, false, false];
+            menu.slotIsBot[1] = true;
+          }
+          startMatch();
         }
       }
     });
@@ -1926,7 +1936,14 @@ function drawMenu(){
           if(rm.hostPeerId || rm.hostId){
             netJoinAction(rm.roomId, rm.hostPeerId || rm.hostId);
           } else {
-            setMenuTab('online');
+            if(rm.map != null && typeof settings !== 'undefined') settings.map = rm.map % MAPS.length;
+            toast('🚀 ENTERING ' + rm.roomId + '...');
+            if(activeSlots().length < 2){
+              menu.slotColor[0] = 0; menu.slotColor[1] = 1;
+              if(!menu.slotIsBot) menu.slotIsBot = [false, false, false, false];
+              menu.slotIsBot[1] = true;
+            }
+            startMatch();
           }
         }
       });
@@ -2366,15 +2383,15 @@ function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
       drawSvgCheck(g, cbX + cbSz/2, cbY + cbSz/2, 9, '#ffffff');
     }
 
-    // Label next to checkbox
+    // Label next to checkbox — always indicates BOT toggle
     const lX = cbX + cbSz + 6;
     const lY = tickY + tickH/2 + 1;
     if(isBot){
       if(typeof drawSvgRobot === 'function') drawSvgRobot(g, lX + 6, lY, 12, '#ff6b81');
       ptxt('BOT', lX + 22, lY, FT(10), '#c084fc');
     } else {
-      if(typeof drawSvgPerson === 'function') drawSvgPerson(g, lX + 5, lY, 12, '#cbd5e1');
-      ptxt('P' + (slotIdx + 1), lX + 20, lY, FT(10), '#cbd5e1');
+      if(typeof drawSvgRobot === 'function') drawSvgRobot(g, lX + 6, lY, 12, '#64748b');
+      ptxt('BOT', lX + 22, lY, FT(10), '#94a3b8');
     }
 
     zone(tickX, tickY, tickW, tickH, {
