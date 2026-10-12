@@ -16,149 +16,11 @@
 <link id="font-link-1" href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800;900&family=Rubik:ital,wght@0,700;0,800;0,900;1,900&display=swap" rel="stylesheet"/>
 <script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<link id="font-link-20" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Anton&family=Bangers&family=Black+Han+Sans&family=Luckiest+Guy&family=Righteous&family=Fredoka+One&family=Baloo+2:wght@700;800&family=Nunito:wght@800;900&family=Poppins:wght@700;800;900&family=Montserrat:wght@700;800;900&family=Titan+One&family=Chewy&family=MuseoModerno:wght@700;900&family=Comfortaa:wght@700&family=Space+Grotesk:wght@600;700&family=Orbitron:wght@700;900&family=Russo+One&family=Staatliches&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="css/style.css"/>
 </head>
 <body>
 <canvas id="g"></canvas>
-
-<!-- Modern Hybrid DOM Menu Overlay -->
-<div id="ui-overlay" class="ui-overlay active">
-  <div class="ui-container">
-    <!-- Header -->
-    <header class="ui-header">
-      <div class="brand-badge">
-        <h1 class="logo-title">TAG<span class="logo-accent">!</span></h1>
-        <span class="logo-subtitle">MULTIPLAYER ARENA</span>
-      </div>
-      <div class="header-tools">
-        <button id="ui-btn-theme" class="tool-btn" title="Cycle Visual Theme">🎨 <span class="tool-txt">Theme</span></button>
-        <button id="ui-btn-sound" class="tool-btn" title="Toggle Sound">🔊 <span class="tool-txt">Sound</span></button>
-        <button id="ui-btn-fullscreen" class="tool-btn" title="Toggle Fullscreen">⛶</button>
-      </div>
-    </header>
-
-    <!-- Top Mode Tabs -->
-    <nav class="mode-tabs">
-      <button class="mode-tab-btn active" data-tab="solo">
-        <span class="tab-icon">👤</span> Solo (1P vs Bots)
-      </button>
-      <button class="mode-tab-btn" data-tab="2p">
-        <span class="tab-icon">👥</span> Local 2-4P
-      </button>
-      <button class="mode-tab-btn" data-tab="online">
-        <span class="tab-icon">🌐</span> Online Hub
-      </button>
-      <button class="mode-tab-btn" data-tab="bots">
-        <span class="tab-icon">🤖</span> Bot Brawl
-      </button>
-    </nav>
-
-    <!-- Center Content Grid -->
-    <div class="menu-grid">
-      <!-- Game Mode Card -->
-      <div class="menu-card mode-select-card">
-        <div class="card-top">
-          <span class="card-heading">GAME MODE</span>
-          <span id="ui-mode-badge" class="mode-pill-badge">FREE-FOR-ALL</span>
-        </div>
-        <div class="card-carousel">
-          <button id="ui-mode-prev" class="carousel-arrow" aria-label="Previous Game Mode">‹</button>
-          <div class="carousel-content">
-            <h2 id="ui-mode-name" class="carousel-title">PARTY TAG</h2>
-            <p id="ui-mode-desc" class="carousel-desc">Classic Free-for-All. Whoever is IT when the timer expires loses!</p>
-          </div>
-          <button id="ui-mode-next" class="carousel-arrow" aria-label="Next Game Mode">›</button>
-        </div>
-        <div class="mode-quick-chips" id="ui-mode-chips">
-          <button class="chip-btn active" data-mode="party">Party</button>
-          <button class="chip-btn" data-mode="bomb">Bomb Tag</button>
-          <button class="chip-btn" data-mode="crown">Crown King</button>
-          <button class="chip-btn" data-mode="ctf">Capture Flag</button>
-          <button class="chip-btn" data-mode="infection">Infection</button>
-          <button class="chip-btn" data-mode="hunter">Hunter</button>
-        </div>
-      </div>
-
-      <!-- Map & Match Settings Card -->
-      <div class="menu-card map-settings-card">
-        <div class="card-top">
-          <span class="card-heading">ARENA & RULES</span>
-          <span id="ui-map-num" class="mode-pill-badge">MAP 1 / 10</span>
-        </div>
-        <div class="card-carousel">
-          <button id="ui-map-prev" class="carousel-arrow" aria-label="Previous Map">‹</button>
-          <div class="carousel-content">
-            <h2 id="ui-map-name" class="carousel-title">SMUGGLERS CATACOMBS</h2>
-            <p id="ui-map-desc" class="carousel-desc">Dynamic arena platforms & juke routes</p>
-          </div>
-          <button id="ui-map-next" class="carousel-arrow" aria-label="Next Map">›</button>
-        </div>
-        <div class="rule-toggles">
-          <div class="rule-item">
-            <span class="rule-label">ROUND TIME</span>
-            <div class="time-selector" id="ui-time-chips">
-              <button class="time-chip" data-time-idx="0">60s</button>
-              <button class="time-chip active" data-time-idx="1">120s</button>
-              <button class="time-chip" data-time-idx="2">180s</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Players / Customization Card (Offline / Local) -->
-      <div class="menu-card players-card" id="ui-players-card">
-        <div class="card-top">
-          <span class="card-heading">PLAYERS & COLORS</span>
-          <span class="card-sub-hint">Tap slot to toggle • Tap color circle to change</span>
-        </div>
-        <div class="player-roster-grid" id="ui-player-slots">
-          <!-- Dynamically populated slots -->
-        </div>
-      </div>
-
-      <!-- Online Hub Card (When Online Tab is active) -->
-      <div class="menu-card online-card" id="ui-online-card" style="display: none;">
-        <div class="card-top">
-          <span class="card-heading">WEBRTC MULTIPLAYER HUB</span>
-          <span id="ui-net-status" class="mode-pill-badge badge-green">P2P READY</span>
-        </div>
-        <div class="online-container">
-          <div class="online-action-section">
-            <div class="online-box">
-              <h3>HOST A GAME</h3>
-              <p>Create a private room and invite friends via link or room code.</p>
-              <button id="ui-btn-host" class="btn-primary-action">Create Room</button>
-              <div id="ui-host-details" class="host-details" style="display: none;">
-                <div class="code-banner">ROOM CODE: <strong id="ui-room-code">------</strong></div>
-                <button id="ui-btn-copy-code" class="btn-sub-action">📋 Copy Link</button>
-              </div>
-            </div>
-            <div class="online-box">
-              <h3>JOIN A GAME</h3>
-              <p>Enter a 6-letter room code to connect with friends.</p>
-              <div class="join-input-row">
-                <input id="ui-join-input" maxlength="6" placeholder="CODE (e.g. AB12CD)" autocomplete="off"/>
-                <button id="ui-btn-join" class="btn-primary-action">Join</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Bottom Launch Bar -->
-    <footer class="ui-footer">
-      <div class="launch-hint">
-        <span class="key-pill">SPACE</span> or <span class="key-pill">ENTER</span> to start match
-      </div>
-      <button id="ui-btn-launch" class="btn-launch">
-        <span class="launch-pulse"></span>
-        <span class="launch-icon">▶</span>
-        <span class="launch-label">START MATCH</span>
-      </button>
-    </footer>
-  </div>
-</div>
 <!-- netplay join modal -->
 <div id="netUI"><div id="netCard">
   <h2>JOIN <span>ONLINE ROOM</span></h2>
@@ -202,7 +64,6 @@
 <script src="js/gameplay.js"></script>
 <script src="js/renderer.js"></script>
 <script src="js/ui.js"></script>
-<script src="js/dom_ui.js"></script>
 <script src="js/netplay.js"></script>
 <script src="js/main.js"></script>
 </body>
