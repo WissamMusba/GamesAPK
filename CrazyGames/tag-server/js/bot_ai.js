@@ -613,8 +613,8 @@ function harnessOverlay(){
 function demoOverlay(){ harnessOverlay(); }
 window.HARNESS = HARNESS;
 window.harnessStart = harnessStart;
-let screen='menu',tGlobal=0;
-const menu={tab:'2p',mode:'rows',slotColor:[0,1,-1,-1,-1,-1,-1,-1,-1,-1],slotTeam:[0,1,0,1,0,1,0,1,0,1],slotCtrl:[0,1,2,3,0,1,2,3,0,1],row:4,rule:0,toast:null,toastT:0,botOn:false,botDifficulty:'hard',slotBotDiff:['hard','hard','hard','hard','hard','hard','hard','hard','hard','hard'],mapModal:false,onlineModal:false,slotIsBot:[false,false,false,false,false,false,false,false,false,false],botSlots:null};
+var screen = (typeof globalThis !== 'undefined' && globalThis.screen) ? globalThis.screen : 'menu', tGlobal = (typeof globalThis !== 'undefined' && globalThis.tGlobal) ? globalThis.tGlobal : 0;
+const menu = ((typeof globalThis !== 'undefined' && globalThis.menu) || (typeof window !== 'undefined' && window.menu)) ? ((typeof globalThis !== 'undefined' && globalThis.menu) || window.menu) : {tab:'solo',mode:'rows',slotColor:[0,1,-1,-1,-1,-1,-1,-1,-1,-1],slotTeam:[0,1,0,1,0,1,0,1,0,1],slotCtrl:[0,1,2,3,0,1,2,3,0,1],row:4,rule:0,toast:null,toastT:0,botOn:false,botDifficulty:'hard',slotBotDiff:['hard','hard','hard','hard','hard','hard','hard','hard','hard','hard'],mapModal:false,onlineModal:false,slotIsBot:[false,false,false,false,false,false,false,false,false,false],botSlots:null};
 if(typeof window !== 'undefined') window.menu = menu;
 if(typeof globalThis !== 'undefined') globalThis.menu = menu;
 function isSlotBot(slotIdx){
@@ -1010,12 +1010,12 @@ function mapVoteVoters(){
   }
   let humans = [];
   try{ humans = activeSlots().filter(function(s){ return !isSlotBot(s); }); }catch(e){ humans = [0]; }
-  return humans.length ? ['L'] : [];
+  return humans.length ? ['local_0', 'L', 0] : [];
 }
 function myVoterId(){
   const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
   if(isOnline) return (NET.mySlot != null ? NET.mySlot : -1);
-  return 'L';
+  return 'local_0';
 }
 function initMapVote(){
   const opts = [];
@@ -1045,20 +1045,21 @@ function broadcastMapVote(){
 }
 function castMapVote(voter, pick){
   const V = menu.mapVote;
-  if(!V || V.decided || V.opts.length < 3) return;
+  if(!V || V.decided || !V.opts || V.opts.length < 3) return;
   pick = pick | 0;
   if(pick < 0 || pick > 2) return;
   const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
   const isGuest = isOnline && !NET.isHost;
   if(isGuest){
-    V.votes[voter] = { pick: pick, seq: -1 };
+    V.votes[voter] = pick;
     try{ for(const pair of NET.conns.values()) netSendRel(pair, { t: 'map_vote', voter: voter, pick: pick }); }catch(e){}
     sfx('ui');
     return;
   }
-  if(mapVoteVoters().indexOf(voter) < 0) return;
-  V.seq++;
-  V.votes[voter] = { pick: pick, seq: V.seq };
+  const voters = (typeof mapVoteVoters === 'function') ? mapVoteVoters() : ['local_0'];
+  if(voters.indexOf(voter) < 0) return;
+  V.seq = (V.seq || 0) + 1;
+  V.votes[voter] = pick;
   sfx('ui');
   broadcastMapVote();
 }
@@ -1080,8 +1081,9 @@ function requestMode(voter, modeId){
     toast('📣 REQUESTED ' + modeId.toUpperCase() + '!');
     return;
   }
-  if(mapVoteVoters().indexOf(voter) < 0) return;
-  V.mseq++;
+  const voters = (typeof mapVoteVoters === 'function') ? mapVoteVoters() : ['local_0'];
+  if(voters.indexOf(voter) < 0) return;
+  V.mseq = (V.mseq || 0) + 1;
   V.modeReq[voter] = { mode: modeId, seq: V.mseq };
   sfx('ok');
   toast('📣 REQUESTED ' + modeId.toUpperCase() + '!');
@@ -1093,11 +1095,11 @@ function tallyMapVote(){
   if(V){
     for(const k of Object.keys(V.votes || {})){
       const o = V.votes[k];
-      if(!o) continue;
-      const pk = o.pick | 0;
+      if(o == null) continue;
+      const pk = (typeof o === 'object' && o !== null && o.pick != null ? o.pick : o) | 0;
       if(pk < 0 || pk > 2) continue;
       counts[pk]++;
-      const sq = (o.seq == null ? -1 : o.seq) | 0;
+      const sq = (typeof o === 'object' && o !== null && o.seq != null ? o.seq : -1) | 0;
       if(sq > last[pk]) last[pk] = sq;
     }
   }

@@ -8,49 +8,129 @@ const CG={
   _user:null, // cached async CrazyGames profile {name, avatar}
   chatDisabled:false, // mirrors sdk.game.settings.disableChat
   _joinListenerOn:false,
-  _joinListenerFn:null,
+  _isLoading:false,
+  _isPlaying:false,
   boot(){
     return new Promise(res=>{
       let _done=false;
-      const finish=()=>{try{if(!_done){_done=true;res();}}catch(e){}};
+      const finish=()=>{
+        try{
+          if(!_done){
+            _done=true;
+            if(this._isLoading){
+              this._isLoading = false;
+              try{ if(this.ok()) window.CrazyGames.SDK.game.loadingStop(); }catch(e){}
+            }
+            res();
+          }
+        }catch(e){}
+      };
       try{setTimeout(finish,5000);}catch(e){}
       const sdk=window.CrazyGames&&window.CrazyGames.SDK;
       if(!sdk||!sdk.init){finish();return;}
       try{
-      sdk.init().then(async ()=>{
-        this.ready=true;
-        try{this.env=sdk.environment||'';}catch(e){}
-        try{sdk.game.loadingStart();}catch(e){}
-        try{sdk.game.loadingStop();}catch(e){}
-        try{
-          const st=sdk.game.settings;
-          if(st!==undefined){applySdkMute(!!st.muteAudio);applySdkChatDisabled(!!st.disableChat);}
-          const onSettings=x=>{try{applySdkMute(!!(x&&x.muteAudio));}catch(e){}try{applySdkChatDisabled(!!(x&&x.disableChat));}catch(e){}};
-          if(sdk.game.addSettingsChangeListener) sdk.game.addSettingsChangeListener(onSettings);
-          else if(sdk.addEventListener) sdk.addEventListener('settingsChange',onSettings);
-        }catch(e){}
-        /* Async CrazyGames user profile: cache {name, avatar}, never throws */
-        try{
-          if(sdk.user&&sdk.user.getUser){
-            const u=await sdk.user.getUser();
-            if(u&&(u.username||u.profilePictureUrl)){
-              try{this._user={name:cleanText(u.username||'').slice(0,16),avatar:u.profilePictureUrl||''};}catch(e2){}
+        if(sdk.game && sdk.game.loadingStart){
+          try{ sdk.game.loadingStart(); this._isLoading = true; }catch(e){}
+        }
+        sdk.init().then(async ()=>{
+          this.ready=true;
+          try{this.env=sdk.environment||'';}catch(e){}
+          try{
+            const st=sdk.game.settings;
+            if(st!==undefined){applySdkMute(!!st.muteAudio);applySdkChatDisabled(!!st.disableChat);}
+            const onSettings=x=>{try{applySdkMute(!!(x&&x.muteAudio));}catch(e){}try{applySdkChatDisabled(!!(x&&x.disableChat));}catch(e){}};
+            if(sdk.game.addSettingsChangeListener) sdk.game.addSettingsChangeListener(onSettings);
+            else if(sdk.addEventListener) sdk.addEventListener('settingsChange',onSettings);
+          }catch(e){}
+          /* Async CrazyGames user profile: cache {name, avatar}, never throws */
+          try{
+            if(sdk.user&&sdk.user.getUser){
+              const u=await sdk.user.getUser();
+              if(u&&(u.username||u.profilePictureUrl)){
+                try{this._user={name:cleanText(u.username||'').slice(0,16),avatar:u.profilePictureUrl||''};}catch(e2){}
+              }
             }
-          }
-        }catch(e){}
-        /* Portal invite joins: route into existing netJoinAction */
-        try{this._registerJoinListener();}catch(e){}
-        /* Cold-start invite params + instant-multiplayer auto-host */
-        try{this._handleColdStartInvite();}catch(e){}
-        finish();
-      }).catch(()=>finish());
+          }catch(e){}
+          /* Portal invite joins: route into existing netJoinAction */
+          try{this._registerJoinListener();}catch(e){}
+          /* Cold-start invite params + instant-multiplayer auto-host */
+          try{this._handleColdStartInvite();}catch(e){}
+          finish();
+        }).catch(()=>finish());
       }catch(e){finish();}
     });
   },
   ok(){return this.ready&&(this.env==='local'||this.env==='crazygames');},
-  gameplayStart(){try{if(this.ok())window.CrazyGames.SDK.game.gameplayStart();}catch(e){}},
-  gameplayStop(){try{if(this.ok())window.CrazyGames.SDK.game.gameplayStop();}catch(e){}},
-  happytime(){try{if(this.ok())window.CrazyGames.SDK.game.happytime();}catch(e){}},
+  loadingStart(){
+    try{
+      if(this.ok() && !this._isLoading){
+        this._isLoading = true;
+        window.CrazyGames.SDK.game.loadingStart();
+      }
+    }catch(e){}
+  },
+  loadingStop(){
+    try{
+      if(this.ok() && this._isLoading){
+        this._isLoading = false;
+        window.CrazyGames.SDK.game.loadingStop();
+      }
+    }catch(e){}
+  },
+  gameplayStart(){
+    try{
+      if(this.ok() && !this._isPlaying){
+        this._isPlaying = true;
+        window.CrazyGames.SDK.game.gameplayStart();
+      }
+    }catch(e){}
+  },
+  gameplayStop(){
+    try{
+      if(this.ok() && this._isPlaying){
+        this._isPlaying = false;
+        window.CrazyGames.SDK.game.gameplayStop();
+      }
+    }catch(e){}
+  },
+  happytime(){
+    try{
+      if(this.ok()){
+        window.CrazyGames.SDK.game.happytime();
+      }
+    }catch(e){}
+  },
+  ad(type, callbacks){
+    const sdk = window.CrazyGames && window.CrazyGames.SDK;
+    if(!this.ok() || !sdk || !sdk.ad){
+      if(callbacks && callbacks.adFinished) callbacks.adFinished();
+      return;
+    }
+    const cbs = {
+      adStarted: () => {
+        applySdkMute(true);
+        if(callbacks && callbacks.adStarted) callbacks.adStarted();
+      },
+      adFinished: () => {
+        applySdkMute(false);
+        if(callbacks && callbacks.adFinished) callbacks.adFinished();
+      },
+      adError: (err) => {
+        applySdkMute(false);
+        if(callbacks && callbacks.adError) callbacks.adError(err);
+      }
+    };
+    try {
+      if(type === 'rewarded'){
+        sdk.ad.requestAd('rewarded', cbs);
+      } else {
+        sdk.ad.requestAd('midgame', cbs);
+      }
+    } catch(e) {
+      applySdkMute(false);
+      if(callbacks && callbacks.adError) callbacks.adError(e);
+    }
+  },
   /* CrazyGames User Profile detection (async SDK result is cached at boot) */
   getUser(){
     try{

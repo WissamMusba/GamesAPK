@@ -2,6 +2,10 @@
    v1 rules: greedy X + jump only if no solid between, detour to platform
    edge when blocked above, bonk counter fallback. Pink drops are
    jump-through (ok to jump), solids are not. */
+if(typeof IT_SPEED === 'undefined') var IT_SPEED = 582;
+if(typeof RUN_SPEED === 'undefined') var RUN_SPEED = 504;
+if(typeof zoneAtFeet !== 'function') var zoneAtFeet = function(){ return null; };
+if(typeof SOLIDS === 'undefined') var SOLIDS = [];
 const BOT={st:{},think:0.09};
 function botReset(){BOT.st={};}
 function isBotSlot(p){
@@ -459,7 +463,13 @@ function botInputFor(p,dt){
       }
     }
   }catch(e){}
-  if(!target) return {dir:0,jumpEdge:false,jumpHeld:false,downHeld:false};
+  if(!target){
+    // Autonomous roaming and wander waypoint heuristic when no target
+    const roamDir = (S.roamDir || (p.x < (typeof W !== 'undefined' ? W / 2 : 1200) ? 1 : -1));
+    S.roamDir = roamDir;
+    S.dir = roamDir;
+    return { dir: roamDir, jumpEdge: false, jumpHeld: false, downHeld: false };
+  }
   const tx=target.x+target.w/2,ty=target.y+target.h/2;
   const dx=tx-cx,dy=ty-cy;
 
@@ -800,7 +810,8 @@ function botInputFor(p,dt){
       const hunterDangerClose=Math.abs(dx)<110;
       const isPinkJuke=(S.pinkJukePhase!==0);
       const allowHighGroundDrop=hunterSameTier||hunterDangerClose||isPinkJuke;
-      const holdHighGround=!rescuingTeammate&&!isIt&&hunterBelow&&onSolidPlatform&&!allowHighGroundDrop;
+      const hunterNear = (Math.hypot(dx, dy) < 650);
+      const holdHighGround = !rescuingTeammate && !isIt && hunterBelow && onSolidPlatform && !allowHighGroundDrop && (Math.hypot(dx, dy) < 650 || hunterNear);
 
       if(isDropEscape){
         // Trapped by giant unjumpable wall/pillar on drop platform: drop down to escape!
@@ -1585,6 +1596,23 @@ function pairCollide(){
   }
 }
 function tagBox(p){const pad=5;return{x:p.x-pad,y:p.y-pad,w:p.w+2*pad,h:p.h+2*pad};}
+function botThink(p, slot, dt, bState){
+  const inp = botInputFor(p, dt);
+  if(bState){
+    if(inp.dir !== undefined) bState.dir = inp.dir;
+    if(inp.jumpEdge !== undefined) bState.jumpQ = inp.jumpEdge;
+    if(BOT.st && BOT.st[p.slot]) {
+      Object.assign(bState, BOT.st[p.slot]);
+    }
+  }
+  return inp;
+}
+function botUpdate(p, dt){
+  return botInputFor(p, dt);
+}
+if(typeof window !== 'undefined'){ window.botThink = botThink; window.botUpdate = botUpdate; }
+if(typeof globalThis !== 'undefined'){ globalThis.botThink = botThink; globalThis.botUpdate = botUpdate; }
+
 function applyTag(newItIdx, popX, popY){
   if(!match || match.state !== 'playing' || match.cooldown > 0) return;
   const P = match.players;

@@ -227,19 +227,13 @@ function isOrganicPlay(){
 }
 
 const NET_TELEMETRY_CONFIG = {
-  enabled: true,
-  // 1. #game-alerts (Host announces with @everyone; Player joins lobby SILENTLY without mention)
-  alertsWebhookUrl: 'https://discord.com/api/webhooks/1555528500516102255/oorxZysdCzQFmhLfApPuJAl_uMOvOL-WD3LGeszSLGb83nwiP1dAVUO1kDVcTzUw_jEM',
-  alertsMention: '@everyone',
-
-  // 2. #game-launches (Silent analytics: boot/device/region/player name, plus invite clicks)
-  launchesWebhookUrl: 'https://discord.com/api/webhooks/1555908160261324826/fOcxqoxguFe1486dPY_MjhFn96xGHMDq4yfB7X9bIYsWUqzyrIBdGDf5TvnyGAoUopy9',
-
-  // 3. #match-sessions (Silent analytics: match durations, player names, solo vs local vs online, ping, winner)
-  sessionsWebhookUrl: 'https://discord.com/api/webhooks/1555908433507651605/GytE_exg0eUAJfgLJYK5RopjP6D6a1faaBdvtAzaqWWVSs4PfffHQcivZBx3vo1X-C18',
-
-  ntfyTopic: 'crazygames-tag-server-alerts',
-  ntfyServer: 'https://ntfy.sh'
+  enabled: false,
+  alertsWebhookUrl: '',
+  alertsMention: '',
+  launchesWebhookUrl: '',
+  sessionsWebhookUrl: '',
+  ntfyTopic: '',
+  ntfyServer: ''
 };
 
 const NET_ALERTS_CONFIG = {
@@ -2822,7 +2816,7 @@ function netWireConn(conn, isHostSide){
 }
 
 function netOnData(m, c){
-  if(!m || !m.t) return;
+  if(!m || !m.t || !c || !c.peer) return;
   try{
     if(NET && NET.role === 'guest' && !NET.isHost){
       if(m.t === 'ping' || m.t === 'pong' || m.t === 'state' || m.t === 'roster_sync' || m.t === 'assign' || m.t === 'spectator_init' || m.t === 'midgame_start'){ NET._hostRetry = 0; }
@@ -3294,6 +3288,8 @@ function netOnData(m, c){
   } else if(m.t === 'team'){
     if(NET.isHost && !NET.teamsLocked){
       if(match && (match.state === 'playing' || match.state === 'countdown' || match.state === 'paused')) return;
+      const senderSlot = (NET.peerSlots && c && c.peer) ? NET.peerSlots.get(c.peer) : null;
+      if(senderSlot !== m.slot) return;
       if(m.slot >= 0 && m.slot < MAXP && m.team != null){
         if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1];
         menu.slotTeam[m.slot] = m.team;
@@ -3303,6 +3299,8 @@ function netOnData(m, c){
     }
   } else if(m.t === 'ready'){
     if(NET.isHost){
+      const senderSlot = (NET.peerSlots && c && c.peer) ? NET.peerSlots.get(c.peer) : null;
+      if(senderSlot !== m.slot) return;
       if(m.slot >= 0 && m.slot < MAXP){
         NET.slotsReady[m.slot] = !!m.ready;
         netBroadcastRoster();
@@ -3311,6 +3309,8 @@ function netOnData(m, c){
     }
   } else if(m.t === 'ctrl'){
     if(NET.isHost){
+      const senderSlot = (NET.peerSlots && c && c.peer) ? NET.peerSlots.get(c.peer) : null;
+      if(senderSlot !== m.slot) return;
       if(m.slot >= 0 && m.slot < MAXP && m.ctrl){
         NET.slotsCtrl[m.slot] = m.ctrl;
         netBroadcastRoster();
@@ -3318,6 +3318,8 @@ function netOnData(m, c){
     }
   } else if(m.t === 'color'){
     if(NET.isHost && !NET.teamsLocked){
+      const senderSlot = (NET.peerSlots && c && c.peer) ? NET.peerSlots.get(c.peer) : null;
+      if(senderSlot !== m.slot) return;
       if(m.slot >= 0 && m.slot < MAXP && m.color >= 0){
         menu.slotColor[m.slot] = m.color;
         buildLevel();
@@ -3722,7 +3724,7 @@ function netOnData(m, c){
     match = null;
     screen = 'menu';
     menu.tab = 'online';
-  } else if(m.t === 'kicked'){
+  } else if(m.t === 'kicked' && !NET.isHost){
     netToast('You were removed from the room.');
     netLeaveRoom();
   } else if(m.t === 'full'){
@@ -5222,6 +5224,7 @@ function startMatchNetGuest(p){
     }
   }catch(e){}
   screen = 'game';
+  try{ CG.gameplayStart(); }catch(e){}
   if(initState === 'countdown') sfx('count');
   netShow(false);
 }

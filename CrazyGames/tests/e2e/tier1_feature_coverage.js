@@ -629,7 +629,7 @@ describe('Tier 1 - Feature 10: Touch Slot Clamping Removal', () => {
 describe('Tier 1 - Feature 11: Infection HUD Control Overlay', () => {
   test('T1.11.1: drawHUD in Infection mode executes without early return before action bar', () => {
     const code = fs.readFileSync(path.join(REPO_ROOT, 'tag/js/ui.js'), 'utf8');
-    const drawHudMatch = code.match(/function\s+drawHUD\s*\(\)\s*\{([\s\S]*?)\}/);
+    const drawHudMatch = code.match(/function\s+drawHUD\s*\(\)\s*\{([\s\S]*?)(?=\nfunction\s)/);
     expect(drawHudMatch).toBeTruthy();
     // Early return in infection block must be removed or guarded
     const infectionBlock = drawHudMatch[1].match(/if\(settings\.gameMode\s*===\s*'infection'\)\s*\{([\s\S]*?)\}/);

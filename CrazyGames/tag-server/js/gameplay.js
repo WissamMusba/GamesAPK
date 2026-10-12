@@ -1,9 +1,13 @@
 /* ================= camera ================= */
 function updateCam(dt){
   let tx,ty,ts;
-  const N=match?match.players.length:2;
-  if(screen!=='game'||!match){
-    tx=W/2;ty=H/2;ts=Math.min(CW/(W+160),CH/(H+160));
+  const N=(match && match.players)?match.players.length:2;
+  const _W=(typeof W !== 'undefined') ? W : 2400;
+  const _H=(typeof H !== 'undefined') ? H : 1320;
+  const _CW=(typeof CW !== 'undefined') ? CW : 800;
+  const _CH=(typeof CH !== 'undefined') ? CH : 600;
+  if(typeof screen !== 'undefined' && screen!=='game'||!match||!match.players){
+    tx=_W/2;ty=_H/2;ts=Math.min(_CW/(_W+160),_CH/(_H+160));
   }else{
     const P=match.players;
     let mx=0,my=0,minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9,cnt=0;
@@ -55,7 +59,7 @@ function toggleFullscreen(){
 }
 function toggleSound(){
   muted=!muted;
-  applyEffectiveMute();
+  try{ if(typeof applyEffectiveMute === 'function') applyEffectiveMute(); }catch(e){}
   if(match){match.mapToast='SOUND: '+(muted?'OFF':'ON');match.mapToastT=1.8;}
   sfx('ui');
 }
@@ -130,22 +134,41 @@ function updateGame(dt){
   if(anyPressed(['KeyV']))voiceToggleMic();
   
   /* Number keys 1-9, 0 to switch to any map instantly */
-  for(let k=1;k<=9;k++)if(pressed.has('Digit'+k))selectMapQuick(k-1);
-  if(pressed.has('Digit0'))selectMapQuick(9);
+  if(!match || match.state !== 'result'){
+    for(let k=1;k<=9;k++)if(pressed.has('Digit'+k))selectMapQuick(k-1);
+    if(pressed.has('Digit0'))selectMapQuick(9);
+  }
   
   for(let i=0;i<4;i++){if(PAD[i]&&PAD[i].pauseE)togglePause();}
   if(match.state==='paused'||match.hostMenu){
+    const isGuest = (typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost);
+    const nOpts = isGuest ? 4 : 6;
+    if(match.pauseSel == null || typeof match.pauseSel !== 'number') match.pauseSel = 0;
+    if(match._lastPauseMode !== undefined && match._lastPauseMode !== settings.gameMode){
+      match.pauseSel = 0;
+    }
+    match._lastPauseMode = settings.gameMode;
+    match.pauseSel = ((match.pauseSel % nOpts) + nOpts) % nOpts;
+
     let up=anyPressed(['ArrowUp','KeyW']),dn=anyPressed(['ArrowDown','KeyS']),cf=anyPressed(['Enter','NumpadEnter','Space']);
     for(let i=0;i<4;i++){const pd=PAD[i];if(!pd)continue;up=up||pd.upE;dn=dn||pd.downE;cf=cf||pd.confirmE;}
-    if(up){match.pauseSel=(match.pauseSel+5)%6;sfx('ui');}
-    if(dn){match.pauseSel=(match.pauseSel+1)%6;sfx('ui');}
+    if(up && !dn){match.pauseSel = ((match.pauseSel - 1) % nOpts + nOpts) % nOpts; sfx('ui');}
+    else if(dn && !up){match.pauseSel = ((match.pauseSel + 1) % nOpts + nOpts) % nOpts; sfx('ui');}
+
     if(cf){
-      if(match.pauseSel===0)togglePause();
-      else if(match.pauseSel===1){sfx('go');startMatch();}
-      else if(match.pauseSel===2){selectMapQuick(settings.map+1);}
-      else if(match.pauseSel===3){toggleSound();}
-      else if(match.pauseSel===4){toggleFullscreen();}
-      else quitToMenu();
+      if(isGuest){
+        if(match.pauseSel===0)togglePause();
+        else if(match.pauseSel===1){toggleSound();}
+        else if(match.pauseSel===2){toggleFullscreen();}
+        else if(match.pauseSel===3)quitToMenu();
+      } else {
+        if(match.pauseSel===0)togglePause();
+        else if(match.pauseSel===1){sfx('go');startMatch();}
+        else if(match.pauseSel===2){selectMapQuick(settings.map+1);}
+        else if(match.pauseSel===3){toggleSound();}
+        else if(match.pauseSel===4){toggleFullscreen();}
+        else if(match.pauseSel===5)quitToMenu();
+      }
     }
     if(!match.hostMenu) return;
     // host menu open: fall through — the match continues live underneath for everyone
@@ -160,7 +183,7 @@ function updateGame(dt){
       if(!menu.mapVote || menu.mapVote.mid !== matchIndex){
         if(isGuest){
           menu.mapVote = { mid: matchIndex, opts: [], votes: {}, seq: 0, modeReq: {}, mseq: 0, t: 20, decided: false, waiting: true };
-        } else {
+        } else if(typeof initMapVote === 'function'){
           initMapVote();
         }
       }
@@ -207,9 +230,12 @@ function updateGame(dt){
       }
       if(anyPressed(['Escape','KeyM'])){ menu.modePopup = false; sfx('back'); }
     } else {
-      if(pressed.has('Digit1')) castMapVote(myVoterId(), 0);
-      if(pressed.has('Digit2')) castMapVote(myVoterId(), 1);
-      if(pressed.has('Digit3')) castMapVote(myVoterId(), 2);
+      const vid = (typeof myVoterId === 'function') ? myVoterId() : 'local_0';
+      if(typeof castMapVote === 'function'){
+        if(pressed.has('Digit1')) castMapVote(vid, 0);
+        if(pressed.has('Digit2')) castMapVote(vid, 1);
+        if(pressed.has('Digit3')) castMapVote(vid, 2);
+      }
       if(anyPressed(['KeyM']) && V && !V.decided){ menu.modePopup = true; sfx('ui'); }
     }
     if(anyPressed(['Enter','NumpadEnter','Space'])){
@@ -307,7 +333,7 @@ function updateGame(dt){
     }
   }
 
-  for(const p of match.players){
+  for(const p of (match && match.players ? match.players : [])){
     if(typeof NET !== 'undefined' && NET && NET.role !== null && NET.isHost){
       // Host simulates itself AND its bots (lobby autofill); guests' slots interpolate.
       if(p.slot === NET.mySlot || p.slot === 0 || (NET.botSlots && NET.botSlots.includes(p.slot))){
@@ -320,8 +346,8 @@ function updateGame(dt){
     }
   }
   // Tag before bump — skins kissing counts before bodies push apart.
-  checkTag();
-  pairCollide();
+  if(typeof checkTag === 'function') checkTag();
+  if(typeof pairCollide === 'function') pairCollide();
   if(settings.gameMode === 'infection'){
     try{ if(typeof updateInfection === 'function') updateInfection(dt); }
     catch(e){ logModeErr('updateInfection', e); }

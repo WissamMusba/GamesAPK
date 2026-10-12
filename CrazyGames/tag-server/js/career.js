@@ -73,9 +73,15 @@ function myMatchIndex(){
   return match.players.findIndex(p => p.slot === mySlot);
 }
 
-function careerRecordMatch(won, myTags, mySurv){
+let _recordedMatchUids = new Set();
+function careerRecordMatch(won, myTags, mySurv, matchUid){
+  if(matchUid != null){
+    if(typeof _recordedMatchUids === 'undefined') _recordedMatchUids = new Set();
+    if(_recordedMatchUids.has(matchUid)) return;
+    _recordedMatchUids.add(matchUid);
+  }
   CAREER.m++;
-  myTags = Math.max(0, myTags | 0);
+  myTags = (typeof myTags === 'number' && !isNaN(myTags) && isFinite(myTags)) ? Math.max(0, Math.floor(myTags)) : 0;
   CAREER.tags += myTags;
   if(myTags > CAREER.best) CAREER.best = myTags;
   if(mySurv != null && mySurv > CAREER.surv) CAREER.surv = Math.round(mySurv * 10) / 10;
@@ -125,7 +131,7 @@ function careerLine(){
 }
 
 function endMatch(){
-  try{CG.happytime();}catch(e){}try{CG.gameplayStop();}catch(e){}
+  try{CG.gameplayStop();}catch(e){}
   match.state='result';
   match.hostMenu=false;
   if(settings.gameMode === 'infection'){
@@ -213,22 +219,27 @@ function endMatch(){
   }
   // Career persistence (this device: P1 offline, my slot online; spectators skipped)
   try{
-    const mi = myMatchIndex();
-    if(mi >= 0){
-      const myTags = (match.tags[mi] != null) ? match.tags[mi] : 0;
-      let won = false;
-      if(settings.gameMode === 'infection'){
-        const mp = match.players[mi];
-        won = match.result && match.result.winningTeam === 'survivors' ? (!mp.isInfected) : (!!mp.isInfected);
-      } else if(settings.gameMode === 'bomb' || settings.gameMode === 'crown'){
-        won = (match.result && mi === match.result.winner);
-      } else if(match.result.winningTeam != null){
-        const mp = match.players[mi];
-        won = !!mp && mp.team === match.result.winningTeam;
-      } else {
-        won = (mi !== match.result.loser);
+    if(match && !match._careerRecorded){
+      match._careerRecorded = true;
+      const mi = myMatchIndex();
+      if(mi >= 0){
+        const myTags = (match.tags && match.tags[mi] != null) ? match.tags[mi] : 0;
+        let won = false;
+        if(settings.gameMode === 'infection'){
+          const mp = match.players[mi];
+          won = match.result && match.result.winningTeam === 'survivors' ? (!mp.isInfected) : (!!mp.isInfected);
+        } else if(settings.gameMode === 'bomb' || settings.gameMode === 'crown'){
+          won = (match.result && mi === match.result.winner);
+        } else if(match.result && match.result.winningTeam != null){
+          const mp = match.players[mi];
+          won = !!mp && mp.team === match.result.winningTeam;
+        } else {
+          won = (match.result && mi !== match.result.loser);
+        }
+        const mUid = match.uid || ('match_' + (typeof matchIndex !== 'undefined' ? matchIndex : 0) + '_' + (match.timer || 0));
+        careerRecordMatch(won, myTags, null, mUid);
+        if(won){ try{ CG.happytime(); }catch(e){} }
       }
-      careerRecordMatch(won, myTags, null);
     }
   }catch(e){}
   match.resultT=0;

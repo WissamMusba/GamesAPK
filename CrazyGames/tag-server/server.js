@@ -146,14 +146,19 @@ app.post('/api/rooms/heartbeat', (req, res) => {
 });
 
 app.post('/api/rooms/close', (req, res) => {
-  const { roomId } = req.body || {};
-  if (roomId) {
-    const cleanId = String(roomId).trim().toUpperCase();
-    activeRooms.delete(cleanId);
-    relayRooms.delete(cleanId);
-    console.log(`[NET] Host cleanly closed room: ${cleanId}`);
+  const { roomId, hostKey, auth } = req.body || {};
+  const errRoom = { error: 'roomId required' };
+  if (!roomId) return res.status(400).json(errRoom);
+  const errAuth = { error: 'hostKey or auth required' };
+  if (!hostKey && !auth && !req.headers.authorization) {
+    return res.status(401).json(errAuth);
   }
-  res.json({ success: true });
+  const cleanId = String(roomId).trim().toUpperCase();
+  activeRooms.delete(cleanId);
+  relayRooms.delete(cleanId);
+  console.log(`[NET] Host cleanly closed room: ${cleanId}`);
+  const ok = { success: true };
+  res.json(ok);
 });
 
 

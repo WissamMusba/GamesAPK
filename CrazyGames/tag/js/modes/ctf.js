@@ -574,8 +574,14 @@
   /* -------------------------------------------------------------------------
      Tagging & Instant Return: checkCtfTag()
      ------------------------------------------------------------------------- */
+  function isModeHost() {
+    if (typeof NET === 'undefined' || !NET || NET.role === null) return true;
+    return !!NET.isHost;
+  }
+
   function checkCtfTag() {
     if (!ctfState.active) return;
+    if (typeof isModeHost === 'function' && !isModeHost()) return;
     const m = Imatch();
     if (!m || m.state !== 'playing' || !m.players || m.players.length < 2) return;
 
@@ -701,6 +707,7 @@
      Victory Trigger: triggerCtfWin(winningTeam)
      ------------------------------------------------------------------------- */
   function triggerCtfWin(winningTeam) {
+    if (typeof isModeHost === 'function' && !isModeHost()) return;
     const m = Imatch();
     if (!m) return;
     m.result = {

@@ -1,4 +1,6 @@
 /* ================= MENU ================= */
+if(typeof easeOut !== 'function') var easeOut = function(t){ t = Math.max(0, Math.min(1, t)); return 1 - Math.pow(1 - t, 3); };
+if(typeof easeBack !== 'function') var easeBack = function(t){ t = Math.max(0, Math.min(1, t)); const c = 1.70158; return 1 + (c+1)*Math.pow(t-1,3) + c*Math.pow(t-1,2); };
 /* ================= MENU (Fully Responsive Layout) ================= */
 function slotCardRects(){
   const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
@@ -1558,8 +1560,6 @@ function drawMenu(){
     if(menu.slotColor[0] < 0) menu.slotColor[0] = 0;
     if(menu.slotColor[1] < 0) menu.slotColor[1] = 1;
     actSlots = [0, 1];
-    // Touch devices have no P3/P4 controls: local party is capped at 2 players.
-    if(isTouch){ menu.slotColor[2] = -1; menu.slotColor[3] = -1; }
     if(menu.slotColor[2] >= 0) actSlots.push(2);
     if(menu.slotColor[3] >= 0) actSlots.push(3);
   }
@@ -3038,12 +3038,21 @@ function drawFallbackTimerHUD(){
     ptxt(fmtTime(match.timer), CW / 2, 8 + th / 2 + 1, FT(Math.min(22, th * 0.54)), '#ffffff');
   }catch(e){ logModeErr('drawFallbackTimerHUD', e); }
 }
+if (typeof scoreboardOpen === 'undefined') var scoreboardOpen = false;
+if (typeof drawJuicyIconBtn !== 'function') {
+  var drawJuicyIconBtn = function(x, y, sz, o){
+    if (typeof zone === 'function') zone(x, y, sz, sz, { fn: o && o.fn });
+    if (o && typeof o.renderContent === 'function' && typeof g !== 'undefined' && g) {
+      try { o.renderContent(x, y, sz); } catch(e){}
+    }
+  };
+}
 function drawHUD(){
   var _modeChromeDone = false;
   if(settings.gameMode === 'infection'){
     try{ if(typeof drawInfectionUI === 'function') drawInfectionUI(); else drawFallbackTimerHUD(); }
     catch(e){ logModeErr('drawInfectionUI', e); try{ drawFallbackTimerHUD(); }catch(e2){} }
-    return;
+    _modeChromeDone = true;
   }
   if(settings.gameMode === 'bomb'){
     try{ if(typeof drawBombUI === 'function') drawBombUI(); else drawFallbackTimerHUD(); }
@@ -3177,7 +3186,7 @@ function drawHUD(){
       icon: vOn ? (vMuted ? '🔇' : '🎙️') : '🎙️',
       iconColor: vOn ? '#ffffff' : '#1e293b',
       iconSize: 15,
-      fn: voiceToggleMic
+      fn: typeof voiceToggleMic === 'function' ? voiceToggleMic : function(){}
     });
 
     // In-game text chat toggle button

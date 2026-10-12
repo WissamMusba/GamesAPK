@@ -84,6 +84,11 @@
   const _tagBox = (p) => (typeof tagBox === 'function' ? tagBox(p) : { x: p.x - 5, y: p.y - 5, w: p.w + 10, h: p.h + 10 });
   const _getTime = () => (typeof tGlobal !== 'undefined' ? tGlobal : Date.now() * 0.001);
 
+  function isModeHost() {
+    if (typeof NET === 'undefined' || !NET || NET.role === null) return true;
+    return !!NET.isHost;
+  }
+
   function getGlobalCtx() {
     if (typeof g !== 'undefined' && g && g.canvas) return g;
     if (typeof cv !== 'undefined' && cv && cv.getContext) return cv.getContext('2d');
@@ -295,9 +300,19 @@
    */
   function updateBombMode(dt) {
     if (!BOMB_MODE.active) return;
-    const timerDt = (typeof dt === 'number' && dt > 0) ? dt : 1 / 60;
+    const timerDt = (typeof dt === 'number' && dt >= 0) ? Math.min(dt, 10) : 1 / 60;
     const stepDt = Math.min(0.1, timerDt);
     const P = (typeof match !== 'undefined' && match && match.players) ? match.players : [];
+
+    if (P.length === 0) {
+      if (BOMB_MODE.state === 'playing') {
+        BOMB_MODE.fuse = Math.max(0, BOMB_MODE.fuse - timerDt);
+        if (BOMB_MODE.fuse <= 0) {
+          detonateBombHolder();
+        }
+      }
+      return;
+    }
 
     // Update banner fade
     if (BOMB_MODE.bannerT > 0) {
@@ -620,6 +635,7 @@
    */
   function checkBombTag() {
     if (!BOMB_MODE.active || BOMB_MODE.state !== 'playing') return;
+    if (typeof isModeHost === 'function' && !isModeHost()) return;
     const P = (typeof match !== 'undefined' && match && match.players) ? match.players : [];
     if (BOMB_MODE.carrierIdx < 0 || BOMB_MODE.carrierIdx >= P.length) return;
 
@@ -1176,6 +1192,7 @@
     target.BOMB_MODE = BOMB_MODE;
     target.BOMB_CONFIG = BOMB_CONFIG;
     target.ModeBomb = ModeBomb;
+    target.isModeHost = isModeHost;
   }
 
   // CommonJS export for Node testing

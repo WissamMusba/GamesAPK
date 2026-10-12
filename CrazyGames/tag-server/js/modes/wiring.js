@@ -304,6 +304,7 @@ function startMatch(){
     if(infState && settings.gameMode !== 'infection') infState.active = false;
   }catch(e){}
   screen='game';
+  try{ if(typeof globalThis !== 'undefined') globalThis.screen = 'game'; if(typeof window !== 'undefined') window.screen = 'game'; }catch(e){}
   if(!isSplitLocalTouch) sfx('count');
 
   // Broadcast to all connected netplay guests
@@ -328,6 +329,7 @@ function quitToMenu(){
   }
   GESTURE_SPLIT.showTutorial = false;
   match=null;screen='menu';sfx('back');
+  try{ if(typeof globalThis !== 'undefined') globalThis.screen = 'menu'; if(typeof window !== 'undefined') window.screen = 'menu'; }catch(e){}
 }
 
 function returnToLobby(){
@@ -341,6 +343,7 @@ function returnToLobby(){
     }
     match = null;
     screen = 'menu';
+    try{ if(typeof globalThis !== 'undefined') globalThis.screen = 'menu'; if(typeof window !== 'undefined') window.screen = 'menu'; }catch(e){}
     menu.tab = 'online';
     sfx('back');
   } else {
