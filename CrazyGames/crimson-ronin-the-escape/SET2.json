@@ -1,0 +1,1751 @@
+[
+ {
+  "id": "set2_1",
+  "isTutorial": false,
+  "reqKeys": 1,
+  "spawn": {
+   "x": 80,
+   "y": 564
+  },
+  "platforms": [
+   {
+    "x": 0,
+    "y": 610,
+    "w": 3600,
+    "h": 110,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 760,
+    "y": 460,
+    "w": 200,
+    "h": 20,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0,
+    "initiallyHidden": true
+   },
+   {
+    "x": 1120,
+    "y": 440,
+    "w": 200,
+    "h": 20,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0,
+    "initiallyHidden": true
+   },
+   {
+    "x": 1480,
+    "y": 460,
+    "w": 200,
+    "h": 20,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0,
+    "initiallyHidden": true
+   },
+   {
+    "x": 2060,
+    "y": 460,
+    "w": 200,
+    "h": 20,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0,
+    "initiallyHidden": true
+   },
+   {
+    "x": 2420,
+    "y": 440,
+    "w": 200,
+    "h": 20,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0,
+    "initiallyHidden": true
+   },
+   {
+    "x": 2780,
+    "y": 460,
+    "w": 200,
+    "h": 20,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0,
+    "initiallyHidden": true
+   },
+   {
+    "x": 420,
+    "y": 170,
+    "w": 220,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 760,
+    "y": 170,
+    "w": 200,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 1120,
+    "y": 170,
+    "w": 200,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 1480,
+    "y": 170,
+    "w": 200,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 1840,
+    "y": 170,
+    "w": 200,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 2200,
+    "y": 170,
+    "w": 200,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 2560,
+    "y": 170,
+    "w": 200,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 2920,
+    "y": 170,
+    "w": 200,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 3160,
+    "y": 170,
+    "w": 240,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   }
+  ],
+  "spikes": [
+   {
+    "x": 700,
+    "y": 610,
+    "w": 800,
+    "h": 20
+   },
+   {
+    "x": 2000,
+    "y": 610,
+    "w": 800,
+    "h": 20
+   },
+   {
+    "x": 1200,
+    "y": 170,
+    "w": 60,
+    "h": 20
+   },
+   {
+    "x": 1900,
+    "y": 170,
+    "w": 60,
+    "h": 20
+   },
+   {
+    "x": 2650,
+    "y": 170,
+    "w": 60,
+    "h": 20
+   }
+  ],
+  "plates": [
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": true,
+    "platAction": "spawn",
+    "platDuration": 0,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 640,
+    "y": 610,
+    "targetPlatX": 760,
+    "targetPlatY": 460
+   },
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": true,
+    "platAction": "spawn",
+    "platDuration": 0,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 880,
+    "y": 460,
+    "targetPlatX": 1120,
+    "targetPlatY": 440
+   },
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": true,
+    "platAction": "spawn",
+    "platDuration": 0,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 1240,
+    "y": 440,
+    "targetPlatX": 1480,
+    "targetPlatY": 460
+   },
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": true,
+    "platAction": "spawn",
+    "platDuration": 0,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 1940,
+    "y": 610,
+    "targetPlatX": 2060,
+    "targetPlatY": 460
+   },
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": true,
+    "platAction": "spawn",
+    "platDuration": 0,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 2180,
+    "y": 460,
+    "targetPlatX": 2420,
+    "targetPlatY": 440
+   },
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": true,
+    "platAction": "spawn",
+    "platDuration": 0,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 2540,
+    "y": 440,
+    "targetPlatX": 2780,
+    "targetPlatY": 460
+   }
+  ],
+  "bushes": [
+   {
+    "x": 500,
+    "y": 610,
+    "w": 78,
+    "h": 48,
+    "hideType": "bush"
+   },
+   {
+    "x": 3150,
+    "y": 610,
+    "w": 78,
+    "h": 48,
+    "hideType": "bush"
+   }
+  ],
+  "guards": [
+   {
+    "x": 1560,
+    "y": 170,
+    "minX": 1480,
+    "maxX": 1640,
+    "speed": 0,
+    "dir": 1,
+    "visionLen": 200,
+    "visionH": 50,
+    "shootInterval": 0
+   },
+   {
+    "x": 2400,
+    "y": 170,
+    "minX": 2340,
+    "maxX": 2480,
+    "speed": 1.2,
+    "dir": 1,
+    "visionLen": 240,
+    "visionH": 50,
+    "shootInterval": 0
+   },
+   {
+    "x": 3200,
+    "y": 554,
+    "minX": 3100,
+    "maxX": 3400,
+    "speed": 1.2,
+    "dir": 1,
+    "visionLen": 240,
+    "visionH": 50,
+    "shootInterval": 0
+   }
+  ],
+  "towers": [],
+  "keys": [
+   {
+    "x": 3300,
+    "y": 555
+   }
+  ],
+  "ki": [
+   {
+    "x": 400,
+    "y": 555
+   },
+   {
+    "x": 820,
+    "y": 400
+   },
+   {
+    "x": 1180,
+    "y": 380
+   },
+   {
+    "x": 1540,
+    "y": 400
+   },
+   {
+    "x": 2120,
+    "y": 400
+   },
+   {
+    "x": 2480,
+    "y": 380
+   },
+   {
+    "x": 2840,
+    "y": 400
+   },
+   {
+    "x": 3240,
+    "y": 110
+   },
+   {
+    "x": 2600,
+    "y": 110
+   },
+   {
+    "x": 1300,
+    "y": 110
+   }
+  ],
+  "tutorialCards": [],
+  "texts": [
+   {
+    "x": 160,
+    "y": 480,
+    "text": "THE GATE IS BEHIND YOU — AND LOCKED",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 600,
+    "y": 545,
+    "text": "PLATES RAISE THE BRIDGE. NOTHING ELSE WILL.",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 3300,
+    "y": 500,
+    "text": "TAKE THE KEY",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 3420,
+    "y": 545,
+    "text": "THE SHADOW IS THE ONLY WAY BACK",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 3160,
+    "y": 110,
+    "text": "NOW RUN IT BACKWARDS — UP HERE",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   }
+  ],
+  "triggerZones": [
+   {
+    "y": 0,
+    "w": 120,
+    "h": 610,
+    "oneShot": false,
+    "rearmDelay": 2,
+    "popupText": true,
+    "x": 3450,
+    "teleportTrigger": true,
+    "teleportX": 3180,
+    "teleportY": 170
+   },
+   {
+    "y": 0,
+    "w": 100,
+    "h": 610,
+    "oneShot": true,
+    "rearmDelay": 1.5,
+    "popupText": true,
+    "x": 2600,
+    "teleportTrigger": true,
+    "teleportX": 3180,
+    "teleportY": 170
+   },
+   {
+    "y": 0,
+    "w": 100,
+    "h": 610,
+    "oneShot": true,
+    "rearmDelay": 1.5,
+    "popupText": true,
+    "x": 1960,
+    "teleportTrigger": true,
+    "teleportX": 900,
+    "teleportY": 460
+   }
+  ],
+  "name": "Set 2A: The Mirror Path",
+  "w": 3600,
+  "exit": {
+   "x": 180,
+   "y": 540
+  }
+ },
+ {
+  "id": "set2_2",
+  "isTutorial": false,
+  "reqKeys": 1,
+  "spawn": {
+   "x": 80,
+   "y": 564
+  },
+  "platforms": [
+   {
+    "x": 0,
+    "y": 610,
+    "w": 3800,
+    "h": 110,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 1020,
+    "y": 480,
+    "w": 200,
+    "h": 20,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0,
+    "initiallyHidden": true
+   },
+   {
+    "x": 1380,
+    "y": 480,
+    "w": 200,
+    "h": 20,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0,
+    "initiallyHidden": true
+   },
+   {
+    "x": 1740,
+    "y": 480,
+    "w": 200,
+    "h": 20,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0,
+    "initiallyHidden": true
+   },
+   {
+    "x": 2100,
+    "y": 480,
+    "w": 200,
+    "h": 20,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0,
+    "initiallyHidden": true
+   },
+   {
+    "x": 2460,
+    "y": 480,
+    "w": 200,
+    "h": 20,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0,
+    "initiallyHidden": true
+   },
+   {
+    "x": 2820,
+    "y": 480,
+    "w": 200,
+    "h": 20,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0,
+    "initiallyHidden": true
+   },
+   {
+    "x": 3180,
+    "y": 480,
+    "w": 200,
+    "h": 20,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0,
+    "initiallyHidden": true
+   }
+  ],
+  "spikes": [
+   {
+    "x": 900,
+    "y": 610,
+    "w": 2200,
+    "h": 20
+   }
+  ],
+  "plates": [
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": true,
+    "platAction": "spawn",
+    "platDuration": 0,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 820,
+    "y": 610,
+    "targetPlatX": 1020,
+    "targetPlatY": 480
+   },
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": true,
+    "platAction": "spawn",
+    "platDuration": 0,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 1140,
+    "y": 480,
+    "targetPlatX": 1380,
+    "targetPlatY": 480
+   },
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": true,
+    "platAction": "spawn",
+    "platDuration": 0,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 1500,
+    "y": 480,
+    "targetPlatX": 1740,
+    "targetPlatY": 480
+   },
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": true,
+    "platAction": "spawn",
+    "platDuration": 0,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 1860,
+    "y": 480,
+    "targetPlatX": 2100,
+    "targetPlatY": 480
+   },
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": true,
+    "platAction": "spawn",
+    "platDuration": 0,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 2220,
+    "y": 480,
+    "targetPlatX": 2460,
+    "targetPlatY": 480
+   },
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": true,
+    "platAction": "spawn",
+    "platDuration": 0,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 2580,
+    "y": 480,
+    "targetPlatX": 2820,
+    "targetPlatY": 480
+   },
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": true,
+    "platAction": "spawn",
+    "platDuration": 0,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 2940,
+    "y": 480,
+    "targetPlatX": 3180,
+    "targetPlatY": 480
+   }
+  ],
+  "bushes": [
+   {
+    "x": 700,
+    "y": 610,
+    "w": 78,
+    "h": 48,
+    "hideType": "bush"
+   },
+   {
+    "x": 3250,
+    "y": 610,
+    "w": 78,
+    "h": 48,
+    "hideType": "bush"
+   }
+  ],
+  "guards": [
+   {
+    "x": 400,
+    "y": 554,
+    "minX": 340,
+    "maxX": 470,
+    "speed": 0,
+    "dir": 1,
+    "visionLen": 200,
+    "visionH": 50,
+    "shootInterval": 0
+   },
+   {
+    "x": 3300,
+    "y": 554,
+    "minX": 3250,
+    "maxX": 3400,
+    "speed": 1.2,
+    "dir": 1,
+    "visionLen": 240,
+    "visionH": 50,
+    "shootInterval": 0
+   },
+   {
+    "x": 3650,
+    "y": 554,
+    "minX": 3580,
+    "maxX": 3720,
+    "speed": 1.2,
+    "dir": 1,
+    "visionLen": 240,
+    "visionH": 50,
+    "shootInterval": 0
+   }
+  ],
+  "towers": [],
+  "keys": [
+   {
+    "x": 3450,
+    "y": 555
+   }
+  ],
+  "ki": [
+   {
+    "x": 400,
+    "y": 555
+   },
+   {
+    "x": 1080,
+    "y": 440
+   },
+   {
+    "x": 1440,
+    "y": 440
+   },
+   {
+    "x": 1800,
+    "y": 440
+   },
+   {
+    "x": 2160,
+    "y": 440
+   },
+   {
+    "x": 2520,
+    "y": 440
+   },
+   {
+    "x": 2880,
+    "y": 440
+   },
+   {
+    "x": 3300,
+    "y": 555
+   }
+  ],
+  "tutorialCards": [],
+  "texts": [
+   {
+    "x": 300,
+    "y": 545,
+    "text": "SEVEN PLATES RAISE ONE BRIDGE",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 1860,
+    "y": 440,
+    "text": "THE FIRST DOOR THROWS YOU BACK",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 2560,
+    "y": 440,
+    "text": "SO DOES THE SECOND",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 3380,
+    "y": 545,
+    "text": "THE KEY IS ON THE FAR SIDE. CROSS AGAIN.",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   }
+  ],
+  "triggerZones": [
+   {
+    "y": 0,
+    "w": 100,
+    "h": 610,
+    "oneShot": true,
+    "rearmDelay": 1.5,
+    "popupText": true,
+    "x": 1900,
+    "teleportTrigger": true,
+    "teleportX": 620,
+    "teleportY": 610
+   },
+   {
+    "y": 0,
+    "w": 100,
+    "h": 610,
+    "oneShot": true,
+    "rearmDelay": 1.5,
+    "popupText": true,
+    "x": 2600,
+    "teleportTrigger": true,
+    "teleportX": 620,
+    "teleportY": 610
+   }
+  ],
+  "name": "Set 2B: The Return Road",
+  "w": 3800,
+  "exit": {
+   "x": 3700,
+   "y": 540
+  }
+ },
+ {
+  "id": "set2_3",
+  "isTutorial": false,
+  "reqKeys": 1,
+  "spawn": {
+   "x": 80,
+   "y": 564
+  },
+  "platforms": [
+   {
+    "x": 0,
+    "y": 610,
+    "w": 3600,
+    "h": 110,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 980,
+    "y": 480,
+    "w": 200,
+    "h": 20,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0,
+    "initiallyHidden": true
+   },
+   {
+    "x": 1340,
+    "y": 480,
+    "w": 200,
+    "h": 20,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0,
+    "initiallyHidden": true
+   },
+   {
+    "x": 1700,
+    "y": 480,
+    "w": 200,
+    "h": 20,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0,
+    "initiallyHidden": true
+   },
+   {
+    "x": 2060,
+    "y": 480,
+    "w": 200,
+    "h": 20,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0,
+    "initiallyHidden": true
+   },
+   {
+    "x": 2420,
+    "y": 480,
+    "w": 200,
+    "h": 20,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0,
+    "initiallyHidden": true
+   },
+   {
+    "x": 2780,
+    "y": 480,
+    "w": 200,
+    "h": 20,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0,
+    "initiallyHidden": true
+   },
+   {
+    "x": 3160,
+    "y": 170,
+    "w": 240,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 2820,
+    "y": 170,
+    "w": 200,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 2480,
+    "y": 170,
+    "w": 200,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 2140,
+    "y": 170,
+    "w": 200,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 1800,
+    "y": 170,
+    "w": 200,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 1460,
+    "y": 170,
+    "w": 200,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 1120,
+    "y": 170,
+    "w": 200,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 780,
+    "y": 170,
+    "w": 200,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 440,
+    "y": 170,
+    "w": 220,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   }
+  ],
+  "spikes": [
+   {
+    "x": 800,
+    "y": 610,
+    "w": 2000,
+    "h": 20
+   },
+   {
+    "x": 2900,
+    "y": 170,
+    "w": 60,
+    "h": 20
+   },
+   {
+    "x": 1900,
+    "y": 170,
+    "w": 60,
+    "h": 20
+   }
+  ],
+  "plates": [
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": true,
+    "platAction": "spawn",
+    "platDuration": 0,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 720,
+    "y": 610,
+    "targetPlatX": 980,
+    "targetPlatY": 480
+   },
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": true,
+    "platAction": "spawn",
+    "platDuration": 0,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 1100,
+    "y": 480,
+    "targetPlatX": 1340,
+    "targetPlatY": 480
+   },
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": true,
+    "platAction": "spawn",
+    "platDuration": 0,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 1460,
+    "y": 480,
+    "targetPlatX": 1700,
+    "targetPlatY": 480
+   },
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": true,
+    "platAction": "spawn",
+    "platDuration": 0,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 1820,
+    "y": 480,
+    "targetPlatX": 2060,
+    "targetPlatY": 480
+   },
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": true,
+    "platAction": "spawn",
+    "platDuration": 0,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 2180,
+    "y": 480,
+    "targetPlatX": 2420,
+    "targetPlatY": 480
+   },
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": true,
+    "platAction": "spawn",
+    "platDuration": 0,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 2540,
+    "y": 480,
+    "targetPlatX": 2780,
+    "targetPlatY": 480
+   }
+  ],
+  "bushes": [
+   {
+    "x": 560,
+    "y": 610,
+    "w": 78,
+    "h": 48,
+    "hideType": "bush"
+   },
+   {
+    "x": 3200,
+    "y": 610,
+    "w": 78,
+    "h": 48,
+    "hideType": "bush"
+   }
+  ],
+  "guards": [
+   {
+    "x": 600,
+    "y": 554,
+    "minX": 500,
+    "maxX": 700,
+    "speed": 0,
+    "dir": 1,
+    "visionLen": 200,
+    "visionH": 50,
+    "shootInterval": 0
+   },
+   {
+    "x": 1560,
+    "y": 170,
+    "minX": 1460,
+    "maxX": 1660,
+    "speed": 1.2,
+    "dir": 1,
+    "visionLen": 240,
+    "visionH": 50,
+    "shootInterval": 0
+   }
+  ],
+  "towers": [],
+  "keys": [
+   {
+    "x": 2300,
+    "y": 120
+   }
+  ],
+  "ki": [
+   {
+    "x": 400,
+    "y": 555
+   },
+   {
+    "x": 1040,
+    "y": 440
+   },
+   {
+    "x": 1400,
+    "y": 440
+   },
+   {
+    "x": 1760,
+    "y": 440
+   },
+   {
+    "x": 2120,
+    "y": 440
+   },
+   {
+    "x": 2480,
+    "y": 440
+   },
+   {
+    "x": 2840,
+    "y": 440
+   },
+   {
+    "x": 2300,
+    "y": 110
+   },
+   {
+    "x": 1300,
+    "y": 110
+   }
+  ],
+  "tutorialCards": [],
+  "texts": [
+   {
+    "x": 160,
+    "y": 480,
+    "text": "THE GATE IS BEHIND YOU — AND LOCKED",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 700,
+    "y": 545,
+    "text": "BUILD THE BRIDGE. CROSS. THEN FIND OUT WHERE THE DOORS GO.",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 3000,
+    "y": 545,
+    "text": "THREE DOORS. NONE OF THEM SAY WHERE.",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 2300,
+    "y": 120,
+    "text": "THE KEY",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   }
+  ],
+  "triggerZones": [
+   {
+    "y": 0,
+    "w": 90,
+    "h": 610,
+    "oneShot": true,
+    "rearmDelay": 1.5,
+    "popupText": true,
+    "x": 3050,
+    "teleportTrigger": true,
+    "teleportX": 3400,
+    "teleportY": 610
+   },
+   {
+    "y": 0,
+    "w": 90,
+    "h": 610,
+    "oneShot": false,
+    "rearmDelay": 2,
+    "popupText": true,
+    "x": 3250,
+    "teleportTrigger": true,
+    "teleportX": 3180,
+    "teleportY": 170
+   },
+   {
+    "y": 0,
+    "w": 80,
+    "h": 610,
+    "oneShot": true,
+    "rearmDelay": 1.5,
+    "popupText": true,
+    "x": 3520,
+    "teleportTrigger": true,
+    "teleportX": 300,
+    "teleportY": 610
+   }
+  ],
+  "name": "Set 2C: The Three Doors",
+  "w": 3600,
+  "exit": {
+   "x": 180,
+   "y": 540
+  }
+ },
+ {
+  "id": "level_8",
+  "name": "Level 8: Silent Blade",
+  "w": 3600,
+  "isTutorial": false,
+  "reqKeys": 2,
+  "spawn": {
+   "x": 80,
+   "y": 564
+  },
+  "exit": {
+   "x": 3300,
+   "y": 540
+  },
+  "platforms": [
+   {
+    "x": 0,
+    "y": 610,
+    "w": 3600,
+    "h": 110,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 1150,
+    "y": 430,
+    "w": 200,
+    "h": 20,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0,
+    "initiallyHidden": true
+   },
+   {
+    "x": 1500,
+    "y": 390,
+    "w": 240,
+    "h": 20,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0,
+    "initiallyHidden": true
+   },
+   {
+    "x": 1900,
+    "y": 430,
+    "w": 200,
+    "h": 20,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0,
+    "initiallyHidden": true
+   },
+   {
+    "x": 2200,
+    "y": 430,
+    "w": 200,
+    "h": 20,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0,
+    "initiallyHidden": true
+   },
+   {
+    "x": 2450,
+    "y": 470,
+    "w": 200,
+    "h": 20,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0,
+    "initiallyHidden": true
+   }
+  ],
+  "spikes": [
+   {
+    "x": 1100,
+    "y": 610,
+    "w": 1400,
+    "h": 20
+   }
+  ],
+  "plates": [
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": true,
+    "platAction": "spawn",
+    "platDuration": 0,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 940,
+    "y": 610,
+    "targetPlatX": 1150,
+    "targetPlatY": 430
+   },
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": true,
+    "platAction": "spawn",
+    "platDuration": 0,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 1250,
+    "y": 430,
+    "targetPlatX": 1500,
+    "targetPlatY": 390
+   },
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": true,
+    "platAction": "spawn",
+    "platDuration": 0,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 1640,
+    "y": 390,
+    "targetPlatX": 1900,
+    "targetPlatY": 430
+   },
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": true,
+    "platAction": "spawn",
+    "platDuration": 0,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 1950,
+    "y": 430,
+    "targetPlatX": 2200,
+    "targetPlatY": 430
+   },
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": true,
+    "platAction": "spawn",
+    "platDuration": 0,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 2300,
+    "y": 430,
+    "targetPlatX": 2450,
+    "targetPlatY": 470
+   }
+  ],
+  "keys": [
+   {
+    "x": 1300,
+    "y": 370
+   },
+   {
+    "x": 2350,
+    "y": 370
+   }
+  ],
+  "towers": [
+   {
+    "x": 1750,
+    "y": 0,
+    "mount": "top",
+    "isCeiling": true,
+    "ty": 390,
+    "minX": 1400,
+    "maxX": 2400,
+    "speed": 0.65,
+    "alertTime": 1,
+    "beamSpread": 54
+   }
+  ],
+  "guards": [
+   {
+    "x": 600,
+    "y": 554,
+    "minX": 500,
+    "maxX": 700,
+    "speed": 0,
+    "dir": 1,
+    "visionLen": 200,
+    "visionH": 50,
+    "shootInterval": 0
+   },
+   {
+    "x": 2560,
+    "y": 554,
+    "minX": 2500,
+    "maxX": 2700,
+    "speed": 1.2,
+    "dir": 1,
+    "visionLen": 240,
+    "visionH": 50,
+    "shootInterval": 0
+   },
+   {
+    "x": 3150,
+    "y": 554,
+    "minX": 3000,
+    "maxX": 3300,
+    "speed": 2.2,
+    "dir": 1,
+    "visionLen": 280,
+    "visionH": 50,
+    "shootInterval": 0
+   }
+  ],
+  "bushes": [
+   {
+    "x": 500,
+    "y": 610,
+    "w": 78,
+    "h": 48,
+    "hideType": "bush"
+   },
+   {
+    "x": 2550,
+    "y": 610,
+    "w": 78,
+    "h": 48,
+    "hideType": "bush"
+   },
+   {
+    "x": 3200,
+    "y": 610,
+    "w": 78,
+    "h": 48,
+    "hideType": "bush"
+   }
+  ],
+  "ki": [
+   {
+    "x": 420,
+    "y": 555
+   },
+   {
+    "x": 1180,
+    "y": 390
+   },
+   {
+    "x": 1540,
+    "y": 350
+   },
+   {
+    "x": 1940,
+    "y": 390
+   },
+   {
+    "x": 2240,
+    "y": 390
+   },
+   {
+    "x": 2490,
+    "y": 430
+   },
+   {
+    "x": 2800,
+    "y": 555
+   },
+   {
+    "x": 3400,
+    "y": 555
+   }
+  ],
+  "triggerZones": [],
+  "texts": [
+   {
+    "x": 300,
+    "y": 545,
+    "text": "THE BLADES FILL THE PASSAGE — TIME THEM, DO NOT JUMP THEM",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 940,
+    "y": 545,
+    "text": "PLATES RAISE THE HIGH BRIDGE",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 1480,
+    "y": 350,
+    "text": "KEEP THE RHYTHM",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 2500,
+    "y": 545,
+    "text": "ONE MORE BLADE BEFORE THE GATE",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   }
+  ]
+ }
+]

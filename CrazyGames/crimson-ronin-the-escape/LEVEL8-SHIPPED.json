@@ -1,0 +1,269 @@
+{
+ "name": "SILENT BLADE",
+ "w": 3600,
+ "par": 30,
+ "spawnX": 80,
+ "spawnY": 564,
+ "plats": [
+  {
+   "x": 1150,
+   "y": 430,
+   "w": 200,
+   "h": 20,
+   "t": "n",
+   "initiallyHidden": true,
+   "collapseDelay": 0,
+   "respawnDelay": 0
+  },
+  {
+   "x": 1500,
+   "y": 390,
+   "w": 240,
+   "h": 20,
+   "t": "n",
+   "initiallyHidden": true,
+   "collapseDelay": 0,
+   "respawnDelay": 0
+  },
+  {
+   "x": 1900,
+   "y": 430,
+   "w": 200,
+   "h": 20,
+   "t": "n",
+   "initiallyHidden": true,
+   "collapseDelay": 0,
+   "respawnDelay": 0
+  },
+  {
+   "x": 2200,
+   "y": 430,
+   "w": 200,
+   "h": 20,
+   "t": "n",
+   "initiallyHidden": true,
+   "collapseDelay": 0,
+   "respawnDelay": 0
+  },
+  {
+   "x": 2450,
+   "y": 470,
+   "w": 200,
+   "h": 20,
+   "t": "n",
+   "initiallyHidden": true,
+   "collapseDelay": 0,
+   "respawnDelay": 0
+  }
+ ],
+ "spikes": [
+  {
+   "x": 1100,
+   "y": 610,
+   "w": 1400,
+   "h": 20
+  }
+ ],
+ "blades": [
+  {
+   "x": 1000,
+   "y": 200,
+   "h": 410,
+   "period": 2,
+   "on": 1.45,
+   "phase": 0
+  },
+  {
+   "x": 2000,
+   "y": 200,
+   "h": 410,
+   "period": 2,
+   "on": 1.45,
+   "phase": 0.7
+  },
+  {
+   "x": 2700,
+   "y": 200,
+   "h": 410,
+   "period": 2,
+   "on": 1.45,
+   "phase": 1.4
+  }
+ ],
+ "plates": [
+  {
+   "x": 940,
+   "y": 610,
+   "platTrigger": true,
+   "platAction": "spawn",
+   "targetPlatX": 1150,
+   "targetPlatY": 430,
+   "platDuration": 0,
+   "spikeTrigger": false
+  },
+  {
+   "x": 1250,
+   "y": 430,
+   "platTrigger": true,
+   "platAction": "spawn",
+   "targetPlatX": 1500,
+   "targetPlatY": 390,
+   "platDuration": 0,
+   "spikeTrigger": false
+  },
+  {
+   "x": 1640,
+   "y": 390,
+   "platTrigger": true,
+   "platAction": "spawn",
+   "targetPlatX": 1900,
+   "targetPlatY": 430,
+   "platDuration": 0,
+   "spikeTrigger": false
+  },
+  {
+   "x": 1950,
+   "y": 430,
+   "platTrigger": true,
+   "platAction": "spawn",
+   "targetPlatX": 2200,
+   "targetPlatY": 430,
+   "platDuration": 0,
+   "spikeTrigger": false
+  },
+  {
+   "x": 2300,
+   "y": 430,
+   "platTrigger": true,
+   "platAction": "spawn",
+   "targetPlatX": 2450,
+   "targetPlatY": 470,
+   "platDuration": 0,
+   "spikeTrigger": false
+  }
+ ],
+ "fires": [],
+ "spots": [],
+ "towers": [
+  {
+   "x": 1750,
+   "y": 0,
+   "mount": "top",
+   "isCeiling": true,
+   "ty": 390,
+   "minX": 1400,
+   "maxX": 2400,
+   "speed": 0.65,
+   "alertTime": 1,
+   "beamSpread": 54
+  }
+ ],
+ "guards": [
+  {
+   "type": "watcher",
+   "x": 600,
+   "y": 554,
+   "minX": 500,
+   "maxX": 700,
+   "range": 200
+  },
+  {
+   "type": "walker",
+   "x": 2560,
+   "y": 554,
+   "minX": 2500,
+   "maxX": 2700,
+   "range": 240
+  },
+  {
+   "type": "runner",
+   "x": 3150,
+   "y": 554,
+   "minX": 3000,
+   "maxX": 3300,
+   "range": 280
+  }
+ ],
+ "crates": [],
+ "bushes": [
+  {
+   "x": 500,
+   "y": 610
+  },
+  {
+   "x": 2550,
+   "y": 610
+  },
+  {
+   "x": 3200,
+   "y": 610
+  }
+ ],
+ "keys": [
+  {
+   "x": 1300,
+   "y": 370
+  },
+  {
+   "x": 2350,
+   "y": 370
+  }
+ ],
+ "doorX": 3300,
+ "orbs": [
+  [
+   420,
+   555
+  ],
+  [
+   1180,
+   390
+  ],
+  [
+   1540,
+   350
+  ],
+  [
+   1940,
+   390
+  ],
+  [
+   2240,
+   390
+  ],
+  [
+   2490,
+   430
+  ],
+  [
+   2800,
+   555
+  ],
+  [
+   3400,
+   555
+  ]
+ ],
+ "signs": [
+  [
+   300,
+   545,
+   "THE BLADES FILL THE PASSAGE — TIME THEM, DO NOT JUMP THEM"
+  ],
+  [
+   940,
+   545,
+   "PLATES RAISE THE HIGH BRIDGE"
+  ],
+  [
+   1480,
+   350,
+   "KEEP THE RHYTHM"
+  ],
+  [
+   2500,
+   545,
+   "ONE MORE BLADE BEFORE THE GATE"
+  ]
+ ]
+}

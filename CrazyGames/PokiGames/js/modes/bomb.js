@@ -1,3 +1,4 @@
+/* ==========================================================================
    BUNDLED MODE: BOMB TAG / HOT POTATO
    ========================================================================== */
 /**
@@ -177,6 +178,15 @@
     const count = activeSurvivors.length > 0 ? activeSurvivors.length : Math.max(2, P.length);
 
     BOMB_MODE.active = true;
+    try {
+      const glob = typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : (typeof root !== 'undefined' ? root : {}));
+      if (typeof crownState !== 'undefined' && crownState) crownState.active = false;
+      if (glob && glob.crownState) glob.crownState.active = false;
+      if (typeof ctfState !== 'undefined' && ctfState) ctfState.active = false;
+      if (glob && glob.ctfState) glob.ctfState.active = false;
+      if (typeof infectionState !== 'undefined' && infectionState) infectionState.active = false;
+      if (glob && glob.infectionState) glob.infectionState.active = false;
+    } catch (e) {}
     BOMB_MODE.maxFuse = calculateStartingFuse(count);
     BOMB_MODE.fuse = BOMB_MODE.maxFuse;
     BOMB_MODE.passImmunity = {};
@@ -1149,29 +1159,23 @@
     calculateStartingFuse: calculateStartingFuse
   };
 
-  // Attach to global window scope in browser
-  const bScope = (typeof window !== "undefined") ? window : (typeof globalThis !== "undefined" ? globalThis : root);
-  if (bScope) {
-    bScope.initBombMode = initBombMode;
-    bScope.updateBombMode = updateBombMode;
-    bScope.checkBombTag = checkBombTag;
-    bScope.drawBombUI = drawBombUI;
-    bScope.drawBombPlayer = drawBombPlayer;
-    bScope.bombBotThink = bombBotThink;
-    bScope.BOMB_MODE = BOMB_MODE;
-    bScope.BOMB_CONFIG = BOMB_CONFIG;
-    bScope.ModeBomb = ModeBomb;
-  }
-  if (typeof root !== 'undefined') {
-    root.initBombMode = initBombMode;
-    root.updateBombMode = updateBombMode;
-    root.checkBombTag = checkBombTag;
-    root.drawBombUI = drawBombUI;
-    root.drawBombPlayer = drawBombPlayer;
-    root.bombBotThink = bombBotThink;
-    root.BOMB_MODE = BOMB_MODE;
-    root.BOMB_CONFIG = BOMB_CONFIG;
-    root.ModeBomb = ModeBomb;
+  // Attach to global window and globalThis scopes across all runtime environments
+  const exportTargets = [];
+  if (typeof window !== 'undefined' && exportTargets.indexOf(window) < 0) exportTargets.push(window);
+  if (typeof globalThis !== 'undefined' && exportTargets.indexOf(globalThis) < 0) exportTargets.push(globalThis);
+  if (typeof root !== 'undefined' && root && exportTargets.indexOf(root) < 0) exportTargets.push(root);
+
+  for (let i = 0; i < exportTargets.length; i++) {
+    const target = exportTargets[i];
+    target.initBombMode = initBombMode;
+    target.updateBombMode = updateBombMode;
+    target.checkBombTag = checkBombTag;
+    target.drawBombUI = drawBombUI;
+    target.drawBombPlayer = drawBombPlayer;
+    target.bombBotThink = bombBotThink;
+    target.BOMB_MODE = BOMB_MODE;
+    target.BOMB_CONFIG = BOMB_CONFIG;
+    target.ModeBomb = ModeBomb;
   }
 
   // CommonJS export for Node testing
@@ -1182,4 +1186,3 @@
 })(typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : this));
 
 
-/* ==========================================================================

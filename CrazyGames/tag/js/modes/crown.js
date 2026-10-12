@@ -1,3 +1,4 @@
+/* ==========================================================================
    BUNDLED MODE: CROWN KING / KING OF THE HILL
    ========================================================================== */
 /**
@@ -264,6 +265,15 @@
      ========================================================================== */
   function initCrownMode() {
     crownState.active = true;
+    try {
+      const glob = typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : (typeof root !== 'undefined' ? root : {}));
+      if (typeof BOMB_MODE !== 'undefined' && BOMB_MODE) BOMB_MODE.active = false;
+      if (glob && glob.BOMB_MODE) glob.BOMB_MODE.active = false;
+      if (typeof ctfState !== 'undefined' && ctfState) ctfState.active = false;
+      if (glob && glob.ctfState) glob.ctfState.active = false;
+      if (typeof infectionState !== 'undefined' && infectionState) infectionState.active = false;
+      if (glob && glob.infectionState) glob.infectionState.active = false;
+    } catch (e) {}
     crownState.holder = null;
     crownState.holderIndex = -1;
     crownState.immunityTimer = 0;
@@ -1343,59 +1353,45 @@
      17. AUTO-INTEGRATION HOOKS (Clean Browser Bridge)
      ========================================================================== */
   function attachCrownModeHooks() {
-    const cScope = (typeof window !== "undefined") ? window : (typeof globalThis !== "undefined" ? globalThis : null);
-    if(cScope){
-      cScope.initCrownMode = initCrownMode;
-      cScope.updateCrownMode = updateCrownMode;
-      cScope.checkCrownTag = checkCrownTag;
-      cScope.drawCrownUI = drawCrownUI;
-      cScope.drawCrownPlayer = drawCrownPlayer;
-      cScope.crownBotThink = crownBotThink;
-      cScope.getCrownPlayerSpeed = getCrownPlayerSpeed;
-      cScope.drawCrownEntity = drawCrownEntity;
-      cScope.drawCrownWorldFX = drawCrownWorldFX;
-      cScope.spawnCrownShockwave = spawnCrownShockwave;
-      cScope.CROWN_CONFIG = CROWN_CONFIG;
-      cScope.crownState = crownState;
-    }
-    if (typeof window === 'undefined') return;
+    const targets = [];
+    if (typeof window !== 'undefined' && targets.indexOf(window) < 0) targets.push(window);
+    if (typeof globalThis !== 'undefined' && targets.indexOf(globalThis) < 0) targets.push(globalThis);
+    if (typeof root !== 'undefined' && root && targets.indexOf(root) < 0) targets.push(root);
 
-    // Expose main interface onto global window
-    window.initCrownMode = initCrownMode;
-    window.updateCrownMode = updateCrownMode;
-    window.checkCrownTag = checkCrownTag;
-    window.drawCrownUI = drawCrownUI;
-    window.drawCrownPlayer = drawCrownPlayer;
-    window.crownBotThink = crownBotThink;
-    window.getCrownPlayerSpeed = getCrownPlayerSpeed;
-    window.drawCrownEntity = drawCrownEntity;
-    window.drawCrownWorldFX = drawCrownWorldFX;
-    window.spawnCrownShockwave = spawnCrownShockwave;
-    window.CROWN_CONFIG = CROWN_CONFIG;
-    window.crownState = crownState;
+    const crownModeObj = {
+      init: initCrownMode,
+      update: updateCrownMode,
+      checkTag: checkCrownTag,
+      drawUI: drawCrownUI,
+      drawPlayer: drawCrownPlayer,
+      botThink: crownBotThink,
+      getSpeed: getCrownPlayerSpeed,
+      drawCrown: drawCrownEntity,
+      drawWorldFX: drawCrownWorldFX,
+      state: crownState,
+      config: CROWN_CONFIG
+    };
 
-    // Helper: auto-trigger on match start if gameMode === 'crown'
-    if (typeof window.CrownMode === 'undefined') {
-      window.CrownMode = {
-        init: initCrownMode,
-        update: updateCrownMode,
-        checkTag: checkCrownTag,
-        drawUI: drawCrownUI,
-        drawPlayer: drawCrownPlayer,
-        botThink: crownBotThink,
-        getSpeed: getCrownPlayerSpeed,
-        drawCrown: drawCrownEntity,
-        drawWorldFX: drawCrownWorldFX,
-        state: crownState,
-        config: CROWN_CONFIG
-      };
+    for (let i = 0; i < targets.length; i++) {
+      const t = targets[i];
+      t.initCrownMode = initCrownMode;
+      t.updateCrownMode = updateCrownMode;
+      t.checkCrownTag = checkCrownTag;
+      t.drawCrownUI = drawCrownUI;
+      t.drawCrownPlayer = drawCrownPlayer;
+      t.crownBotThink = crownBotThink;
+      t.getCrownPlayerSpeed = getCrownPlayerSpeed;
+      t.drawCrownEntity = drawCrownEntity;
+      t.drawCrownWorldFX = drawCrownWorldFX;
+      t.spawnCrownShockwave = spawnCrownShockwave;
+      t.CROWN_CONFIG = CROWN_CONFIG;
+      t.crownState = crownState;
+      t.CrownMode = crownModeObj;
     }
   }
 
-  // Run auto-attacher in browser environment
-  if (typeof window !== 'undefined') {
-    attachCrownModeHooks();
-  }
+  // Run auto-attacher across browser and Node.js environments
+  attachCrownModeHooks();
 
   /* ==========================================================================
      18. MODULE EXPORTS (Node.js & CommonJS compatibility)
@@ -1425,4 +1421,4 @@
   return crownModuleExports;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
-/* ==========================================================================
+

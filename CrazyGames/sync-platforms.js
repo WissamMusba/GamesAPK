@@ -96,10 +96,8 @@ const POKI = {
     try { return location.origin + location.pathname + '?room=' + encodeURIComponent(roomId); } catch(e){ return null; }
   }
 };
-const CG = POKI;
-let _cgBoot = null;
-let _pokiBoot = null;\n`;
-        audioContent = audioContent.replace(/const CG\s*=\s*\{[\s\S]*?\};\n/, pokiBlock);
+const CG = POKI;\n`;
+        audioContent = audioContent.replace(/const CG\s*=\s*\{[\s\S]*?\n\};\r?\n/, pokiBlock);
         fs.writeFileSync(pokiAudioPath, audioContent, 'utf8');
       }
     }

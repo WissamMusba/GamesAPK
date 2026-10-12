@@ -1,0 +1,2391 @@
+[
+ {
+  "id": "trial_1",
+  "isTutorial": false,
+  "reqKeys": 1,
+  "spawn": {
+   "x": 80,
+   "y": 564
+  },
+  "platforms": [
+   {
+    "x": 0,
+    "y": 610,
+    "w": 2600,
+    "h": 110,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 820,
+    "y": 200,
+    "w": 64,
+    "h": 410,
+    "platType": "wall",
+    "climbable": true,
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 940,
+    "y": 210,
+    "w": 260,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 1300,
+    "y": 260,
+    "w": 180,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 1560,
+    "y": 200,
+    "w": 180,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 1820,
+    "y": 280,
+    "w": 180,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 2080,
+    "y": 300,
+    "w": 220,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   }
+  ],
+  "spikes": [
+   {
+    "x": 1150,
+    "y": 610,
+    "w": 900,
+    "h": 20
+   }
+  ],
+  "plates": [],
+  "bushes": [
+   {
+    "x": 1900,
+    "y": 280,
+    "w": 78,
+    "h": 48,
+    "hideType": "bush"
+   }
+  ],
+  "guards": [
+   {
+    "x": 1400,
+    "y": 260,
+    "minX": 1320,
+    "maxX": 1460,
+    "speed": 0,
+    "dir": 1,
+    "visionLen": 200,
+    "visionH": 50,
+    "shootInterval": 0
+   },
+   {
+    "x": 1900,
+    "y": 280,
+    "minX": 1840,
+    "maxX": 1980,
+    "speed": 1.2,
+    "dir": 1,
+    "visionLen": 240,
+    "visionH": 50,
+    "shootInterval": 0
+   }
+  ],
+  "towers": [],
+  "keys": [
+   {
+    "x": 1650,
+    "y": 150
+   }
+  ],
+  "ki": [
+   {
+    "x": 500,
+    "y": 555
+   },
+   {
+    "x": 1010,
+    "y": 150
+   },
+   {
+    "x": 1360,
+    "y": 210
+   },
+   {
+    "x": 1620,
+    "y": 150
+   },
+   {
+    "x": 1900,
+    "y": 225
+   },
+   {
+    "x": 2200,
+    "y": 250
+   }
+  ],
+  "tutorialCards": [],
+  "texts": [
+   {
+    "x": 300,
+    "y": 545,
+    "text": "CLIMBING — HOLD [E] AT A WALL, THEN [▲]",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 880,
+    "y": 150,
+    "text": "THIS WALL IS THE ONLY WAY UP",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 1500,
+    "y": 545,
+    "text": "SPIKES BELOW — DO NOT FALL",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   }
+  ],
+  "triggerZones": [],
+  "name": "Trial 1: The Handhold",
+  "w": 2600,
+  "exit": {
+   "x": 2450,
+   "y": 540
+  }
+ },
+ {
+  "id": "trial_2",
+  "isTutorial": false,
+  "reqKeys": 1,
+  "spawn": {
+   "x": 80,
+   "y": 564
+  },
+  "platforms": [
+   {
+    "x": 0,
+    "y": 610,
+    "w": 3000,
+    "h": 110,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 2250,
+    "y": 330,
+    "w": 200,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   }
+  ],
+  "spikes": [
+   {
+    "x": 900,
+    "y": 610,
+    "w": 1100,
+    "h": 20
+   }
+  ],
+  "plates": [],
+  "bushes": [
+   {
+    "x": 2600,
+    "y": 610,
+    "w": 78,
+    "h": 48,
+    "hideType": "bush"
+   }
+  ],
+  "guards": [
+   {
+    "x": 2500,
+    "y": 554,
+    "minX": 2400,
+    "maxX": 2700,
+    "speed": 1.2,
+    "dir": 1,
+    "visionLen": 240,
+    "visionH": 50,
+    "shootInterval": 0
+   }
+  ],
+  "towers": [],
+  "keys": [
+   {
+    "x": 2350,
+    "y": 275
+   }
+  ],
+  "ki": [
+   {
+    "x": 400,
+    "y": 555
+   },
+   {
+    "x": 700,
+    "y": 555
+   },
+   {
+    "x": 2100,
+    "y": 555
+   },
+   {
+    "x": 2300,
+    "y": 268
+   },
+   {
+    "x": 2650,
+    "y": 555
+   }
+  ],
+  "tutorialCards": [],
+  "texts": [
+   {
+    "x": 560,
+    "y": 545,
+    "text": "NO JUMP CROSSES THIS — STEP INTO THE SHADOW",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 2160,
+    "y": 190,
+    "text": "THE SHADOW WARPS YOU FORWARD",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 2290,
+    "y": 230,
+    "text": "AND AGAIN — UPWARD",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   }
+  ],
+  "triggerZones": [
+   {
+    "w": 120,
+    "h": 610,
+    "y": 0,
+    "oneShot": true,
+    "rearmDelay": 1.5,
+    "popupText": true,
+    "x": 820,
+    "teleportTrigger": true,
+    "teleportX": 2140,
+    "teleportY": 610
+   },
+   {
+    "w": 100,
+    "h": 610,
+    "y": 0,
+    "oneShot": true,
+    "rearmDelay": 1.5,
+    "popupText": true,
+    "x": 2200,
+    "teleportTrigger": true,
+    "teleportX": 2330,
+    "teleportY": 330
+   }
+  ],
+  "name": "Trial 2: The Long Step",
+  "w": 3000,
+  "exit": {
+   "x": 2800,
+   "y": 540
+  }
+ },
+ {
+  "id": "trial_3",
+  "isTutorial": false,
+  "reqKeys": 1,
+  "spawn": {
+   "x": 80,
+   "y": 564
+  },
+  "platforms": [
+   {
+    "x": 0,
+    "y": 610,
+    "w": 2700,
+    "h": 110,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 700,
+    "y": 300,
+    "w": 280,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 1100,
+    "y": 250,
+    "w": 180,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 1380,
+    "y": 310,
+    "w": 180,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   }
+  ],
+  "spikes": [
+   {
+    "x": 720,
+    "y": 610,
+    "w": 700,
+    "h": 20
+   }
+  ],
+  "plates": [
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": false,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "platDuration": 4,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 520,
+    "y": 610,
+    "launchTrigger": true,
+    "launchPower": 40
+   }
+  ],
+  "bushes": [
+   {
+    "x": 1900,
+    "y": 610,
+    "w": 78,
+    "h": 48,
+    "hideType": "bush"
+   }
+  ],
+  "guards": [
+   {
+    "x": 2000,
+    "y": 554,
+    "minX": 1900,
+    "maxX": 2200,
+    "speed": 1.2,
+    "dir": 1,
+    "visionLen": 240,
+    "visionH": 50,
+    "shootInterval": 0
+   }
+  ],
+  "towers": [],
+  "keys": [
+   {
+    "x": 1190,
+    "y": 190
+   }
+  ],
+  "ki": [
+   {
+    "x": 400,
+    "y": 555
+   },
+   {
+    "x": 760,
+    "y": 240
+   },
+   {
+    "x": 1150,
+    "y": 190
+   },
+   {
+    "x": 1430,
+    "y": 250
+   },
+   {
+    "x": 1800,
+    "y": 555
+   },
+   {
+    "x": 2200,
+    "y": 555
+   }
+  ],
+  "tutorialCards": [],
+  "texts": [
+   {
+    "x": 300,
+    "y": 545,
+    "text": "A PLATE CAN THROW YOU HIGHER THAN ANY JUMP",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 470,
+    "y": 545,
+    "text": "STAND HERE — AND HOLD [D]",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 760,
+    "y": 235,
+    "text": "ONLY THE UPDRAFT REACHES THIS LEDGE",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   }
+  ],
+  "triggerZones": [],
+  "name": "Trial 3: The Updraft",
+  "w": 2700,
+  "exit": {
+   "x": 2400,
+   "y": 540
+  }
+ },
+ {
+  "id": "trial_4",
+  "isTutorial": false,
+  "reqKeys": 1,
+  "spawn": {
+   "x": 80,
+   "y": 564
+  },
+  "platforms": [
+   {
+    "x": 0,
+    "y": 610,
+    "w": 2700,
+    "h": 110,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   }
+  ],
+  "spikes": [],
+  "plates": [
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": false,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "platDuration": 4,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 900,
+    "y": 610,
+    "slowMoTrigger": true,
+    "slowMoDuration": 12,
+    "guardSpawnTrigger": true,
+    "guardSpawnX": 830,
+    "guardSpawnY": 610,
+    "guardSpawnType": "runner"
+   }
+  ],
+  "bushes": [],
+  "guards": [],
+  "towers": [],
+  "keys": [
+   {
+    "x": 2200,
+    "y": 555
+   }
+  ],
+  "ki": [
+   {
+    "x": 500,
+    "y": 555
+   },
+   {
+    "x": 1400,
+    "y": 555
+   },
+   {
+    "x": 2000,
+    "y": 555
+   }
+  ],
+  "tutorialCards": [],
+  "texts": [
+   {
+    "x": 400,
+    "y": 545,
+    "text": "SOMETHING IS FASTER THAN YOU",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 900,
+    "y": 545,
+    "text": "ZEN FOCUS — THE WORLD SLOWS, YOU DO NOT",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 1500,
+    "y": 545,
+    "text": "KEEP RUNNING",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   }
+  ],
+  "triggerZones": [],
+  "name": "Trial 4: The Still Moment",
+  "w": 2700,
+  "exit": {
+   "x": 2400,
+   "y": 540
+  }
+ },
+ {
+  "id": "trial_5",
+  "isTutorial": false,
+  "reqKeys": 1,
+  "spawn": {
+   "x": 80,
+   "y": 564
+  },
+  "platforms": [
+   {
+    "x": 0,
+    "y": 610,
+    "w": 2900,
+    "h": 110,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 1200,
+    "y": 420,
+    "w": 220,
+    "h": 20,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0,
+    "initiallyHidden": true
+   },
+   {
+    "x": 1560,
+    "y": 420,
+    "w": 220,
+    "h": 20,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0,
+    "initiallyHidden": true
+   },
+   {
+    "x": 2000,
+    "y": 480,
+    "w": 220,
+    "h": 20,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0,
+    "initiallyHidden": true
+   }
+  ],
+  "spikes": [
+   {
+    "x": 900,
+    "y": 610,
+    "w": 1300,
+    "h": 20
+   }
+  ],
+  "plates": [
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": true,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "platDuration": 0,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 820,
+    "y": 610,
+    "platAction": "spawn",
+    "targetPlatX": 1200,
+    "targetPlatY": 420
+   },
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": true,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "platDuration": 0,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 1300,
+    "y": 420,
+    "platAction": "spawn",
+    "targetPlatX": 1560,
+    "targetPlatY": 420
+   },
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": true,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "platDuration": 0,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 1660,
+    "y": 420,
+    "platAction": "spawn",
+    "targetPlatX": 2000,
+    "targetPlatY": 480
+   }
+  ],
+  "bushes": [
+   {
+    "x": 2500,
+    "y": 610,
+    "w": 78,
+    "h": 48,
+    "hideType": "bush"
+   }
+  ],
+  "guards": [
+   {
+    "x": 2500,
+    "y": 554,
+    "minX": 2400,
+    "maxX": 2700,
+    "speed": 1.2,
+    "dir": 1,
+    "visionLen": 240,
+    "visionH": 50,
+    "shootInterval": 0
+   }
+  ],
+  "towers": [],
+  "keys": [
+   {
+    "x": 2100,
+    "y": 430
+   }
+  ],
+  "ki": [
+   {
+    "x": 400,
+    "y": 555
+   },
+   {
+    "x": 700,
+    "y": 555
+   },
+   {
+    "x": 1260,
+    "y": 380
+   },
+   {
+    "x": 1620,
+    "y": 380
+   },
+   {
+    "x": 2060,
+    "y": 440
+   }
+  ],
+  "tutorialCards": [],
+  "texts": [
+   {
+    "x": 400,
+    "y": 545,
+    "text": "THE FLOOR IS HOLLOW — PLATES RAISE THE BRIDGE",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 820,
+    "y": 545,
+    "text": "STEP 1",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 1300,
+    "y": 375,
+    "text": "STEP 2",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 1660,
+    "y": 375,
+    "text": "STEP 3",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   }
+  ],
+  "triggerZones": [],
+  "name": "Trial 5: The Hollow Floor",
+  "w": 2900,
+  "exit": {
+   "x": 2700,
+   "y": 540
+  }
+ },
+ {
+  "id": "trial_6",
+  "isTutorial": false,
+  "reqKeys": 1,
+  "spawn": {
+   "x": 80,
+   "y": 564
+  },
+  "platforms": [
+   {
+    "x": 0,
+    "y": 610,
+    "w": 2800,
+    "h": 110,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 800,
+    "y": 0,
+    "w": 420,
+    "h": 400,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   }
+  ],
+  "spikes": [],
+  "plates": [
+   {
+    "w": 300,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": false,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "platDuration": 4,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 1000,
+    "y": 610,
+    "guardSpawnTrigger": true,
+    "guardSpawnX": 1600,
+    "guardSpawnY": 610,
+    "guardSpawnType": "walker"
+   }
+  ],
+  "bushes": [
+   {
+    "x": 1300,
+    "y": 610,
+    "w": 78,
+    "h": 48,
+    "hideType": "bush"
+   },
+   {
+    "x": 2250,
+    "y": 610,
+    "w": 78,
+    "h": 48,
+    "hideType": "bush"
+   }
+  ],
+  "guards": [
+   {
+    "x": 2200,
+    "y": 554,
+    "minX": 2100,
+    "maxX": 2400,
+    "speed": 1.2,
+    "dir": 1,
+    "visionLen": 240,
+    "visionH": 50,
+    "shootInterval": 0
+   }
+  ],
+  "towers": [],
+  "keys": [
+   {
+    "x": 2400,
+    "y": 555
+   }
+  ],
+  "ki": [
+   {
+    "x": 400,
+    "y": 555
+   },
+   {
+    "x": 1150,
+    "y": 555
+   },
+   {
+    "x": 1900,
+    "y": 555
+   },
+   {
+    "x": 2500,
+    "y": 555
+   }
+  ],
+  "tutorialCards": [],
+  "texts": [
+   {
+    "x": 500,
+    "y": 545,
+    "text": "THE ONLY ROAD RUNS OVER THAT PLATE",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 1000,
+    "y": 545,
+    "text": "SOMETHING ANSWERS THE CLICK",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 1150,
+    "y": 500,
+    "text": "HIDE — AND LET IT WALK PAST",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   }
+  ],
+  "triggerZones": [],
+  "name": "Trial 6: The Call to Arms",
+  "w": 2800,
+  "exit": {
+   "x": 2600,
+   "y": 540
+  }
+ },
+ {
+  "id": "trial_7",
+  "isTutorial": false,
+  "reqKeys": 1,
+  "spawn": {
+   "x": 80,
+   "y": 564
+  },
+  "platforms": [
+   {
+    "x": 0,
+    "y": 610,
+    "w": 2800,
+    "h": 110,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 760,
+    "y": 470,
+    "w": 200,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 1060,
+    "y": 470,
+    "w": 200,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 1360,
+    "y": 470,
+    "w": 200,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 1660,
+    "y": 470,
+    "w": 200,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 1960,
+    "y": 470,
+    "w": 200,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   }
+  ],
+  "spikes": [
+   {
+    "x": 700,
+    "y": 610,
+    "w": 1400,
+    "h": 20
+   }
+  ],
+  "plates": [],
+  "bushes": [
+   {
+    "x": 2300,
+    "y": 610,
+    "w": 78,
+    "h": 48,
+    "hideType": "bush"
+   }
+  ],
+  "guards": [
+   {
+    "x": 2300,
+    "y": 554,
+    "minX": 2200,
+    "maxX": 2450,
+    "speed": 1.2,
+    "dir": 1,
+    "visionLen": 240,
+    "visionH": 50,
+    "shootInterval": 0
+   }
+  ],
+  "towers": [
+   {
+    "x": 1400,
+    "y": 0,
+    "mount": "top",
+    "isCeiling": true,
+    "ty": 470,
+    "minX": 800,
+    "maxX": 2000,
+    "speed": 0.55,
+    "alertTime": 1.2,
+    "beamSpread": 54
+   }
+  ],
+  "keys": [
+   {
+    "x": 1100,
+    "y": 420
+   }
+  ],
+  "ki": [
+   {
+    "x": 560,
+    "y": 555
+   },
+   {
+    "x": 860,
+    "y": 430
+   },
+   {
+    "x": 1160,
+    "y": 430
+   },
+   {
+    "x": 1760,
+    "y": 430
+   },
+   {
+    "x": 2260,
+    "y": 555
+   }
+  ],
+  "tutorialCards": [],
+  "texts": [
+   {
+    "x": 560,
+    "y": 545,
+    "text": "EYES UP — THE TOWER SEES THE BRIDGE",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 1000,
+    "y": 400,
+    "text": "WAIT FOR THE BEAM TO SWING AWAY",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   }
+  ],
+  "triggerZones": [],
+  "name": "Trial 7: The Watcher's Roof",
+  "w": 2800,
+  "exit": {
+   "x": 2600,
+   "y": 540
+  }
+ },
+ {
+  "id": "trial_8",
+  "isTutorial": false,
+  "reqKeys": 1,
+  "spawn": {
+   "x": 80,
+   "y": 564
+  },
+  "platforms": [
+   {
+    "x": 0,
+    "y": 610,
+    "w": 2700,
+    "h": 110,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 600,
+    "y": 500,
+    "w": 200,
+    "h": 22,
+    "platType": "ash",
+    "isCrumble": false,
+    "isAsh": true,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 900,
+    "y": 470,
+    "w": 200,
+    "h": 22,
+    "platType": "ash",
+    "isCrumble": false,
+    "isAsh": true,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 1200,
+    "y": 500,
+    "w": 200,
+    "h": 22,
+    "platType": "ash",
+    "isCrumble": false,
+    "isAsh": true,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 1500,
+    "y": 200,
+    "w": 64,
+    "h": 410,
+    "platType": "wall",
+    "climbable": true,
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 1600,
+    "y": 220,
+    "w": 220,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 1900,
+    "y": 300,
+    "w": 200,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   }
+  ],
+  "spikes": [
+   {
+    "x": 550,
+    "y": 610,
+    "w": 900,
+    "h": 20
+   }
+  ],
+  "plates": [],
+  "bushes": [
+   {
+    "x": 2200,
+    "y": 610,
+    "w": 78,
+    "h": 48,
+    "hideType": "bush"
+   }
+  ],
+  "guards": [
+   {
+    "x": 2100,
+    "y": 554,
+    "minX": 2000,
+    "maxX": 2300,
+    "speed": 1.2,
+    "dir": 1,
+    "visionLen": 240,
+    "visionH": 50,
+    "shootInterval": 0
+   }
+  ],
+  "towers": [
+   {
+    "x": 1000,
+    "y": 0,
+    "mount": "top",
+    "isCeiling": true,
+    "ty": 500,
+    "minX": 550,
+    "maxX": 1450,
+    "speed": 0.5,
+    "alertTime": 1,
+    "beamSpread": 60
+   }
+  ],
+  "keys": [
+   {
+    "x": 1700,
+    "y": 170
+   }
+  ],
+  "ki": [
+   {
+    "x": 400,
+    "y": 555
+   },
+   {
+    "x": 660,
+    "y": 450
+   },
+   {
+    "x": 960,
+    "y": 420
+   },
+   {
+    "x": 1260,
+    "y": 450
+   },
+   {
+    "x": 1660,
+    "y": 170
+   },
+   {
+    "x": 1960,
+    "y": 250
+   }
+  ],
+  "tutorialCards": [],
+  "texts": [
+   {
+    "x": 300,
+    "y": 545,
+    "text": "ASH HOLDS YOUR FEET — AND THE TOWER IS WATCHING",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 700,
+    "y": 450,
+    "text": "CROSS BEFORE THE BEAM RETURNS",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 1560,
+    "y": 150,
+    "text": "CLIMB",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   }
+  ],
+  "triggerZones": [],
+  "name": "Trial 8: The Ash Ascent",
+  "w": 2700,
+  "exit": {
+   "x": 2400,
+   "y": 540
+  }
+ },
+ {
+  "id": "trial_9",
+  "isTutorial": false,
+  "reqKeys": 1,
+  "spawn": {
+   "x": 80,
+   "y": 564
+  },
+  "platforms": [
+   {
+    "x": 0,
+    "y": 610,
+    "w": 2600,
+    "h": 110,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 1300,
+    "y": 0,
+    "w": 400,
+    "h": 400,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 1280,
+    "y": 400,
+    "w": 20,
+    "h": 210,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 1700,
+    "y": 400,
+    "w": 20,
+    "h": 210,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   }
+  ],
+  "spikes": [],
+  "plates": [],
+  "bushes": [
+   {
+    "x": 600,
+    "y": 610,
+    "w": 78,
+    "h": 48,
+    "hideType": "bush"
+   }
+  ],
+  "guards": [
+   {
+    "x": 1000,
+    "y": 554,
+    "minX": 900,
+    "maxX": 1150,
+    "speed": 1.2,
+    "dir": 1,
+    "visionLen": 240,
+    "visionH": 50,
+    "shootInterval": 0
+   }
+  ],
+  "towers": [],
+  "keys": [
+   {
+    "x": 1450,
+    "y": 500
+   }
+  ],
+  "ki": [
+   {
+    "x": 400,
+    "y": 555
+   },
+   {
+    "x": 1450,
+    "y": 440
+   },
+   {
+    "x": 2000,
+    "y": 555
+   },
+   {
+    "x": 2200,
+    "y": 555
+   }
+  ],
+  "tutorialCards": [],
+  "texts": [
+   {
+    "x": 500,
+    "y": 545,
+    "text": "THE VAULT HAS NO DOOR — ONLY A SHADOW",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 1380,
+    "y": 460,
+    "text": "THE VAULT",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 1800,
+    "y": 545,
+    "text": "WARPED OUT",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   }
+  ],
+  "triggerZones": [
+   {
+    "w": 120,
+    "h": 610,
+    "y": 0,
+    "oneShot": true,
+    "rearmDelay": 1.5,
+    "popupText": true,
+    "x": 800,
+    "teleportTrigger": true,
+    "teleportX": 1450,
+    "teleportY": 610
+   },
+   {
+    "w": 80,
+    "h": 210,
+    "y": 400,
+    "oneShot": true,
+    "rearmDelay": 1.5,
+    "popupText": true,
+    "x": 1600,
+    "teleportTrigger": true,
+    "teleportX": 1950,
+    "teleportY": 610
+   }
+  ],
+  "name": "Trial 9: The Sealed Vault",
+  "w": 2600,
+  "exit": {
+   "x": 2300,
+   "y": 540
+  }
+ },
+ {
+  "id": "trial_10",
+  "isTutorial": false,
+  "reqKeys": 1,
+  "spawn": {
+   "x": 80,
+   "y": 564
+  },
+  "platforms": [
+   {
+    "x": 0,
+    "y": 610,
+    "w": 2900,
+    "h": 110,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 840,
+    "y": 300,
+    "w": 810,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 1950,
+    "y": 340,
+    "w": 560,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   }
+  ],
+  "spikes": [
+   {
+    "x": 1000,
+    "y": 610,
+    "w": 600,
+    "h": 20
+   },
+   {
+    "x": 2000,
+    "y": 610,
+    "w": 450,
+    "h": 20
+   }
+  ],
+  "plates": [
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": false,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "platDuration": 4,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 700,
+    "y": 610,
+    "launchTrigger": true,
+    "launchPower": 40
+   },
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": false,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "platDuration": 4,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 1800,
+    "y": 610,
+    "launchTrigger": true,
+    "launchPower": 40
+   }
+  ],
+  "bushes": [
+   {
+    "x": 2700,
+    "y": 610,
+    "w": 78,
+    "h": 48,
+    "hideType": "bush"
+   }
+  ],
+  "guards": [],
+  "towers": [],
+  "keys": [
+   {
+    "x": 2300,
+    "y": 290
+   }
+  ],
+  "ki": [
+   {
+    "x": 400,
+    "y": 555
+   },
+   {
+    "x": 900,
+    "y": 260
+   },
+   {
+    "x": 1400,
+    "y": 260
+   },
+   {
+    "x": 2050,
+    "y": 300
+   },
+   {
+    "x": 2600,
+    "y": 555
+   }
+  ],
+  "tutorialCards": [],
+  "texts": [
+   {
+    "x": 500,
+    "y": 545,
+    "text": "TWO CHASMS — TWO UPDRAFTS",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 700,
+    "y": 545,
+    "text": "HOLD [D]",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 1800,
+    "y": 545,
+    "text": "AGAIN",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   }
+  ],
+  "triggerZones": [],
+  "name": "Trial 10: The Two Updrafts",
+  "w": 2900,
+  "exit": {
+   "x": 2650,
+   "y": 540
+  }
+ },
+ {
+  "id": "trial_11",
+  "isTutorial": false,
+  "reqKeys": 1,
+  "spawn": {
+   "x": 80,
+   "y": 564
+  },
+  "platforms": [
+   {
+    "x": 0,
+    "y": 610,
+    "w": 3600,
+    "h": 110,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   }
+  ],
+  "spikes": [
+   {
+    "x": 900,
+    "y": 610,
+    "w": 1000,
+    "h": 20
+   }
+  ],
+  "plates": [
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": false,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "platDuration": 4,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 2200,
+    "y": 610,
+    "slowMoTrigger": true,
+    "slowMoDuration": 12,
+    "guardSpawnTrigger": true,
+    "guardSpawnX": 2130,
+    "guardSpawnY": 610,
+    "guardSpawnType": "runner"
+   }
+  ],
+  "bushes": [],
+  "guards": [],
+  "towers": [],
+  "keys": [
+   {
+    "x": 2700,
+    "y": 555
+   }
+  ],
+  "ki": [
+   {
+    "x": 400,
+    "y": 555
+   },
+   {
+    "x": 700,
+    "y": 555
+   },
+   {
+    "x": 2100,
+    "y": 555
+   },
+   {
+    "x": 3200,
+    "y": 555
+   }
+  ],
+  "tutorialCards": [],
+  "texts": [
+   {
+    "x": 560,
+    "y": 545,
+    "text": "THE VOID IS TOO WIDE TO JUMP",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 2150,
+    "y": 545,
+    "text": "ZEN FOCUS — OUTRUN IT",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 2650,
+    "y": 545,
+    "text": "THE KEY IS IN THE OPEN",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   }
+  ],
+  "triggerZones": [
+   {
+    "w": 120,
+    "h": 610,
+    "y": 0,
+    "oneShot": true,
+    "rearmDelay": 1.5,
+    "popupText": true,
+    "x": 820,
+    "teleportTrigger": true,
+    "teleportX": 2000,
+    "teleportY": 610
+   }
+  ],
+  "name": "Trial 11: The Long Corridor",
+  "w": 3600,
+  "exit": {
+   "x": 3300,
+   "y": 540
+  }
+ },
+ {
+  "id": "trial_12",
+  "isTutorial": false,
+  "reqKeys": 1,
+  "spawn": {
+   "x": 80,
+   "y": 564
+  },
+  "platforms": [
+   {
+    "x": 0,
+    "y": 610,
+    "w": 3000,
+    "h": 110,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 600,
+    "y": 200,
+    "w": 64,
+    "h": 410,
+    "platType": "wall",
+    "climbable": true,
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 760,
+    "y": 240,
+    "w": 1300,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   }
+  ],
+  "spikes": [
+   {
+    "x": 700,
+    "y": 610,
+    "w": 700,
+    "h": 20
+   }
+  ],
+  "plates": [
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": false,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "platDuration": 4,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 1200,
+    "y": 240,
+    "guardSpawnTrigger": true,
+    "guardSpawnX": 1500,
+    "guardSpawnY": 240,
+    "guardSpawnType": "walker"
+   }
+  ],
+  "bushes": [
+   {
+    "x": 1000,
+    "y": 240,
+    "w": 78,
+    "h": 48,
+    "hideType": "bush"
+   },
+   {
+    "x": 2400,
+    "y": 610,
+    "w": 78,
+    "h": 48,
+    "hideType": "bush"
+   }
+  ],
+  "guards": [
+   {
+    "x": 2400,
+    "y": 554,
+    "minX": 2300,
+    "maxX": 2600,
+    "speed": 1.2,
+    "dir": 1,
+    "visionLen": 240,
+    "visionH": 50,
+    "shootInterval": 0
+   }
+  ],
+  "towers": [],
+  "keys": [
+   {
+    "x": 1800,
+    "y": 190
+   }
+  ],
+  "ki": [
+   {
+    "x": 400,
+    "y": 555
+   },
+   {
+    "x": 900,
+    "y": 200
+   },
+   {
+    "x": 1400,
+    "y": 200
+   },
+   {
+    "x": 1900,
+    "y": 200
+   },
+   {
+    "x": 2700,
+    "y": 555
+   }
+  ],
+  "tutorialCards": [],
+  "texts": [
+   {
+    "x": 300,
+    "y": 545,
+    "text": "CLIMB OUT OF THE SPIKES",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 1200,
+    "y": 195,
+    "text": "SOMETHING WALKS THE ROOF",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 1000,
+    "y": 195,
+    "text": "HIDE",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   }
+  ],
+  "triggerZones": [],
+  "name": "Trial 12: The High Patrol",
+  "w": 3000,
+  "exit": {
+   "x": 2800,
+   "y": 540
+  }
+ },
+ {
+  "id": "trial_13",
+  "isTutorial": false,
+  "reqKeys": 1,
+  "spawn": {
+   "x": 80,
+   "y": 564
+  },
+  "platforms": [
+   {
+    "x": 0,
+    "y": 610,
+    "w": 3600,
+    "h": 110,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 740,
+    "y": 300,
+    "w": 860,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 2900,
+    "y": 200,
+    "w": 64,
+    "h": 410,
+    "platType": "wall",
+    "climbable": true,
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 2960,
+    "y": 200,
+    "w": 240,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   }
+  ],
+  "spikes": [
+   {
+    "x": 700,
+    "y": 610,
+    "w": 600,
+    "h": 20
+   },
+   {
+    "x": 1700,
+    "y": 610,
+    "w": 900,
+    "h": 20
+   }
+  ],
+  "plates": [
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": false,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "platDuration": 4,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 600,
+    "y": 610,
+    "launchTrigger": true,
+    "launchPower": 40
+   }
+  ],
+  "bushes": [],
+  "guards": [],
+  "towers": [],
+  "keys": [
+   {
+    "x": 3060,
+    "y": 150
+   }
+  ],
+  "ki": [
+   {
+    "x": 400,
+    "y": 555
+   },
+   {
+    "x": 800,
+    "y": 260
+   },
+   {
+    "x": 1200,
+    "y": 260
+   },
+   {
+    "x": 2600,
+    "y": 555
+   },
+   {
+    "x": 3100,
+    "y": 150
+   },
+   {
+    "x": 3300,
+    "y": 555
+   }
+  ],
+  "tutorialCards": [],
+  "texts": [
+   {
+    "x": 400,
+    "y": 545,
+    "text": "GATE ONE — THE UPDRAFT",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 1400,
+    "y": 260,
+    "text": "GATE TWO — THE SHADOW",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 2880,
+    "y": 150,
+    "text": "GATE THREE — THE HANDHOLD",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   }
+  ],
+  "triggerZones": [
+   {
+    "w": 120,
+    "h": 610,
+    "y": 0,
+    "oneShot": true,
+    "rearmDelay": 1.5,
+    "popupText": true,
+    "x": 1480,
+    "teleportTrigger": true,
+    "teleportX": 2700,
+    "teleportY": 610
+   }
+  ],
+  "name": "Trial 13: The Three Gates",
+  "w": 3600,
+  "exit": {
+   "x": 3400,
+   "y": 540
+  }
+ },
+ {
+  "id": "trial_14",
+  "isTutorial": false,
+  "reqKeys": 1,
+  "spawn": {
+   "x": 80,
+   "y": 564
+  },
+  "platforms": [
+   {
+    "x": 0,
+    "y": 610,
+    "w": 5800,
+    "h": 110,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 600,
+    "y": 200,
+    "w": 64,
+    "h": 410,
+    "platType": "wall",
+    "climbable": true,
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 760,
+    "y": 240,
+    "w": 900,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 2140,
+    "y": 300,
+    "w": 760,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 3400,
+    "y": 200,
+    "w": 64,
+    "h": 410,
+    "platType": "wall",
+    "climbable": true,
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   },
+   {
+    "x": 3460,
+    "y": 220,
+    "w": 200,
+    "h": 22,
+    "platType": "solid",
+    "isCrumble": false,
+    "isAsh": false,
+    "collapseDelay": 0,
+    "respawnDelay": 0
+   }
+  ],
+  "spikes": [
+   {
+    "x": 700,
+    "y": 610,
+    "w": 600,
+    "h": 20
+   },
+   {
+    "x": 2100,
+    "y": 610,
+    "w": 600,
+    "h": 20
+   },
+   {
+    "x": 3700,
+    "y": 610,
+    "w": 500,
+    "h": 20
+   }
+  ],
+  "plates": [
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": false,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "platDuration": 4,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 2000,
+    "y": 610,
+    "launchTrigger": true,
+    "launchPower": 40
+   },
+   {
+    "w": 38,
+    "spikeTrigger": false,
+    "alarmTrigger": false,
+    "platTrigger": false,
+    "spikeMode": "behind",
+    "spikeDelay": 0.6,
+    "alarmDelay": 0,
+    "platDelay": 0,
+    "platDuration": 4,
+    "rearmDelay": 1,
+    "popupText": true,
+    "x": 4400,
+    "y": 610,
+    "slowMoTrigger": true,
+    "slowMoDuration": 12,
+    "guardSpawnTrigger": true,
+    "guardSpawnX": 4330,
+    "guardSpawnY": 610,
+    "guardSpawnType": "runner"
+   }
+  ],
+  "bushes": [],
+  "guards": [],
+  "towers": [],
+  "keys": [
+   {
+    "x": 5000,
+    "y": 555
+   }
+  ],
+  "ki": [
+   {
+    "x": 400,
+    "y": 555
+   },
+   {
+    "x": 900,
+    "y": 200
+   },
+   {
+    "x": 1500,
+    "y": 200
+   },
+   {
+    "x": 2200,
+    "y": 260
+   },
+   {
+    "x": 2800,
+    "y": 260
+   },
+   {
+    "x": 3500,
+    "y": 180
+   },
+   {
+    "x": 4300,
+    "y": 555
+   },
+   {
+    "x": 5500,
+    "y": 555
+   }
+  ],
+  "tutorialCards": [],
+  "texts": [
+   {
+    "x": 300,
+    "y": 545,
+    "text": "CLIMB",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 2000,
+    "y": 545,
+    "text": "LAUNCH",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 3280,
+    "y": 545,
+    "text": "WARP",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   },
+   {
+    "x": 4380,
+    "y": 545,
+    "text": "RUN — AND DO NOT STOP",
+    "size": 16,
+    "color": "#f1c40f",
+    "alpha": 0.85
+   }
+  ],
+  "triggerZones": [
+   {
+    "w": 120,
+    "h": 610,
+    "y": 0,
+    "oneShot": true,
+    "rearmDelay": 1.5,
+    "popupText": true,
+    "x": 3300,
+    "teleportTrigger": true,
+    "teleportX": 4300,
+    "teleportY": 610
+   }
+  ],
+  "name": "Trial 14: The Last Breath",
+  "w": 5800,
+  "exit": {
+   "x": 5600,
+   "y": 540
+  }
+ }
+]

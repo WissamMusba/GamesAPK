@@ -3509,7 +3509,7 @@ function netOnData(m, c){
     let ok = false;
     for(const md of MAPVOTE_MODES){ if(md.id === m.mode){ ok = true; break; } }
     if(!ok) return;
-    if(m.mode === 'freeze' || m.mode === 'infection') return;
+    if(m.mode === 'freeze') return;
     V.mseq++;
     V.modeReq[v] = { mode: m.mode, seq: V.mseq };
     sfx('ok');
@@ -4432,8 +4432,8 @@ function netForceStart(){
       netToast('⚠️ TEAMS MUST BE BALANCED (MAX ±1 DIFFERENCE)');
       return;
     }
-  } else if((settings.gameMode === 'infection' || settings.gameMode === 'freeze') && activeCount < 3){
-    netToast('⚠️ ' + (settings.gameMode === 'infection' ? 'INFECTION' : 'FREEZE') + ' REQUIRES AT LEAST 3 PLAYERS!');
+  } else if(settings.gameMode === 'freeze' && activeCount < 3){
+    netToast('⚠️ FREEZE REQUIRES AT LEAST 3 PLAYERS!');
     return;
   } else if(activeCount < 2){
     netToast('Need at least 2 players to start');

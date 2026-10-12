@@ -1,3 +1,4 @@
+/* ==========================================================================
    BUNDLED MODE: CAPTURE THE FLAG (CTF)
    ========================================================================== */
 /**
@@ -279,6 +280,15 @@
      ------------------------------------------------------------------------- */
   function initCtfMode() {
     ctfState.active = true;
+    try {
+      const glob = typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : (typeof root !== 'undefined' ? root : {}));
+      if (typeof BOMB_MODE !== 'undefined' && BOMB_MODE) BOMB_MODE.active = false;
+      if (glob && glob.BOMB_MODE) glob.BOMB_MODE.active = false;
+      if (typeof crownState !== 'undefined' && crownState) crownState.active = false;
+      if (glob && glob.crownState) glob.crownState.active = false;
+      if (typeof infectionState !== 'undefined' && infectionState) infectionState.active = false;
+      if (glob && glob.infectionState) glob.infectionState.active = false;
+    } catch (e) {}
     const sett = Isettings();
     ctfState.targetCaptures = (sett && sett.ctfTargetCaptures) ? sett.ctfTargetCaptures : CTF_CONFIG.DEFAULT_TARGET_CAPTURES;
     ctfState.scores = [0, 0];
@@ -1412,19 +1422,25 @@
     ctfState: ctfState
   };
 
-  if (gScope) {
-    gScope.initCtfMode = initCtfMode;
-    gScope.updateCtf = updateCtf;
-    gScope.checkCtfTag = checkCtfTag;
-    gScope.drawCtfUI = drawCtfUI;
-    gScope.drawCtfPlayer = drawCtfPlayer;
-    gScope.drawCtfEntities = drawCtfEntities;
-    gScope.drawCtfWorldFX = drawCtfWorldFX;
-    gScope.ctfBotThink = ctfBotThink;
-    gScope.triggerCtfWin = triggerCtfWin;
-    gScope.ctfState = ctfState;
-    gScope.CTF_CONFIG = CTF_CONFIG;
-    gScope.CtfMode = ctfModuleExports;
+  const targets = [];
+  if (typeof window !== 'undefined' && targets.indexOf(window) < 0) targets.push(window);
+  if (typeof globalThis !== 'undefined' && targets.indexOf(globalThis) < 0) targets.push(globalThis);
+  if (typeof root !== 'undefined' && root && targets.indexOf(root) < 0) targets.push(root);
+
+  for (let i = 0; i < targets.length; i++) {
+    const t = targets[i];
+    t.initCtfMode = initCtfMode;
+    t.updateCtf = updateCtf;
+    t.checkCtfTag = checkCtfTag;
+    t.drawCtfUI = drawCtfUI;
+    t.drawCtfPlayer = drawCtfPlayer;
+    t.drawCtfEntities = drawCtfEntities;
+    t.drawCtfWorldFX = drawCtfWorldFX;
+    t.ctfBotThink = ctfBotThink;
+    t.triggerCtfWin = triggerCtfWin;
+    t.ctfState = ctfState;
+    t.CTF_CONFIG = CTF_CONFIG;
+    t.CtfMode = ctfModuleExports;
   }
 
   if (typeof module !== 'undefined' && module.exports) {

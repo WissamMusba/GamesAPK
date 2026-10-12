@@ -1,3 +1,4 @@
+/* ==========================================================================
    BUNDLED MODES: INFECTION, BOMB TAG, CROWN KING (GLOBAL WIRING)
    ========================================================================== */
 var initInfectionMode, updateInfection, checkInfectionTag, drawInfectionUI, drawInfectionPlayer, infectionBotThink, getInfectionPlayerSpeed, getInfectionHoldLift, drawInfectionShockwaves, drawInfectionSlime, triggerRepulsorPulse, infectionState, INFECTION_CONFIG, InfectionMode;
@@ -267,6 +268,15 @@ var initCtfMode, updateCtf, checkCtfTag, drawCtfUI, drawCtfPlayer, drawCtfEntiti
 
     match.infectionMode = true;
     infectionState.active = true;
+    try {
+      const glob = typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : (typeof root !== 'undefined' ? root : {}));
+      if (typeof BOMB_MODE !== 'undefined' && BOMB_MODE) BOMB_MODE.active = false;
+      if (glob && glob.BOMB_MODE) glob.BOMB_MODE.active = false;
+      if (typeof crownState !== 'undefined' && crownState) crownState.active = false;
+      if (glob && glob.crownState) glob.crownState.active = false;
+      if (typeof ctfState !== 'undefined' && ctfState) ctfState.active = false;
+      if (glob && glob.ctfState) glob.ctfState.active = false;
+    } catch (e) {}
     infectionState.phase = 1;
     infectionState.outbreakTimer = INFECTION_CONFIG.OUTBREAK_COUNTDOWN;
     infectionState.outbreakTriggered = false;
@@ -1045,52 +1055,43 @@ var initCtfMode, updateCtf, checkCtfTag, drawCtfUI, drawCtfPlayer, drawCtfEntiti
    * Automatically hooks into TAG!'s engine functions if called in-game
    */
   function hookInfectionMode() {
-    // Expose functions globally for direct use by index.html
-    gScope.initInfectionMode = initInfectionMode;
-    if(typeof globalThis !== "undefined"){
-      globalThis.initInfectionMode = initInfectionMode;
-      globalThis.updateInfection = updateInfection;
-      globalThis.checkInfectionTag = checkInfectionTag;
-      globalThis.drawInfectionUI = drawInfectionUI;
-      globalThis.drawInfectionPlayer = drawInfectionPlayer;
-      globalThis.infectionBotThink = infectionBotThink;
-      globalThis.getInfectionPlayerSpeed = getInfectionPlayerSpeed;
-      globalThis.getInfectionHoldLift = getInfectionHoldLift;
-      globalThis.drawInfectionShockwaves = drawInfectionShockwaves;
-      globalThis.drawInfectionSlime = drawInfectionSlime;
-      globalThis.triggerRepulsorPulse = triggerRepulsorPulse;
-      globalThis.infectionState = infectionState;
-      globalThis.INFECTION_CONFIG = INFECTION_CONFIG;
-    }
-    gScope.updateInfection = updateInfection;
-    gScope.checkInfectionTag = checkInfectionTag;
-    gScope.drawInfectionUI = drawInfectionUI;
-    gScope.drawInfectionPlayer = drawInfectionPlayer;
-    gScope.infectionBotThink = infectionBotThink;
-    gScope.getInfectionPlayerSpeed = getInfectionPlayerSpeed;
-    gScope.getInfectionHoldLift = getInfectionHoldLift;
-    gScope.drawInfectionShockwaves = drawInfectionShockwaves;
-    gScope.drawInfectionSlime = drawInfectionSlime;
-    gScope.triggerRepulsorPulse = triggerRepulsorPulse;
-    gScope.infectionState = infectionState;
-    gScope.INFECTION_CONFIG = INFECTION_CONFIG;
+    const targets = [];
+    if (typeof window !== 'undefined' && targets.indexOf(window) < 0) targets.push(window);
+    if (typeof globalThis !== 'undefined' && targets.indexOf(globalThis) < 0) targets.push(globalThis);
+    if (typeof root !== 'undefined' && root && targets.indexOf(root) < 0) targets.push(root);
 
-    if (typeof gScope.InfectionMode === 'undefined') {
-      gScope.InfectionMode = {
-        init: initInfectionMode,
-        update: updateInfection,
-        checkTag: checkInfectionTag,
-        drawUI: drawInfectionUI,
-        drawPlayer: drawInfectionPlayer,
-        drawShockwaves: drawInfectionShockwaves,
-        drawSlime: drawInfectionSlime,
-        botThink: infectionBotThink,
-        getSpeed: getInfectionPlayerSpeed,
-        getHoldLift: getInfectionHoldLift,
-        repulsorPulse: triggerRepulsorPulse,
-        state: infectionState,
-        config: INFECTION_CONFIG
-      };
+    const modeObj = {
+      init: initInfectionMode,
+      update: updateInfection,
+      checkTag: checkInfectionTag,
+      drawUI: drawInfectionUI,
+      drawPlayer: drawInfectionPlayer,
+      drawShockwaves: drawInfectionShockwaves,
+      drawSlime: drawInfectionSlime,
+      botThink: infectionBotThink,
+      getSpeed: getInfectionPlayerSpeed,
+      getHoldLift: getInfectionHoldLift,
+      repulsorPulse: triggerRepulsorPulse,
+      state: infectionState,
+      config: INFECTION_CONFIG
+    };
+
+    for (let i = 0; i < targets.length; i++) {
+      const t = targets[i];
+      t.initInfectionMode = initInfectionMode;
+      t.updateInfection = updateInfection;
+      t.checkInfectionTag = checkInfectionTag;
+      t.drawInfectionUI = drawInfectionUI;
+      t.drawInfectionPlayer = drawInfectionPlayer;
+      t.infectionBotThink = infectionBotThink;
+      t.getInfectionPlayerSpeed = getInfectionPlayerSpeed;
+      t.getInfectionHoldLift = getInfectionHoldLift;
+      t.drawInfectionShockwaves = drawInfectionShockwaves;
+      t.drawInfectionSlime = drawInfectionSlime;
+      t.triggerRepulsorPulse = triggerRepulsorPulse;
+      t.infectionState = infectionState;
+      t.INFECTION_CONFIG = INFECTION_CONFIG;
+      t.InfectionMode = modeObj;
     }
   }
 
@@ -1120,4 +1121,3 @@ var initCtfMode, updateCtf, checkCtfTag, drawCtfUI, drawCtfPlayer, drawCtfEntiti
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
 
-/* ==========================================================================

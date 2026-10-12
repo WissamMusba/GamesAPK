@@ -615,6 +615,8 @@ window.HARNESS = HARNESS;
 window.harnessStart = harnessStart;
 let screen='menu',tGlobal=0;
 const menu={tab:'2p',mode:'rows',slotColor:[0,1,-1,-1,-1,-1,-1,-1,-1,-1],slotTeam:[0,1,0,1,0,1,0,1,0,1],slotCtrl:[0,1,2,3,0,1,2,3,0,1],row:4,rule:0,toast:null,toastT:0,botOn:false,botDifficulty:'hard',slotBotDiff:['hard','hard','hard','hard','hard','hard','hard','hard','hard','hard'],mapModal:false,onlineModal:false,slotIsBot:[false,false,false,false,false,false,false,false,false,false],botSlots:null};
+if(typeof window !== 'undefined') window.menu = menu;
+if(typeof globalThis !== 'undefined') globalThis.menu = menu;
 function isSlotBot(slotIdx){
   if(menu.tab === 'solo') return slotIdx === 1;
   if(menu.tab === 'bots') return slotIdx === 0 || slotIdx === 1;
@@ -662,17 +664,19 @@ function toggleBotDifficulty(){
 function setMenuTab(tab){
   if(tab !== 'solo' && tab !== '2p' && tab !== 'online' && tab !== 'bots') tab = '2p';
   menu.tab = tab;
+  const validModes = ['party', 'bomb', 'crown', 'ctf', 'infection'];
+  const curMode = (settings.gameMode && validModes.indexOf(settings.gameMode) >= 0) ? settings.gameMode : 'party';
   if(tab === 'solo'){
     menu.botOn = true;
-    settings.teams = false;
-    settings.gameMode = 'party';
-    menu.gameMode = 'party';
+    settings.gameMode = curMode;
+    menu.gameMode = curMode;
+    settings.teams = (curMode === 'ctf');
     menu.slotColor = [0, 1, -1, -1, -1, -1, -1, -1, -1, -1];
   } else if(tab === 'bots'){
     menu.botOn = true;
-    settings.teams = false;
-    settings.gameMode = 'party';
-    menu.gameMode = 'party';
+    settings.gameMode = curMode;
+    menu.gameMode = curMode;
+    settings.teams = (curMode === 'ctf');
     menu.slotColor = [0, 1, -1, -1, -1, -1, -1, -1, -1, -1];
     if(!menu.slotTeam) menu.slotTeam = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1];
   } else if(tab === '2p'){
@@ -1064,10 +1068,10 @@ function requestMode(voter, modeId){
   let ok = false;
   for(const m of MAPVOTE_MODES){ if(m.id === modeId){ ok = true; break; } }
   if(!ok) return;
-  if(modeId === 'freeze' || modeId === 'infection'){ toast('❄️🧟 THAT MODE IS COMING SOON!'); sfx('back'); return; }
+  if(modeId === 'freeze'){ toast('❄️ THAT MODE IS COMING SOON!'); sfx('back'); return; }
   const isOnline = (typeof NET !== 'undefined' && NET && NET.role !== null);
   const isGuest = isOnline && !NET.isHost;
-  if(menu.tab === 'solo' && ['party', 'bomb', 'crown', 'ctf'].indexOf(modeId) < 0){ toast('🤖 SOLO: FFA/BOMB/CROWN/CTF ONLY'); sfx('back'); return; }
+  if(menu.tab === 'solo' && ['party', 'bomb', 'crown', 'ctf', 'infection'].indexOf(modeId) < 0){ toast('🤖 SOLO: FFA/BOMB/CROWN/CTF/INFECTION ONLY'); sfx('back'); return; }
   if(menu.tab === 'bots' && ['party','freeze','infection','bomb','crown','ctf'].indexOf(modeId) < 0){ toast('🤖 WATCH: FFA/CTF ONLY'); sfx('back'); return; }
   if(isGuest){
     V.modeReq[voter] = { mode: modeId, seq: -1 };
@@ -1210,17 +1214,17 @@ function selectHunterRole(slot){
 
 function setGameMode(newMode){
   if(menu.tab === 'solo'){
-    const soloModes = ['party', 'bomb', 'crown', 'ctf'];
+    const soloModes = ['party', 'bomb', 'crown', 'ctf', 'infection'];
     if(soloModes.indexOf(newMode) < 0){
-      toast('🤖 SOLO SUPPORTS FFA, BOMB, CROWN & CTF');
+      toast('🤖 SOLO SUPPORTS FFA, BOMB, CROWN, CTF & INFECTION');
       sfx('back');
       return;
     }
   }
   if(menu.tab === 'bots'){
-    const botModes = ['party', 'bomb', 'crown', 'ctf'];
+    const botModes = ['party', 'bomb', 'crown', 'ctf', 'infection'];
     if(botModes.indexOf(newMode) < 0){
-      toast('🤖 WATCH MODE: FFA, BOMB, CROWN OR CTF');
+      toast('🤖 WATCH MODE: FFA, BOMB, CROWN, CTF OR INFECTION');
       sfx('back');
       return;
     }
@@ -1280,8 +1284,8 @@ function cycleGameMode(d){
     return;
   }
   const modes = (menu.tab === 'bots' || menu.tab === 'solo')
-    ? ['party', 'ctf', 'bomb', 'crown']
-    : ['party', 'teams', 'ctf', 'bomb', 'crown', 'hunter'];
+    ? ['party', 'ctf', 'bomb', 'crown', 'infection']
+    : ['party', 'teams', 'ctf', 'bomb', 'crown', 'infection', 'hunter'];
   let curIdx = modes.indexOf(settings.gameMode || (settings.teams ? 'teams' : 'party'));
   if(curIdx < 0) curIdx = 0;
   const nextIdx = (curIdx + (d || 1) + modes.length) % modes.length;
@@ -1441,5 +1445,21 @@ function updateMenu(dt){
       startMatch();
     }
   }
+}
+
+if(typeof window !== 'undefined'){
+  window.setMenuTab = setMenuTab;
+  window.setGameMode = setGameMode;
+  window.cycleGameMode = cycleGameMode;
+  window.requestMode = requestMode;
+}
+if(typeof globalThis !== 'undefined'){
+  globalThis.setMenuTab = setMenuTab;
+  globalThis.setGameMode = setGameMode;
+  globalThis.cycleGameMode = cycleGameMode;
+  globalThis.requestMode = requestMode;
+}
+if(typeof module !== 'undefined' && module.exports){
+  module.exports = { menu, setMenuTab, setGameMode, cycleGameMode, requestMode };
 }
 

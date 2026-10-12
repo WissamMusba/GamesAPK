@@ -141,4 +141,3 @@ function makePlayer(i,slot,colIdx){
     sx:1,sy:1,landT:0,tagT:0,padOn:false,blinkT:rand(1.5,4),blink:0,seed:i*3.7,
     slot:slot,colIdx:colIdx,team:team,trail:[],cosmeticTrail:[],isHunter:roleHunter,isEliminated:false,survivalT:0,isFrozen:false};
 }
-/* ==========================================================================

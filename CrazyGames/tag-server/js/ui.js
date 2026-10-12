@@ -2390,8 +2390,8 @@ function drawMenu(){
             sfx('back');
             return;
           }
-        } else if((settings.gameMode === 'infection' || settings.gameMode === 'freeze') && activeSlots().length < 3){
-          toast('⚠️ ' + (settings.gameMode === 'infection' ? 'INFECTION' : 'FREEZE') + ' REQUIRES AT LEAST 3 PLAYERS!');
+        } else if(settings.gameMode === 'freeze' && activeSlots().length < 3){
+          toast('⚠️ FREEZE REQUIRES AT LEAST 3 PLAYERS!');
           sfx('back');
           return;
         } else if(activeSlots().length < 2){
@@ -3437,7 +3437,7 @@ function drawModePopup(){
     const ry = py + 44 + i * (rowH + 6);
     const cnt = (M.counts && M.counts[md.id]) || 0;
     const mine = (myMode === md.id);
-    const soon = (md.id === 'freeze' || md.id === 'infection');
+    const soon = (md.id === 'freeze');
     rr(g, px + 12, ry, pw - 24, rowH, 8);
     g.fillStyle = soon ? 'rgba(255,255,255,0.03)' : (mine ? 'rgba(46,204,113,0.25)' : 'rgba(255,255,255,0.06)');
     g.fill();
@@ -3447,7 +3447,7 @@ function drawModePopup(){
     txt(md.icon + '  ' + md.label, px + 24, ry + rowH / 2 + 1, FN(13, 900), soon ? 'rgba(255,255,255,0.35)' : '#ffffff', 'left');
     txt(soon ? 'COMING SOON' : (cnt ? ('×' + cnt) : ''), px + pw - 24, ry + rowH / 2 + 1, FN(soon ? 10 : 13, 900), soon ? '#ffd166' : '#ffd166', 'right');
     if(soon){
-      zone(px + 12, ry, pw - 24, rowH, { fn: function(){ toast('❄️🧟 THAT MODE IS COMING SOON!'); sfx('back'); } });
+      zone(px + 12, ry, pw - 24, rowH, { fn: function(){ toast('❄️ THAT MODE IS COMING SOON!'); sfx('back'); } });
     } else {
       zone(px + 12, ry, pw - 24, rowH, { fn: (function(id){ return function(){ requestMode(myVoterId(), id); }; })(md.id) });
     }
@@ -3611,4 +3611,35 @@ function isBotVsBotWatch(){
       match.players.every(p => isBotSlot(p));
   }catch(e){ return false; }
 }
+
+function cycleGameMode(d){
+  const modes = (menu.tab === 'bots' || menu.tab === 'solo')
+    ? ['party', 'ctf', 'bomb', 'crown', 'infection']
+    : ['party', 'teams', 'ctf', 'bomb', 'crown', 'infection', 'hunter'];
+  if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){
+    toast('HOST SELECTS GAME MODE');
+    sfx('back');
+    return;
+  }
+  let curIdx = modes.indexOf(settings.gameMode || (settings.teams ? 'teams' : 'party'));
+  if(curIdx < 0) curIdx = 0;
+  const nextIdx = (curIdx + (d || 1) + modes.length) % modes.length;
+  if(typeof setGameMode === 'function'){
+    setGameMode(modes[nextIdx]);
+  } else {
+    settings.gameMode = modes[nextIdx];
+    settings.teams = (modes[nextIdx] === 'teams' || modes[nextIdx] === 'hunter' || modes[nextIdx] === 'ctf');
+  }
+}
+
+if(typeof window !== 'undefined'){
+  window.cycleGameMode = cycleGameMode;
+}
+if(typeof globalThis !== 'undefined'){
+  globalThis.cycleGameMode = cycleGameMode;
+}
+if(typeof module !== 'undefined' && module.exports){
+  try { module.exports.cycleGameMode = cycleGameMode; } catch(e){}
+}
+
 

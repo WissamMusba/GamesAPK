@@ -1,58 +1,125 @@
+/* Dynamic mode hook resolver avoiding stale null references */
+function getModeHook(name) {
+  if (typeof window !== "undefined" && window[name] !== undefined) return window[name];
+  if (typeof globalThis !== "undefined" && globalThis[name] !== undefined) return globalThis[name];
+  return null;
+}
+
 /* Export live mode references to top-level lexical scope */
-var initInfectionMode = (typeof window !== "undefined" && window.initInfectionMode) || (typeof globalThis !== "undefined" ? globalThis.initInfectionMode : null);
-var updateInfection = (typeof window !== "undefined" && window.updateInfection) || (typeof globalThis !== "undefined" ? globalThis.updateInfection : null);
-var checkInfectionTag = (typeof window !== "undefined" && window.checkInfectionTag) || (typeof globalThis !== "undefined" ? globalThis.checkInfectionTag : null);
-var drawInfectionUI = (typeof window !== "undefined" && window.drawInfectionUI) || (typeof globalThis !== "undefined" ? globalThis.drawInfectionUI : null);
-var drawInfectionPlayer = (typeof window !== "undefined" && window.drawInfectionPlayer) || (typeof globalThis !== "undefined" ? globalThis.drawInfectionPlayer : null);
-var infectionBotThink = (typeof window !== "undefined" && window.infectionBotThink) || (typeof globalThis !== "undefined" ? globalThis.infectionBotThink : null);
-var getInfectionPlayerSpeed = (typeof window !== "undefined" && window.getInfectionPlayerSpeed) || (typeof globalThis !== "undefined" ? globalThis.getInfectionPlayerSpeed : null);
-var getInfectionHoldLift = (typeof window !== "undefined" && window.getInfectionHoldLift) || (typeof globalThis !== "undefined" ? globalThis.getInfectionHoldLift : null);
-var drawInfectionShockwaves = (typeof window !== "undefined" && window.drawInfectionShockwaves) || (typeof globalThis !== "undefined" ? globalThis.drawInfectionShockwaves : null);
-var drawInfectionSlime = (typeof window !== "undefined" && window.drawInfectionSlime) || (typeof globalThis !== "undefined" ? globalThis.drawInfectionSlime : null);
-var triggerRepulsorPulse = (typeof window !== "undefined" && window.triggerRepulsorPulse) || (typeof globalThis !== "undefined" ? globalThis.triggerRepulsorPulse : null);
-var infectionState = (typeof window !== "undefined" && window.infectionState) || (typeof globalThis !== "undefined" ? globalThis.infectionState : null);
-var INFECTION_CONFIG = (typeof window !== "undefined" && window.INFECTION_CONFIG) || (typeof globalThis !== "undefined" ? globalThis.INFECTION_CONFIG : null);
-var InfectionMode = (typeof window !== "undefined" && window.InfectionMode) || (typeof globalThis !== "undefined" ? globalThis.InfectionMode : null);
+var initInfectionMode = getModeHook('initInfectionMode');
+var updateInfection = getModeHook('updateInfection');
+var checkInfectionTag = getModeHook('checkInfectionTag');
+var drawInfectionUI = getModeHook('drawInfectionUI');
+var drawInfectionPlayer = getModeHook('drawInfectionPlayer');
+var infectionBotThink = getModeHook('infectionBotThink');
+var getInfectionPlayerSpeed = getModeHook('getInfectionPlayerSpeed');
+var getInfectionHoldLift = getModeHook('getInfectionHoldLift');
+var drawInfectionShockwaves = getModeHook('drawInfectionShockwaves');
+var drawInfectionSlime = getModeHook('drawInfectionSlime');
+var triggerRepulsorPulse = getModeHook('triggerRepulsorPulse');
+var infectionState = getModeHook('infectionState');
+var INFECTION_CONFIG = getModeHook('INFECTION_CONFIG');
+var InfectionMode = getModeHook('InfectionMode');
 
-var initBombMode = (typeof window !== "undefined" && window.initBombMode) || (typeof globalThis !== "undefined" ? globalThis.initBombMode : null);
-var updateBombMode = (typeof window !== "undefined" && window.updateBombMode) || (typeof globalThis !== "undefined" ? globalThis.updateBombMode : null);
-var checkBombTag = (typeof window !== "undefined" && window.checkBombTag) || (typeof globalThis !== "undefined" ? globalThis.checkBombTag : null);
-var drawBombUI = (typeof window !== "undefined" && window.drawBombUI) || (typeof globalThis !== "undefined" ? globalThis.drawBombUI : null);
-var drawBombPlayer = (typeof window !== "undefined" && window.drawBombPlayer) || (typeof globalThis !== "undefined" ? globalThis.drawBombPlayer : null);
-var bombBotThink = (typeof window !== "undefined" && window.bombBotThink) || (typeof globalThis !== "undefined" ? globalThis.bombBotThink : null);
-var BOMB_MODE = (typeof window !== "undefined" && window.BOMB_MODE) || (typeof globalThis !== "undefined" ? globalThis.BOMB_MODE : null);
-var BOMB_CONFIG = (typeof window !== "undefined" && window.BOMB_CONFIG) || (typeof globalThis !== "undefined" ? globalThis.BOMB_CONFIG : null);
-var ModeBomb = (typeof window !== "undefined" && window.ModeBomb) || (typeof globalThis !== "undefined" ? globalThis.ModeBomb : null);
+var initBombMode = getModeHook('initBombMode');
+var updateBombMode = getModeHook('updateBombMode');
+var checkBombTag = getModeHook('checkBombTag');
+var drawBombUI = getModeHook('drawBombUI');
+var drawBombPlayer = getModeHook('drawBombPlayer');
+var bombBotThink = getModeHook('bombBotThink');
+var BOMB_MODE = getModeHook('BOMB_MODE');
+var BOMB_CONFIG = getModeHook('BOMB_CONFIG');
+var ModeBomb = getModeHook('ModeBomb');
 
-var initCrownMode = (typeof window !== "undefined" && window.initCrownMode) || (typeof globalThis !== "undefined" ? globalThis.initCrownMode : null);
-var updateCrownMode = (typeof window !== "undefined" && window.updateCrownMode) || (typeof globalThis !== "undefined" ? globalThis.updateCrownMode : null);
-var checkCrownTag = (typeof window !== "undefined" && window.checkCrownTag) || (typeof globalThis !== "undefined" ? globalThis.checkCrownTag : null);
-var drawCrownUI = (typeof window !== "undefined" && window.drawCrownUI) || (typeof globalThis !== "undefined" ? globalThis.drawCrownUI : null);
-var drawCrownPlayer = (typeof window !== "undefined" && window.drawCrownPlayer) || (typeof globalThis !== "undefined" ? globalThis.drawCrownPlayer : null);
-var crownBotThink = (typeof window !== "undefined" && window.crownBotThink) || (typeof globalThis !== "undefined" ? globalThis.crownBotThink : null);
-var getCrownPlayerSpeed = (typeof window !== "undefined" && window.getCrownPlayerSpeed) || (typeof globalThis !== "undefined" ? globalThis.getCrownPlayerSpeed : null);
-var drawCrownEntity = (typeof window !== "undefined" && window.drawCrownEntity) || (typeof globalThis !== "undefined" ? globalThis.drawCrownEntity : null);
-var drawCrownWorldFX = (typeof window !== "undefined" && window.drawCrownWorldFX) || (typeof globalThis !== "undefined" ? globalThis.drawCrownWorldFX : null);
-var spawnCrownShockwave = (typeof window !== "undefined" && window.spawnCrownShockwave) || (typeof globalThis !== "undefined" ? globalThis.spawnCrownShockwave : null);
-var CROWN_CONFIG = (typeof window !== "undefined" && window.CROWN_CONFIG) || (typeof globalThis !== "undefined" ? globalThis.CROWN_CONFIG : null);
-var crownState = (typeof window !== "undefined" && window.crownState) || (typeof globalThis !== "undefined" ? globalThis.crownState : null);
-var CrownMode = (typeof window !== "undefined" && window.CrownMode) || (typeof globalThis !== "undefined" ? globalThis.CrownMode : null);
+var initCrownMode = getModeHook('initCrownMode');
+var updateCrownMode = getModeHook('updateCrownMode');
+var checkCrownTag = getModeHook('checkCrownTag');
+var drawCrownUI = getModeHook('drawCrownUI');
+var drawCrownPlayer = getModeHook('drawCrownPlayer');
+var crownBotThink = getModeHook('crownBotThink');
+var getCrownPlayerSpeed = getModeHook('getCrownPlayerSpeed');
+var drawCrownEntity = getModeHook('drawCrownEntity');
+var drawCrownWorldFX = getModeHook('drawCrownWorldFX');
+var spawnCrownShockwave = getModeHook('spawnCrownShockwave');
+var CROWN_CONFIG = getModeHook('CROWN_CONFIG');
+var crownState = getModeHook('crownState');
+var CrownMode = getModeHook('CrownMode');
 
-var initCtfMode = (typeof window !== "undefined" && window.initCtfMode) || (typeof globalThis !== "undefined" ? globalThis.initCtfMode : null);
-var updateCtf = (typeof window !== "undefined" && window.updateCtf) || (typeof globalThis !== "undefined" ? globalThis.updateCtf : null);
-var checkCtfTag = (typeof window !== "undefined" && window.checkCtfTag) || (typeof globalThis !== "undefined" ? globalThis.checkCtfTag : null);
-var drawCtfUI = (typeof window !== "undefined" && window.drawCtfUI) || (typeof globalThis !== "undefined" ? globalThis.drawCtfUI : null);
-var drawCtfPlayer = (typeof window !== "undefined" && window.drawCtfPlayer) || (typeof globalThis !== "undefined" ? globalThis.drawCtfPlayer : null);
-var drawCtfEntities = (typeof window !== "undefined" && window.drawCtfEntities) || (typeof globalThis !== "undefined" ? globalThis.drawCtfEntities : null);
-var drawCtfWorldFX = (typeof window !== "undefined" && window.drawCtfWorldFX) || (typeof globalThis !== "undefined" ? globalThis.drawCtfWorldFX : null);
-var ctfBotThink = (typeof window !== "undefined" && window.ctfBotThink) || (typeof globalThis !== "undefined" ? globalThis.ctfBotThink : null);
-var triggerCtfWin = (typeof window !== "undefined" && window.triggerCtfWin) || (typeof globalThis !== "undefined" ? globalThis.triggerCtfWin : null);
-var ctfState = (typeof window !== "undefined" && window.ctfState) || (typeof globalThis !== "undefined" ? globalThis.ctfState : null);
-var CTF_CONFIG = (typeof window !== "undefined" && window.CTF_CONFIG) || (typeof globalThis !== "undefined" ? globalThis.CTF_CONFIG : null);
-var CtfMode = (typeof window !== "undefined" && window.CtfMode) || (typeof globalThis !== "undefined" ? globalThis.CtfMode : null);
+var initCtfMode = getModeHook('initCtfMode');
+var updateCtf = getModeHook('updateCtf');
+var checkCtfTag = getModeHook('checkCtfTag');
+var drawCtfUI = getModeHook('drawCtfUI');
+var drawCtfPlayer = getModeHook('drawCtfPlayer');
+var drawCtfEntities = getModeHook('drawCtfEntities');
+var drawCtfWorldFX = getModeHook('drawCtfWorldFX');
+var ctfBotThink = getModeHook('ctfBotThink');
+var triggerCtfWin = getModeHook('triggerCtfWin');
+var ctfState = getModeHook('ctfState');
+var CTF_CONFIG = getModeHook('CTF_CONFIG');
+var CtfMode = getModeHook('CtfMode');
+
+function refreshModeBindings() {
+  initInfectionMode = getModeHook('initInfectionMode') || initInfectionMode;
+  updateInfection = getModeHook('updateInfection') || updateInfection;
+  checkInfectionTag = getModeHook('checkInfectionTag') || checkInfectionTag;
+  drawInfectionUI = getModeHook('drawInfectionUI') || drawInfectionUI;
+  drawInfectionPlayer = getModeHook('drawInfectionPlayer') || drawInfectionPlayer;
+  infectionBotThink = getModeHook('infectionBotThink') || infectionBotThink;
+  getInfectionPlayerSpeed = getModeHook('getInfectionPlayerSpeed') || getInfectionPlayerSpeed;
+  getInfectionHoldLift = getModeHook('getInfectionHoldLift') || getInfectionHoldLift;
+  drawInfectionShockwaves = getModeHook('drawInfectionShockwaves') || drawInfectionShockwaves;
+  drawInfectionSlime = getModeHook('drawInfectionSlime') || drawInfectionSlime;
+  triggerRepulsorPulse = getModeHook('triggerRepulsorPulse') || triggerRepulsorPulse;
+  infectionState = getModeHook('infectionState') || infectionState;
+  INFECTION_CONFIG = getModeHook('INFECTION_CONFIG') || INFECTION_CONFIG;
+  InfectionMode = getModeHook('InfectionMode') || InfectionMode;
+
+  initBombMode = getModeHook('initBombMode') || initBombMode;
+  updateBombMode = getModeHook('updateBombMode') || updateBombMode;
+  checkBombTag = getModeHook('checkBombTag') || checkBombTag;
+  drawBombUI = getModeHook('drawBombUI') || drawBombUI;
+  drawBombPlayer = getModeHook('drawBombPlayer') || drawBombPlayer;
+  bombBotThink = getModeHook('bombBotThink') || bombBotThink;
+  BOMB_MODE = getModeHook('BOMB_MODE') || BOMB_MODE;
+  BOMB_CONFIG = getModeHook('BOMB_CONFIG') || BOMB_CONFIG;
+  ModeBomb = getModeHook('ModeBomb') || ModeBomb;
+
+  initCrownMode = getModeHook('initCrownMode') || initCrownMode;
+  updateCrownMode = getModeHook('updateCrownMode') || updateCrownMode;
+  checkCrownTag = getModeHook('checkCrownTag') || checkCrownTag;
+  drawCrownUI = getModeHook('drawCrownUI') || drawCrownUI;
+  drawCrownPlayer = getModeHook('drawCrownPlayer') || drawCrownPlayer;
+  crownBotThink = getModeHook('crownBotThink') || crownBotThink;
+  getCrownPlayerSpeed = getModeHook('getCrownPlayerSpeed') || getCrownPlayerSpeed;
+  drawCrownEntity = getModeHook('drawCrownEntity') || drawCrownEntity;
+  drawCrownWorldFX = getModeHook('drawCrownWorldFX') || drawCrownWorldFX;
+  spawnCrownShockwave = getModeHook('spawnCrownShockwave') || spawnCrownShockwave;
+  CROWN_CONFIG = getModeHook('CROWN_CONFIG') || CROWN_CONFIG;
+  crownState = getModeHook('crownState') || crownState;
+  CrownMode = getModeHook('CrownMode') || CrownMode;
+
+  initCtfMode = getModeHook('initCtfMode') || initCtfMode;
+  updateCtf = getModeHook('updateCtf') || updateCtf;
+  checkCtfTag = getModeHook('checkCtfTag') || checkCtfTag;
+  drawCtfUI = getModeHook('drawCtfUI') || drawCtfUI;
+  drawCtfPlayer = getModeHook('drawCtfPlayer') || drawCtfPlayer;
+  drawCtfEntities = getModeHook('drawCtfEntities') || drawCtfEntities;
+  drawCtfWorldFX = getModeHook('drawCtfWorldFX') || drawCtfWorldFX;
+  ctfBotThink = getModeHook('ctfBotThink') || ctfBotThink;
+  triggerCtfWin = getModeHook('triggerCtfWin') || triggerCtfWin;
+  ctfState = getModeHook('ctfState') || ctfState;
+  CTF_CONFIG = getModeHook('CTF_CONFIG') || CTF_CONFIG;
+  CtfMode = getModeHook('CtfMode') || CtfMode;
+}
 
 
 function startMatch(){
+  if(typeof settings === 'undefined' || !settings) settings = {};
+  if(settings.map == null) settings.map = 0;
+  if(settings.time == null) settings.time = 60;
+  if(!settings.gameMode) settings.gameMode = 'party';
+  if(typeof menu === 'undefined' || !menu) menu = {};
+  if(!menu.slotColor) menu.slotColor = [0, 1, -1, -1, -1, -1, -1, -1, -1, -1];
   if(typeof NET !== 'undefined' && NET && (menu.tab === 'solo' || menu.tab === 'bots' || menu.tab === '2p' || NET.role === null)){ NET.isSpectator = false; }
   try{ NET._lastSentState = null; NET._lastFullT = 0; NET._seenClaims = []; }catch(e){} // force full snapshot on first tick
   try{
@@ -65,14 +132,14 @@ function startMatch(){
   }catch(e){}
   if(match && !match._telemetrySent){ try{ telemetryTrackMatchEnded('quit'); }catch(e){} }
   if(menu.tab === 'solo'){
-    const soloModes = ['party', 'bomb', 'crown', 'ctf'];
+    const soloModes = ['party', 'bomb', 'crown', 'ctf', 'infection'];
     if(soloModes.indexOf(settings.gameMode) < 0){
       settings.gameMode = 'party';
     }
     settings.teams = (settings.gameMode === 'ctf');
     menu.gameMode = settings.gameMode;
   } else if(menu.tab === 'bots'){
-    const botModes = ['party', 'bomb', 'crown', 'ctf'];
+    const botModes = ['party', 'bomb', 'crown', 'ctf', 'infection'];
     if(botModes.indexOf(settings.gameMode) < 0){
       settings.gameMode = 'party';
     }
@@ -141,7 +208,10 @@ function startMatch(){
       return;
     }
   } else if((settings.gameMode === 'infection' || settings.gameMode === 'freeze') && act.length < 3){
-    toast('⚠️ ' + (settings.gameMode === 'infection' ? 'INFECTION' : 'FREEZE') + ' REQUIRES AT LEAST 3 PLAYERS!');
+    menu.mode = 'slots';
+    menu.row = 0;
+    const modeName = settings.gameMode.toUpperCase();
+    toast(`⚠️ ${modeName} REQUIRES AT LEAST 3 PLAYERS!`);
     sfx('back');
     return;
   } else if(act.length<2){
@@ -186,6 +256,9 @@ function startMatch(){
     menu.hunterVotes = {};
   }
 
+  const mapObj = (typeof MAPS !== 'undefined' && Array.isArray(MAPS) && MAPS[settings.map]) ? MAPS[settings.map] : { name: 'Classic' };
+  const mapName = mapObj.name || 'Classic';
+
   match={startTime:Date.now(),state:initState,cd:3,cdT:0,timer:isHunter?60:settings.time,lastTick:isHunter?60:settings.time,it:it,itTeam:itTeam,
     hunterMode:isHunter,hunterRed:settings.hunterRed,hunterBlue:settings.hunterBlue,
     hunterScores:(match && match.hunterScores)?match.hunterScores:{0:0,1:0},
@@ -195,26 +268,40 @@ function startMatch(){
     teamItTime:[0,0,0,0],cooldown:0,
     goFlash:0,freeze:0,shake:0,flash:0,fade:0.6,tagPop:null,resultT:0,
     tags:players.map(()=>0),hintT:7,players:players,result:null,roundSummary:null,pausedFrom:null,pauseSel:0,
-    mapToast:(settings.randomMap?('🎲 RANDOM: '+MAPS[settings.map].name):MAPS[settings.map].name),mapToastT:2.5};
+    mapToast:(settings.randomMap?('🎲 RANDOM: '+mapName):mapName),mapToastT:2.5};
   try{botReset();}catch(e){}
+  refreshModeBindings();
   menu.mapVote = null;
   menu.modePopup = false;
   if(settings.gameMode === 'infection'){
-    if(typeof initInfectionMode === 'function') initInfectionMode();
+    const fn = (typeof initInfectionMode === 'function') ? initInfectionMode : getModeHook('initInfectionMode');
+    if(typeof fn === 'function') fn();
+    else console.warn('[WIRING] initInfectionMode not found');
   } else if(settings.gameMode === 'bomb'){
-    if(typeof initBombMode === 'function') initBombMode();
+    const fn = (typeof initBombMode === 'function') ? initBombMode : getModeHook('initBombMode');
+    if(typeof fn === 'function') fn();
+    else console.warn('[WIRING] initBombMode not found');
   } else if(settings.gameMode === 'crown'){
     match.it = -1;
-    if(typeof initCrownMode === 'function') initCrownMode();
+    const fn = (typeof initCrownMode === 'function') ? initCrownMode : getModeHook('initCrownMode');
+    if(typeof fn === 'function') fn();
+    else console.warn('[WIRING] initCrownMode not found');
   } else if(settings.gameMode === 'ctf'){
     match.it = -1;
-    if(typeof initCtfMode === 'function') initCtfMode();
+    const fn = (typeof initCtfMode === 'function') ? initCtfMode : getModeHook('initCtfMode');
+    if(typeof fn === 'function') fn();
+    else console.warn('[WIRING] initCtfMode not found');
   }
-  // Clear stale mode flags when leaving bomb/crown/ctf (init only sets active=true).
+  // Clear stale mode flags when leaving bomb/crown/ctf/infection (init only sets active=true).
   try{
-    if(typeof BOMB_MODE !== 'undefined' && BOMB_MODE && settings.gameMode !== 'bomb') BOMB_MODE.active = false;
-    if(typeof crownState !== 'undefined' && crownState && settings.gameMode !== 'crown') crownState.active = false;
-    if(typeof ctfState !== 'undefined' && ctfState && settings.gameMode !== 'ctf') ctfState.active = false;
+    const bState = (typeof BOMB_MODE !== 'undefined' && BOMB_MODE) || getModeHook('BOMB_MODE');
+    if(bState && settings.gameMode !== 'bomb') bState.active = false;
+    const crState = (typeof crownState !== 'undefined' && crownState) || getModeHook('crownState');
+    if(crState && settings.gameMode !== 'crown') crState.active = false;
+    const ctState = (typeof ctfState !== 'undefined' && ctfState) || getModeHook('ctfState');
+    if(ctState && settings.gameMode !== 'ctf') ctState.active = false;
+    const infState = (typeof infectionState !== 'undefined' && infectionState) || getModeHook('infectionState');
+    if(infState && settings.gameMode !== 'infection') infState.active = false;
   }catch(e){}
   screen='game';
   if(!isSplitLocalTouch) sfx('count');
@@ -222,7 +309,9 @@ function startMatch(){
   // Broadcast to all connected netplay guests
   if(typeof NET!=='undefined' && NET && NET.role!==null && NET.isHost && NET.conns.size>0){
     const payload={it:match.it, itTeam:match.itTeam, cooldownN:0, matchIndex:matchIndex, currentThemeIdx:currentThemeIdx, lastStartIT:lastStartIT, hunterMode:isHunter, hunterRed:settings.hunterRed, hunterBlue:settings.hunterBlue, hunterRound:match.hunterRound, hunterScores:match.hunterScores, cageT:match.cageT, hunterHistory:hHistory};
-    netBroadcastReliable({t:'start',settings:{map:settings.map,doubleJump:settings.doubleJump,collision:settings.collision,teams:settings.teams,gameMode:settings.gameMode,ctfTargetCaptures:settings.ctfTargetCaptures,hunterRed:settings.hunterRed,hunterBlue:settings.hunterBlue,slotColor:menu.slotColor.slice(),slotTeam:(menu.slotTeam?menu.slotTeam.slice():[])},mapData:MAPS[settings.map%MAPS.length],payload:payload});
+    const mapsLen = (typeof MAPS !== 'undefined' && Array.isArray(MAPS) && MAPS.length) ? MAPS.length : 1;
+    const mapData = (typeof MAPS !== 'undefined' && Array.isArray(MAPS)) ? MAPS[(settings.map || 0) % mapsLen] : null;
+    netBroadcastReliable({t:'start',settings:{map:settings.map,doubleJump:settings.doubleJump,collision:settings.collision,teams:settings.teams,gameMode:settings.gameMode,ctfTargetCaptures:settings.ctfTargetCaptures,hunterRed:settings.hunterRed,hunterBlue:settings.hunterBlue,slotColor:menu.slotColor.slice(),slotTeam:(menu.slotTeam?menu.slotTeam.slice():[])},mapData:mapData,payload:payload});
   }
 }
 function quitToMenu(){
@@ -257,5 +346,27 @@ function returnToLobby(){
   } else {
     quitToMenu();
   }
+}
+
+// Attach wiring functions globally and export for test harnesses
+const wTargets = [];
+if (typeof window !== 'undefined' && wTargets.indexOf(window) < 0) wTargets.push(window);
+if (typeof globalThis !== 'undefined' && wTargets.indexOf(globalThis) < 0) wTargets.push(globalThis);
+for (let i = 0; i < wTargets.length; i++) {
+  const wt = wTargets[i];
+  wt.startMatch = startMatch;
+  wt.quitToMenu = quitToMenu;
+  wt.returnToLobby = returnToLobby;
+  wt.refreshModeBindings = refreshModeBindings;
+  wt.getModeHook = getModeHook;
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    startMatch,
+    quitToMenu,
+    returnToLobby,
+    refreshModeBindings,
+    getModeHook
+  };
 }
 
