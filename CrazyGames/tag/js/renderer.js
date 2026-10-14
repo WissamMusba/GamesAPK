@@ -465,14 +465,14 @@ function drawChar(gx,x,y,size,col,o){
   const ex1=size*0.33+fx,ex2=size*0.67+fx,ey=size*0.42+fy;
   const ew=size*0.13;let eh=size*0.17;
   gx.fillStyle=INK;
-  if(f==='land'||f==='happy'){
+  if(!o.blink && (f==='land'||f==='happy')){
     gx.lineWidth=size*0.06;gx.strokeStyle=INK;gx.lineCap='round';
     gx.beginPath();gx.moveTo(ex1-ew*0.7,ey+ew*0.5);gx.lineTo(ex1,ey-ew*0.4);gx.lineTo(ex1+ew*0.7,ey+ew*0.5);gx.stroke();
     gx.beginPath();gx.moveTo(ex2-ew*0.7,ey+ew*0.5);gx.lineTo(ex2,ey-ew*0.4);gx.lineTo(ex2+ew*0.7,ey+ew*0.5);gx.stroke();
     gx.fillStyle='rgba(255,120,150,0.55)';
     gx.beginPath();gx.arc(size*0.18,size*0.6,size*0.06,0,TAU);gx.fill();
     gx.beginPath();gx.arc(size*0.82,size*0.6,size*0.06,0,TAU);gx.fill();
-  }else if(f==='tagged'){
+  }else if(!o.blink && f==='tagged'){
     gx.lineWidth=size*0.05;gx.strokeStyle=INK;gx.lineCap='round';
     gx.beginPath();gx.moveTo(ex1-ew*0.7,ey-ew*0.7);gx.lineTo(ex1+ew*0.7,ey+ew*0.7);gx.moveTo(ex1+ew*0.7,ey-ew*0.7);gx.lineTo(ex1-ew*0.7,ey+ew*0.7);gx.stroke();
     gx.beginPath();gx.moveTo(ex2-ew*0.7,ey-ew*0.7);gx.lineTo(ex2+ew*0.7,ey+ew*0.7);gx.moveTo(ex2+ew*0.7,ey-ew*0.7);gx.lineTo(ex2-ew*0.7,ey+ew*0.7);gx.stroke();

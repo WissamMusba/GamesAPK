@@ -1678,8 +1678,9 @@ function drawMenu(){
   const modeSelW = Math.min(maxSelW, 740);
   const modeSelX = Math.floor(CW / 2 - modeSelW / 2);
   const mLabelW = clamp(modeSelW * 0.13, 62, 80);
+  const mGridX = modeSelX + mLabelW + 8;
   const mGridW = modeSelW - mLabelW - 8;
-  const mBtnW = Math.floor((mGridW - 3 * 5) / 4);
+  const mGap = 5;
   const mBtnH = clamp(stageH * 0.072, 21, 26);
 
   const row1Y = pillY + ph + 4;
@@ -1698,17 +1699,23 @@ function drawMenu(){
     { id: 'teams', label: 'TEAM TAG', col: '#3b82f6', dark: '#1d4ed8', icon: 'users' },
     { id: 'ctf', label: 'CAPTURE FLAG', col: '#a855f7', dark: '#7e22ce', icon: 'flag' },
     { id: 'freeze', label: 'FREEZE TAG', col: '#38bdf8', dark: '#0284c7', icon: 'snowflake' },
-    { id: 'hunter', label: 'HUNTER TAG', col: '#f97316', dark: '#c2410c', icon: 'flame' }
+    { id: 'hunter', label: 'HUNTER TAG', col: '#f97316', dark: '#c2410c', icon: 'flame' },
+    { id: 'crown_team', label: 'TEAM CROWN', col: '#eab308', dark: '#a16207', icon: 'crown' }
   ];
+
+  // Button widths: Row 1 has 4 buttons, Row 2 has 5 buttons — both span exact same length mGridW!
+  const r1BtnW = Math.floor((mGridW - (soloModes.length - 1) * mGap) / soloModes.length);
+  const r2BtnW = Math.floor((mGridW - (teamModes.length - 1) * mGap) / teamModes.length);
 
   // Row 1 Label: SOLO / FFA
   ptxt('SOLO / FFA:', modeSelX + mLabelW/2, row1Y + mBtnH/2 + 1, FT(clamp(mBtnH * 0.44, 9, 10.5)), '#10b981');
-  // Row 1 Buttons
+  // Row 1 Buttons (4 items)
   for(let i = 0; i < soloModes.length; i++){
     const m = soloModes[i];
-    const bx = modeSelX + mLabelW + 8 + i * (mBtnW + 5);
-    const isAct = (curGM === m.id);
-    drawJuicyChip(bx, row1Y, mBtnW, mBtnH, {
+    const bx = mGridX + i * (r1BtnW + mGap);
+    const curW = (i === soloModes.length - 1) ? (mGridX + mGridW - bx) : r1BtnW;
+    const isAct = (curGM === m.id && (!settings.teams || m.id === 'party'));
+    drawJuicyChip(bx, row1Y, curW, mBtnH, {
       label: m.label,
       active: isAct,
       activeBg: m.col,
@@ -1736,18 +1743,26 @@ function drawMenu(){
 
         ptxt(m.label, ix + isz/2 + 4 + tw/2, iy, FN(fs, 900), active ? '#ffffff' : m.col);
       },
-      fn: () => setGameMode(m.id)
+      fn: () => {
+        if(m.id === 'crown'){
+          setGameMode('crown');
+          settings.teams = false;
+        } else {
+          setGameMode(m.id);
+        }
+      }
     });
   }
 
   // Row 2 Label: TEAMS
   ptxt('TEAMS:', modeSelX + mLabelW/2, row2Y + mBtnH/2 + 1, FT(clamp(mBtnH * 0.44, 9, 10.5)), '#3b82f6');
-  // Row 2 Buttons
+  // Row 2 Buttons (5 items)
   for(let i = 0; i < teamModes.length; i++){
     const m = teamModes[i];
-    const bx = modeSelX + mLabelW + 8 + i * (mBtnW + 5);
-    const isAct = (curGM === m.id);
-    drawJuicyChip(bx, row2Y, mBtnW, mBtnH, {
+    const bx = mGridX + i * (r2BtnW + mGap);
+    const curW = (i === teamModes.length - 1) ? (mGridX + mGridW - bx) : r2BtnW;
+    const isAct = (curGM === m.id || (m.id === 'crown_team' && curGM === 'crown' && settings.teams));
+    drawJuicyChip(bx, row2Y, curW, mBtnH, {
       label: m.label,
       active: isAct,
       activeBg: m.col,
@@ -1757,10 +1772,10 @@ function drawMenu(){
       bg: 'rgba(255, 255, 255, 0.08)',
       border: m.col,
       textColor: m.col,
-      fontSize: 9.5,
+      fontSize: 8.8,
       renderContent: (x, y, w, h, col, active) => {
-        const isz = 12;
-        const fs = 9.5;
+        const isz = 11;
+        const fs = 8.8;
         g.font = FN(fs, 900);
         const tw = g.measureText(m.label).width;
         const totalW = isz + 4 + tw;
@@ -1772,10 +1787,19 @@ function drawMenu(){
         else if(m.icon === 'flag' && typeof drawSvgFlag === 'function') drawSvgFlag(g, ix, iy, isz, icCol);
         else if(m.icon === 'snowflake' && typeof drawSvgSnowflake === 'function') drawSvgSnowflake(g, ix, iy, isz, icCol);
         else if(m.icon === 'flame' && typeof drawSvgFlame === 'function') drawSvgFlame(g, ix, iy, isz, icCol);
+        else if(m.icon === 'crown' && typeof drawSvgCrown === 'function') drawSvgCrown(g, ix, iy, isz, icCol);
 
         ptxt(m.label, ix + isz/2 + 4 + tw/2, iy, FN(fs, 900), active ? '#ffffff' : m.col);
       },
-      fn: () => setGameMode(m.id)
+      fn: () => {
+        if(m.id === 'crown_team'){
+          setGameMode('crown');
+          settings.teams = true;
+          toast('👑 TEAM CROWN MODE SELECTED');
+        } else {
+          setGameMode(m.id);
+        }
+      }
     });
   }
 
@@ -2339,11 +2363,34 @@ function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
   const slotTeam = (menu.slotTeam && menu.slotTeam[slotIdx] != null) ? (menu.slotTeam[slotIdx] % 2) : (slotIdx % 2);
   const isHunter = (settings.gameMode === 'hunter') && ((slotTeam === 0 && settings.hunterRed === slotIdx) || (slotTeam === 1 && settings.hunterBlue === slotIdx));
 
-  rr(g, cx - 2, cardY - 2, cardW + 4, cardH + 4, 14);
-  g.fillStyle = '#ffffff'; g.fill(); g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
-  rr(g, cx, cardY, cardW, cardH, 12);
-  g.fillStyle = 'rgba(16, 22, 34, 0.90)'; g.fill();
-  g.lineWidth = 2; g.strokeStyle = isBot ? '#ff4757' : (isHunter ? '#ffd166' : col); g.stroke();
+  // 1. Soft depth drop shadow under card
+  rr(g, cx, cardY + 4, cardW, cardH, 14);
+  g.fillStyle = 'rgba(0, 0, 0, 0.35)'; g.fill();
+
+  // 2. Translucent Frosted Glass Card Body
+  const cardGrad = g.createLinearGradient(cx, cardY, cx, cardY + cardH);
+  cardGrad.addColorStop(0, 'rgba(25, 34, 60, 0.62)');
+  cardGrad.addColorStop(0.5, 'rgba(15, 23, 42, 0.48)');
+  cardGrad.addColorStop(1, 'rgba(10, 16, 32, 0.65)');
+  rr(g, cx, cardY, cardW, cardH, 14);
+  g.fillStyle = cardGrad; g.fill();
+
+  // 3. Subtle Glass Specular Gloss Sheen on top 38%
+  g.save();
+  rr(g, cx, cardY, cardW, cardH, 14);
+  g.clip();
+  const glossGrad = g.createLinearGradient(cx, cardY, cx, cardY + cardH * 0.38);
+  glossGrad.addColorStop(0, 'rgba(255, 255, 255, 0.16)');
+  glossGrad.addColorStop(1, 'rgba(255, 255, 255, 0.00)');
+  g.fillStyle = glossGrad;
+  g.fillRect(cx, cardY, cardW, cardH * 0.38);
+  g.restore();
+
+  // 4. Luminous Border matching Player Color
+  rr(g, cx, cardY, cardW, cardH, 14);
+  g.lineWidth = 2.2;
+  g.strokeStyle = isBot ? 'rgba(255, 107, 129, 0.85)' : (isHunter ? 'rgba(255, 209, 102, 0.90)' : col);
+  g.stroke();
 
   // Record card rect for in-place color picker floating menu
   menu.cardRects = menu.cardRects || {};
@@ -2425,10 +2472,75 @@ function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
     });
   }
 
-  // Avatar in middle
-  const avY = isBot ? (cardY + cardH * 0.36) : (cardY + cardH * 0.40);
-  const charSz = clamp(cardH * 0.27, 20, 40);
-  drawChar(g, centerX, avY, charSz, col, { face: isBot ? 'cool' : 'happy', grounded: true, seed: slotIdx * 3 });
+  // Avatar in middle — centered horizontally & vertically with procedural idle animations:
+  // Blinking, occasional side-to-side wander, and cute hops!
+  const charSz = clamp(cardH * 0.27, 24, 40);
+  const charX = Math.round(centerX - charSz / 2);
+  const midAreaTop = cardY + headTitleH + 6;
+  const midAreaBottom = cardY + cardH * (isBot ? 0.49 : 0.62);
+  const charTopY = Math.round(midAreaTop + (midAreaBottom - midAreaTop - charSz) / 2);
+
+  // Procedural idle animation per slot (offset by slotIdx so characters don't animate in sync)
+  const idleCycle = ((tGlobal * 0.75) + slotIdx * 1.85) % 6.0;
+
+  // 1. Occasional side-to-side wander
+  let swayX = 0;
+  let swayLookX = 0;
+  let swayTilt = 0;
+  if(idleCycle >= 0.6 && idleCycle < 1.6){
+    const prog = (idleCycle - 0.6) / 1.0;
+    const w = Math.sin(prog * Math.PI);
+    swayX = w * 8;
+    swayLookX = 1;
+    swayTilt = Math.sin(prog * Math.PI * 4) * 0.04;
+  } else if(idleCycle >= 2.0 && idleCycle < 3.0){
+    const prog = (idleCycle - 2.0) / 1.0;
+    const w = Math.sin(prog * Math.PI);
+    swayX = -w * 8;
+    swayLookX = -1;
+    swayTilt = -Math.sin(prog * Math.PI * 4) * 0.04;
+  }
+
+  // 2. A little hop
+  let hopY = 0;
+  let sx = 1.0, sy = 1.0;
+  let isHopping = false;
+  if(idleCycle >= 4.2 && idleCycle < 4.85){
+    const hopProg = (idleCycle - 4.2) / 0.65;
+    if(hopProg < 0.82){
+      const arc = Math.sin((hopProg / 0.82) * Math.PI);
+      hopY = -arc * 13;
+      sx = 1.0 - arc * 0.12;
+      sy = 1.0 + arc * 0.18;
+      isHopping = true;
+    } else {
+      const landProg = (hopProg - 0.82) / 0.18;
+      const squish = Math.sin(landProg * Math.PI);
+      sx = 1.0 + squish * 0.14;
+      sy = 1.0 - squish * 0.12;
+    }
+  }
+
+  // 3. Blinking (every ~3.2s for 0.14s)
+  const blinkCycle = ((tGlobal * 0.9) + slotIdx * 1.3) % 3.2;
+  const isBlinking = (blinkCycle < 0.14);
+
+  // Face expression
+  let charFace = isBot ? 'cool' : (isHopping ? 'happy' : 'idle');
+  if(isBlinking) charFace = 'idle';
+
+  const drawX = Math.round(charX + swayX);
+  const drawY = Math.round(charTopY + hopY);
+  drawChar(g, drawX, drawY, charSz, col, {
+    face: charFace,
+    blink: isBlinking,
+    grounded: !isHopping,
+    tilt: swayTilt,
+    lookX: swayLookX,
+    sx: sx,
+    sy: sy,
+    seed: slotIdx * 3
+  });
 
   // Per-Bot Difficulty Chip (Easy / Hard per bot)
   if(isBot){
