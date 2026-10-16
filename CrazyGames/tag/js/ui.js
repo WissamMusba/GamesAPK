@@ -338,12 +338,10 @@ function drawOnlineHub(stageY, stageH){
     }
   }
 
-  // Side-by-side on desktop-wide AND on touch (mobile portrait included);
-  // narrow touch columns switch to compact labels so everything stays tappable.
-  const isWide = (CW >= 780) || (isTouch && CW >= 380);
-  const compactHub = isTouch && CW < 780;
-  const pad = 12;
-  const availW = (NET.role !== null) ? Math.min(CW - 24, 1080) : Math.min(CW - 24, 880);
+  // Side-by-side on desktop/tablets and stacked responsive on mobile portrait
+  const isWide = (CW >= 780);
+  const compactHub = !isWide;
+  const availW = (NET.role !== null) ? Math.min(CW - 24, 1080) : Math.min(CW - 24, 940);
   const startX = Math.floor(CW / 2 - availW / 2);
 
   // If player is IN A ROOM (as Host or Guest) -> Draw Lobby View!
@@ -352,95 +350,169 @@ function drawOnlineHub(stageY, stageH){
     return;
   }
 
-  // Not in a room: Draw Online Hub (Left: Host Game & Quick Join; Right: Public Rooms Browser)
-  const leftW = isWide ? Math.floor(availW * 0.40) : availW;
+  // Not in a room: Modern Cyber-Arcade Online Hub
+  const leftW = isWide ? Math.floor(availW * 0.42) : availW;
   const rightW = isWide ? (availW - leftW - 14) : availW;
   const rightX = isWide ? (startX + leftW + 14) : startX;
   const leftH = isWide ? stageH : Math.floor(stageH * 0.48);
   const rightH = isWide ? stageH : (stageH - leftH - 10);
   const rightY = isWide ? stageY : (stageY + leftH + 10);
 
-  // --- LEFT PANEL: Host / Join ---
-  rr(g, startX, stageY, leftW, leftH, 12);
-  g.fillStyle = 'rgba(16, 22, 34, 0.92)'; g.fill();
-  g.lineWidth = 2; g.strokeStyle = 'rgba(255,255,255,0.18)'; g.stroke();
+  // Helper to draw modern cyber frosted panel
+  const drawCyberPanel = (px, py, pw, ph) => {
+    // Drop shadow
+    rr(g, px, py + 4, pw, ph, 14);
+    g.fillStyle = 'rgba(0, 0, 0, 0.42)'; g.fill();
 
-  ptxt(compactHub ? '⚡ HOST / JOIN' : '⚡ CREATE OR JOIN ROOM', startX + leftW/2, stageY + 22, FT(clamp(leftW * 0.056, 11, 14)), '#ffd166');
+    // Body gradient
+    const pGrad = g.createLinearGradient(px, py, px, py + ph);
+    pGrad.addColorStop(0, 'rgba(20, 29, 48, 0.94)');
+    pGrad.addColorStop(0.5, 'rgba(13, 19, 34, 0.96)');
+    pGrad.addColorStop(1, 'rgba(8, 13, 24, 0.98)');
+    rr(g, px, py, pw, ph, 14);
+    g.fillStyle = pGrad; g.fill();
+
+    // Top gloss sheen
+    g.save();
+    rr(g, px, py, pw, ph, 14);
+    g.clip();
+    const gGrad = g.createLinearGradient(px, py, px, py + ph * 0.35);
+    gGrad.addColorStop(0, 'rgba(255, 255, 255, 0.12)');
+    gGrad.addColorStop(1, 'rgba(255, 255, 255, 0.00)');
+    g.fillStyle = gGrad;
+    g.fillRect(px, py, pw, ph * 0.35);
+    g.restore();
+
+    // Neon cyan border
+    rr(g, px, py, pw, ph, 14);
+    g.lineWidth = 1.8;
+    g.strokeStyle = 'rgba(56, 189, 248, 0.42)';
+    g.stroke();
+  };
+
+  // --- 1. LEFT PANEL: Matchmaking & Room Creation ---
+  drawCyberPanel(startX, stageY, leftW, leftH);
+
+  // Header
+  const lHeadY = stageY + 18;
+  drawSvgGlobe(g, startX + 20, lHeadY, 16, '#38bdf8');
+  txt('MATCHMAKING & HOST', startX + 36, lHeadY + 1, FN(clamp(leftW * 0.046, 11, 13.5), 900), '#38bdf8', 'left');
+
+  // Hero Quick Match Button
+  const heroBtnY = stageY + 36;
+  const heroBtnH = clamp(leftH * 0.20, 38, 48);
+  const heroBtnW = leftW - 24;
+  drawJuicyBtn(startX + 12, heroBtnY, heroBtnW, heroBtnH, {
+    label: '⚡ QUICK MATCH',
+    sub: 'Instant Matchmaking Worldwide',
+    bg: '#0284c7',
+    darkBg: '#0369a1',
+    borderColor: '#38bdf8',
+    shine: true,
+    depth: 4,
+    boldFont: true,
+    fontSize: clamp(heroBtnH * 0.32, 12, 14),
+    fn: () => {
+      sfx('go');
+      const openRoom = (NET.publicRooms || []).find(r => !r.isLocked && r.players < (r.maxPlayers || MAXP));
+      if(openRoom){
+        toast('🚀 CONNECTING TO ' + openRoom.roomId);
+        netJoinAction(openRoom.roomId, openRoom.hostPeerId || openRoom.hostId || '');
+      } else {
+        toast('⚡ QUICK MATCH STARTING...');
+        settings.gameMode = 'ffa';
+        menu.slotColor[0] = 0; menu.slotColor[1] = 1; menu.slotColor[2] = 2; menu.slotColor[3] = -1;
+        if(!menu.slotIsBot) menu.slotIsBot = [false, false, false, false];
+        menu.slotIsBot[0] = false;
+        menu.slotIsBot[1] = true;
+        menu.slotIsBot[2] = true;
+        startMatch();
+      }
+    }
+  });
+
+  // Divider / Subhead
+  const midSecY = heroBtnY + heroBtnH + 12;
+  txt('👑 HOST CUSTOM ARENA', startX + leftW/2, midSecY + 2, FN(10, 900), '#94a3b8');
 
   // Room Privacy Selector (Public / Private)
-  const privY = stageY + 42;
-  const privH = 30;
-  const privW = Math.floor((leftW - 24) / 2);
-  // Public button
-  drawJuicyChip(startX + 10, privY, privW, privH, {
-    label: compactHub ? 'PUBLIC' : '🌐 PUBLIC',
+  const privY = midSecY + 12;
+  const privH = clamp(leftH * 0.12, 26, 32);
+  const privW = Math.floor((leftW - 32) / 2);
+  drawJuicyChip(startX + 12, privY, privW, privH, {
+    label: '🌐 PUBLIC',
     active: NET.isPublic,
-    activeBg: '#2ecc71',
-    activeDarkBg: '#166534',
+    activeBg: '#10b981',
+    activeDarkBg: '#047857',
     activeText: '#ffffff',
     textColor: '#94a3b8',
-    fontSize: 11,
+    fontSize: 10.5,
     fn: () => { NET.isPublic = true; sfx('ui'); }
   });
 
-  // Private button
-  drawJuicyChip(startX + 14 + privW, privY, privW, privH, {
-    label: compactHub ? 'PRIVATE' : '🔒 PRIVATE',
+  drawJuicyChip(startX + 20 + privW, privY, privW, privH, {
+    label: '🔒 PRIVATE',
     active: !NET.isPublic,
-    activeBg: '#f39c12',
+    activeBg: '#f59e0b',
     activeDarkBg: '#b45309',
-    activeText: '#0f172a',
+    activeText: '#ffffff',
     textColor: '#94a3b8',
-    fontSize: 11,
+    fontSize: 10.5,
     fn: () => { NET.isPublic = false; sfx('ui'); }
   });
 
-  // Big HOST ROOM button
-  const hostBtnY = privY + privH + 12;
-  const hostBtnH = clamp(leftH * 0.18, 34, 42);
-  const hostBtnW = leftW - 20;
-  drawJuicyBtn(startX + 10, hostBtnY, hostBtnW, hostBtnH, {
-    label: compactHub ? '👑 HOST' : '👑 HOST NEW ROOM',
-    bg: '#27ae60',
-    darkBg: '#166534',
+  // Big Host Button
+  const hostBtnY = privY + privH + 8;
+  const hostBtnH = clamp(leftH * 0.16, 32, 40);
+  drawJuicyBtn(startX + 12, hostBtnY, heroBtnW, hostBtnH, {
+    label: NET.isPublic ? '🚀 CREATE PUBLIC ARENA' : '🔒 CREATE PRIVATE ROOM',
+    bg: NET.isPublic ? '#059669' : '#d97706',
+    darkBg: NET.isPublic ? '#065f46' : '#92400e',
     depth: 4,
     shine: true,
     boldFont: true,
-    fontSize: 13,
+    fontSize: clamp(hostBtnH * 0.34, 11, 13),
     fn: () => { sfx('go'); netHostAction(NET.isPublic); }
   });
 
-  // Join Room by Code / Link Button
-  const joinBtnY = hostBtnY + hostBtnH + 12;
-  const joinBtnH = clamp(leftH * 0.16, 32, 38);
-  drawJuicyBtn(startX + 10, joinBtnY, hostBtnW, joinBtnH, {
-    label: compactHub ? '🔑 JOIN' : '🔑 ENTER ROOM CODE / LINK',
-    bg: 'rgba(56, 189, 248, 0.25)',
-    darkBg: 'rgba(2, 132, 199, 0.55)',
+  // Direct Code / Link Join Button
+  const joinBtnY = hostBtnY + hostBtnH + 8;
+  const joinBtnH = clamp(leftH * 0.14, 28, 36);
+  drawJuicyBtn(startX + 12, joinBtnY, heroBtnW, joinBtnH, {
+    label: '🔑 ENTER ROOM CODE / LINK',
+    bg: 'rgba(56, 189, 248, 0.16)',
+    darkBg: 'rgba(2, 132, 199, 0.45)',
     borderColor: '#38bdf8',
     textColor: '#38bdf8',
-    depth: 4,
-    fontSize: 12,
+    depth: 3,
+    fontSize: clamp(joinBtnH * 0.35, 10.5, 12),
     fn: () => { sfx('ui'); netJoinAction(); }
   });
 
-  // Help info text at bottom of left card
-  const infoY = joinBtnY + joinBtnH + 12;
-  if(infoY < stageY + leftH - 10){
-    txt('🎮 Invite friends with link or 4-6 letter code', startX + leftW/2, infoY + 8, FN(10.5, 800), '#94a3b8');
-    txt('🔊 Proximity Voice Chat & Text Chat ready', startX + leftW/2, infoY + 24, FN(10, 800), '#64748b');
+  // Micro-copy footer
+  const infoY = joinBtnY + joinBtnH + 8;
+  if(infoY < stageY + leftH - 8){
+    txt('🎙️ Proximity Voice Chat ready • 🎮 Cross-platform', startX + leftW/2, infoY + 6, FN(9.5, 800), '#64748b');
   }
 
-  // --- RIGHT PANEL: Browsable Public Rooms Lobby ---
-  rr(g, rightX, rightY, rightW, rightH, 12);
-  g.fillStyle = 'rgba(16, 22, 34, 0.92)'; g.fill();
-  g.lineWidth = 2; g.strokeStyle = 'rgba(255,255,255,0.18)'; g.stroke();
+  // --- 2. RIGHT PANEL: Live Arenas Browser ---
+  drawCyberPanel(rightX, rightY, rightW, rightH);
 
-  ptxt(rightW < 300 ? '🌐 ROOMS' : '🌐 PUBLIC ROOMS DIRECTORY', rightX + rightW/2 - 30, rightY + 20, FT(clamp(rightW * 0.045, 11, 14)), '#ffffff');
+  // Header: Icon + Title + Live Dot + Refresh
+  const rHeadY = rightY + 18;
+  drawSvgGlobe(g, rightX + 20, rHeadY, 16, '#22c55e');
+  txt('ONLINE LOBBIES', rightX + 36, rHeadY + 1, FN(clamp(rightW * 0.04, 11, 13.5), 900), '#ffffff', 'left');
 
-  // Polished Refresh button
-  const refBtnW = 84, refBtnH = 25;
-  const refBtnX = rightX + rightW - refBtnW - 10, refBtnY = rightY + 8;
+  // Pulsing live green dot
+  const livePulse = 3 + Math.sin(tGlobal * 5.0) * 1.0;
+  g.beginPath();
+  g.arc(rightX + 155, rHeadY, livePulse, 0, Math.PI * 2);
+  g.fillStyle = '#22c55e'; g.fill();
+  txt('LIVE', rightX + 168, rHeadY + 1, FN(8.5, 900), '#22c55e', 'left');
+
+  // Polished Refresh Button
+  const refBtnW = clamp(rightW * 0.18, 70, 88), refBtnH = 24;
+  const refBtnX = rightX + rightW - refBtnW - 12, refBtnY = rightY + 7;
   drawJuicyChip(refBtnX, refBtnY, refBtnW, refBtnH, {
     label: 'Refresh',
     icon: 'refresh',
@@ -449,63 +521,104 @@ function drawOnlineHub(stageY, stageH){
     activeDarkBg: 'rgba(2, 132, 199, 0.45)',
     activeText: '#38bdf8',
     activeBorder: '#38bdf8',
-    fontSize: 10.5,
+    fontSize: 10,
     fn: () => { sfx('ui'); netFetchPublicRooms(); }
   });
 
-  // Rooms table header
-  const tableY = rightY + 38;
-  const rowH = clamp((rightH - 46) / 5, 28, 36);
-  g.fillStyle = 'rgba(255,255,255,0.06)';
-  g.fillRect(rightX + 6, tableY, rightW - 12, 22);
-  txt('HOST / ROOM', rightX + 16, tableY + 12, FN(10, 800), '#94a3b8', 'left');
-  txt('PLAYERS', rightX + rightW * 0.44, tableY + 12, FN(10, 800), '#94a3b8');
-  txt('MAP / MODE', rightX + rightW * 0.68, tableY + 12, FN(10, 800), '#94a3b8');
-  txt('ACTION', rightX + rightW - 38, tableY + 12, FN(10, 800), '#94a3b8');
+  // Content Area
+  const feedTopY = rightY + 38;
+  const feedAvailH = rightH - 46;
+  const rooms = (NET.publicRooms || []).filter(r => r && r.roomId);
 
-  // Render rooms
-  const rooms = NET.publicRooms || [];
   if(rooms.length === 0){
-    txt('No public rooms active right now. Host one!', rightX + rightW/2, tableY + 50, FN(12, 800), '#94a3b8');
+    // Empty state: Sleek centered card with call to action
+    const cardBoxW = Math.min(rightW - 32, 420);
+    const cardBoxH = Math.min(feedAvailH - 12, 140);
+    const cardBoxX = Math.floor(rightX + rightW/2 - cardBoxW/2);
+    const cardBoxY = Math.floor(feedTopY + (feedAvailH - cardBoxH) / 2);
+
+    rr(g, cardBoxX, cardBoxY, cardBoxW, cardBoxH, 10);
+    g.fillStyle = 'rgba(255, 255, 255, 0.03)'; g.fill();
+    g.lineWidth = 1; g.strokeStyle = 'rgba(56, 189, 248, 0.3)'; g.stroke();
+
+    drawSvgGlobe(g, rightX + rightW/2, cardBoxY + 28, 26, '#38bdf8');
+    txt('NO ACTIVE PUBLIC LOBBIES RIGHT NOW', rightX + rightW/2, cardBoxY + 54, FN(11.5, 900), '#f8fafc');
+    txt('Be the first to jump in! Create a room and invite your friends.', rightX + rightW/2, cardBoxY + 70, FN(9.5, 800), '#94a3b8');
+
+    // Quick Host Public Room button in empty state
+    const ehBtnW = Math.min(cardBoxW - 40, 200), ehBtnH = 28;
+    drawJuicyChip(Math.floor(rightX + rightW/2 - ehBtnW/2), cardBoxY + 88, ehBtnW, ehBtnH, {
+      label: '⚡ HOST PUBLIC ROOM',
+      active: true,
+      activeBg: '#10b981',
+      activeDarkBg: '#047857',
+      activeText: '#ffffff',
+      fontSize: 10.5,
+      fn: () => { sfx('go'); netHostAction(true); }
+    });
   } else {
-    const maxShow = Math.min(rooms.length, 5);
-    for(let r = 0; r < maxShow; r++){
-      const rm = rooms[r];
-      const ry = tableY + 24 + r * rowH;
-      rr(g, rightX + 6, ry + 2, rightW - 12, rowH - 4, 6);
-      g.fillStyle = (r % 2 === 0) ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.02)';
+    // Render live room cards
+    const maxCards = Math.min(rooms.length, 5);
+    const cardGap = 6;
+    const cardH = clamp(Math.floor((feedAvailH - (maxCards - 1) * cardGap) / maxCards), 32, 44);
+
+    for(let i = 0; i < maxCards; i++){
+      const rm = rooms[i];
+      const ry = feedTopY + i * (cardH + cardGap);
+      const rx = rightX + 12;
+      const rw = rightW - 24;
+
+      // Card glass container
+      rr(g, rx, ry, rw, cardH, 8);
+      g.fillStyle = (i % 2 === 0) ? 'rgba(255, 255, 255, 0.05)' : 'rgba(255, 255, 255, 0.025)';
       g.fill();
+      g.lineWidth = 1;
+      g.strokeStyle = 'rgba(56, 189, 248, 0.25)';
+      g.stroke();
 
-      // Host Name & code - dynamically measured so it never overflows
-      let hostDisp = (rm.hostName || 'Host') + ' (' + rm.roomId + ')';
-      const hostMaxW = rightW * 0.36;
-      g.font = FN(11, 900);
-      if(g.measureText(hostDisp).width > hostMaxW){
-        while(hostDisp.length > 5 && g.measureText(hostDisp + '…').width > hostMaxW){
-          hostDisp = hostDisp.slice(0, -1);
+      // Left: Status dot + Host name + Room code
+      const dotCol = rm.isLocked ? '#eab308' : '#22c55e';
+      g.beginPath();
+      g.arc(rx + 12, ry + cardH/2, 3.5, 0, Math.PI * 2);
+      g.fillStyle = dotCol; g.fill();
+
+      let hostText = (rm.hostName || 'Host') + ' #' + rm.roomId;
+      const maxHw = rw * 0.34;
+      g.font = FN(10.5, 900);
+      if(g.measureText(hostText).width > maxHw){
+        while(hostText.length > 5 && g.measureText(hostText + '…').width > maxHw){
+          hostText = hostText.slice(0, -1);
         }
-        hostDisp += '…';
+        hostText += '…';
       }
-      txt(hostDisp, rightX + 16, ry + rowH/2, FN(11, 900), '#ffffff', 'left');
-      // Players count
-      txt(rm.players + '/' + (rm.maxPlayers || MAXP), rightX + rightW * 0.44, ry + rowH/2, FN(11, 800), '#ffd166');
-      // Map / Mode
-      const mapName = (MAPS[rm.map % MAPS.length] || {}).name || ('Map ' + ((rm.map || 0) + 1));
-      const modeLabel = rm.teams ? '⚔️ Teams' : 'FFA';
-      txt(mapName.slice(0, 10) + ' • ' + modeLabel, rightX + rightW * 0.68, ry + rowH/2, FN(10, 800), '#38bdf8');
+      txt(hostText, rx + 22, ry + cardH/2 + 1, FN(10.5, 900), '#f8fafc', 'left');
 
-      // Join button
-      const jbW = 58, jbH = rowH - 8;
-      const jbX = rightX + rightW - jbW - 10, jbY = ry + 4;
-      const isLocked = rm.isLocked;
+      // Middle: Map chip & Mode chip
+      const mapName = (MAPS[rm.map % MAPS.length] || {}).name || ('Arena ' + ((rm.map || 0) + 1));
+      const modeLabel = rm.teams ? 'Teams' : 'FFA';
+      const badgeText = mapName.slice(0, 9) + ' • ' + modeLabel;
+      txt(badgeText, rx + rw * 0.52, ry + cardH/2 + 1, FN(9.5, 800), '#38bdf8');
+
+      // Right: Player Count Pill
+      const curP = rm.players || 1;
+      const maxP = rm.maxPlayers || MAXP;
+      txt(curP + '/' + maxP, rx + rw - 74, ry + cardH/2 + 1, FN(10, 900), curP >= maxP ? '#ef4444' : '#ffd166');
+
+      // Action: Join / Spectate Chip
+      const isLocked = rm.isLocked || curP >= maxP;
+      const jbW = 54, jbH = cardH - 10;
+      const jbX = rx + rw - jbW - 6, jbY = ry + 5;
       drawJuicyChip(jbX, jbY, jbW, jbH, {
         label: isLocked ? '👁️ Spec' : '▶ Join',
         active: true,
-        activeBg: isLocked ? '#e67e22' : '#2ecc71',
-        activeDarkBg: isLocked ? '#b45309' : '#166534',
+        activeBg: isLocked ? '#f59e0b' : '#22c55e',
+        activeDarkBg: isLocked ? '#b45309' : '#15803d',
         activeText: '#ffffff',
-        fontSize: 10,
-        fn: () => { sfx('go'); netJoinAction(rm.roomId, rm.hostPeerId || rm.hostId || ''); }
+        fontSize: 9.5,
+        fn: () => {
+          sfx('go');
+          netJoinAction(rm.roomId, rm.hostPeerId || rm.hostId || '');
+        }
       });
     }
   }
@@ -1722,16 +1835,16 @@ function drawMenu(){
       activeDarkBg: m.dark,
       activeBorder: '#ffffff',
       activeText: '#ffffff',
-      bg: 'rgba(255, 255, 255, 0.08)',
+      bg: 'rgba(24, 34, 58, 0.78)',
       border: m.col,
-      textColor: m.col,
+      textColor: '#ffffff',
       fontSize: 9.5,
       renderContent: (x, y, w, h, col, active) => {
         const isz = 12;
         const fs = 9.5;
         g.font = FN(fs, 900);
         const tw = g.measureText(m.label).width;
-        const totalW = isz + 4 + tw;
+        const totalW = isz + 5 + tw;
         const ix = x + w/2 - totalW/2 + isz/2;
         const iy = y + h/2 + 1;
         const icCol = active ? '#ffffff' : m.col;
@@ -1741,7 +1854,9 @@ function drawMenu(){
         else if(m.icon === 'crown' && typeof drawSvgCrown === 'function') drawSvgCrown(g, ix, iy, isz, icCol);
         else if(m.icon === 'biohazard' && typeof drawSvgBiohazard === 'function') drawSvgBiohazard(g, ix, iy, isz, icCol);
 
-        ptxt(m.label, ix + isz/2 + 4 + tw/2, iy, FN(fs, 900), active ? '#ffffff' : m.col);
+        const tx = ix + isz/2 + 5 + tw/2;
+        txt(m.label, tx, iy + 1, FN(fs, 900), 'rgba(0, 0, 0, 0.75)');
+        txt(m.label, tx, iy, FN(fs, 900), '#ffffff');
       },
       fn: () => {
         if(m.id === 'crown'){
@@ -1769,9 +1884,9 @@ function drawMenu(){
       activeDarkBg: m.dark,
       activeBorder: '#ffffff',
       activeText: '#ffffff',
-      bg: 'rgba(255, 255, 255, 0.08)',
+      bg: 'rgba(24, 34, 58, 0.78)',
       border: m.col,
-      textColor: m.col,
+      textColor: '#ffffff',
       fontSize: 8.8,
       renderContent: (x, y, w, h, col, active) => {
         const isz = 11;
@@ -1789,7 +1904,9 @@ function drawMenu(){
         else if(m.icon === 'flame' && typeof drawSvgFlame === 'function') drawSvgFlame(g, ix, iy, isz, icCol);
         else if(m.icon === 'crown' && typeof drawSvgCrown === 'function') drawSvgCrown(g, ix, iy, isz, icCol);
 
-        ptxt(m.label, ix + isz/2 + 4 + tw/2, iy, FN(fs, 900), active ? '#ffffff' : m.col);
+        const tx = ix + isz/2 + 4 + tw/2;
+        txt(m.label, tx, iy + 1, FN(fs, 900), 'rgba(0, 0, 0, 0.75)');
+        txt(m.label, tx, iy, FN(fs, 900), '#ffffff');
       },
       fn: () => {
         if(m.id === 'crown_team'){
@@ -1893,8 +2010,8 @@ function drawMenu(){
     g.fillStyle = '#22c55e'; g.fill();
 
     // ⚡ QUICK JOIN Button
-    const qjH = 36;
-    const qjY = stickY + 32;
+    const qjH = 34;
+    const qjY = stickY + 30;
     drawJuicyBtn(stickX + 8, qjY, stickW - 16, qjH, {
       label: '⚡ QUICK JOIN',
       sub: 'Instant Matchmaking',
@@ -1903,7 +2020,7 @@ function drawMenu(){
       borderColor: '#38bdf8',
       shine: true,
       depth: 3,
-      fontSize: 12,
+      fontSize: 11.5,
       boldFont: true,
       fn: () => {
         sfx('go');
@@ -1913,69 +2030,91 @@ function drawMenu(){
           netJoinAction(openRoom.roomId, openRoom.hostPeerId || openRoom.hostId || '');
         } else {
           toast('⚡ QUICK MATCH STARTING...');
-          if(activeSlots().length < 2){
-            menu.slotColor[0] = 0; menu.slotColor[1] = 1;
-            if(!menu.slotIsBot) menu.slotIsBot = [false, false, false, false];
-            menu.slotIsBot[1] = true;
-          }
+          settings.gameMode = 'ffa';
+          menu.slotColor[0] = 0; menu.slotColor[1] = 1; menu.slotColor[2] = 2; menu.slotColor[3] = -1;
+          if(!menu.slotIsBot) menu.slotIsBot = [false, false, false, false];
+          menu.slotIsBot[0] = false;
+          menu.slotIsBot[1] = true;
+          menu.slotIsBot[2] = true;
           startMatch();
         }
       }
     });
 
     // Sub-header: LIVE LOBBIES
-    const lobY = qjY + qjH + 12;
+    const lobY = qjY + qjH + 10;
     txt('ONLINE LOBBIES', stickX + stickW/2, lobY + 4, FN(9.5, 900), '#94a3b8');
 
-    // Lobbies feed
-    const rooms = (NET.publicRooms && NET.publicRooms.length > 0)
-      ? NET.publicRooms.slice(0, 2)
-      : [
-          { roomId: 'ARENA-1', players: 2, maxPlayers: 4, map: 0 },
-          { roomId: 'PARTY-X', players: 1, maxPlayers: 4, map: 1 }
-        ];
+    // Lobbies feed: Shows real active rooms, or action buttons to host a new room
+    const rooms = (NET.publicRooms && NET.publicRooms.length > 0) ? NET.publicRooms.slice(0, 2) : [];
 
-    const rowH = 26;
-    for(let ri = 0; ri < rooms.length; ri++){
-      const rm = rooms[ri];
-      const ry = lobY + 14 + ri * (rowH + 5);
+    if(rooms.length > 0){
+      const rowH = 26;
+      for(let ri = 0; ri < rooms.length; ri++){
+        const rm = rooms[ri];
+        const ry = lobY + 14 + ri * (rowH + 5);
 
-      rr(g, stickX + 8, ry, stickW - 16, rowH, 5);
-      g.fillStyle = 'rgba(255, 255, 255, 0.05)'; g.fill();
-      g.lineWidth = 1; g.strokeStyle = 'rgba(255, 255, 255, 0.15)'; g.stroke();
+        rr(g, stickX + 8, ry, stickW - 16, rowH, 5);
+        g.fillStyle = 'rgba(255, 255, 255, 0.05)'; g.fill();
+        g.lineWidth = 1; g.strokeStyle = 'rgba(255, 255, 255, 0.15)'; g.stroke();
 
-      txt(rm.roomId, stickX + 16, ry + rowH/2 + 1, FN(9.5, 900), '#ffffff', 'left');
-      txt(rm.players + '/' + (rm.maxPlayers || 4), stickX + stickW - 54, ry + rowH/2 + 1, FN(9, 800), '#ffd166');
+        txt(rm.roomId, stickX + 14, ry + rowH/2 + 1, FN(9, 900), '#ffffff', 'left');
+        txt(rm.players + '/' + (rm.maxPlayers || 4), stickX + stickW - 52, ry + rowH/2 + 1, FN(8.5, 800), '#ffd166');
 
-      // Mini Join chip
-      drawJuicyChip(stickX + stickW - 40, ry + 3, 32, rowH - 6, {
-        label: 'JOIN',
+        // Mini Join chip
+        drawJuicyChip(stickX + stickW - 38, ry + 3, 30, rowH - 6, {
+          label: 'JOIN',
+          active: true,
+          activeBg: '#22c55e',
+          activeDarkBg: '#15803d',
+          activeText: '#ffffff',
+          fontSize: 8.5,
+          fn: () => {
+            sfx('go');
+            netJoinAction(rm.roomId, rm.hostPeerId || rm.hostId || '');
+          }
+        });
+      }
+    } else {
+      // Empty lobbies state: Render buttons to start a new public or private room
+      const btnH = 24;
+      const bY1 = lobY + 14;
+      const bY2 = bY1 + btnH + 5;
+
+      drawJuicyChip(stickX + 8, bY1, stickW - 16, btnH, {
+        label: '+ PUBLIC ROOM',
         active: true,
-        activeBg: '#22c55e',
-        activeDarkBg: '#15803d',
-        activeText: '#ffffff',
-        fontSize: 8.5,
+        activeBg: 'rgba(34, 197, 94, 0.22)',
+        activeDarkBg: 'rgba(21, 128, 61, 0.45)',
+        activeText: '#4ade80',
+        activeBorder: '#22c55e',
+        fontSize: 9,
         fn: () => {
           sfx('go');
-          if(rm.hostPeerId || rm.hostId){
-            netJoinAction(rm.roomId, rm.hostPeerId || rm.hostId);
-          } else {
-            if(rm.map != null && typeof settings !== 'undefined') settings.map = rm.map % MAPS.length;
-            toast('🚀 ENTERING ' + rm.roomId + '...');
-            if(activeSlots().length < 2){
-              menu.slotColor[0] = 0; menu.slotColor[1] = 1;
-              if(!menu.slotIsBot) menu.slotIsBot = [false, false, false, false];
-              menu.slotIsBot[1] = true;
-            }
-            startMatch();
-          }
+          setMenuTab('online');
+          netHostAction(true);
+        }
+      });
+
+      drawJuicyChip(stickX + 8, bY2, stickW - 16, btnH, {
+        label: '+ PRIVATE ROOM',
+        active: true,
+        activeBg: 'rgba(245, 158, 11, 0.22)',
+        activeDarkBg: 'rgba(180, 83, 9, 0.45)',
+        activeText: '#fbbf24',
+        activeBorder: '#f59e0b',
+        fontSize: 9,
+        fn: () => {
+          sfx('go');
+          setMenuTab('online');
+          netHostAction(false);
         }
       });
     }
 
     // Bottom link
     const linkY = stickY + stickH - 12;
-    txt('BROWSE ALL LOBBIES ➔', stickX + stickW/2, linkY, FN(9.5, 900), '#38bdf8');
+    txt('BROWSE ALL LOBBIES ➔', stickX + stickW/2, linkY, FN(9, 900), '#38bdf8');
     zone(stickX + 8, linkY - 10, stickW - 16, 20, {
       fn: () => { sfx('ui'); setMenuTab('online'); }
     });
@@ -1984,9 +2123,32 @@ function drawMenu(){
 
   if(menu.tab !== 'online' || (typeof NET !== 'undefined' && NET && NET.role !== null)){
   // 5. Settings Strip
+  // Soft drop shadow
+  rr(g, stripX, stripY + 4, stripW, stripH, 12);
+  g.fillStyle = 'rgba(0, 0, 0, 0.35)'; g.fill();
+
+  // Frosted cyber glass body
+  const stripGrad = g.createLinearGradient(stripX, stripY, stripX, stripY + stripH);
+  stripGrad.addColorStop(0, 'rgba(22, 32, 54, 0.92)');
+  stripGrad.addColorStop(0.5, 'rgba(14, 20, 36, 0.94)');
+  stripGrad.addColorStop(1, 'rgba(10, 15, 28, 0.96)');
   rr(g, stripX, stripY, stripW, stripH, 12);
-  g.fillStyle = 'rgba(14, 18, 28, 0.94)'; g.fill();
-  g.lineWidth = 2; g.strokeStyle = 'rgba(255,255,255,0.18)'; g.stroke();
+  g.fillStyle = stripGrad; g.fill();
+
+  // Subtle specular gloss sheen on top 40%
+  g.save();
+  rr(g, stripX, stripY, stripW, stripH, 12);
+  g.clip();
+  const stripGloss = g.createLinearGradient(stripX, stripY, stripX, stripY + stripH * 0.4);
+  stripGloss.addColorStop(0, 'rgba(255, 255, 255, 0.14)');
+  stripGloss.addColorStop(1, 'rgba(255, 255, 255, 0.00)');
+  g.fillStyle = stripGloss;
+  g.fillRect(stripX, stripY, stripW, stripH * 0.4);
+  g.restore();
+
+  // Cyber cyan accent border
+  rr(g, stripX, stripY, stripW, stripH, 12);
+  g.lineWidth = 2.0; g.strokeStyle = 'rgba(56, 189, 248, 0.45)'; g.stroke();
 
   const mapLabelText = settings.randomMap ? '🎲 RANDOM ARENA ▾' : ('🗺️ ' + (settings.map + 1) + '. ' + MAPS[settings.map].name + ' ▾');
 
@@ -2031,7 +2193,7 @@ function drawMenu(){
       }
     });
 
-    // Row 2: Double Jump + 3 Wide Timer Buttons (60s, 120s, 180s)
+    // Row 2: Double Jump + 3 Wide Timer Buttons (30/60/90s for freeze/infection, 60/120/180s for others)
     const chipsY = stripY + rowH1 + 1;
     const jumpW = clamp(Math.floor(stripW * 0.22), 64, 82);
     const chipH = rowH1 - 6;
@@ -2051,7 +2213,7 @@ function drawMenu(){
       }
     });
 
-    // 3 Wide Timer Buttons (Selection 3: 3 buttons and wider)
+    // 3 Wide Timer Buttons
     const tAreaX = stripX + 6 + jumpW + 8;
     const tAreaW = stripW - (tAreaX - stripX) - 6;
     const isCtf_mob = (settings.gameMode === 'ctf');
@@ -2079,7 +2241,8 @@ function drawMenu(){
         });
       }
     } else {
-      const timeOpts = [60, 120, 180];
+      const isShortTime = (settings.gameMode === 'freeze' || settings.gameMode === 'infection');
+      const timeOpts = isShortTime ? [30, 60, 90] : [60, 120, 180];
       const tBtnW = Math.floor((tAreaW - 2 * 5) / 3);
       for(let ti = 0; ti < timeOpts.length; ti++){
         const val = timeOpts[ti];
@@ -2102,7 +2265,7 @@ function drawMenu(){
           },
           fn: () => {
             if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST CONTROLS ROOM TIMER'); sfx('back'); return; }
-            settings.timeIdx = TIMES.indexOf(val);
+            settings.time = val;
             sfx('ui');
             if(typeof NET !== 'undefined' && NET && NET.isHost) netBroadcastSettings();
           }
@@ -2154,7 +2317,7 @@ function drawMenu(){
       }
     });
 
-    // Right side: 2x Jump and 3 Wide Timer Buttons (Selection 3: 3 buttons and wider)
+    // Right side: 2x Jump and 3 Wide Timer Buttons
     const chipsX = stripX + 6 + mapBoxW + 12;
     const chipsAvailW = stripW - (chipsX - stripX) - 10;
     const jumpW = clamp(Math.floor(chipsAvailW * 0.24), 78, 96);
@@ -2195,7 +2358,7 @@ function drawMenu(){
           activeText: '#ffffff',
           fontSize: 11,
           fn: () => {
-            if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST CONTROLS TARGET CAPTURES'); sfx('back'); return; }
+            if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST CONTROLS TARGET CAPS'); sfx('back'); return; }
             settings.ctfTargetCaptures = caps;
             toast('🎯 TARGET CAPTURES: ' + caps);
             sfx('ui');
@@ -2204,7 +2367,8 @@ function drawMenu(){
         });
       }
     } else {
-      const timeOpts = [60, 120, 180];
+      const isShortTime = (settings.gameMode === 'freeze' || settings.gameMode === 'infection');
+      const timeOpts = isShortTime ? [30, 60, 90] : [60, 120, 180];
       const tBtnW = Math.floor((tAreaW - 2 * 6) / 3);
       for(let ti = 0; ti < timeOpts.length; ti++){
         const val = timeOpts[ti];
@@ -2228,7 +2392,7 @@ function drawMenu(){
           },
           fn: () => {
             if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST CONTROLS ROOM TIMER'); sfx('back'); return; }
-            settings.timeIdx = TIMES.indexOf(val);
+            settings.time = val;
             sfx('ui');
             if(typeof NET !== 'undefined' && NET && NET.isHost) netBroadcastSettings();
           }
@@ -2367,11 +2531,11 @@ function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
   rr(g, cx, cardY + 4, cardW, cardH, 14);
   g.fillStyle = 'rgba(0, 0, 0, 0.35)'; g.fill();
 
-  // 2. Translucent Frosted Glass Card Body
+  // 2. Translucent Frosted Glass Card Body Tinted with Player's Color
   const cardGrad = g.createLinearGradient(cx, cardY, cx, cardY + cardH);
-  cardGrad.addColorStop(0, 'rgba(25, 34, 60, 0.62)');
-  cardGrad.addColorStop(0.5, 'rgba(15, 23, 42, 0.48)');
-  cardGrad.addColorStop(1, 'rgba(10, 16, 32, 0.65)');
+  cardGrad.addColorStop(0, rgba(col, 0.24));
+  cardGrad.addColorStop(0.4, rgba(col, 0.12));
+  cardGrad.addColorStop(1, rgba(col, 0.28));
   rr(g, cx, cardY, cardW, cardH, 14);
   g.fillStyle = cardGrad; g.fill();
 
@@ -2473,57 +2637,71 @@ function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
   }
 
   // Avatar in middle — centered horizontally & vertically with procedural idle animations:
-  // Blinking, occasional side-to-side wander, and cute hops!
+  // Continuous breathing, anticipation crouch, springy hop, smooth wander, and cute blinks!
   const charSz = clamp(cardH * 0.27, 24, 40);
   const charX = Math.round(centerX - charSz / 2);
   const midAreaTop = cardY + headTitleH + 6;
   const midAreaBottom = cardY + cardH * (isBot ? 0.49 : 0.62);
   const charTopY = Math.round(midAreaTop + (midAreaBottom - midAreaTop - charSz) / 2);
 
+  // 0. Continuous breathing pulsation
+  const breath = Math.sin(tGlobal * 3.2 + slotIdx * 1.5) * 0.035;
+  let sx = 1.0 - breath * 0.7;
+  let sy = 1.0 + breath;
+
   // Procedural idle animation per slot (offset by slotIdx so characters don't animate in sync)
   const idleCycle = ((tGlobal * 0.75) + slotIdx * 1.85) % 6.0;
 
-  // 1. Occasional side-to-side wander
+  // 1. Smooth wander left and right with natural ease
   let swayX = 0;
   let swayLookX = 0;
   let swayTilt = 0;
-  if(idleCycle >= 0.6 && idleCycle < 1.6){
-    const prog = (idleCycle - 0.6) / 1.0;
-    const w = Math.sin(prog * Math.PI);
-    swayX = w * 8;
-    swayLookX = 1;
-    swayTilt = Math.sin(prog * Math.PI * 4) * 0.04;
-  } else if(idleCycle >= 2.0 && idleCycle < 3.0){
-    const prog = (idleCycle - 2.0) / 1.0;
-    const w = Math.sin(prog * Math.PI);
-    swayX = -w * 8;
-    swayLookX = -1;
-    swayTilt = -Math.sin(prog * Math.PI * 4) * 0.04;
+  if(idleCycle >= 0.8 && idleCycle < 1.8){
+    const prog = (idleCycle - 0.8) / 1.0;
+    const ease = Math.sin(prog * Math.PI);
+    swayX = ease * 8;
+    swayLookX = (prog < 0.85) ? 1 : 0;
+    swayTilt = Math.sin(prog * Math.PI * 2) * 0.05;
+  } else if(idleCycle >= 2.4 && idleCycle < 3.4){
+    const prog = (idleCycle - 2.4) / 1.0;
+    const ease = Math.sin(prog * Math.PI);
+    swayX = -ease * 8;
+    swayLookX = (prog < 0.85) ? -1 : 0;
+    swayTilt = -Math.sin(prog * Math.PI * 2) * 0.05;
   }
 
-  // 2. A little hop
+  // 2. Springy Hop with anticipation crouch and landing squash
   let hopY = 0;
-  let sx = 1.0, sy = 1.0;
   let isHopping = false;
-  if(idleCycle >= 4.2 && idleCycle < 4.85){
-    const hopProg = (idleCycle - 4.2) / 0.65;
-    if(hopProg < 0.82){
-      const arc = Math.sin((hopProg / 0.82) * Math.PI);
-      hopY = -arc * 13;
-      sx = 1.0 - arc * 0.12;
-      sy = 1.0 + arc * 0.18;
+  if(idleCycle >= 4.0 && idleCycle < 4.9){
+    const hopT = idleCycle - 4.0;
+    if(hopT < 0.14){
+      // Anticipation crouch / windup
+      const crouchP = hopT / 0.14;
+      sx = 1.14 + crouchP * 0.04;
+      sy = 0.84 - crouchP * 0.04;
+      hopY = 2;
+    } else if(hopT < 0.64){
+      // Airborne arc with stretch
+      const airP = (hopT - 0.14) / 0.50;
+      const arc = Math.sin(airP * Math.PI);
+      hopY = -arc * 15;
+      sx = 0.88 - arc * 0.05;
+      sy = 1.18 + arc * 0.08;
       isHopping = true;
     } else {
-      const landProg = (hopProg - 0.82) / 0.18;
-      const squish = Math.sin(landProg * Math.PI);
-      sx = 1.0 + squish * 0.14;
-      sy = 1.0 - squish * 0.12;
+      // Landing squish & springy settle
+      const landP = (hopT - 0.64) / 0.26;
+      const bounce = Math.sin(landP * Math.PI) * Math.exp(-landP * 2.5);
+      sx = 1.0 + bounce * 0.18;
+      sy = 1.0 - bounce * 0.16;
+      hopY = 0;
     }
   }
 
-  // 3. Blinking (every ~3.2s for 0.14s)
-  const blinkCycle = ((tGlobal * 0.9) + slotIdx * 1.3) % 3.2;
-  const isBlinking = (blinkCycle < 0.14);
+  // 3. Natural blinking (single or cute double-blink)
+  const blinkCycle = ((tGlobal * 0.85) + slotIdx * 1.7) % 3.6;
+  const isBlinking = (blinkCycle < 0.12) || (blinkCycle > 0.22 && blinkCycle < 0.32);
 
   // Face expression
   let charFace = isBot ? 'cool' : (isHopping ? 'happy' : 'idle');

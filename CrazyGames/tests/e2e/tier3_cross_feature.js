@@ -209,7 +209,7 @@ describe('Tier 3: Cross-Feature Combinations', () => {
 
     if (sb.BOMB_MODE && typeof sb.initBombMode === 'function') {
       sb.initBombMode();
-      expect(sb.BOMB_MODE.fuse).toBe(8.0); // 2 players: 8s fuse Sudden Death!
+      expect(sb.BOMB_MODE.fuse).toBe(20.0); // 2 players: 20s starting fuse
     }
   }, { tier: 3 });
 

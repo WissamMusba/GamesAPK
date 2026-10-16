@@ -31,8 +31,27 @@ const TEAMS = [
 
 const MODES=['party','teams','ctf','freeze','infection','bomb','crown','hunter'];
 const TIMES=[60,120,180];
-const settings={map:0,randomMap:false,doubleJump:true,collision:false,timeIdx:1,teams:false,botDifficulty:'hard',gameMode:'party',ctfTargetCaptures:3,hunterRed:0,hunterBlue:1,hunterRotate:false};
-Object.defineProperty(settings,'time',{get(){return TIMES[this.timeIdx];}});
+const SHORT_TIMES=[30,60,90];
+const settings={map:0,randomMap:false,doubleJump:true,collision:false,timeIdx:1,shortTimeIdx:1,teams:false,botDifficulty:'hard',gameMode:'party',ctfTargetCaptures:3,hunterRed:0,hunterBlue:1,hunterRotate:false};
+Object.defineProperty(settings,'time',{
+  get(){
+    if(this.gameMode === 'freeze' || this.gameMode === 'infection'){
+      return SHORT_TIMES[this.shortTimeIdx != null ? this.shortTimeIdx : 1];
+    }
+    return TIMES[this.timeIdx != null ? this.timeIdx : 1];
+  },
+  set(v){
+    if(this.gameMode === 'freeze' || this.gameMode === 'infection'){
+      const idx = SHORT_TIMES.indexOf(v);
+      if(idx >= 0) this.shortTimeIdx = idx;
+      else this.shortTimeIdx = 1;
+    } else {
+      const idx = TIMES.indexOf(v);
+      if(idx >= 0) this.timeIdx = idx;
+      else this.timeIdx = 1;
+    }
+  }
+});
 
 /* ================= LOCAL CONTROLS SCHEMES ================= */
 const LOCAL_CTRL_SCHEMES = [
