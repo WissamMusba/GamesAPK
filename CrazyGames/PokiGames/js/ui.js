@@ -350,59 +350,29 @@ function drawOnlineHub(stageY, stageH){
     return;
   }
 
-  // Not in a room: Sleek Cyber Command Center Online Hub
-  const bannerH = 28;
-  const hubStageY = stageY + bannerH + 8;
-  const hubStageH = stageH - bannerH - 8;
+  // Not in a room: Clean, Modern Arcade Online Hub
+  const leftW = isWide ? Math.floor(availW * 0.44) : availW;
+  const rightW = isWide ? (availW - leftW - 16) : availW;
+  const rightX = isWide ? (startX + leftW + 16) : startX;
+  const leftH = isWide ? stageH : Math.floor(stageH * 0.48);
+  const rightH = isWide ? stageH : (stageH - leftH - 12);
+  const rightY = isWide ? stageY : (stageY + leftH + 12);
 
-  // --- 0. TOP NETWORK STATUS BANNER ---
-  rr(g, startX, stageY, availW, bannerH, 8);
-  g.fillStyle = 'rgba(12, 18, 32, 0.92)'; g.fill();
-  g.lineWidth = 1.2; g.strokeStyle = 'rgba(56, 189, 248, 0.45)'; g.stroke();
-
-  // Left: Globe + Network Title
-  drawSvgGlobe(g, startX + 18, stageY + bannerH/2, 14, '#38bdf8');
-  txt('TAG GLOBAL MULTIPLAYER NETWORK', startX + 32, stageY + bannerH/2 + 1, FN(clamp(availW * 0.016, 10, 12), 900), '#38bdf8', 'left');
-
-  // Center: Operational Status Pill
-  const statPulse = 3.5 + Math.sin(tGlobal * 4.0) * 1.0;
-  const statX = startX + Math.floor(availW * 0.52);
-  g.beginPath();
-  g.arc(statX, stageY + bannerH/2, statPulse, 0, Math.PI * 2);
-  g.fillStyle = '#22c55e'; g.fill();
-  txt('● SERVERS 100% OPERATIONAL • WEBRTC DIRECT MESH', statX + 10, stageY + bannerH/2 + 1, FN(clamp(availW * 0.014, 9, 11), 800), '#22c55e', 'left');
-
-  // Right: Region Badge
-  const regW = 100, regH = 18;
-  const regX = startX + availW - regW - 8, regY = stageY + (bannerH - regH)/2;
-  rr(g, regX, regY, regW, regH, 4);
-  g.fillStyle = 'rgba(56, 189, 248, 0.14)'; g.fill();
-  g.lineWidth = 1; g.strokeStyle = 'rgba(56, 189, 248, 0.35)'; g.stroke();
-  txt('🌐 GLOBAL (AUTO)', regX + regW/2, regY + regH/2 + 1, FN(9, 900), '#93c5fd');
-
-  // Panel geometry
-  const leftW = isWide ? Math.floor(availW * 0.40) : availW;
-  const rightW = isWide ? (availW - leftW - 14) : availW;
-  const rightX = isWide ? (startX + leftW + 14) : startX;
-  const leftH = isWide ? hubStageH : Math.floor(hubStageH * 0.46);
-  const rightH = isWide ? hubStageH : (hubStageH - leftH - 10);
-  const rightY = isWide ? hubStageY : (hubStageY + leftH + 10);
-
-  // Modern Cyber Panel drawer with chamfer accents
-  const drawCyberPanel = (px, py, pw, ph, glowCol = 'rgba(56, 189, 248, 0.45)') => {
+  // Modern Frosted Card Drawer matching TAG's warm twilight palette
+  const drawHubCard = (px, py, pw, ph) => {
     // Drop shadow
     rr(g, px, py + 4, pw, ph, 14);
-    g.fillStyle = 'rgba(0, 0, 0, 0.45)'; g.fill();
+    g.fillStyle = 'rgba(0, 0, 0, 0.40)'; g.fill();
 
-    // Body gradient
+    // Body: deep warm twilight-tinted glass
     const pGrad = g.createLinearGradient(px, py, px, py + ph);
-    pGrad.addColorStop(0, 'rgba(18, 26, 44, 0.96)');
-    pGrad.addColorStop(0.5, 'rgba(11, 17, 30, 0.97)');
-    pGrad.addColorStop(1, 'rgba(6, 10, 20, 0.99)');
+    pGrad.addColorStop(0, 'rgba(28, 20, 44, 0.95)');
+    pGrad.addColorStop(0.5, 'rgba(18, 13, 30, 0.97)');
+    pGrad.addColorStop(1, 'rgba(12, 8, 22, 0.99)');
     rr(g, px, py, pw, ph, 14);
     g.fillStyle = pGrad; g.fill();
 
-    // Top gloss sheen
+    // Top gloss sheen on top 35%
     g.save();
     rr(g, px, py, pw, ph, 14);
     g.clip();
@@ -413,43 +383,43 @@ function drawOnlineHub(stageY, stageH){
     g.fillRect(px, py, pw, ph * 0.35);
     g.restore();
 
-    // Luminous border
+    // Clean subtle border
     rr(g, px, py, pw, ph, 14);
-    g.lineWidth = 1.8;
-    g.strokeStyle = glowCol;
+    g.lineWidth = 1.6;
+    g.strokeStyle = 'rgba(255, 255, 255, 0.16)';
     g.stroke();
   };
 
-  // --- 1. LEFT PANEL: Matchmaking & Operations Deck ---
-  drawCyberPanel(startX, hubStageY, leftW, leftH, 'rgba(56, 189, 248, 0.55)');
+  // --- 1. LEFT CARD: Quick Match & Host Game ---
+  drawHubCard(startX, stageY, leftW, leftH);
 
-  // Header
-  const lHeadY = hubStageY + 18;
-  drawSvgGlobe(g, startX + 20, lHeadY, 15, '#38bdf8');
-  txt('DEPLOYMENT DECK', startX + 36, lHeadY + 1, FN(clamp(leftW * 0.046, 11, 13.5), 900), '#38bdf8', 'left');
+  // Header: Icon + Title
+  const lHeadY = stageY + 20;
+  drawSvgGlobe(g, startX + 22, lHeadY, 16, '#ffd166');
+  txt('PLAY ONLINE', startX + 38, lHeadY + 1, FN(clamp(leftW * 0.048, 12, 14.5), 900), '#ffffff', 'left');
 
-  // Hero Quick Match Button
-  const heroBtnY = hubStageY + 36;
-  const heroBtnH = clamp(leftH * 0.22, 40, 50);
+  // Hero Quick Match Button (Warm vibrant coral-red party hero)
+  const heroBtnY = stageY + 40;
+  const heroBtnH = clamp(leftH * 0.22, 44, 52);
   const heroBtnW = leftW - 24;
   drawJuicyBtn(startX + 12, heroBtnY, heroBtnW, heroBtnH, {
-    label: '⚡ INSTANT QUICK MATCH',
-    sub: 'Jumps directly into best worldwide open arena',
-    bg: '#0284c7',
-    darkBg: '#0369a1',
-    borderColor: '#38bdf8',
+    label: '⚡ QUICK MATCH',
+    sub: 'Jump into a public game instantly',
+    bg: '#ff4757',
+    darkBg: '#d63031',
+    borderColor: '#ff6b81',
     shine: true,
     depth: 4,
     boldFont: true,
-    fontSize: clamp(heroBtnH * 0.30, 11.5, 13.5),
+    fontSize: clamp(heroBtnH * 0.31, 12, 14),
     fn: () => {
       sfx('go');
       const openRoom = (NET.publicRooms || []).find(r => !r.isLocked && r.players < (r.maxPlayers || MAXP));
       if(openRoom){
-        toast('🚀 CONNECTING TO ' + openRoom.roomId);
+        toast('🚀 JOINING ' + openRoom.roomId);
         netJoinAction(openRoom.roomId, openRoom.hostPeerId || openRoom.hostId || '');
       } else {
-        toast('⚡ QUICK MATCH STARTING...');
+        toast('⚡ STARTING QUICK MATCH...');
         settings.gameMode = 'ffa';
         menu.slotColor[0] = 0; menu.slotColor[1] = 1; menu.slotColor[2] = 2; menu.slotColor[3] = -1;
         if(!menu.slotIsBot) menu.slotIsBot = [false, false, false, false];
@@ -461,174 +431,139 @@ function drawOnlineHub(stageY, stageH){
     }
   });
 
-  // Divider / Subhead
+  // Section Divider: OR HOST A ROOM
   const midSecY = heroBtnY + heroBtnH + 12;
-  txt('👑 CUSTOM ARENA STATION', startX + leftW/2, midSecY + 2, FN(10, 900), '#94a3b8');
+  txt('OR HOST A ROOM', startX + leftW/2, midSecY + 2, FN(10, 900), '#94a3b8');
 
   // Room Privacy Selector (Public / Private)
   const privY = midSecY + 12;
-  const privH = clamp(leftH * 0.12, 26, 32);
+  const privH = clamp(leftH * 0.12, 28, 32);
   const privW = Math.floor((leftW - 32) / 2);
   drawJuicyChip(startX + 12, privY, privW, privH, {
-    label: '🌐 PUBLIC ARENA',
+    label: '🌐 Public Room',
     active: NET.isPublic,
-    activeBg: '#10b981',
-    activeDarkBg: '#047857',
+    activeBg: '#2ed573',
+    activeDarkBg: '#1e9b4b',
     activeText: '#ffffff',
+    bg: 'rgba(255, 255, 255, 0.08)',
     textColor: '#94a3b8',
-    fontSize: 10,
+    fontSize: 10.5,
     fn: () => { NET.isPublic = true; sfx('ui'); }
   });
 
   drawJuicyChip(startX + 20 + privW, privY, privW, privH, {
-    label: '🔒 PRIVATE ROOM',
+    label: '🔒 Private Room',
     active: !NET.isPublic,
-    activeBg: '#f59e0b',
-    activeDarkBg: '#b45309',
+    activeBg: '#ffa502',
+    activeDarkBg: '#cc8400',
     activeText: '#ffffff',
+    bg: 'rgba(255, 255, 255, 0.08)',
     textColor: '#94a3b8',
-    fontSize: 10,
+    fontSize: 10.5,
     fn: () => { NET.isPublic = false; sfx('ui'); }
   });
 
-  // Big Host Button
+  // Create Room Button
   const hostBtnY = privY + privH + 8;
-  const hostBtnH = clamp(leftH * 0.16, 32, 40);
+  const hostBtnH = clamp(leftH * 0.16, 34, 42);
   drawJuicyBtn(startX + 12, hostBtnY, heroBtnW, hostBtnH, {
-    label: NET.isPublic ? '🚀 LAUNCH PUBLIC LOBBY' : '🔒 CREATE PRIVATE ROOM',
-    bg: NET.isPublic ? '#059669' : '#d97706',
-    darkBg: NET.isPublic ? '#065f46' : '#92400e',
+    label: NET.isPublic ? '🎮 CREATE PUBLIC ROOM' : '🔒 CREATE PRIVATE ROOM',
+    bg: NET.isPublic ? '#2ed573' : '#ffa502',
+    darkBg: NET.isPublic ? '#1e9b4b' : '#cc8400',
     depth: 4,
     shine: true,
     boldFont: true,
-    fontSize: clamp(hostBtnH * 0.34, 11, 13),
+    fontSize: clamp(hostBtnH * 0.33, 11, 13),
     fn: () => { sfx('go'); netHostAction(NET.isPublic); }
   });
 
-  // Direct Code / Link Join Button
+  // Direct Room Code Button
   const joinBtnY = hostBtnY + hostBtnH + 8;
-  const joinBtnH = clamp(leftH * 0.14, 28, 36);
+  const joinBtnH = clamp(leftH * 0.14, 30, 36);
   drawJuicyBtn(startX + 12, joinBtnY, heroBtnW, joinBtnH, {
-    label: '🔑 ENTER ROOM CODE / LINK',
-    bg: 'rgba(56, 189, 248, 0.16)',
-    darkBg: 'rgba(2, 132, 199, 0.45)',
-    borderColor: '#38bdf8',
-    textColor: '#38bdf8',
+    label: '🔑 JOIN WITH ROOM CODE',
+    bg: 'rgba(255, 255, 255, 0.10)',
+    darkBg: 'rgba(0, 0, 0, 0.35)',
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    textColor: '#ffffff',
     depth: 3,
     fontSize: clamp(joinBtnH * 0.35, 10.5, 12),
     fn: () => { sfx('ui'); netJoinAction(); }
   });
 
-  // Micro-copy footer
+  // Footer micro-copy
   const infoY = joinBtnY + joinBtnH + 8;
-  if(infoY < hubStageY + leftH - 8){
-    txt('🎙️ Proximity Voice Chat ready • 🎮 Cross-platform', startX + leftW/2, infoY + 6, FN(9.5, 800), '#64748b');
+  if(infoY < stageY + leftH - 8){
+    txt('🎮 2-4 Players • Cross-Platform Mobile & PC', startX + leftW/2, infoY + 6, FN(9.5, 800), '#64748b');
   }
 
-  // --- 2. RIGHT PANEL: Live Radar & Public Arenas Feed ---
-  drawCyberPanel(rightX, rightY, rightW, rightH, 'rgba(34, 197, 94, 0.55)');
+  // --- 2. RIGHT CARD: Online Rooms Browser ---
+  drawHubCard(rightX, rightY, rightW, rightH);
 
-  // Header: Radar Icon + Title + Live Dot + Refresh
-  const rHeadY = rightY + 18;
-  drawSvgRadar(g, rightX + 20, rHeadY, 15, '#22c55e');
-  txt('LIVE ARENAS RADAR', rightX + 36, rHeadY + 1, FN(clamp(rightW * 0.04, 11, 13.5), 900), '#ffffff', 'left');
+  // Header: Icon + Title + Live Dot + Refresh
+  const rHeadY = rightY + 20;
+  drawSvgUsers(g, rightX + 22, rHeadY, 16, '#ffd166');
+  txt('ONLINE ROOMS', rightX + 38, rHeadY + 1, FN(clamp(rightW * 0.042, 12, 14.5), 900), '#ffffff', 'left');
 
-  // Pulsing live green radar dot
-  const livePulse = 3.5 + Math.sin(tGlobal * 5.0) * 1.2;
+  // Pulsing Live indicator
+  const livePulse = 3.5 + Math.sin(tGlobal * 5.0) * 1.0;
   g.beginPath();
-  g.arc(rightX + 172, rHeadY, livePulse, 0, Math.PI * 2);
-  g.fillStyle = '#22c55e'; g.fill();
-  txt('RADAR ACTIVE', rightX + 184, rHeadY + 1, FN(8.5, 900), '#22c55e', 'left');
+  g.arc(rightX + 160, rHeadY, livePulse, 0, Math.PI * 2);
+  g.fillStyle = '#2ed573'; g.fill();
+  txt('LIVE', rightX + 172, rHeadY + 1, FN(9, 900), '#2ed573', 'left');
 
   // Refresh Button
-  const refBtnW = clamp(rightW * 0.18, 70, 88), refBtnH = 24;
-  const refBtnX = rightX + rightW - refBtnW - 12, refBtnY = rightY + 7;
+  const refBtnW = clamp(rightW * 0.18, 74, 90), refBtnH = 26;
+  const refBtnX = rightX + rightW - refBtnW - 12, refBtnY = rightY + 8;
   drawJuicyChip(refBtnX, refBtnY, refBtnW, refBtnH, {
-    label: 'Refresh',
+    label: '↻ Refresh',
     active: true,
-    activeBg: 'rgba(56, 189, 248, 0.22)',
-    activeDarkBg: 'rgba(2, 132, 199, 0.45)',
-    activeText: '#38bdf8',
-    activeBorder: '#38bdf8',
-    fontSize: 10,
+    activeBg: 'rgba(255, 255, 255, 0.12)',
+    activeDarkBg: 'rgba(0, 0, 0, 0.35)',
+    activeText: '#ffffff',
+    activeBorder: 'rgba(255, 255, 255, 0.25)',
+    fontSize: 10.5,
     fn: () => { sfx('ui'); netFetchPublicRooms(); }
   });
 
   // Content Area
-  const feedTopY = rightY + 38;
-  const feedAvailH = rightH - 46;
+  const feedTopY = rightY + 40;
+  const feedAvailH = rightH - 48;
   const rooms = (NET.publicRooms || []).filter(r => r && r.roomId);
 
   if(rooms.length === 0){
-    // Dynamic Tactical Holographic Radar Display
-    const radarBoxW = Math.min(rightW - 28, 440);
-    const radarBoxH = Math.min(feedAvailH - 10, 160);
-    const radarBoxX = Math.floor(rightX + rightW/2 - radarBoxW/2);
-    const radarBoxY = Math.floor(feedTopY + (feedAvailH - radarBoxH) / 2);
+    // Clean, Friendly Party Game Empty State
+    const cardBoxW = Math.min(rightW - 28, 440);
+    const cardBoxH = Math.min(feedAvailH - 12, 160);
+    const cardBoxX = Math.floor(rightX + rightW/2 - cardBoxW/2);
+    const cardBoxY = Math.floor(feedTopY + (feedAvailH - cardBoxH) / 2);
 
-    rr(g, radarBoxX, radarBoxY, radarBoxW, radarBoxH, 12);
-    g.fillStyle = 'rgba(10, 18, 30, 0.85)'; g.fill();
-    g.lineWidth = 1.2; g.strokeStyle = 'rgba(34, 197, 94, 0.35)'; g.stroke();
+    rr(g, cardBoxX, cardBoxY, cardBoxW, cardBoxH, 12);
+    g.fillStyle = 'rgba(255, 255, 255, 0.04)'; g.fill();
+    g.lineWidth = 1; g.strokeStyle = 'rgba(255, 255, 255, 0.12)'; g.stroke();
 
-    // Draw animated tactical radar scope on left side of empty card
-    const radCx = radarBoxX + 46;
-    const radCy = radarBoxY + radarBoxH/2;
-    const radR = 34;
+    // Friendly avatar icon in center
+    drawSvgUsers(g, rightX + rightW/2, cardBoxY + 32, 28, '#ffd166');
+    txt('NO PUBLIC ROOMS RIGHT NOW', rightX + rightW/2, cardBoxY + 62, FN(12.5, 900), '#ffffff');
+    txt('Be the first to host a game and invite your friends!', rightX + rightW/2, cardBoxY + 80, FN(10, 800), '#94a3b8');
 
-    // Concentric grid rings
-    g.strokeStyle = 'rgba(34, 197, 94, 0.35)';
-    g.lineWidth = 1;
-    g.beginPath();
-    g.arc(radCx, radCy, radR, 0, Math.PI * 2);
-    g.arc(radCx, radCy, radR * 0.65, 0, Math.PI * 2);
-    g.arc(radCx, radCy, radR * 0.30, 0, Math.PI * 2);
-    g.moveTo(radCx - radR, radCy); g.lineTo(radCx + radR, radCy);
-    g.moveTo(radCx, radCy - radR); g.lineTo(radCx, radCy + radR);
-    g.stroke();
-
-    // Rotating radar sweep cone
-    const sweepAng = (tGlobal * 2.4) % (Math.PI * 2);
-    g.save();
-    g.beginPath();
-    g.moveTo(radCx, radCy);
-    g.arc(radCx, radCy, radR, sweepAng - 0.5, sweepAng);
-    g.closePath();
-    const sweepGrad = g.createRadialGradient(radCx, radCy, 2, radCx, radCy, radR);
-    sweepGrad.addColorStop(0, 'rgba(34, 197, 94, 0.55)');
-    sweepGrad.addColorStop(1, 'rgba(34, 197, 94, 0.05)');
-    g.fillStyle = sweepGrad;
-    g.fill();
-    // Scan ray
-    g.strokeStyle = '#22c55e';
-    g.lineWidth = 1.5;
-    g.beginPath();
-    g.moveTo(radCx, radCy);
-    g.lineTo(radCx + Math.cos(sweepAng) * radR, radCy + Math.sin(sweepAng) * radR);
-    g.stroke();
-    g.restore();
-
-    // Tactical Radar Readout Text (Right of radar)
-    const textX = radCx + radR + 18;
-    txt('NO ACTIVE HOSTS DETECTED IN SECTOR', textX, radarBoxY + 32, FN(11.5, 900), '#f8fafc', 'left');
-    txt('Broadcast your arena on the global radar feed so players can join instantly!', textX, radarBoxY + 50, FN(9.5, 800), '#94a3b8', 'left');
-
-    // Action button to deploy first arena
-    const depBtnW = Math.min(radarBoxW - (textX - radarBoxX) - 16, 210);
-    const depBtnH = 30;
-    drawJuicyChip(textX, radarBoxY + 70, depBtnW, depBtnH, {
-      label: '⚡ BROADCAST NEW ARENA',
-      active: true,
-      activeBg: '#10b981',
-      activeDarkBg: '#047857',
-      activeText: '#ffffff',
-      fontSize: 10.5,
+    // Create Room CTA Button
+    const ehBtnW = Math.min(cardBoxW - 48, 220), ehBtnH = 34;
+    drawJuicyBtn(Math.floor(rightX + rightW/2 - ehBtnW/2), cardBoxY + 102, ehBtnW, ehBtnH, {
+      label: '🎮 HOST A ROOM',
+      bg: '#2ed573',
+      darkBg: '#1e9b4b',
+      depth: 3,
+      shine: true,
+      boldFont: true,
+      fontSize: 11.5,
       fn: () => { sfx('go'); netHostAction(true); }
     });
   } else {
     // Render live room cards
     const maxCards = Math.min(rooms.length, 5);
     const cardGap = 6;
-    const cardH = clamp(Math.floor((feedAvailH - (maxCards - 1) * cardGap) / maxCards), 32, 44);
+    const cardH = clamp(Math.floor((feedAvailH - (maxCards - 1) * cardGap) / maxCards), 34, 46);
 
     for(let i = 0; i < maxCards; i++){
       const rm = rooms[i];
@@ -641,11 +576,11 @@ function drawOnlineHub(stageY, stageH){
       g.fillStyle = (i % 2 === 0) ? 'rgba(255, 255, 255, 0.06)' : 'rgba(255, 255, 255, 0.03)';
       g.fill();
       g.lineWidth = 1;
-      g.strokeStyle = 'rgba(56, 189, 248, 0.35)';
+      g.strokeStyle = 'rgba(255, 255, 255, 0.15)';
       g.stroke();
 
       // Left: Status dot + Host name + Room code
-      const dotCol = rm.isLocked ? '#eab308' : '#22c55e';
+      const dotCol = rm.isLocked ? '#ffa502' : '#2ed573';
       g.beginPath();
       g.arc(rx + 12, ry + cardH/2, 3.5, 0, Math.PI * 2);
       g.fillStyle = dotCol; g.fill();
@@ -661,16 +596,16 @@ function drawOnlineHub(stageY, stageH){
       }
       txt(hostText, rx + 22, ry + cardH/2 + 1, FN(10.5, 900), '#f8fafc', 'left');
 
-      // Middle: Map chip & Mode chip with SVG icons
+      // Middle: Map chip & Mode chip
       const mapName = (MAPS[rm.map % MAPS.length] || {}).name || ('Arena ' + ((rm.map || 0) + 1));
       const modeLabel = rm.teams ? 'Teams' : 'FFA';
       const badgeText = mapName.slice(0, 9) + ' • ' + modeLabel;
-      txt(badgeText, rx + rw * 0.52, ry + cardH/2 + 1, FN(9.5, 800), '#38bdf8');
+      txt(badgeText, rx + rw * 0.52, ry + cardH/2 + 1, FN(9.5, 800), '#ffd166');
 
       // Right: Player Count Pill
       const curP = rm.players || 1;
       const maxP = rm.maxPlayers || MAXP;
-      txt(curP + '/' + maxP, rx + rw - 74, ry + cardH/2 + 1, FN(10, 900), curP >= maxP ? '#ef4444' : '#ffd166');
+      txt(curP + '/' + maxP, rx + rw - 74, ry + cardH/2 + 1, FN(10, 900), curP >= maxP ? '#ff4757' : '#ffd166');
 
       // Action: Join / Spectate Chip
       const isLocked = rm.isLocked || curP >= maxP;
@@ -679,8 +614,8 @@ function drawOnlineHub(stageY, stageH){
       drawJuicyChip(jbX, jbY, jbW, jbH, {
         label: isLocked ? '👁️ Spec' : '▶ Join',
         active: true,
-        activeBg: isLocked ? '#f59e0b' : '#22c55e',
-        activeDarkBg: isLocked ? '#b45309' : '#15803d',
+        activeBg: isLocked ? '#ffa502' : '#2ed573',
+        activeDarkBg: isLocked ? '#cc8400' : '#1e9b4b',
         activeText: '#ffffff',
         fontSize: 10,
         fn: () => {
@@ -2882,7 +2817,7 @@ function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
   const maxRoam = Math.floor((cardW - charSz - 24) / 2); // Huge ±36px to ±48px roaming freedom!
   const jumpMaxH = clamp((charGroundY - stageCeilY) * 0.72, 28, 44);
 
-  // --- PROCEDURAL STATEFUL AVATAR AI (ZERO TELEPORTING, 70% STANDING & BLINKING, RANDOM MOVES) ---
+  // --- PROCEDURAL STATEFUL AVATAR AI (30% IDLE, 55% ROAM & CENTER RETURN, 15% JUMP, ZERO TELEPORTING) ---
   if(!menu.lobbyAvatars) menu.lobbyAvatars = {};
   if(!menu.lobbyAvatars[slotIdx]){
     const startOffset = ((slotIdx % 2 === 0 ? -1 : 1) * Math.min(14, maxRoam * 0.35));
@@ -2895,7 +2830,8 @@ function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
       lookX: 0,
       lookY: 0,
       state: 'idle', // 'idle' (standing still), 'walk', 'jump'
-      stateTimer: 1.0 + Math.random() * 2.0,
+      stateTimer: 0.8 + Math.random() * 1.0,
+      squashTimer: 0,
       isBlinking: false,
       blinkTimer: 0.8 + Math.random() * 1.8,
       lastT: performance.now()
@@ -2928,36 +2864,68 @@ function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
   let isMoving = false;
   let charFace = isBot ? 'cool' : 'idle';
 
-  // State transitions: 70% of the time standing still & blinking
+  // State transitions: 30% standing still, 55% roaming & center return, 15% occasional jumps
   if(av.stateTimer <= 0){
     const roll = Math.random();
-    if(roll < 0.70){
-      // 70% CHANCE: STAND COMPLETELY STILL
+    if(roll < 0.30){
+      // 30% CHANCE: STAND COMPLETELY STILL
       av.state = 'idle';
-      av.stateTimer = 2.0 + Math.random() * 2.8; // stands still for 2 to 4.8 seconds!
+      av.stateTimer = 1.0 + Math.random() * 0.8; // stands still for 1.0s to 1.8s
       av.targetX = av.pos; // STAYS RIGHT WHERE IT IS (ZERO TELEPORTING!)
       av.lookX = Math.random() < 0.35 ? (Math.random() < 0.5 ? -0.8 : 0.8) : 0;
       av.lookY = Math.random() < 0.30 ? -0.7 : 0;
-    } else if(roll < 0.90){
-      // 20% CHANCE: WALK SMOOTHLY TO A NEW RANDOM LOCATION
+    } else if(roll < 0.85){
+      // 55% CHANCE: WALK SMOOTHLY SIDE-TO-SIDE & RETURN TOWARD THE MIDDLE
       av.state = 'walk';
-      // Pick random destination within runway
-      const minDistance = Math.min(maxRoam * 0.5, 20);
-      let newTarget = (Math.random() * 2 - 1) * maxRoam;
-      if(Math.abs(newTarget - av.pos) < minDistance){
-        newTarget = av.pos > 0 ? (newTarget - minDistance) : (newTarget + minDistance);
+      let target;
+      const zoneRoll = Math.random();
+      // If currently far on either side, bias toward returning to center (middle)
+      if(Math.abs(av.pos) > maxRoam * 0.30 && zoneRoll < 0.40){
+        // Return toward middle runway [-maxRoam * 0.25, maxRoam * 0.25]
+        target = (Math.random() * 2 - 1) * (maxRoam * 0.25);
+      } else if(av.pos < -maxRoam * 0.20){
+        // Currently left: roam to the right (+maxRoam * 0.85) or return to middle
+        if(Math.random() < 0.58){
+          target = maxRoam * (0.35 + Math.random() * 0.50); // right side up to +maxRoam * 0.85
+        } else {
+          target = (Math.random() * 2 - 1) * (maxRoam * 0.25); // middle
+        }
+      } else if(av.pos > maxRoam * 0.20){
+        // Currently right: roam to the left (-maxRoam * 0.85) or return to middle
+        if(Math.random() < 0.58){
+          target = -maxRoam * (0.35 + Math.random() * 0.50); // left side down to -maxRoam * 0.85
+        } else {
+          target = (Math.random() * 2 - 1) * (maxRoam * 0.25); // middle
+        }
+      } else {
+        // Currently middle: roam outward to left or right runway
+        if(Math.random() < 0.50){
+          target = -maxRoam * (0.35 + Math.random() * 0.50); // left
+        } else {
+          target = maxRoam * (0.35 + Math.random() * 0.50); // right
+        }
       }
-      av.targetX = clamp(newTarget, -maxRoam, maxRoam);
+
+      // Safeguard against micro movements (< 8px)
+      if(Math.abs(target - av.pos) < 8){
+        if(Math.abs(av.pos) < maxRoam * 0.25){
+          target = (Math.random() < 0.5 ? -1 : 1) * maxRoam * (0.40 + Math.random() * 0.45);
+        } else {
+          target = (Math.random() * 2 - 1) * (maxRoam * 0.20);
+        }
+      }
+
+      av.targetX = clamp(target, -maxRoam * 0.85, maxRoam * 0.85);
       const dist = Math.abs(av.targetX - av.pos);
-      const walkSpeed = 34 + Math.random() * 22; // smooth 34-56 px/s
-      av.stateTimer = (dist / walkSpeed) + 0.4;
+      const walkSpeed = 38 + Math.random() * 20; // smooth 38-58 px/s
+      av.stateTimer = (dist / walkSpeed) + 0.3;
       av.lookX = Math.sign(av.targetX - av.pos);
       av.lookY = 0;
     } else {
-      // 10% CHANCE: OCCASIONAL CLEAN HIGH JUMP
+      // 15% CHANCE: OCCASIONAL ATHLETIC CLEAN JUMP
       av.state = 'jump';
       av.stateTimer = 1.2;
-      av.vy = -170 - Math.random() * 35; // clean upward spring
+      av.vy = -180 - Math.random() * 35; // clean upward spring
       av.lookX = 0;
       av.lookY = -0.5;
     }
@@ -2968,7 +2936,15 @@ function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
     // Standing still: zero hops, zero velocity
     av.hopY = 0;
     av.tilt = 0;
-    charFace = isBot ? 'cool' : (av.isBlinking ? 'idle' : 'happy');
+    if(av.squashTimer > 0){
+      av.squashTimer -= dt;
+      const q = av.squashTimer / 0.18;
+      sx += 0.22 * q;
+      sy -= 0.18 * q;
+      charFace = 'land';
+    } else {
+      charFace = isBot ? 'cool' : (av.isBlinking ? 'idle' : 'happy');
+    }
   } else if(av.state === 'walk'){
     // Walking smoothly to targetX: ZERO MINI HOPS!
     const dx = av.targetX - av.pos;
@@ -2985,7 +2961,7 @@ function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
       av.pos = av.targetX;
       av.tilt = 0;
       av.state = 'idle';
-      av.stateTimer = 1.8 + Math.random() * 2.2; // immediately stands still upon arriving
+      av.stateTimer = 0.5 + Math.random() * 0.6; // brief natural pause upon arriving
     }
     av.hopY = 0; // ZERO MINI HOPS!
   } else if(av.state === 'jump'){
@@ -3004,11 +2980,12 @@ function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
       // Hit ground: squash & land right where they jumped!
       av.hopY = 0;
       av.vy = 0;
-      sx += 0.20;
+      av.squashTimer = 0.18;
+      sx += 0.22;
       sy -= 0.18;
       charFace = 'land';
       av.state = 'idle';
-      av.stateTimer = 1.8 + Math.random() * 2.0; // stand still after landing!
+      av.stateTimer = 0.5 + Math.random() * 0.6; // short pause after landing
       av.tilt = 0;
     }
   }
