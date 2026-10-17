@@ -760,16 +760,185 @@ function drawOnlineLobby(startX, stageY, availW, stageH){
   const chatUIEl = document.getElementById('chatUI');
   if(chatUIEl && !chatUIEl.classList.contains('online')) chatUIEl.classList.add('online');
 
+  // --- SELECTION 0: 2-ROW GAME MODE SELECTOR FOR HOST & GUESTS ---
+  const modeSelW = Math.min(availW, 760);
+  const modeSelX = Math.floor(startX + availW/2 - modeSelW/2);
+  const mLabelW = clamp(modeSelW * 0.12, 60, 78);
+  const mGridX = modeSelX + mLabelW + 6;
+  const mGridW = modeSelW - mLabelW - 6;
+  const mGap = 5;
+  const mBtnH = (availW < 640) ? 20 : 23;
+
+  const row1Y = stageY + topH + 5;
+  const row2Y = row1Y + mBtnH + 4;
+
+  const curGM = settings.gameMode || (settings.teams ? 'teams' : 'party');
+
+  const soloModes = [
+    { id: 'party', label: 'FFA PARTY', col: '#10b981', dark: '#059669', icon: 'flame' },
+    { id: 'bomb', label: 'BOMB TAG', col: '#ef4444', dark: '#b91c1c', icon: 'bomb' },
+    { id: 'crown', label: 'CROWN KING', col: '#f59e0b', dark: '#b45309', icon: 'crown' },
+    { id: 'infection', label: 'INFECTION', col: '#06b6d4', dark: '#0891b2', icon: 'biohazard' }
+  ];
+
+  const teamModes = [
+    { id: 'teams', label: 'TEAM TAG', col: '#3b82f6', dark: '#1d4ed8', icon: 'users' },
+    { id: 'ctf', label: 'CAPTURE FLAG', col: '#a855f7', dark: '#7e22ce', icon: 'flag' },
+    { id: 'freeze', label: 'FREEZE TAG', col: '#38bdf8', dark: '#0284c7', icon: 'snowflake' },
+    { id: 'hunter', label: 'HUNTER TAG', col: '#f97316', dark: '#c2410c', icon: 'flame' },
+    { id: 'crown_team', label: 'TEAM CROWN', col: '#eab308', dark: '#a16207', icon: 'crown' }
+  ];
+
+  const r1BtnW = Math.floor((mGridW - (soloModes.length - 1) * mGap) / soloModes.length);
+  const r2BtnW = Math.floor((mGridW - (teamModes.length - 1) * mGap) / teamModes.length);
+
+  // Row 1 Label: SOLO / FFA
+  ptxt('SOLO / FFA:', modeSelX + mLabelW/2, row1Y + mBtnH/2 + 1, FT(clamp(mBtnH * 0.44, 9, 10.5)), '#10b981');
+  for(let i = 0; i < soloModes.length; i++){
+    const m = soloModes[i];
+    const bx = mGridX + i * (r1BtnW + mGap);
+    const curW = (i === soloModes.length - 1) ? (mGridX + mGridW - bx) : r1BtnW;
+    const isAct = (curGM === m.id && (!settings.teams || m.id === 'party'));
+    drawJuicyChip(bx, row1Y, curW, mBtnH, {
+      label: m.label,
+      active: isAct,
+      activeBg: m.col,
+      activeDarkBg: m.dark,
+      activeBorder: '#ffffff',
+      activeText: '#ffffff',
+      bg: 'rgba(18, 26, 44, 0.88)',
+      border: m.col,
+      textColor: '#ffffff',
+      fontSize: 9.2,
+      renderContent: (x, y, w, h, col, active) => {
+        const isz = 13;
+        const badgeSz = Math.min(h - 4, 19);
+        const fs = 9.2;
+        g.font = FN(fs, 900);
+        const tw = g.measureText(m.label).width;
+        const totalW = badgeSz + 4 + tw;
+        const bX = Math.floor(x + w/2 - totalW/2);
+        const bY = Math.floor(y + (h - badgeSz)/2);
+        const ix = bX + badgeSz/2;
+        const iy = y + h/2;
+
+        rr(g, bX, bY, badgeSz, badgeSz, 4);
+        g.fillStyle = active ? 'rgba(255, 255, 255, 0.28)' : rgba(m.col, 0.32);
+        g.fill();
+        g.lineWidth = 1.2;
+        g.strokeStyle = active ? '#ffffff' : m.col;
+        g.stroke();
+
+        const icCol = active ? '#ffffff' : m.col;
+        if(m.icon === 'flame' && typeof drawSvgFlame === 'function') drawSvgFlame(g, ix, iy, isz, icCol);
+        else if(m.icon === 'bomb' && typeof drawSvgBomb === 'function') drawSvgBomb(g, ix, iy, isz, icCol);
+        else if(m.icon === 'crown' && typeof drawSvgCrown === 'function') drawSvgCrown(g, ix, iy, isz, icCol);
+        else if(m.icon === 'biohazard' && typeof drawSvgBiohazard === 'function') drawSvgBiohazard(g, ix, iy, isz, icCol);
+
+        const tx = bX + badgeSz + 4 + tw/2;
+        txt(m.label, tx, iy + 1, FN(fs, 900), 'rgba(0, 0, 0, 0.85)');
+        txt(m.label, tx, iy, FN(fs, 900), '#ffffff');
+      },
+      fn: () => {
+        if(!NET.isHost){
+          toast('HOST SELECTS THE GAME MODE');
+          sfx('back');
+          return;
+        }
+        if(m.id === 'crown'){
+          setGameMode('crown');
+          settings.teams = false;
+          toast('👑 CROWN KING SELECTED');
+        } else {
+          setGameMode(m.id);
+          toast(m.label + ' SELECTED');
+        }
+        sfx('ui');
+        if(typeof netBroadcastSettings === 'function') netBroadcastSettings();
+        if(typeof netUpdateHostDirectory === 'function') netUpdateHostDirectory();
+      }
+    });
+  }
+
+  // Row 2 Label: TEAMS
+  ptxt('TEAMS:', modeSelX + mLabelW/2, row2Y + mBtnH/2 + 1, FT(clamp(mBtnH * 0.44, 9, 10.5)), '#3b82f6');
+  for(let i = 0; i < teamModes.length; i++){
+    const m = teamModes[i];
+    const bx = mGridX + i * (r2BtnW + mGap);
+    const curW = (i === teamModes.length - 1) ? (mGridX + mGridW - bx) : r2BtnW;
+    const isAct = (curGM === m.id || (m.id === 'crown_team' && curGM === 'crown' && settings.teams));
+    drawJuicyChip(bx, row2Y, curW, mBtnH, {
+      label: m.label,
+      active: isAct,
+      activeBg: m.col,
+      activeDarkBg: m.dark,
+      activeBorder: '#ffffff',
+      activeText: '#ffffff',
+      bg: 'rgba(18, 26, 44, 0.88)',
+      border: m.col,
+      textColor: '#ffffff',
+      fontSize: 8.5,
+      renderContent: (x, y, w, h, col, active) => {
+        const isz = 13;
+        const badgeSz = Math.min(h - 4, 19);
+        const fs = 8.5;
+        g.font = FN(fs, 900);
+        const tw = g.measureText(m.label).width;
+        const totalW = badgeSz + 4 + tw;
+        const bX = Math.floor(x + w/2 - totalW/2);
+        const bY = Math.floor(y + (h - badgeSz)/2);
+        const ix = bX + badgeSz/2;
+        const iy = y + h/2;
+
+        rr(g, bX, bY, badgeSz, badgeSz, 4);
+        g.fillStyle = active ? 'rgba(255, 255, 255, 0.28)' : rgba(m.col, 0.32);
+        g.fill();
+        g.lineWidth = 1.2;
+        g.strokeStyle = active ? '#ffffff' : m.col;
+        g.stroke();
+
+        const icCol = active ? '#ffffff' : m.col;
+        if(m.icon === 'users' && typeof drawSvgUsers === 'function') drawSvgUsers(g, ix, iy, isz, icCol);
+        else if(m.icon === 'flag' && typeof drawSvgFlag === 'function') drawSvgFlag(g, ix, iy, isz, icCol);
+        else if(m.icon === 'snowflake' && typeof drawSvgSnowflake === 'function') drawSvgSnowflake(g, ix, iy, isz, icCol);
+        else if(m.icon === 'flame' && typeof drawSvgFlame === 'function') drawSvgFlame(g, ix, iy, isz, icCol);
+        else if(m.icon === 'crown' && typeof drawSvgCrown === 'function') drawSvgCrown(g, ix, iy, isz, icCol);
+
+        const tx = bX + badgeSz + 4 + tw/2;
+        txt(m.label, tx, iy + 1, FN(fs, 900), 'rgba(0, 0, 0, 0.85)');
+        txt(m.label, tx, iy, FN(fs, 900), '#ffffff');
+      },
+      fn: () => {
+        if(!NET.isHost){
+          toast('HOST SELECTS THE GAME MODE');
+          sfx('back');
+          return;
+        }
+        if(m.id === 'crown_team'){
+          setGameMode('crown');
+          settings.teams = true;
+          toast('👑 TEAM CROWN MODE SELECTED');
+        } else {
+          setGameMode(m.id);
+          toast(m.label + ' SELECTED');
+        }
+        sfx('ui');
+        if(typeof netBroadcastSettings === 'function') netBroadcastSettings();
+        if(typeof netUpdateHostDirectory === 'function') netUpdateHostDirectory();
+      }
+    });
+  }
+
   // Main 3-Column Layout:
   // Left: People who are playing (10 Slots Roster)
   // Center: "YOU" Player Card (scaled for desktop/laptop and mobile)
   // Right: Waiting List / Spectators
-  const contentY0 = stageY + topH + 6;
-  const contentH = stageH - topH - 10;
+  const contentY0 = row2Y + mBtnH + 6;
+  const contentH = stageH - (contentY0 - stageY) - 10;
 
-  const isShortH = (contentH < 280);
+  const isShortH = (contentH < 260);
   const isNarrowW = (availW < 640);
-  const panelH = isShortH ? clamp(contentH, 160, 240) : clamp(Math.floor(contentH * 0.94), 260, 420);
+  const panelH = isShortH ? clamp(contentH, 150, 220) : clamp(Math.floor(contentH * 0.94), 240, 390);
   const panelY = Math.floor(contentY0 + (contentH - panelH) / 2);
 
   // Column widths:
