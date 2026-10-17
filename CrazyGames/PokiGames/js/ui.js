@@ -2636,96 +2636,186 @@ function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
     });
   }
 
-  // Avatar in middle — centered horizontally & vertically with procedural idle animations:
-  // Continuous breathing, anticipation crouch, springy hop, smooth wander, and cute blinks!
-  const charSz = clamp(cardH * 0.27, 24, 40);
+  // Calculate bottom controls layout first to maximize upper open stage area for character movement
+  const barH = clamp(cardH * 0.13, 17, 23);
+  const barY = cardY + cardH - barH - 6;
+  const barW = cardW - 14;
+  const barX = cx + 7;
+
+  const ctrlH = clamp(cardH * 0.13, 17, 23);
+  const ctrlY = barY - ctrlH - 4;
+  const ctrlW = cardW - 14;
+  const ctrlX = cx + 7;
+
+  let extraBottomY = ctrlY;
+
+  // Per-Bot Difficulty Chip dimensions
+  const diffH = clamp(cardH * 0.10, 14, 18);
+  const diffY = ctrlY - diffH - 4;
+  const diffW = cardW - 14;
+  const diffX = cx + 7;
+  if(isBot) extraBottomY = diffY;
+
+  // Hunter Mode Role Chip dimensions
+  const roleH = clamp(cardH * 0.10, 14, 18);
+  const roleY = ctrlY - roleH - 4;
+  const roleW = cardW - 14;
+  const roleX = cx + 7;
+  if(settings.gameMode === 'hunter') extraBottomY = roleY;
+
+  // Character Stage Arena: maximized headroom and wide roaming runway
+  const stageCeilY = cardY + headTitleH + 6;
+  const stageFloorY = extraBottomY - 6;
+  const charSz = clamp(cardH * 0.24, 26, 36);
+  const charGroundY = stageFloorY - charSz;
   const charX = Math.round(centerX - charSz / 2);
-  const midAreaTop = cardY + headTitleH + 6;
-  const midAreaBottom = cardY + cardH * (isBot ? 0.49 : 0.62);
-  const charTopY = Math.round(midAreaTop + (midAreaBottom - midAreaTop - charSz) / 2);
+  const maxRoam = Math.floor((cardW - charSz - 24) / 2); // Huge ±36px to ±48px roaming freedom!
+  const jumpMaxH = clamp((charGroundY - stageCeilY) * 0.72, 28, 44);
 
-  // 0. Continuous breathing pulsation
-  const breath = Math.sin(tGlobal * 3.2 + slotIdx * 1.5) * 0.035;
-  let sx = 1.0 - breath * 0.7;
-  let sy = 1.0 + breath;
+  // --- PROCEDURAL FLUID & FAST AVATAR MOVEMENT PHYSICS ---
+  // Fast, lively 3.6s choreography loop with high-speed dashes, running strides, skids, and acrobatic jumps
+  const cycleDuration = 3.6;
+  const cycleT = ((tGlobal * 1.45) + slotIdx * 1.7) % cycleDuration;
 
-  // Procedural idle animation per slot (offset by slotIdx so characters don't animate in sync)
-  const idleCycle = ((tGlobal * 0.75) + slotIdx * 1.85) % 6.0;
-
-  // 1. Smooth wander left and right with natural ease
   let swayX = 0;
-  let swayLookX = 0;
-  let swayTilt = 0;
-  if(idleCycle >= 0.8 && idleCycle < 1.8){
-    const prog = (idleCycle - 0.8) / 1.0;
-    const ease = Math.sin(prog * Math.PI);
-    swayX = ease * 8;
-    swayLookX = (prog < 0.85) ? 1 : 0;
-    swayTilt = Math.sin(prog * Math.PI * 2) * 0.05;
-  } else if(idleCycle >= 2.4 && idleCycle < 3.4){
-    const prog = (idleCycle - 2.4) / 1.0;
-    const ease = Math.sin(prog * Math.PI);
-    swayX = -ease * 8;
-    swayLookX = (prog < 0.85) ? -1 : 0;
-    swayTilt = -Math.sin(prog * Math.PI * 2) * 0.05;
-  }
-
-  // 2. Springy Hop with anticipation crouch and landing squash
   let hopY = 0;
+  let sx = 1.0, sy = 1.0;
+  let swayTilt = 0;
+  let swayLookX = 0;
+  let swayLookY = 0;
   let isHopping = false;
-  if(idleCycle >= 4.0 && idleCycle < 4.9){
-    const hopT = idleCycle - 4.0;
-    if(hopT < 0.14){
-      // Anticipation crouch / windup
-      const crouchP = hopT / 0.14;
-      sx = 1.14 + crouchP * 0.04;
-      sy = 0.84 - crouchP * 0.04;
-      hopY = 2;
-    } else if(hopT < 0.64){
-      // Airborne arc with stretch
-      const airP = (hopT - 0.14) / 0.50;
+  let isMoving = false;
+  let charFace = isBot ? 'cool' : 'idle';
+  let isBlinking = false;
+
+  // Layered organic breathing pulsation
+  const breath = Math.sin(tGlobal * 4.2 + slotIdx * 2.1) * 0.035;
+  sx -= breath * 0.6;
+  sy += breath;
+
+  if (cycleT < 1.05) {
+    // 1. [0.0s – 1.05s] Fast, fluid dash across to the right side
+    const p = cycleT / 1.05;
+    const ease = p * p * (3 - 2 * p); // smoothstep acceleration
+    swayX = -maxRoam * 0.6 + (maxRoam - (-maxRoam * 0.6)) * ease;
+    swayTilt = 0.13 * Math.sin(p * Math.PI); // running forward lean
+    const stepFreq = p * Math.PI * 6;
+    hopY = -Math.abs(Math.sin(stepFreq)) * 5; // running foot steps
+    sx += Math.sin(stepFreq) * 0.08;
+    sy -= Math.sin(stepFreq) * 0.08;
+    swayLookX = 1;
+    charFace = 'run';
+    isMoving = true;
+  } else if (cycleT < 1.40) {
+    // 2. [1.05s – 1.40s] High-speed skid to halt & springy anticipation crouch
+    const p = (cycleT - 1.05) / 0.35;
+    swayX = maxRoam;
+    swayTilt = -0.10 * (1.0 - p); // skidding back-tilt
+    const crouch = Math.sin(p * Math.PI);
+    sx += crouch * 0.22;
+    sy -= crouch * 0.20;
+    hopY = crouch * 3;
+    swayLookX = -0.4;
+    charFace = isBot ? 'cool' : 'idle';
+  } else if (cycleT < 2.25) {
+    // 3. [1.40s – 2.25s] Massive fluid high-jump with stretch, mid-air acrobatic float, and landing
+    const p = (cycleT - 1.40) / 0.85;
+    if (p < 0.72) {
+      // Airborne rise & float
+      const airP = p / 0.72;
       const arc = Math.sin(airP * Math.PI);
-      hopY = -arc * 15;
-      sx = 0.88 - arc * 0.05;
-      sy = 1.18 + arc * 0.08;
+      hopY = -arc * jumpMaxH;
+      sx -= arc * 0.16;
+      sy += arc * 0.26;
+      swayTilt = Math.sin(airP * Math.PI * 2) * 0.18;
+      swayX = maxRoam - airP * (maxRoam * 0.45); // slight inward drift
+      swayLookX = 0.2;
+      charFace = 'happy';
       isHopping = true;
     } else {
-      // Landing squish & springy settle
-      const landP = (hopT - 0.64) / 0.26;
-      const bounce = Math.sin(landP * Math.PI) * Math.exp(-landP * 2.5);
-      sx = 1.0 + bounce * 0.18;
-      sy = 1.0 - bounce * 0.16;
-      hopY = 0;
+      // Landing impact squash & elastic spring rebound
+      const landP = (p - 0.72) / 0.28;
+      const bounce = Math.sin(landP * Math.PI * 2) * Math.exp(-landP * 4.5);
+      sx += bounce * 0.22;
+      sy -= bounce * 0.20;
+      swayX = maxRoam * 0.55;
+      charFace = 'land';
+    }
+  } else if (cycleT < 3.20) {
+    // 4. [2.25s – 3.20s] Swift, fluid dash across to the far left
+    const p = (cycleT - 2.25) / 0.95;
+    const ease = p * p * (3 - 2 * p);
+    swayX = (maxRoam * 0.55) + (-maxRoam - (maxRoam * 0.55)) * ease;
+    swayTilt = -0.13 * Math.sin(p * Math.PI); // running forward lean left
+    const stepFreq = p * Math.PI * 6;
+    hopY = -Math.abs(Math.sin(stepFreq)) * 5;
+    sx += Math.sin(stepFreq) * 0.08;
+    sy -= Math.sin(stepFreq) * 0.08;
+    swayLookX = -1;
+    charFace = 'run';
+    isMoving = true;
+  } else {
+    // 5. [3.20s – 3.60s] Smooth slide back to center with curious head-tilt & cute double-blink
+    const p = (cycleT - 3.20) / 0.40;
+    swayX = -maxRoam * (1.0 - p);
+    swayTilt = 0.08 * Math.sin(p * Math.PI); // inquisitive head tilt
+    swayLookX = 0;
+    swayLookY = -1; // curious glance up
+    isBlinking = (p > 0.15 && p < 0.40) || (p > 0.60 && p < 0.85); // cute double blink!
+    charFace = isBot ? 'cool' : (isBlinking ? 'idle' : 'happy');
+  }
+
+  // Interactive Tap / Click Response on Avatar
+  if (menu.slotPokeT && menu.slotPokeT[slotIdx]) {
+    const pokeAge = (performance.now() - menu.slotPokeT[slotIdx]) / 1000;
+    if (pokeAge < 0.5) {
+      const pP = pokeAge / 0.5;
+      hopY -= Math.sin(pP * Math.PI) * 28;
+      sx += Math.sin(pP * Math.PI * 2) * 0.18;
+      sy -= Math.sin(pP * Math.PI * 2) * 0.18;
+      swayTilt += Math.sin(pP * Math.PI * 2) * 0.25;
+      charFace = 'happy';
+      isHopping = true;
     }
   }
 
-  // 3. Natural blinking (single or cute double-blink)
-  const blinkCycle = ((tGlobal * 0.85) + slotIdx * 1.7) % 3.6;
-  const isBlinking = (blinkCycle < 0.12) || (blinkCycle > 0.22 && blinkCycle < 0.32);
-
-  // Face expression
-  let charFace = isBot ? 'cool' : (isHopping ? 'happy' : 'idle');
-  if(isBlinking) charFace = 'idle';
-
   const drawX = Math.round(charX + swayX);
-  const drawY = Math.round(charTopY + hopY);
+  const drawY = Math.round(charGroundY + hopY);
+
+  // Dynamic soft ground shadow under feet
+  const curAir = Math.max(0, -hopY);
+  const shadowScale = clamp(1.0 - curAir / 45, 0.45, 1.25);
+  const shadowAlpha = clamp(0.32 * (1.0 - curAir / 60), 0.08, 0.35);
+  g.beginPath();
+  g.ellipse(drawX + charSz / 2, stageFloorY + 2, (charSz * 0.42 * sx) * shadowScale, 4.5 * shadowScale, 0, 0, Math.PI * 2);
+  g.fillStyle = 'rgba(0, 0, 0, ' + shadowAlpha.toFixed(2) + ')';
+  g.fill();
+
+  // Render character avatar
   drawChar(g, drawX, drawY, charSz, col, {
     face: charFace,
     blink: isBlinking,
     grounded: !isHopping,
+    moving: isMoving,
     tilt: swayTilt,
     lookX: swayLookX,
+    lookY: swayLookY,
     sx: sx,
     sy: sy,
     seed: slotIdx * 3
   });
 
+  // Clickable interactive zone on avatar playground
+  zone(cx + 8, stageCeilY, cardW - 16, stageFloorY - stageCeilY, {
+    fn: () => {
+      menu.slotPokeT = menu.slotPokeT || {};
+      menu.slotPokeT[slotIdx] = performance.now();
+      sfx('jump');
+    }
+  });
+
   // Per-Bot Difficulty Chip (Easy / Hard per bot)
   if(isBot){
-    const diffH = clamp(cardH * 0.11, 15, 20);
-    const diffY = cardY + cardH * 0.50;
-    const diffW = cardW - 14;
-    const diffX = cx + 7;
     const slotDiff = (typeof getSlotBotDiff === 'function') ? getSlotBotDiff(slotIdx) : 'hard';
     const isHard = (slotDiff === 'hard');
 
@@ -2748,10 +2838,6 @@ function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
 
   // Hunter Mode Role Badge / Picker
   if(settings.gameMode === 'hunter'){
-    const roleH = clamp(cardH * 0.11, 15, 19);
-    const roleY = cardY + cardH * 0.54;
-    const roleW = cardW - 14;
-    const roleX = cx + 7;
     const candVotes = getCandidateVoteCount(slotIdx, slotTeam);
     const isMeCard = (typeof NET !== 'undefined' && NET && NET.role !== null && NET.mySlot === slotIdx);
     const youTag = isMeCard ? ' (YOU)' : '';
@@ -2773,11 +2859,6 @@ function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
   }
 
   // Control Selector Bar (WASD / Arrows / IJKL / TFGH / CONTROLLER / 🤖 BOT)
-  const ctrlH = clamp(cardH * 0.14, 18, 24);
-  const ctrlY = cardY + cardH * 0.63;
-  const ctrlW = cardW - 14;
-  const ctrlX = cx + 7;
-
   rr(g, ctrlX, ctrlY, ctrlW, ctrlH, 6);
   g.fillStyle = 'rgba(255, 255, 255, 0.09)'; g.fill();
   g.lineWidth = 1; g.strokeStyle = isBot ? 'rgba(255,107,129,0.45)' : 'rgba(255, 255, 255, 0.28)'; g.stroke();
@@ -2805,11 +2886,6 @@ function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
 
   // --- SELECTION 2: COLOR CYCLER BAR & IN-PLACE PALETTE POPUP ---
   // Left/Right arrow chevrons step colors; clicking middle swatch toggles in-place menu!
-  const barH = clamp(cardH * 0.14, 18, 24);
-  const barY = cardY + cardH - barH - 7;
-  const barW = cardW - 14;
-  const barX = cx + 7;
-
   rr(g, barX, barY, barW, barH, 6);
   g.fillStyle = 'rgba(0, 0, 0, 0.55)'; g.fill();
   g.lineWidth = 1.2; g.strokeStyle = 'rgba(255, 255, 255, 0.25)'; g.stroke();
