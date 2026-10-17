@@ -350,25 +350,55 @@ function drawOnlineHub(stageY, stageH){
     return;
   }
 
-  // Not in a room: Modern Cyber-Arcade Online Hub
-  const leftW = isWide ? Math.floor(availW * 0.42) : availW;
+  // Not in a room: Sleek Cyber Command Center Online Hub
+  const bannerH = 28;
+  const hubStageY = stageY + bannerH + 8;
+  const hubStageH = stageH - bannerH - 8;
+
+  // --- 0. TOP NETWORK STATUS BANNER ---
+  rr(g, startX, stageY, availW, bannerH, 8);
+  g.fillStyle = 'rgba(12, 18, 32, 0.92)'; g.fill();
+  g.lineWidth = 1.2; g.strokeStyle = 'rgba(56, 189, 248, 0.45)'; g.stroke();
+
+  // Left: Globe + Network Title
+  drawSvgGlobe(g, startX + 18, stageY + bannerH/2, 14, '#38bdf8');
+  txt('TAG GLOBAL MULTIPLAYER NETWORK', startX + 32, stageY + bannerH/2 + 1, FN(clamp(availW * 0.016, 10, 12), 900), '#38bdf8', 'left');
+
+  // Center: Operational Status Pill
+  const statPulse = 3.5 + Math.sin(tGlobal * 4.0) * 1.0;
+  const statX = startX + Math.floor(availW * 0.52);
+  g.beginPath();
+  g.arc(statX, stageY + bannerH/2, statPulse, 0, Math.PI * 2);
+  g.fillStyle = '#22c55e'; g.fill();
+  txt('● SERVERS 100% OPERATIONAL • WEBRTC DIRECT MESH', statX + 10, stageY + bannerH/2 + 1, FN(clamp(availW * 0.014, 9, 11), 800), '#22c55e', 'left');
+
+  // Right: Region Badge
+  const regW = 100, regH = 18;
+  const regX = startX + availW - regW - 8, regY = stageY + (bannerH - regH)/2;
+  rr(g, regX, regY, regW, regH, 4);
+  g.fillStyle = 'rgba(56, 189, 248, 0.14)'; g.fill();
+  g.lineWidth = 1; g.strokeStyle = 'rgba(56, 189, 248, 0.35)'; g.stroke();
+  txt('🌐 GLOBAL (AUTO)', regX + regW/2, regY + regH/2 + 1, FN(9, 900), '#93c5fd');
+
+  // Panel geometry
+  const leftW = isWide ? Math.floor(availW * 0.40) : availW;
   const rightW = isWide ? (availW - leftW - 14) : availW;
   const rightX = isWide ? (startX + leftW + 14) : startX;
-  const leftH = isWide ? stageH : Math.floor(stageH * 0.48);
-  const rightH = isWide ? stageH : (stageH - leftH - 10);
-  const rightY = isWide ? stageY : (stageY + leftH + 10);
+  const leftH = isWide ? hubStageH : Math.floor(hubStageH * 0.46);
+  const rightH = isWide ? hubStageH : (hubStageH - leftH - 10);
+  const rightY = isWide ? hubStageY : (hubStageY + leftH + 10);
 
-  // Helper to draw modern cyber frosted panel
-  const drawCyberPanel = (px, py, pw, ph) => {
+  // Modern Cyber Panel drawer with chamfer accents
+  const drawCyberPanel = (px, py, pw, ph, glowCol = 'rgba(56, 189, 248, 0.45)') => {
     // Drop shadow
     rr(g, px, py + 4, pw, ph, 14);
-    g.fillStyle = 'rgba(0, 0, 0, 0.42)'; g.fill();
+    g.fillStyle = 'rgba(0, 0, 0, 0.45)'; g.fill();
 
     // Body gradient
     const pGrad = g.createLinearGradient(px, py, px, py + ph);
-    pGrad.addColorStop(0, 'rgba(20, 29, 48, 0.94)');
-    pGrad.addColorStop(0.5, 'rgba(13, 19, 34, 0.96)');
-    pGrad.addColorStop(1, 'rgba(8, 13, 24, 0.98)');
+    pGrad.addColorStop(0, 'rgba(18, 26, 44, 0.96)');
+    pGrad.addColorStop(0.5, 'rgba(11, 17, 30, 0.97)');
+    pGrad.addColorStop(1, 'rgba(6, 10, 20, 0.99)');
     rr(g, px, py, pw, ph, 14);
     g.fillStyle = pGrad; g.fill();
 
@@ -383,35 +413,35 @@ function drawOnlineHub(stageY, stageH){
     g.fillRect(px, py, pw, ph * 0.35);
     g.restore();
 
-    // Neon cyan border
+    // Luminous border
     rr(g, px, py, pw, ph, 14);
     g.lineWidth = 1.8;
-    g.strokeStyle = 'rgba(56, 189, 248, 0.42)';
+    g.strokeStyle = glowCol;
     g.stroke();
   };
 
-  // --- 1. LEFT PANEL: Matchmaking & Room Creation ---
-  drawCyberPanel(startX, stageY, leftW, leftH);
+  // --- 1. LEFT PANEL: Matchmaking & Operations Deck ---
+  drawCyberPanel(startX, hubStageY, leftW, leftH, 'rgba(56, 189, 248, 0.55)');
 
   // Header
-  const lHeadY = stageY + 18;
-  drawSvgGlobe(g, startX + 20, lHeadY, 16, '#38bdf8');
-  txt('MATCHMAKING & HOST', startX + 36, lHeadY + 1, FN(clamp(leftW * 0.046, 11, 13.5), 900), '#38bdf8', 'left');
+  const lHeadY = hubStageY + 18;
+  drawSvgGlobe(g, startX + 20, lHeadY, 15, '#38bdf8');
+  txt('DEPLOYMENT DECK', startX + 36, lHeadY + 1, FN(clamp(leftW * 0.046, 11, 13.5), 900), '#38bdf8', 'left');
 
   // Hero Quick Match Button
-  const heroBtnY = stageY + 36;
-  const heroBtnH = clamp(leftH * 0.20, 38, 48);
+  const heroBtnY = hubStageY + 36;
+  const heroBtnH = clamp(leftH * 0.22, 40, 50);
   const heroBtnW = leftW - 24;
   drawJuicyBtn(startX + 12, heroBtnY, heroBtnW, heroBtnH, {
-    label: '⚡ QUICK MATCH',
-    sub: 'Instant Matchmaking Worldwide',
+    label: '⚡ INSTANT QUICK MATCH',
+    sub: 'Jumps directly into best worldwide open arena',
     bg: '#0284c7',
     darkBg: '#0369a1',
     borderColor: '#38bdf8',
     shine: true,
     depth: 4,
     boldFont: true,
-    fontSize: clamp(heroBtnH * 0.32, 12, 14),
+    fontSize: clamp(heroBtnH * 0.30, 11.5, 13.5),
     fn: () => {
       sfx('go');
       const openRoom = (NET.publicRooms || []).find(r => !r.isLocked && r.players < (r.maxPlayers || MAXP));
@@ -433,31 +463,31 @@ function drawOnlineHub(stageY, stageH){
 
   // Divider / Subhead
   const midSecY = heroBtnY + heroBtnH + 12;
-  txt('👑 HOST CUSTOM ARENA', startX + leftW/2, midSecY + 2, FN(10, 900), '#94a3b8');
+  txt('👑 CUSTOM ARENA STATION', startX + leftW/2, midSecY + 2, FN(10, 900), '#94a3b8');
 
   // Room Privacy Selector (Public / Private)
   const privY = midSecY + 12;
   const privH = clamp(leftH * 0.12, 26, 32);
   const privW = Math.floor((leftW - 32) / 2);
   drawJuicyChip(startX + 12, privY, privW, privH, {
-    label: '🌐 PUBLIC',
+    label: '🌐 PUBLIC ARENA',
     active: NET.isPublic,
     activeBg: '#10b981',
     activeDarkBg: '#047857',
     activeText: '#ffffff',
     textColor: '#94a3b8',
-    fontSize: 10.5,
+    fontSize: 10,
     fn: () => { NET.isPublic = true; sfx('ui'); }
   });
 
   drawJuicyChip(startX + 20 + privW, privY, privW, privH, {
-    label: '🔒 PRIVATE',
+    label: '🔒 PRIVATE ROOM',
     active: !NET.isPublic,
     activeBg: '#f59e0b',
     activeDarkBg: '#b45309',
     activeText: '#ffffff',
     textColor: '#94a3b8',
-    fontSize: 10.5,
+    fontSize: 10,
     fn: () => { NET.isPublic = false; sfx('ui'); }
   });
 
@@ -465,7 +495,7 @@ function drawOnlineHub(stageY, stageH){
   const hostBtnY = privY + privH + 8;
   const hostBtnH = clamp(leftH * 0.16, 32, 40);
   drawJuicyBtn(startX + 12, hostBtnY, heroBtnW, hostBtnH, {
-    label: NET.isPublic ? '🚀 CREATE PUBLIC ARENA' : '🔒 CREATE PRIVATE ROOM',
+    label: NET.isPublic ? '🚀 LAUNCH PUBLIC LOBBY' : '🔒 CREATE PRIVATE ROOM',
     bg: NET.isPublic ? '#059669' : '#d97706',
     darkBg: NET.isPublic ? '#065f46' : '#92400e',
     depth: 4,
@@ -491,31 +521,30 @@ function drawOnlineHub(stageY, stageH){
 
   // Micro-copy footer
   const infoY = joinBtnY + joinBtnH + 8;
-  if(infoY < stageY + leftH - 8){
+  if(infoY < hubStageY + leftH - 8){
     txt('🎙️ Proximity Voice Chat ready • 🎮 Cross-platform', startX + leftW/2, infoY + 6, FN(9.5, 800), '#64748b');
   }
 
-  // --- 2. RIGHT PANEL: Live Arenas Browser ---
-  drawCyberPanel(rightX, rightY, rightW, rightH);
+  // --- 2. RIGHT PANEL: Live Radar & Public Arenas Feed ---
+  drawCyberPanel(rightX, rightY, rightW, rightH, 'rgba(34, 197, 94, 0.55)');
 
-  // Header: Icon + Title + Live Dot + Refresh
+  // Header: Radar Icon + Title + Live Dot + Refresh
   const rHeadY = rightY + 18;
-  drawSvgGlobe(g, rightX + 20, rHeadY, 16, '#22c55e');
-  txt('ONLINE LOBBIES', rightX + 36, rHeadY + 1, FN(clamp(rightW * 0.04, 11, 13.5), 900), '#ffffff', 'left');
+  drawSvgRadar(g, rightX + 20, rHeadY, 15, '#22c55e');
+  txt('LIVE ARENAS RADAR', rightX + 36, rHeadY + 1, FN(clamp(rightW * 0.04, 11, 13.5), 900), '#ffffff', 'left');
 
-  // Pulsing live green dot
-  const livePulse = 3 + Math.sin(tGlobal * 5.0) * 1.0;
+  // Pulsing live green radar dot
+  const livePulse = 3.5 + Math.sin(tGlobal * 5.0) * 1.2;
   g.beginPath();
-  g.arc(rightX + 155, rHeadY, livePulse, 0, Math.PI * 2);
+  g.arc(rightX + 172, rHeadY, livePulse, 0, Math.PI * 2);
   g.fillStyle = '#22c55e'; g.fill();
-  txt('LIVE', rightX + 168, rHeadY + 1, FN(8.5, 900), '#22c55e', 'left');
+  txt('RADAR ACTIVE', rightX + 184, rHeadY + 1, FN(8.5, 900), '#22c55e', 'left');
 
-  // Polished Refresh Button
+  // Refresh Button
   const refBtnW = clamp(rightW * 0.18, 70, 88), refBtnH = 24;
   const refBtnX = rightX + rightW - refBtnW - 12, refBtnY = rightY + 7;
   drawJuicyChip(refBtnX, refBtnY, refBtnW, refBtnH, {
     label: 'Refresh',
-    icon: 'refresh',
     active: true,
     activeBg: 'rgba(56, 189, 248, 0.22)',
     activeDarkBg: 'rgba(2, 132, 199, 0.45)',
@@ -531,24 +560,63 @@ function drawOnlineHub(stageY, stageH){
   const rooms = (NET.publicRooms || []).filter(r => r && r.roomId);
 
   if(rooms.length === 0){
-    // Empty state: Sleek centered card with call to action
-    const cardBoxW = Math.min(rightW - 32, 420);
-    const cardBoxH = Math.min(feedAvailH - 12, 140);
-    const cardBoxX = Math.floor(rightX + rightW/2 - cardBoxW/2);
-    const cardBoxY = Math.floor(feedTopY + (feedAvailH - cardBoxH) / 2);
+    // Dynamic Tactical Holographic Radar Display
+    const radarBoxW = Math.min(rightW - 28, 440);
+    const radarBoxH = Math.min(feedAvailH - 10, 160);
+    const radarBoxX = Math.floor(rightX + rightW/2 - radarBoxW/2);
+    const radarBoxY = Math.floor(feedTopY + (feedAvailH - radarBoxH) / 2);
 
-    rr(g, cardBoxX, cardBoxY, cardBoxW, cardBoxH, 10);
-    g.fillStyle = 'rgba(255, 255, 255, 0.03)'; g.fill();
-    g.lineWidth = 1; g.strokeStyle = 'rgba(56, 189, 248, 0.3)'; g.stroke();
+    rr(g, radarBoxX, radarBoxY, radarBoxW, radarBoxH, 12);
+    g.fillStyle = 'rgba(10, 18, 30, 0.85)'; g.fill();
+    g.lineWidth = 1.2; g.strokeStyle = 'rgba(34, 197, 94, 0.35)'; g.stroke();
 
-    drawSvgGlobe(g, rightX + rightW/2, cardBoxY + 28, 26, '#38bdf8');
-    txt('NO ACTIVE PUBLIC LOBBIES RIGHT NOW', rightX + rightW/2, cardBoxY + 54, FN(11.5, 900), '#f8fafc');
-    txt('Be the first to jump in! Create a room and invite your friends.', rightX + rightW/2, cardBoxY + 70, FN(9.5, 800), '#94a3b8');
+    // Draw animated tactical radar scope on left side of empty card
+    const radCx = radarBoxX + 46;
+    const radCy = radarBoxY + radarBoxH/2;
+    const radR = 34;
 
-    // Quick Host Public Room button in empty state
-    const ehBtnW = Math.min(cardBoxW - 40, 200), ehBtnH = 28;
-    drawJuicyChip(Math.floor(rightX + rightW/2 - ehBtnW/2), cardBoxY + 88, ehBtnW, ehBtnH, {
-      label: '⚡ HOST PUBLIC ROOM',
+    // Concentric grid rings
+    g.strokeStyle = 'rgba(34, 197, 94, 0.35)';
+    g.lineWidth = 1;
+    g.beginPath();
+    g.arc(radCx, radCy, radR, 0, Math.PI * 2);
+    g.arc(radCx, radCy, radR * 0.65, 0, Math.PI * 2);
+    g.arc(radCx, radCy, radR * 0.30, 0, Math.PI * 2);
+    g.moveTo(radCx - radR, radCy); g.lineTo(radCx + radR, radCy);
+    g.moveTo(radCx, radCy - radR); g.lineTo(radCx, radCy + radR);
+    g.stroke();
+
+    // Rotating radar sweep cone
+    const sweepAng = (tGlobal * 2.4) % (Math.PI * 2);
+    g.save();
+    g.beginPath();
+    g.moveTo(radCx, radCy);
+    g.arc(radCx, radCy, radR, sweepAng - 0.5, sweepAng);
+    g.closePath();
+    const sweepGrad = g.createRadialGradient(radCx, radCy, 2, radCx, radCy, radR);
+    sweepGrad.addColorStop(0, 'rgba(34, 197, 94, 0.55)');
+    sweepGrad.addColorStop(1, 'rgba(34, 197, 94, 0.05)');
+    g.fillStyle = sweepGrad;
+    g.fill();
+    // Scan ray
+    g.strokeStyle = '#22c55e';
+    g.lineWidth = 1.5;
+    g.beginPath();
+    g.moveTo(radCx, radCy);
+    g.lineTo(radCx + Math.cos(sweepAng) * radR, radCy + Math.sin(sweepAng) * radR);
+    g.stroke();
+    g.restore();
+
+    // Tactical Radar Readout Text (Right of radar)
+    const textX = radCx + radR + 18;
+    txt('NO ACTIVE HOSTS DETECTED IN SECTOR', textX, radarBoxY + 32, FN(11.5, 900), '#f8fafc', 'left');
+    txt('Broadcast your arena on the global radar feed so players can join instantly!', textX, radarBoxY + 50, FN(9.5, 800), '#94a3b8', 'left');
+
+    // Action button to deploy first arena
+    const depBtnW = Math.min(radarBoxW - (textX - radarBoxX) - 16, 210);
+    const depBtnH = 30;
+    drawJuicyChip(textX, radarBoxY + 70, depBtnW, depBtnH, {
+      label: '⚡ BROADCAST NEW ARENA',
       active: true,
       activeBg: '#10b981',
       activeDarkBg: '#047857',
@@ -570,10 +638,10 @@ function drawOnlineHub(stageY, stageH){
 
       // Card glass container
       rr(g, rx, ry, rw, cardH, 8);
-      g.fillStyle = (i % 2 === 0) ? 'rgba(255, 255, 255, 0.05)' : 'rgba(255, 255, 255, 0.025)';
+      g.fillStyle = (i % 2 === 0) ? 'rgba(255, 255, 255, 0.06)' : 'rgba(255, 255, 255, 0.03)';
       g.fill();
       g.lineWidth = 1;
-      g.strokeStyle = 'rgba(56, 189, 248, 0.25)';
+      g.strokeStyle = 'rgba(56, 189, 248, 0.35)';
       g.stroke();
 
       // Left: Status dot + Host name + Room code
@@ -593,7 +661,7 @@ function drawOnlineHub(stageY, stageH){
       }
       txt(hostText, rx + 22, ry + cardH/2 + 1, FN(10.5, 900), '#f8fafc', 'left');
 
-      // Middle: Map chip & Mode chip
+      // Middle: Map chip & Mode chip with SVG icons
       const mapName = (MAPS[rm.map % MAPS.length] || {}).name || ('Arena ' + ((rm.map || 0) + 1));
       const modeLabel = rm.teams ? 'Teams' : 'FFA';
       const badgeText = mapName.slice(0, 9) + ' • ' + modeLabel;
@@ -606,7 +674,7 @@ function drawOnlineHub(stageY, stageH){
 
       // Action: Join / Spectate Chip
       const isLocked = rm.isLocked || curP >= maxP;
-      const jbW = 54, jbH = cardH - 10;
+      const jbW = 56, jbH = cardH - 10;
       const jbX = rx + rw - jbW - 6, jbY = ry + 5;
       drawJuicyChip(jbX, jbY, jbW, jbH, {
         label: isLocked ? '👁️ Spec' : '▶ Join',
@@ -614,7 +682,7 @@ function drawOnlineHub(stageY, stageH){
         activeBg: isLocked ? '#f59e0b' : '#22c55e',
         activeDarkBg: isLocked ? '#b45309' : '#15803d',
         activeText: '#ffffff',
-        fontSize: 9.5,
+        fontSize: 10,
         fn: () => {
           sfx('go');
           netJoinAction(rm.roomId, rm.hostPeerId || rm.hostId || '');
@@ -1794,7 +1862,7 @@ function drawMenu(){
   const mGridX = modeSelX + mLabelW + 8;
   const mGridW = modeSelW - mLabelW - 8;
   const mGap = 5;
-  const mBtnH = clamp(stageH * 0.072, 21, 26);
+  const mBtnH = clamp(stageH * 0.082, 24, 29);
 
   const row1Y = pillY + ph + 4;
   const row2Y = row1Y + mBtnH + 4;
@@ -1821,7 +1889,7 @@ function drawMenu(){
   const r2BtnW = Math.floor((mGridW - (teamModes.length - 1) * mGap) / teamModes.length);
 
   // Row 1 Label: SOLO / FFA
-  ptxt('SOLO / FFA:', modeSelX + mLabelW/2, row1Y + mBtnH/2 + 1, FT(clamp(mBtnH * 0.44, 9, 10.5)), '#10b981');
+  ptxt('SOLO / FFA:', modeSelX + mLabelW/2, row1Y + mBtnH/2 + 1, FT(clamp(mBtnH * 0.44, 9.5, 11)), '#10b981');
   // Row 1 Buttons (4 items)
   for(let i = 0; i < soloModes.length; i++){
     const m = soloModes[i];
@@ -1835,27 +1903,38 @@ function drawMenu(){
       activeDarkBg: m.dark,
       activeBorder: '#ffffff',
       activeText: '#ffffff',
-      bg: 'rgba(24, 34, 58, 0.78)',
+      bg: 'rgba(18, 26, 44, 0.88)',
       border: m.col,
       textColor: '#ffffff',
       fontSize: 9.5,
       renderContent: (x, y, w, h, col, active) => {
-        const isz = 12;
+        const isz = 15;
+        const badgeSz = Math.min(h - 4, 21);
         const fs = 9.5;
         g.font = FN(fs, 900);
         const tw = g.measureText(m.label).width;
-        const totalW = isz + 5 + tw;
-        const ix = x + w/2 - totalW/2 + isz/2;
-        const iy = y + h/2 + 1;
-        const icCol = active ? '#ffffff' : m.col;
+        const totalW = badgeSz + 5 + tw;
+        const bX = Math.floor(x + w/2 - totalW/2);
+        const bY = Math.floor(y + (h - badgeSz)/2);
+        const ix = bX + badgeSz/2;
+        const iy = y + h/2;
 
+        // Luminous Icon Medallion
+        rr(g, bX, bY, badgeSz, badgeSz, 4);
+        g.fillStyle = active ? 'rgba(255, 255, 255, 0.28)' : rgba(m.col, 0.32);
+        g.fill();
+        g.lineWidth = 1.2;
+        g.strokeStyle = active ? '#ffffff' : m.col;
+        g.stroke();
+
+        const icCol = active ? '#ffffff' : m.col;
         if(m.icon === 'flame' && typeof drawSvgFlame === 'function') drawSvgFlame(g, ix, iy, isz, icCol);
         else if(m.icon === 'bomb' && typeof drawSvgBomb === 'function') drawSvgBomb(g, ix, iy, isz, icCol);
         else if(m.icon === 'crown' && typeof drawSvgCrown === 'function') drawSvgCrown(g, ix, iy, isz, icCol);
         else if(m.icon === 'biohazard' && typeof drawSvgBiohazard === 'function') drawSvgBiohazard(g, ix, iy, isz, icCol);
 
-        const tx = ix + isz/2 + 5 + tw/2;
-        txt(m.label, tx, iy + 1, FN(fs, 900), 'rgba(0, 0, 0, 0.75)');
+        const tx = bX + badgeSz + 5 + tw/2;
+        txt(m.label, tx, iy + 1, FN(fs, 900), 'rgba(0, 0, 0, 0.85)');
         txt(m.label, tx, iy, FN(fs, 900), '#ffffff');
       },
       fn: () => {
@@ -1870,7 +1949,7 @@ function drawMenu(){
   }
 
   // Row 2 Label: TEAMS
-  ptxt('TEAMS:', modeSelX + mLabelW/2, row2Y + mBtnH/2 + 1, FT(clamp(mBtnH * 0.44, 9, 10.5)), '#3b82f6');
+  ptxt('TEAMS:', modeSelX + mLabelW/2, row2Y + mBtnH/2 + 1, FT(clamp(mBtnH * 0.44, 9.5, 11)), '#3b82f6');
   // Row 2 Buttons (5 items)
   for(let i = 0; i < teamModes.length; i++){
     const m = teamModes[i];
@@ -1884,28 +1963,39 @@ function drawMenu(){
       activeDarkBg: m.dark,
       activeBorder: '#ffffff',
       activeText: '#ffffff',
-      bg: 'rgba(24, 34, 58, 0.78)',
+      bg: 'rgba(18, 26, 44, 0.88)',
       border: m.col,
       textColor: '#ffffff',
       fontSize: 8.8,
       renderContent: (x, y, w, h, col, active) => {
-        const isz = 11;
+        const isz = 14;
+        const badgeSz = Math.min(h - 4, 20);
         const fs = 8.8;
         g.font = FN(fs, 900);
         const tw = g.measureText(m.label).width;
-        const totalW = isz + 4 + tw;
-        const ix = x + w/2 - totalW/2 + isz/2;
-        const iy = y + h/2 + 1;
-        const icCol = active ? '#ffffff' : m.col;
+        const totalW = badgeSz + 4 + tw;
+        const bX = Math.floor(x + w/2 - totalW/2);
+        const bY = Math.floor(y + (h - badgeSz)/2);
+        const ix = bX + badgeSz/2;
+        const iy = y + h/2;
 
+        // Luminous Icon Medallion
+        rr(g, bX, bY, badgeSz, badgeSz, 4);
+        g.fillStyle = active ? 'rgba(255, 255, 255, 0.28)' : rgba(m.col, 0.32);
+        g.fill();
+        g.lineWidth = 1.2;
+        g.strokeStyle = active ? '#ffffff' : m.col;
+        g.stroke();
+
+        const icCol = active ? '#ffffff' : m.col;
         if(m.icon === 'users' && typeof drawSvgUsers === 'function') drawSvgUsers(g, ix, iy, isz, icCol);
         else if(m.icon === 'flag' && typeof drawSvgFlag === 'function') drawSvgFlag(g, ix, iy, isz, icCol);
         else if(m.icon === 'snowflake' && typeof drawSvgSnowflake === 'function') drawSvgSnowflake(g, ix, iy, isz, icCol);
         else if(m.icon === 'flame' && typeof drawSvgFlame === 'function') drawSvgFlame(g, ix, iy, isz, icCol);
         else if(m.icon === 'crown' && typeof drawSvgCrown === 'function') drawSvgCrown(g, ix, iy, isz, icCol);
 
-        const tx = ix + isz/2 + 4 + tw/2;
-        txt(m.label, tx, iy + 1, FN(fs, 900), 'rgba(0, 0, 0, 0.75)');
+        const tx = bX + badgeSz + 4 + tw/2;
+        txt(m.label, tx, iy + 1, FN(fs, 900), 'rgba(0, 0, 0, 0.85)');
         txt(m.label, tx, iy, FN(fs, 900), '#ffffff');
       },
       fn: () => {
@@ -2158,20 +2248,22 @@ function drawMenu(){
     // Row 1: Map Selector
     const mapY = stripY + 3;
     const arrowW = 34;
-    // Left Arrow
+    // Left Chevron
     drawJuicyChip(stripX + 6, mapY, arrowW, rowH1 - 6, {
-      label: '◀',
-      fontSize: 13,
-      textColor: '#ffffff',
+      label: '',
+      renderContent: (x, y, w, h) => {
+        drawSvgChevron(g, x + w/2, y + h/2, 12, 'left', '#ffffff');
+      },
       fn: () => cycleMap(-1)
     });
 
-    // Right Arrow
+    // Right Chevron
     const rightNarrowX = stripX + stripW - arrowW - 6;
     drawJuicyChip(rightNarrowX, mapY, arrowW, rowH1 - 6, {
-      label: '▶',
-      fontSize: 13,
-      textColor: '#ffffff',
+      label: '',
+      renderContent: (x, y, w, h) => {
+        drawSvgChevron(g, x + w/2, y + h/2, 12, 'right', '#ffffff');
+      },
       fn: () => cycleMap(1)
     });
 
@@ -2179,14 +2271,38 @@ function drawMenu(){
     const mapMidW = stripW - arrowW * 2 - 24;
     const mapMidX = stripX + arrowW + 12;
     drawJuicyChip(mapMidX, mapY, mapMidW, rowH1 - 6, {
-      label: mapLabelText,
+      label: '',
       active: settings.randomMap,
-      activeBg: 'rgba(255, 209, 102, 0.35)',
-      activeDarkBg: 'rgba(180, 83, 9, 0.5)',
-      activeText: '#ffd166',
+      activeBg: 'rgba(245, 158, 11, 0.28)',
+      activeDarkBg: 'rgba(180, 83, 9, 0.55)',
       activeBorder: '#ffd166',
-      textColor: '#ffffff',
-      fontSize: 11.5,
+      activeText: '#ffd166',
+      bg: 'rgba(255, 255, 255, 0.08)',
+      border: 'rgba(56, 189, 248, 0.45)',
+      renderContent: (x, y, w, h, col, active) => {
+        const isz = 13;
+        const mapNumStr = (settings.map + 1) + '. ';
+        const mapName = MAPS[settings.map] ? MAPS[settings.map].name : 'ARENA';
+        const labelStr = settings.randomMap ? 'RANDOM ARENA' : (mapNumStr + mapName);
+        const fs = 10.5;
+        g.font = FN(fs, 900);
+        const tw = g.measureText(labelStr).width;
+        const chw = 9;
+        const totalContentW = isz + 6 + tw + 6 + chw;
+        const startCx = Math.floor(x + w/2 - totalContentW/2);
+        const ix = startCx + isz/2;
+        const iy = y + h/2;
+
+        if(settings.randomMap){
+          drawSvgDice(g, ix, iy, isz, active ? '#ffffff' : '#ffd166');
+          txt(labelStr, startCx + isz + 6 + tw/2, iy + 1, FN(fs, 900), active ? '#ffffff' : '#ffd166');
+          drawSvgChevron(g, startCx + isz + 6 + tw + 5 + chw/2, iy, 9, 'down', active ? '#ffffff' : '#ffd166');
+        } else {
+          drawSvgMap(g, ix, iy, isz, '#38bdf8');
+          txt(labelStr, startCx + isz + 6 + tw/2, iy + 1, FN(fs, 900), '#f8fafc');
+          drawSvgChevron(g, startCx + isz + 6 + tw + 5 + chw/2, iy, 9, 'down', '#94a3b8');
+        }
+      },
       fn: () => {
         if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST SELECTS THE ARENA'); sfx('back'); return; }
         menu.mapModal = true; sfx('ok');
@@ -2200,12 +2316,26 @@ function drawMenu(){
 
     // Chip 1: Double Jump
     drawJuicyChip(stripX + 6, chipsY, jumpW, chipH, {
-      label: '2x JUMP',
+      label: '',
       active: settings.doubleJump,
-      activeBg: '#2ed573',
-      activeDarkBg: '#166534',
+      activeBg: '#10b981',
+      activeDarkBg: '#047857',
+      activeBorder: '#ffffff',
       activeText: '#ffffff',
-      fontSize: 10,
+      bg: 'rgba(255, 255, 255, 0.08)',
+      border: settings.doubleJump ? '#22c55e' : 'rgba(34, 197, 94, 0.45)',
+      renderContent: (x, y, w, h, col, active) => {
+        const isz = 11;
+        const fs = 9.5;
+        g.font = FN(fs, 900);
+        const tw = g.measureText('2x JUMP').width;
+        const totalW = isz + 5 + tw;
+        const sx = Math.floor(x + w/2 - totalW/2);
+        const ix = sx + isz/2;
+        const iy = y + h/2;
+        drawSvgDoubleJump(g, ix, iy, isz, active ? '#ffffff' : '#22c55e');
+        txt('2x JUMP', sx + isz + 5 + tw/2, iy + 1, FN(fs, 900), active ? '#ffffff' : '#4ade80');
+      },
       fn: () => {
         if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST CONTROLS ROOM MODIFIERS'); sfx('back'); return; }
         settings.doubleJump = !settings.doubleJump; sfx('ui');
@@ -2225,12 +2355,27 @@ function drawMenu(){
         const caps = ctfOpts[ci];
         const isCur = ((settings.ctfTargetCaptures || 3) === caps);
         drawJuicyChip(tAreaX + ci * (cW + 6), chipsY, cW, chipH, {
-          label: caps + ' CAPS',
+          label: '',
           active: isCur,
           activeBg: '#ef4444',
           activeDarkBg: '#991b1b',
+          activeBorder: '#ffffff',
           activeText: '#ffffff',
-          fontSize: 10,
+          bg: 'rgba(255, 255, 255, 0.08)',
+          border: 'rgba(239, 68, 68, 0.45)',
+          renderContent: (x, y, w, h, col, active) => {
+            const isz = 11;
+            const fs = 9.5;
+            g.font = FN(fs, 900);
+            const labelStr = caps + ' CAPS';
+            const tw = g.measureText(labelStr).width;
+            const totalW = isz + 5 + tw;
+            const sx = Math.floor(x + w/2 - totalW/2);
+            const ix = sx + isz/2;
+            const iy = y + h/2;
+            drawSvgFlag(g, ix, iy, isz, active ? '#ffffff' : '#ef4444');
+            txt(labelStr, sx + isz + 5 + tw/2, iy + 1, FN(fs, 900), active ? '#ffffff' : '#fca5a5');
+          },
           fn: () => {
             if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST CONTROLS TARGET CAPTURES'); sfx('back'); return; }
             settings.ctfTargetCaptures = caps;
@@ -2249,7 +2394,7 @@ function drawMenu(){
         const isCur = (settings.time === val);
         const bx = tAreaX + ti * (tBtnW + 5);
         drawJuicyChip(bx, chipsY, tBtnW, chipH, {
-          label: val + 's',
+          label: '',
           active: isCur,
           activeBg: '#f59e0b',
           activeDarkBg: '#b45309',
@@ -2257,11 +2402,17 @@ function drawMenu(){
           activeText: '#ffffff',
           bg: 'rgba(255, 255, 255, 0.08)',
           border: 'rgba(255, 209, 102, 0.4)',
-          textColor: '#ffd166',
-          fontSize: 10,
           renderContent: (x, y, w, h, col, active) => {
-            drawSvgStopwatch(g, x + 10, y + h/2 + 1, 11, active ? '#ffffff' : '#f59e0b');
-            ptxt(val + 's', x + w/2 + 5, y + h/2 + 1, FN(10, 900), active ? '#ffffff' : '#ffd166');
+            const isz = 11;
+            const fs = 9.5;
+            g.font = FN(fs, 900);
+            const tw = g.measureText(val + 's').width;
+            const totalW = isz + 5 + tw;
+            const sx = Math.floor(x + w/2 - totalW/2);
+            const ix = sx + isz/2;
+            const iy = y + h/2;
+            drawSvgStopwatch(g, ix, iy, isz, active ? '#ffffff' : '#f59e0b');
+            txt(val + 's', sx + isz + 5 + tw/2, iy + 1, FN(fs, 900), active ? '#ffffff' : '#ffd166');
           },
           fn: () => {
             if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST CONTROLS ROOM TIMER'); sfx('back'); return; }
@@ -2282,20 +2433,22 @@ function drawMenu(){
     const mapBoxW = clamp(stripW * 0.48, 220, 360);
     const arrowW = 34;
 
-    // Left Arrow
+    // Left Chevron
     drawJuicyChip(stripX + 6, itemY, arrowW, itemH, {
-      label: '◀',
-      fontSize: 14,
-      textColor: '#ffffff',
+      label: '',
+      renderContent: (x, y, w, h) => {
+        drawSvgChevron(g, x + w/2, y + h/2, 13, 'left', '#ffffff');
+      },
       fn: () => cycleMap(-1)
     });
 
-    // Right Arrow
+    // Right Chevron
     const rightArrowX = stripX + 6 + mapBoxW - arrowW;
     drawJuicyChip(rightArrowX, itemY, arrowW, itemH, {
-      label: '▶',
-      fontSize: 14,
-      textColor: '#ffffff',
+      label: '',
+      renderContent: (x, y, w, h) => {
+        drawSvgChevron(g, x + w/2, y + h/2, 13, 'right', '#ffffff');
+      },
       fn: () => cycleMap(1)
     });
 
@@ -2303,14 +2456,38 @@ function drawMenu(){
     const mapMidW = mapBoxW - arrowW * 2 - 8;
     const mapMidX = stripX + 6 + arrowW + 4;
     drawJuicyChip(mapMidX, itemY, mapMidW, itemH, {
-      label: mapLabelText,
+      label: '',
       active: settings.randomMap,
-      activeBg: 'rgba(255, 209, 102, 0.35)',
-      activeDarkBg: 'rgba(180, 83, 9, 0.5)',
-      activeText: '#ffd166',
+      activeBg: 'rgba(245, 158, 11, 0.28)',
+      activeDarkBg: 'rgba(180, 83, 9, 0.55)',
       activeBorder: '#ffd166',
-      textColor: '#ffffff',
-      fontSize: clamp(itemH * 0.40, 11, 13.5),
+      activeText: '#ffd166',
+      bg: 'rgba(255, 255, 255, 0.08)',
+      border: 'rgba(56, 189, 248, 0.45)',
+      renderContent: (x, y, w, h, col, active) => {
+        const isz = 15;
+        const mapNumStr = (settings.map + 1) + '. ';
+        const mapName = MAPS[settings.map] ? MAPS[settings.map].name : 'ARENA';
+        const labelStr = settings.randomMap ? 'RANDOM ARENA' : (mapNumStr + mapName);
+        const fs = clamp(h * 0.38, 11, 13);
+        g.font = FN(fs, 900);
+        const tw = g.measureText(labelStr).width;
+        const chw = 10;
+        const totalContentW = isz + 8 + tw + 8 + chw;
+        const startCx = Math.floor(x + w/2 - totalContentW/2);
+        const ix = startCx + isz/2;
+        const iy = y + h/2;
+
+        if(settings.randomMap){
+          drawSvgDice(g, ix, iy, isz, active ? '#ffffff' : '#ffd166');
+          txt(labelStr, startCx + isz + 8 + tw/2, iy + 1, FN(fs, 900), active ? '#ffffff' : '#ffd166');
+          drawSvgChevron(g, startCx + isz + 8 + tw + 6 + chw/2, iy, 10, 'down', active ? '#ffffff' : '#ffd166');
+        } else {
+          drawSvgMap(g, ix, iy, isz, '#38bdf8');
+          txt(labelStr, startCx + isz + 8 + tw/2, iy + 1, FN(fs, 900), '#f8fafc');
+          drawSvgChevron(g, startCx + isz + 8 + tw + 6 + chw/2, iy, 10, 'down', '#94a3b8');
+        }
+      },
       fn: () => {
         if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST SELECTS THE ARENA'); sfx('back'); return; }
         menu.mapModal = true; sfx('ok');
@@ -2324,12 +2501,26 @@ function drawMenu(){
 
     // Chip 1: Double Jump
     drawJuicyChip(chipsX, itemY, jumpW, itemH, {
-      label: '2x JUMP',
+      label: '',
       active: settings.doubleJump,
-      activeBg: '#2ed573',
-      activeDarkBg: '#166534',
+      activeBg: '#10b981',
+      activeDarkBg: '#047857',
+      activeBorder: '#ffffff',
       activeText: '#ffffff',
-      fontSize: 11,
+      bg: 'rgba(255, 255, 255, 0.08)',
+      border: settings.doubleJump ? '#22c55e' : 'rgba(34, 197, 94, 0.45)',
+      renderContent: (x, y, w, h, col, active) => {
+        const isz = 13;
+        const fs = clamp(h * 0.36, 10.5, 12);
+        g.font = FN(fs, 900);
+        const tw = g.measureText('2x JUMP').width;
+        const totalW = isz + 6 + tw;
+        const sx = Math.floor(x + w/2 - totalW/2);
+        const ix = sx + isz/2;
+        const iy = y + h/2;
+        drawSvgDoubleJump(g, ix, iy, isz, active ? '#ffffff' : '#22c55e');
+        txt('2x JUMP', sx + isz + 6 + tw/2, iy + 1, FN(fs, 900), active ? '#ffffff' : '#4ade80');
+      },
       fn: () => {
         if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST CONTROLS ROOM MODIFIERS'); sfx('back'); return; }
         settings.doubleJump = !settings.doubleJump; sfx('ui');
@@ -2350,13 +2541,27 @@ function drawMenu(){
         const isCur = ((settings.ctfTargetCaptures || 3) === caps);
         const bx = tAreaX + ci * (ctfW + 8);
         drawJuicyChip(bx, itemY, ctfW, itemH, {
-          label: caps + ' CAPS',
+          label: '',
           active: isCur,
           activeBg: '#ef4444',
           activeDarkBg: '#991b1b',
           activeBorder: '#ffffff',
           activeText: '#ffffff',
-          fontSize: 11,
+          bg: 'rgba(255, 255, 255, 0.08)',
+          border: 'rgba(239, 68, 68, 0.45)',
+          renderContent: (x, y, w, h, col, active) => {
+            const isz = 13;
+            const fs = clamp(h * 0.36, 10.5, 12);
+            g.font = FN(fs, 900);
+            const labelStr = caps + ' CAPS';
+            const tw = g.measureText(labelStr).width;
+            const totalW = isz + 6 + tw;
+            const sx = Math.floor(x + w/2 - totalW/2);
+            const ix = sx + isz/2;
+            const iy = y + h/2;
+            drawSvgFlag(g, ix, iy, isz, active ? '#ffffff' : '#ef4444');
+            txt(labelStr, sx + isz + 6 + tw/2, iy + 1, FN(fs, 900), active ? '#ffffff' : '#fca5a5');
+          },
           fn: () => {
             if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST CONTROLS TARGET CAPS'); sfx('back'); return; }
             settings.ctfTargetCaptures = caps;
@@ -2375,7 +2580,7 @@ function drawMenu(){
         const isCur = (settings.time === val);
         const bx = tAreaX + ti * (tBtnW + 6);
         drawJuicyChip(bx, itemY, tBtnW, itemH, {
-          label: val + 's',
+          label: '',
           active: isCur,
           activeBg: '#f59e0b',
           activeDarkBg: '#b45309',
@@ -2383,12 +2588,17 @@ function drawMenu(){
           activeText: '#ffffff',
           bg: 'rgba(255, 255, 255, 0.08)',
           border: 'rgba(255, 209, 102, 0.45)',
-          textColor: '#ffd166',
-          fontSize: 11,
           renderContent: (x, y, w, h, col, active) => {
             const isz = 13;
-            drawSvgStopwatch(g, x + 12, y + h/2 + 1, isz, active ? '#ffffff' : '#f59e0b');
-            ptxt(val + 's', x + w/2 + 6, y + h/2 + 1, FN(11, 900), active ? '#ffffff' : '#ffd166');
+            const fs = clamp(h * 0.36, 10.5, 12);
+            g.font = FN(fs, 900);
+            const tw = g.measureText(val + 's').width;
+            const totalW = isz + 6 + tw;
+            const sx = Math.floor(x + w/2 - totalW/2);
+            const ix = sx + isz/2;
+            const iy = y + h/2;
+            drawSvgStopwatch(g, ix, iy, isz, active ? '#ffffff' : '#f59e0b');
+            txt(val + 's', sx + isz + 6 + tw/2, iy + 1, FN(fs, 900), active ? '#ffffff' : '#ffd166');
           },
           fn: () => {
             if(typeof NET !== 'undefined' && NET && NET.role !== null && !NET.isHost){ toast('HOST CONTROLS ROOM TIMER'); sfx('back'); return; }
@@ -2672,98 +2882,146 @@ function drawPlayerCard(cx, cardY, cardW, cardH, slotIdx, isBot, canRemove){
   const maxRoam = Math.floor((cardW - charSz - 24) / 2); // Huge ±36px to ±48px roaming freedom!
   const jumpMaxH = clamp((charGroundY - stageCeilY) * 0.72, 28, 44);
 
-  // --- PROCEDURAL FLUID & FAST AVATAR MOVEMENT PHYSICS ---
-  // Fast, lively 3.6s choreography loop with high-speed dashes, running strides, skids, and acrobatic jumps
-  const cycleDuration = 3.6;
-  const cycleT = ((tGlobal * 1.45) + slotIdx * 1.7) % cycleDuration;
+  // --- PROCEDURAL STATEFUL AVATAR AI (ZERO TELEPORTING, 70% STANDING & BLINKING, RANDOM MOVES) ---
+  if(!menu.lobbyAvatars) menu.lobbyAvatars = {};
+  if(!menu.lobbyAvatars[slotIdx]){
+    const startOffset = ((slotIdx % 2 === 0 ? -1 : 1) * Math.min(14, maxRoam * 0.35));
+    menu.lobbyAvatars[slotIdx] = {
+      pos: startOffset,
+      targetX: startOffset,
+      hopY: 0,
+      vy: 0,
+      tilt: 0,
+      lookX: 0,
+      lookY: 0,
+      state: 'idle', // 'idle' (standing still), 'walk', 'jump'
+      stateTimer: 1.0 + Math.random() * 2.0,
+      isBlinking: false,
+      blinkTimer: 0.8 + Math.random() * 1.8,
+      lastT: performance.now()
+    };
+  }
 
-  let swayX = 0;
-  let hopY = 0;
-  let sx = 1.0, sy = 1.0;
-  let swayTilt = 0;
-  let swayLookX = 0;
-  let swayLookY = 0;
+  const av = menu.lobbyAvatars[slotIdx];
+  const nowMs = performance.now();
+  const dt = Math.min(0.05, Math.max(0.001, (nowMs - (av.lastT || nowMs)) / 1000));
+  av.lastT = nowMs;
+
+  av.stateTimer -= dt;
+  av.blinkTimer -= dt;
+
+  // Natural organic blinking
+  if(av.blinkTimer <= 0){
+    av.isBlinking = !av.isBlinking;
+    if(av.isBlinking){
+      av.blinkTimer = 0.15; // eyes closed for 150ms
+    } else {
+      av.blinkTimer = 1.4 + Math.random() * 2.8; // eyes open between blinks
+    }
+  }
+
+  // Organic calm breathing pulsation
+  const breath = Math.sin(nowMs * 0.0032 + slotIdx * 1.8) * 0.025;
+  let sx = 1.0 - breath * 0.5;
+  let sy = 1.0 + breath;
   let isHopping = false;
   let isMoving = false;
   let charFace = isBot ? 'cool' : 'idle';
-  let isBlinking = false;
 
-  // Layered organic breathing pulsation
-  const breath = Math.sin(tGlobal * 4.2 + slotIdx * 2.1) * 0.035;
-  sx -= breath * 0.6;
-  sy += breath;
-
-  if (cycleT < 1.05) {
-    // 1. [0.0s – 1.05s] Fast, fluid dash across to the right side
-    const p = cycleT / 1.05;
-    const ease = p * p * (3 - 2 * p); // smoothstep acceleration
-    swayX = -maxRoam * 0.6 + (maxRoam - (-maxRoam * 0.6)) * ease;
-    swayTilt = 0.13 * Math.sin(p * Math.PI); // running forward lean
-    const stepFreq = p * Math.PI * 6;
-    hopY = -Math.abs(Math.sin(stepFreq)) * 5; // running foot steps
-    sx += Math.sin(stepFreq) * 0.08;
-    sy -= Math.sin(stepFreq) * 0.08;
-    swayLookX = 1;
-    charFace = 'run';
-    isMoving = true;
-  } else if (cycleT < 1.40) {
-    // 2. [1.05s – 1.40s] High-speed skid to halt & springy anticipation crouch
-    const p = (cycleT - 1.05) / 0.35;
-    swayX = maxRoam;
-    swayTilt = -0.10 * (1.0 - p); // skidding back-tilt
-    const crouch = Math.sin(p * Math.PI);
-    sx += crouch * 0.22;
-    sy -= crouch * 0.20;
-    hopY = crouch * 3;
-    swayLookX = -0.4;
-    charFace = isBot ? 'cool' : 'idle';
-  } else if (cycleT < 2.25) {
-    // 3. [1.40s – 2.25s] Massive fluid high-jump with stretch, mid-air acrobatic float, and landing
-    const p = (cycleT - 1.40) / 0.85;
-    if (p < 0.72) {
-      // Airborne rise & float
-      const airP = p / 0.72;
-      const arc = Math.sin(airP * Math.PI);
-      hopY = -arc * jumpMaxH;
-      sx -= arc * 0.16;
-      sy += arc * 0.26;
-      swayTilt = Math.sin(airP * Math.PI * 2) * 0.18;
-      swayX = maxRoam - airP * (maxRoam * 0.45); // slight inward drift
-      swayLookX = 0.2;
-      charFace = 'happy';
-      isHopping = true;
+  // State transitions: 70% of the time standing still & blinking
+  if(av.stateTimer <= 0){
+    const roll = Math.random();
+    if(roll < 0.70){
+      // 70% CHANCE: STAND COMPLETELY STILL
+      av.state = 'idle';
+      av.stateTimer = 2.0 + Math.random() * 2.8; // stands still for 2 to 4.8 seconds!
+      av.targetX = av.pos; // STAYS RIGHT WHERE IT IS (ZERO TELEPORTING!)
+      av.lookX = Math.random() < 0.35 ? (Math.random() < 0.5 ? -0.8 : 0.8) : 0;
+      av.lookY = Math.random() < 0.30 ? -0.7 : 0;
+    } else if(roll < 0.90){
+      // 20% CHANCE: WALK SMOOTHLY TO A NEW RANDOM LOCATION
+      av.state = 'walk';
+      // Pick random destination within runway
+      const minDistance = Math.min(maxRoam * 0.5, 20);
+      let newTarget = (Math.random() * 2 - 1) * maxRoam;
+      if(Math.abs(newTarget - av.pos) < minDistance){
+        newTarget = av.pos > 0 ? (newTarget - minDistance) : (newTarget + minDistance);
+      }
+      av.targetX = clamp(newTarget, -maxRoam, maxRoam);
+      const dist = Math.abs(av.targetX - av.pos);
+      const walkSpeed = 34 + Math.random() * 22; // smooth 34-56 px/s
+      av.stateTimer = (dist / walkSpeed) + 0.4;
+      av.lookX = Math.sign(av.targetX - av.pos);
+      av.lookY = 0;
     } else {
-      // Landing impact squash & elastic spring rebound
-      const landP = (p - 0.72) / 0.28;
-      const bounce = Math.sin(landP * Math.PI * 2) * Math.exp(-landP * 4.5);
-      sx += bounce * 0.22;
-      sy -= bounce * 0.20;
-      swayX = maxRoam * 0.55;
-      charFace = 'land';
+      // 10% CHANCE: OCCASIONAL CLEAN HIGH JUMP
+      av.state = 'jump';
+      av.stateTimer = 1.2;
+      av.vy = -170 - Math.random() * 35; // clean upward spring
+      av.lookX = 0;
+      av.lookY = -0.5;
     }
-  } else if (cycleT < 3.20) {
-    // 4. [2.25s – 3.20s] Swift, fluid dash across to the far left
-    const p = (cycleT - 2.25) / 0.95;
-    const ease = p * p * (3 - 2 * p);
-    swayX = (maxRoam * 0.55) + (-maxRoam - (maxRoam * 0.55)) * ease;
-    swayTilt = -0.13 * Math.sin(p * Math.PI); // running forward lean left
-    const stepFreq = p * Math.PI * 6;
-    hopY = -Math.abs(Math.sin(stepFreq)) * 5;
-    sx += Math.sin(stepFreq) * 0.08;
-    sy -= Math.sin(stepFreq) * 0.08;
-    swayLookX = -1;
-    charFace = 'run';
-    isMoving = true;
-  } else {
-    // 5. [3.20s – 3.60s] Smooth slide back to center with curious head-tilt & cute double-blink
-    const p = (cycleT - 3.20) / 0.40;
-    swayX = -maxRoam * (1.0 - p);
-    swayTilt = 0.08 * Math.sin(p * Math.PI); // inquisitive head tilt
-    swayLookX = 0;
-    swayLookY = -1; // curious glance up
-    isBlinking = (p > 0.15 && p < 0.40) || (p > 0.60 && p < 0.85); // cute double blink!
-    charFace = isBot ? 'cool' : (isBlinking ? 'idle' : 'happy');
   }
+
+  // State execution:
+  if(av.state === 'idle'){
+    // Standing still: zero hops, zero velocity
+    av.hopY = 0;
+    av.tilt = 0;
+    charFace = isBot ? 'cool' : (av.isBlinking ? 'idle' : 'happy');
+  } else if(av.state === 'walk'){
+    // Walking smoothly to targetX: ZERO MINI HOPS!
+    const dx = av.targetX - av.pos;
+    const dir = Math.sign(dx);
+    if(Math.abs(dx) > 1.2){
+      const spd = Math.min(Math.abs(dx) * 3.5, 48);
+      av.pos += dir * spd * dt;
+      av.tilt = dir * 0.07; // gentle forward lean
+      av.lookX = dir;
+      isMoving = true;
+      charFace = 'happy';
+    } else {
+      // Arrived cleanly! Stays right at targetX
+      av.pos = av.targetX;
+      av.tilt = 0;
+      av.state = 'idle';
+      av.stateTimer = 1.8 + Math.random() * 2.2; // immediately stands still upon arriving
+    }
+    av.hopY = 0; // ZERO MINI HOPS!
+  } else if(av.state === 'jump'){
+    // Jumping physics
+    av.hopY += av.vy * dt;
+    av.vy += 440 * dt; // gravity
+    if(av.hopY < 0){
+      // In flight: stretch & float
+      isHopping = true;
+      charFace = 'happy';
+      const airP = clamp(-av.hopY / jumpMaxH, 0, 1);
+      sx -= airP * 0.14;
+      sy += airP * 0.22;
+      av.tilt = Math.sin(nowMs * 0.008) * 0.08;
+    } else {
+      // Hit ground: squash & land right where they jumped!
+      av.hopY = 0;
+      av.vy = 0;
+      sx += 0.20;
+      sy -= 0.18;
+      charFace = 'land';
+      av.state = 'idle';
+      av.stateTimer = 1.8 + Math.random() * 2.0; // stand still after landing!
+      av.tilt = 0;
+    }
+  }
+
+  // Ensure position stays strictly inside card bounds
+  av.pos = clamp(av.pos, -maxRoam, maxRoam);
+
+  let swayX = av.pos;
+  let hopY = av.hopY;
+  let swayTilt = av.tilt;
+  let swayLookX = av.lookX;
+  let swayLookY = av.lookY;
+  let isBlinking = av.isBlinking;
 
   // Interactive Tap / Click Response on Avatar
   if (menu.slotPokeT && menu.slotPokeT[slotIdx]) {

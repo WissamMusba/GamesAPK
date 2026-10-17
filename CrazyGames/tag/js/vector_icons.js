@@ -151,17 +151,18 @@
     g.restore();
   }
 
-  function drawSvgCrown(g, cx, cy, sz, col = '#f59e0b') {
+  function drawSvgCrown(g, cx, cy, sz, col = '#facc15') {
     g.save();
-    const w = sz * 0.85, h = sz * 0.62;
-    const y0 = cy + h * 0.28;
+    const w = sz * 0.90, h = sz * 0.68;
+    const y0 = cy + h * 0.32;
+    // Golden crown body
     g.beginPath();
     g.moveTo(cx - w / 2, y0);
-    g.lineTo(cx - w / 2, y0 - h * 0.70);
-    g.lineTo(cx - w * 0.22, y0 - h * 0.35);
+    g.lineTo(cx - w / 2, y0 - h * 0.72);
+    g.lineTo(cx - w * 0.22, y0 - h * 0.36);
     g.lineTo(cx, y0 - h);
-    g.lineTo(cx + w * 0.22, y0 - h * 0.35);
-    g.lineTo(cx + w / 2, y0 - h * 0.70);
+    g.lineTo(cx + w * 0.22, y0 - h * 0.36);
+    g.lineTo(cx + w / 2, y0 - h * 0.72);
     g.lineTo(cx + w / 2, y0);
     g.closePath();
     g.fillStyle = col;
@@ -169,34 +170,46 @@
     g.lineWidth = Math.max(1.8, sz * 0.08);
     g.strokeStyle = '#0f172a';
     g.stroke();
-    // Crown jewels
+    // Crown base rim highlight
+    g.fillStyle = '#fef08a';
+    g.fillRect(cx - w * 0.44, y0 - h * 0.18, w * 0.88, h * 0.14);
+    // Center Ruby Jewel
     g.fillStyle = '#ef4444';
     g.beginPath();
-    g.arc(cx, y0 - h * 0.90, sz * 0.07, 0, TAU);
+    g.arc(cx, y0 - h * 0.92, sz * 0.08, 0, TAU);
     g.fill();
+    g.strokeStyle = '#0f172a';
+    g.lineWidth = 1;
+    g.stroke();
+    // Side Sapphire Jewels
     g.fillStyle = '#06b6d4';
     g.beginPath();
-    g.arc(cx - w / 2, y0 - h * 0.62, sz * 0.06, 0, TAU);
-    g.arc(cx + w / 2, y0 - h * 0.62, sz * 0.06, 0, TAU);
+    g.arc(cx - w / 2, y0 - h * 0.65, sz * 0.07, 0, TAU);
+    g.arc(cx + w / 2, y0 - h * 0.65, sz * 0.07, 0, TAU);
     g.fill();
+    g.stroke();
     g.restore();
   }
 
   function drawSvgBomb(g, cx, cy, sz, col = '#ef4444') {
     g.save();
-    const r = sz * 0.32;
-    const by = cy + sz * 0.08;
-    // Bomb fuse
+    const r = sz * 0.34;
+    const by = cy + sz * 0.09;
+    // Bomb fuse with spark
     g.strokeStyle = '#f59e0b';
-    g.lineWidth = Math.max(1.8, sz * 0.07);
+    g.lineWidth = Math.max(2, sz * 0.08);
     g.beginPath();
     g.moveTo(cx, by - r);
-    g.quadraticCurveTo(cx + sz * 0.18, by - r - sz * 0.20, cx + sz * 0.26, by - r - sz * 0.14);
+    g.quadraticCurveTo(cx + sz * 0.20, by - r - sz * 0.22, cx + sz * 0.28, by - r - sz * 0.16);
     g.stroke();
-    // Spark
+    // Fiery spark glow
     g.fillStyle = '#facc15';
     g.beginPath();
-    g.arc(cx + sz * 0.26, by - r - sz * 0.14, sz * 0.08, 0, TAU);
+    g.arc(cx + sz * 0.28, by - r - sz * 0.16, sz * 0.10, 0, TAU);
+    g.fill();
+    g.fillStyle = '#ef4444';
+    g.beginPath();
+    g.arc(cx + sz * 0.28, by - r - sz * 0.16, sz * 0.05, 0, TAU);
     g.fill();
     // Bomb ball
     g.beginPath();
@@ -207,7 +220,7 @@
     g.strokeStyle = '#0f172a';
     g.stroke();
     // Specular shine
-    g.fillStyle = 'rgba(255,255,255,0.4)';
+    g.fillStyle = '#ffffff';
     g.beginPath();
     g.arc(cx - r * 0.35, by - r * 0.35, r * 0.28, 0, TAU);
     g.fill();
@@ -250,16 +263,16 @@
   function drawSvgBiohazard(g, cx, cy, sz, col = '#10b981') {
     g.save();
     g.strokeStyle = col;
-    g.lineWidth = Math.max(2, sz * 0.08);
+    g.lineWidth = Math.max(2, sz * 0.09);
     // Outer circle
-    const r = sz * 0.35;
+    const r = sz * 0.36;
     g.beginPath();
     g.arc(cx, cy, r, 0, TAU);
     g.stroke();
     // Center ring
     g.fillStyle = col;
     g.beginPath();
-    g.arc(cx, cy, sz * 0.12, 0, TAU);
+    g.arc(cx, cy, sz * 0.14, 0, TAU);
     g.fill();
     // Three biohazard petals
     for (let i = 0; i < 3; i++) {
@@ -267,9 +280,158 @@
       const px = cx + Math.cos(ang) * (r * 0.65);
       const py = cy + Math.sin(ang) * (r * 0.65);
       g.beginPath();
-      g.arc(px, py, sz * 0.18, 0, TAU);
+      g.arc(px, py, sz * 0.19, 0, TAU);
       g.stroke();
     }
+    g.restore();
+  }
+
+  function drawSvgMap(g, cx, cy, sz, col = '#38bdf8') {
+    g.save();
+    const w = sz * 0.88, h = sz * 0.70;
+    const x0 = cx - w / 2, y0 = cy - h / 2;
+    const colW = w / 3;
+    // 3 folded panels
+    g.lineWidth = Math.max(1.5, sz * 0.08);
+    g.strokeStyle = '#0f172a';
+    // Panel 1 (left)
+    g.beginPath();
+    g.moveTo(x0, y0 + h * 0.12);
+    g.lineTo(x0 + colW, y0);
+    g.lineTo(x0 + colW, y0 + h * 0.88);
+    g.lineTo(x0, y0 + h);
+    g.closePath();
+    g.fillStyle = col;
+    g.fill();
+    g.stroke();
+    // Panel 2 (center)
+    g.beginPath();
+    g.moveTo(x0 + colW, y0);
+    g.lineTo(x0 + colW * 2, y0 + h * 0.12);
+    g.lineTo(x0 + colW * 2, y0 + h);
+    g.lineTo(x0 + colW, y0 + h * 0.88);
+    g.closePath();
+    g.fillStyle = '#ffffff';
+    g.fill();
+    g.stroke();
+    // Panel 3 (right)
+    g.beginPath();
+    g.moveTo(x0 + colW * 2, y0 + h * 0.12);
+    g.lineTo(x0 + w, y0);
+    g.lineTo(x0 + w, y0 + h * 0.88);
+    g.lineTo(x0 + colW * 2, y0 + h);
+    g.closePath();
+    g.fillStyle = col;
+    g.fill();
+    g.stroke();
+    // Map destination pin
+    const px = cx, py = cy - h * 0.06;
+    g.fillStyle = '#ef4444';
+    g.beginPath();
+    g.arc(px, py, sz * 0.12, 0, TAU);
+    g.fill();
+    g.beginPath();
+    g.moveTo(px - sz * 0.10, py + sz * 0.04);
+    g.lineTo(px, py + sz * 0.24);
+    g.lineTo(px + sz * 0.10, py + sz * 0.04);
+    g.closePath();
+    g.fill();
+    g.fillStyle = '#ffffff';
+    g.beginPath();
+    g.arc(px, py, sz * 0.045, 0, TAU);
+    g.fill();
+    g.restore();
+  }
+
+  function drawSvgDice(g, cx, cy, sz, col = '#f59e0b') {
+    g.save();
+    const d = sz * 0.78;
+    const r = sz * 0.16;
+    const x0 = cx - d / 2, y0 = cy - d / 2;
+    // Rounded dice base
+    g.beginPath();
+    g.roundRect ? g.roundRect(x0, y0, d, d, r) : g.rect(x0, y0, d, d);
+    g.fillStyle = col;
+    g.fill();
+    g.lineWidth = Math.max(1.8, sz * 0.08);
+    g.strokeStyle = '#0f172a';
+    g.stroke();
+    // Specular highlight
+    g.fillStyle = 'rgba(255, 255, 255, 0.4)';
+    g.beginPath();
+    g.roundRect ? g.roundRect(x0 + 2, y0 + 2, d - 4, d * 0.36, [r * 0.8, r * 0.8, 0, 0]) : g.rect(x0 + 2, y0 + 2, d - 4, d * 0.36);
+    g.fill();
+    // 5 Pips
+    g.fillStyle = '#0f172a';
+    const pr = sz * 0.07;
+    const pOff = d * 0.26;
+    const pips = [
+      [cx, cy],
+      [cx - pOff, cy - pOff],
+      [cx + pOff, cy - pOff],
+      [cx - pOff, cy + pOff],
+      [cx + pOff, cy + pOff]
+    ];
+    for (const [px, py] of pips) {
+      g.beginPath();
+      g.arc(px, py, pr, 0, TAU);
+      g.fill();
+    }
+    g.restore();
+  }
+
+  function drawSvgDoubleJump(g, cx, cy, sz, col = '#22c55e') {
+    g.save();
+    g.strokeStyle = col;
+    g.lineWidth = Math.max(2.4, sz * 0.16);
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
+    const hw = sz * 0.36;
+    // Upper chevron
+    const y1 = cy - sz * 0.16;
+    g.beginPath();
+    g.moveTo(cx - hw, y1 + sz * 0.22);
+    g.lineTo(cx, y1);
+    g.lineTo(cx + hw, y1 + sz * 0.22);
+    g.stroke();
+    // Lower chevron
+    const y2 = cy + sz * 0.16;
+    g.beginPath();
+    g.moveTo(cx - hw, y2 + sz * 0.22);
+    g.lineTo(cx, y2);
+    g.lineTo(cx + hw, y2 + sz * 0.22);
+    g.stroke();
+    g.restore();
+  }
+
+  function drawSvgRadar(g, cx, cy, sz, col = '#38bdf8') {
+    g.save();
+    const r = sz * 0.44;
+    // Outer tactical ring
+    g.strokeStyle = col;
+    g.lineWidth = Math.max(1.8, sz * 0.08);
+    g.beginPath();
+    g.arc(cx, cy, r, 0, TAU);
+    g.stroke();
+    // Inner rings
+    g.lineWidth = 1;
+    g.strokeStyle = 'rgba(56, 189, 248, 0.45)';
+    g.beginPath();
+    g.arc(cx, cy, r * 0.65, 0, TAU);
+    g.arc(cx, cy, r * 0.30, 0, TAU);
+    g.stroke();
+    // Crosshairs
+    g.beginPath();
+    g.moveTo(cx - r, cy);
+    g.lineTo(cx + r, cy);
+    g.moveTo(cx, cy - r);
+    g.lineTo(cx, cy + r);
+    g.stroke();
+    // Center point
+    g.fillStyle = '#22c55e';
+    g.beginPath();
+    g.arc(cx, cy, sz * 0.08, 0, TAU);
+    g.fill();
     g.restore();
   }
 
@@ -449,5 +611,9 @@
   global.drawSvgChevron = drawSvgChevron;
   global.drawSvgPalette = drawSvgPalette;
   global.drawSvgSound = drawSvgSound;
+  global.drawSvgMap = drawSvgMap;
+  global.drawSvgDice = drawSvgDice;
+  global.drawSvgDoubleJump = drawSvgDoubleJump;
+  global.drawSvgRadar = drawSvgRadar;
 
 })(typeof window !== 'undefined' ? window : globalThis);
