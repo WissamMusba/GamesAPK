@@ -305,6 +305,7 @@ function startMatch(){
   }catch(e){}
   screen='game';
   try{ if(typeof globalThis !== 'undefined') globalThis.screen = 'game'; if(typeof window !== 'undefined') window.screen = 'game'; }catch(e){}
+  try{ if(typeof CG !== 'undefined' && CG && typeof CG.gameplayStart === 'function') CG.gameplayStart(); }catch(e){}
   if(!isSplitLocalTouch) sfx('count');
 
   // Broadcast to all connected netplay guests

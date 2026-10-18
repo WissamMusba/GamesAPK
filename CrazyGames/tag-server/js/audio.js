@@ -27,24 +27,30 @@ const CG={
       };
       try{setTimeout(finish,5000);}catch(e){}
       const sdk=window.CrazyGames&&window.CrazyGames.SDK;
-      if(!sdk||!sdk.init){finish();return;}
+      if(!sdk||typeof sdk.init!=='function'){finish();return;}
       try{
-        if(sdk.game && sdk.game.loadingStart){
-          try{ sdk.game.loadingStart(); this._isLoading = true; }catch(e){}
-        }
         sdk.init().then(async ()=>{
           this.ready=true;
           try{this.env=sdk.environment||'';}catch(e){}
           try{
-            const st=sdk.game.settings;
-            if(st!==undefined){applySdkMute(!!st.muteAudio);applySdkChatDisabled(!!st.disableChat);}
+            if(this.ok() && sdk.game && typeof sdk.game.loadingStart === 'function'){
+              sdk.game.loadingStart();
+              this._isLoading = true;
+            }
+          }catch(e){}
+          try{
+            if(sdk.game && sdk.game.settings){
+              const st=sdk.game.settings;
+              applySdkMute(!!st.muteAudio);
+              applySdkChatDisabled(!!st.disableChat);
+            }
             const onSettings=x=>{try{applySdkMute(!!(x&&x.muteAudio));}catch(e){}try{applySdkChatDisabled(!!(x&&x.disableChat));}catch(e){}};
-            if(sdk.game.addSettingsChangeListener) sdk.game.addSettingsChangeListener(onSettings);
-            else if(sdk.addEventListener) sdk.addEventListener('settingsChange',onSettings);
+            if(sdk.game && typeof sdk.game.addSettingsChangeListener === 'function') sdk.game.addSettingsChangeListener(onSettings);
+            else if(typeof sdk.addEventListener === 'function') sdk.addEventListener('settingsChange',onSettings);
           }catch(e){}
           /* Async CrazyGames user profile: cache {name, avatar}, never throws */
           try{
-            if(sdk.user&&sdk.user.getUser){
+            if(sdk.user&&typeof sdk.user.getUser === 'function'){
               const u=await sdk.user.getUser();
               if(u&&(u.username||u.profilePictureUrl)){
                 try{this._user={name:cleanText(u.username||'').slice(0,16),avatar:u.profilePictureUrl||''};}catch(e2){}
@@ -56,14 +62,23 @@ const CG={
           /* Cold-start invite params + instant-multiplayer auto-host */
           try{this._handleColdStartInvite();}catch(e){}
           finish();
-        }).catch(()=>finish());
-      }catch(e){finish();}
+        }).catch(err=>{
+          try{console.warn('[CrazyGames SDK] init error:', err);}catch(e){}
+          finish();
+        });
+      }catch(e){
+        try{console.warn('[CrazyGames SDK] boot threw:', e);}catch(e2){}
+        finish();
+      }
     });
   },
-  ok(){return this.ready&&(this.env==='local'||this.env==='crazygames');},
+  ok(){
+    const sdk = typeof window !== 'undefined' && window.CrazyGames && window.CrazyGames.SDK;
+    return !!(this.ready && sdk && sdk.game);
+  },
   loadingStart(){
     try{
-      if(this.ok() && !this._isLoading){
+      if(this.ok() && !this._isLoading && window.CrazyGames.SDK.game.loadingStart){
         this._isLoading = true;
         window.CrazyGames.SDK.game.loadingStart();
       }
@@ -71,7 +86,7 @@ const CG={
   },
   loadingStop(){
     try{
-      if(this.ok() && this._isLoading){
+      if(this.ok() && this._isLoading && window.CrazyGames.SDK.game.loadingStop){
         this._isLoading = false;
         window.CrazyGames.SDK.game.loadingStop();
       }
@@ -79,7 +94,7 @@ const CG={
   },
   gameplayStart(){
     try{
-      if(this.ok() && !this._isPlaying){
+      if(this.ok() && !this._isPlaying && window.CrazyGames.SDK.game.gameplayStart){
         this._isPlaying = true;
         window.CrazyGames.SDK.game.gameplayStart();
       }
@@ -87,7 +102,7 @@ const CG={
   },
   gameplayStop(){
     try{
-      if(this.ok() && this._isPlaying){
+      if(this.ok() && this._isPlaying && window.CrazyGames.SDK.game.gameplayStop){
         this._isPlaying = false;
         window.CrazyGames.SDK.game.gameplayStop();
       }
@@ -95,7 +110,7 @@ const CG={
   },
   happytime(){
     try{
-      if(this.ok()){
+      if(this.ok() && window.CrazyGames.SDK.game.happytime){
         window.CrazyGames.SDK.game.happytime();
       }
     }catch(e){}
@@ -224,7 +239,7 @@ const CG={
   updateRoom(roomId, playerList, isJoinable){
     try{
       const sdk=window.CrazyGames&&window.CrazyGames.SDK;
-      if(sdk&&sdk.game&&sdk.game.updateRoom){
+      if(sdk&&this.ok()&&sdk.game&&sdk.game.updateRoom){
         let join=isJoinable;
         if(typeof join!=='boolean'){
           try{
@@ -252,14 +267,14 @@ const CG={
   leftRoom(){
     try{
       const sdk=window.CrazyGames&&window.CrazyGames.SDK;
-      if(sdk&&sdk.game&&sdk.game.leftRoom){sdk.game.leftRoom();}
+      if(sdk&&this.ok()&&sdk.game&&sdk.game.leftRoom){sdk.game.leftRoom();}
     }catch(e){}
     try{if(typeof this.hideInviteButton==='function')this.hideInviteButton();}catch(e){}
   },
   showInviteButton(roomId){
     try{
       const sdk=window.CrazyGames&&window.CrazyGames.SDK;
-      if(sdk&&sdk.game&&typeof sdk.game.showInviteButton==='function'){
+      if(sdk&&this.ok()&&sdk.game&&typeof sdk.game.showInviteButton==='function'){
         const params={roomId:roomId,room:roomId,roomName:roomId};
         try{const r=sdk.game.showInviteButton(params,()=>{});if(r&&r.catch)r.catch(()=>{});}catch(e){try{sdk.game.showInviteButton(params);}catch(e2){}}
         try{window._cgInviteShown={roomId:roomId,t:Date.now()};}catch(e){}
@@ -272,14 +287,14 @@ const CG={
   hideInviteButton(){
     try{
       const sdk=window.CrazyGames&&window.CrazyGames.SDK;
-      if(sdk&&sdk.game&&typeof sdk.game.hideInviteButton==='function'){try{sdk.game.hideInviteButton();}catch(e){}}
+      if(sdk&&this.ok()&&sdk.game&&typeof sdk.game.hideInviteButton==='function'){try{sdk.game.hideInviteButton();}catch(e){}}
       try{window._cgInviteShown=null;}catch(e){}
     }catch(e){}
   },
   async getInviteLink(roomId){
     try{
       const sdk=window.CrazyGames&&window.CrazyGames.SDK;
-      if(sdk&&sdk.game&&sdk.game.inviteLink){
+      if(sdk&&this.ok()&&sdk.game&&sdk.game.inviteLink){
         const r=await sdk.game.inviteLink({ room: roomId, roomId: roomId });
         if(typeof r==='string'&&r)return r;
         if(r&&r.inviteLink)return r.inviteLink;
@@ -359,4 +374,6 @@ function sfx(n){
     case'win':{const f=[523,659,784,1047];for(let i=0;i<4;i++)beep(f[i],f[i],0.16,'triangle',0.18,i*0.11);break;}
   }
 }
+
+try{ if(!_cgBoot && typeof CG !== 'undefined' && typeof CG.boot === 'function') _cgBoot = CG.boot(); }catch(e){}
 

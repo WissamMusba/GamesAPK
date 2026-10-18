@@ -118,3 +118,5 @@ function sfx(n){
   }
 }
 
+try{ if(!_cgBoot && typeof CG !== 'undefined' && typeof CG.boot === 'function') _cgBoot = CG.boot(); }catch(e){}
+

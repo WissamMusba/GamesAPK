@@ -227,7 +227,8 @@ try{
   }
 }catch(e){}
 
-try{ if(!_cgBoot) _cgBoot = CG.boot(); }catch(e){}
+try{ if(!_cgBoot && typeof CG !== 'undefined' && CG.boot) _cgBoot = CG.boot(); }catch(e){}
+try{ if(_cgBoot && typeof _cgBoot.then === 'function') _cgBoot.then(()=>{ try{ if(typeof CG!=='undefined'&&CG) CG.loadingStop(); }catch(e){} }); }catch(e){}
 try{ setTimeout(()=>{ try{ netProbeServers(); }catch(e){} }, 2500); }catch(e){} // background self/render probe so Host/Join has a fresh pick
 requestAnimationFrame(frame);
 /*
