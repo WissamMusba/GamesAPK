@@ -417,7 +417,7 @@ function drawOnlineHub(stageY, stageH){
       const openRoom = (NET.publicRooms || []).find(r => !r.isLocked && r.players < (r.maxPlayers || MAXP));
       if(openRoom){
         toast('🚀 JOINING ' + openRoom.roomId);
-        netJoinAction(openRoom.roomId, openRoom.hostPeerId || openRoom.hostId || '');
+        netJoinAction(openRoom.roomId, openRoom.hostPeerId || openRoom.hostId || '', openRoom);
       } else {
         toast('⚡ STARTING QUICK MATCH...');
         settings.gameMode = 'ffa';
@@ -620,7 +620,7 @@ function drawOnlineHub(stageY, stageH){
         fontSize: 10,
         fn: () => {
           sfx('go');
-          netJoinAction(rm.roomId, rm.hostPeerId || rm.hostId || '');
+          netJoinAction(rm.roomId, rm.hostPeerId || rm.hostId || '', rm);
         }
       });
     }
@@ -2221,7 +2221,7 @@ function drawMenu(){
         const openRoom = (NET.publicRooms || []).find(r => !r.isLocked && r.players < (r.maxPlayers || MAXP));
         if(openRoom){
           toast('🚀 CONNECTING TO ' + openRoom.roomId);
-          netJoinAction(openRoom.roomId, openRoom.hostPeerId || openRoom.hostId || '');
+          netJoinAction(openRoom.roomId, openRoom.hostPeerId || openRoom.hostId || '', openRoom);
         } else {
           toast('⚡ QUICK MATCH STARTING...');
           settings.gameMode = 'ffa';
@@ -2265,7 +2265,7 @@ function drawMenu(){
           fontSize: 8.5,
           fn: () => {
             sfx('go');
-            netJoinAction(rm.roomId, rm.hostPeerId || rm.hostId || '');
+            netJoinAction(rm.roomId, rm.hostPeerId || rm.hostId || '', rm);
           }
         });
       }

@@ -108,7 +108,9 @@ app.get('/api/rooms', (req, res) => {
         map: r.map !== undefined ? r.map : 0,
         teams: !!r.teams,
         state: r.state || 'lobby',
-        hostPeerId: r.hostPeerId || r.hostId || ''
+        hostPeerId: r.hostPeerId || r.hostId || '',
+        srv: r.srv || '',
+        cloud: !!r.cloud
       });
     }
   }

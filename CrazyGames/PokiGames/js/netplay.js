@@ -137,6 +137,12 @@ function netEnsureServer(fn){
       const c = (cached.src === 'self') ? netSelfCfg() : netRenderCfg();
       if(c.host){ NET._srv = c; go(c); return; }
     }
+    // A recent "no server reachable" probe (e.g. cold Render) is still accurate
+    // seconds later: skip the 900ms re-probe and go straight to the default
+    // endpoint — the PeerJS dial itself then becomes the real probe.
+    if(cached && cached.src === 'none' && cached.t && (Date.now() - cached.t) < 30000){
+      NET._srv = null; go(null); return;
+    }
     netProbeServers(go, true);
   }catch(e){ go(null); }
 }
@@ -896,6 +902,8 @@ const NET = {
   lastRecvTick: -1,
   last3: [],
   _startLock: 0,
+  _pinSrv: false,   // join pinned to the host's reported signaling server (directory/invite link)
+  _activeSrv: null, // actual signaling endpoint after peer open: { host, port, path, secure } | { cloud: true }
 };
 
 /* Text clean profanity filter for usernames & in-game text chat */
@@ -1015,6 +1023,7 @@ function netEnterRelay(reason){
   if(RELAY.mode === 'relay') return;
   RELAY.mode = 'relay';
   try{ console.warn('[NET] relay mode (' + reason + ')'); }catch(e){}
+  try{ netToast('Direct link blocked — using relay…'); }catch(e){}
   try{
     if(typeof VOICE !== 'undefined'){
       try{
@@ -2284,6 +2293,10 @@ function netGuestTryOtherServer(room){
   try{
     if(!NET || NET.role !== 'guest') return false;
     if(NET.mySlot >= 0 || NET.isSpectator) return false; // joined: never switch mid-session
+    // Pinned to a specific dedicated server: the host is provably hosted there,
+    // so don't waste a rebuild flipping to the cloud. Cloud pins may still
+    // self-heal to the dedicated server (stale invite markers happen).
+    if(NET._pinSrv && !NET._onCloud) return false;
     if((NET._srvRetry || 0) >= 1) return false;
     try{
       for(const pair of NET.conns.values()){
@@ -2397,14 +2410,61 @@ async function netConnectPeer(room, isHost, forceFallback = false){
 
   let fallbackTimer = null;
   try{ NET._onCloud = !usingCustom; }catch(e){}
+  try{ NET._activeSrv = null; }catch(e){}
+  // Pre-open fail guard: a peer that never opens (pinned server, cloud dial,
+  // or dead network) must fail loudly instead of hanging on "Joining…" forever.
+  // The post-open guest watchdog only arms after 'open', so this covers the gap.
+  try{ if(NET._openFailTimer){ clearTimeout(NET._openFailTimer); NET._openFailTimer = null; } }catch(e){}
+  if(!isHost){
+    NET._openFailTimer = setTimeout(() => {
+      try{
+        if(NET && NET.role === 'guest' && !NET.myId && NET.peer && NET.peer.open === false){
+          netToast('Server unreachable — try again.');
+          netLeaveRoom('Server unreachable');
+        }
+      }catch(e){}
+    }, 22000);
+  }
   if(usingCustom){
-      fallbackTimer = setTimeout(() => {
-      if(!NET.peer || !NET.myId){
-        console.warn('Custom server connection timed out, falling back to public PeerJS cloud.');
-        try{ console.warn('[NET] cloud fallback'); }catch(e){}
-        netConnectPeer(room, isHost, true);
-      }
-    }, 4000); // fail fast: every extra second here delays cloud rescue
+    const pinned = (()=>{ try{ return !!NET._pinSrv; }catch(e){ return false; } })();
+    // Adaptive cloud fallback. A blind "destroy at 4s" used to turn a waking
+    // Render instance (30-60s cold boot) into a destroy→cloud→miss→rebuild
+    // cascade that took 10-20s per join. Now:
+    //  - pinned joins (host server known from directory/invite): never yank
+    //    to the cloud — the host is provably not there; hold the window and
+    //    let the watchdogs + fail guard arbitrate.
+    //  - unpinned joins: a parallel health probe decides. An alive-but-slow
+    //    server gets one extension instead of a destructive rebuild.
+    let alive = { state: 'pending', ok: false };
+    let ext = 0;
+    setTimeout(() => {
+      try{
+        if(NET.peer && NET.myId) return; // already open: no probe needed
+        netTimedHealth({ host: customHost, port: effPort, path: effPath, secure: effSecure }, 1500).then(r => {
+          alive.state = 'done'; alive.ok = !!(r && r.ok);
+        });
+      }catch(e){ alive.state = 'done'; alive.ok = false; }
+    }, 2200);
+    const decide = () => {
+      try{
+        if(NET.peer && NET.myId) return; // opened while deciding: keep it
+        if(pinned){
+          try{ console.warn('[NET] pinned server slow, holding window'); }catch(e){}
+          return; // watchdogs + fail guard own the failure path
+        }
+        if(alive.state === 'pending'){ setTimeout(decide, 400); return; }
+        if(alive.ok && ext < 1){
+          ext++;
+          try{ console.warn('[NET] server alive but slow, extending window'); }catch(e){}
+          setTimeout(decide, 4000);
+          return;
+        }
+      }catch(e){}
+      console.warn('Custom server connection timed out, falling back to public PeerJS cloud.');
+      try{ console.warn('[NET] cloud fallback'); }catch(e){}
+      try{ netConnectPeer(room, isHost, true); }catch(e){}
+    };
+    fallbackTimer = setTimeout(decide, 4000);
   }
   try{ NET._fallbackTimer = fallbackTimer; }catch(e){}
 
@@ -2426,6 +2486,8 @@ async function netConnectPeer(room, isHost, forceFallback = false){
   NET.peer.on('open', id2 => {
     if(fallbackTimer){ clearTimeout(fallbackTimer); fallbackTimer = null; }
     try{ NET._fallbackTimer = null; }catch(e){}
+    try{ if(NET._openFailTimer){ clearTimeout(NET._openFailTimer); NET._openFailTimer = null; } }catch(e){}
+    try{ NET._activeSrv = usingCustom ? { host: customHost, port: effPort, path: effPath, secure: effSecure } : { cloud: true }; }catch(e){}
     try{ NET._rebuilding = false; }catch(e){} // rebuild survived: future closes are real
     NET.myId = id2;
     NET.peerSlots.clear();
@@ -2478,6 +2540,7 @@ async function netConnectPeer(room, isHost, forceFallback = false){
       const hostId = NET._joinHostId || ('tag-' + cleanRoom + '-host');
       NET._hostId = hostId;
       NET.peerSlots.set(hostId, 0);
+      netToast('Reaching host…');
       const connRel = NET.peer.connect(hostId, { reliable: true, label: 'rel' });
       netWireConn(connRel, false);
       const connFast = NET.peer.connect(hostId, { reliable: false, ordered: false, maxRetransmits: 0, label: 'fast' });
@@ -2672,7 +2735,7 @@ function netWireConn(conn, isHostSide){
       NET._helloSent = true; // first open wire wins; host dedupes by peerId
       const myProfile = netGetMyProfile();
       conn.send(netHelloPayload());
-      netToast('Connected to host! Syncing menu…');
+      netToast('Syncing with host…');
       if(!isFast && VOICE.enabled && VOICE.localStream){
         conn.send({ t: 'voice_req', peerId: NET.myId, hasStream: true });
       }
@@ -3824,6 +3887,21 @@ function netUpdateHostDirectory(){
   if(!NET.isHost || !NET.room) return;
   const serverUrl = netDirBase();
   const activeCount = menu.slotColor.filter(c => c >= 0).length;
+  // Report the ACTUAL signaling endpoint this host is reachable on (post
+  // cloud-fallback truth), not just the probe-preferred one — otherwise
+  // guests joining from the directory always miss and rebuild (slow joins).
+  let _dirSrv = '', _dirCloud = false;
+  try{
+    const asrv = NET._activeSrv;
+    if(asrv && asrv.cloud){ _dirCloud = true; }
+    else if(asrv && asrv.host){ _dirSrv = asrv.host; }
+    else if(NET._onCloud){ _dirCloud = true; }
+    else if(NET._srv && NET._srv.host){ _dirSrv = NET._srv.host; }
+    else {
+      const hh = ((typeof PEER_SERVER_CONFIG !== 'undefined' ? PEER_SERVER_CONFIG.host : '') || '');
+      if(hh) _dirSrv = hh;
+    }
+  }catch(e){}
   const payload = {
     roomId: NET.room,
     name: (NET.slotsName[0] || 'Host') + "'s Arena",
@@ -3835,7 +3913,9 @@ function netUpdateHostDirectory(){
     maxPlayers: NET.maxPlayers || MAXP,
     map: settings.map,
     teams: !!settings.teams,
-    state: (match && screen === 'game') ? 'playing' : 'lobby'
+    state: (match && screen === 'game') ? 'playing' : 'lobby',
+    srv: _dirSrv,
+    cloud: _dirCloud
   };
   try {
     // One retry: the first POST often dies to Render cold-start, and a lost
@@ -4565,7 +4645,7 @@ function netHostAction(isPublic = true){
   try{ NET._lobbyDup = {}; }catch(e){}
   try{ if(NET._fallbackTimer){ clearTimeout(NET._fallbackTimer); NET._fallbackTimer = null; } }catch(e){}
   try{ if(NET._guestTimeout){ clearTimeout(NET._guestTimeout); NET._guestTimeout = null; } }catch(e){}
-  try{ NET._srvRetry = 0; NET._p2pRetry = 0; NET._syncExt = 0; NET._rebuilding = false; NET._helloSent = false; NET._hostReconn = 0; }catch(e){}
+  try{ NET._srvRetry = 0; NET._p2pRetry = 0; NET._syncExt = 0; NET._rebuilding = false; NET._helloSent = false; NET._hostReconn = 0; NET._pinSrv = false; NET._activeSrv = null; }catch(e){}
   const code = netMakeCode();
   NET.role = 'host';
   NET.isHost = true;
@@ -4653,7 +4733,8 @@ function netHostAction(isPublic = true){
   }, 2000);
 }
 
-function netJoinAction(codeParam, hostPeerIdParam){
+function netJoinAction(codeParam, hostPeerIdParam, roomMetaParam){
+  try{ NET._pinSrv = false; }catch(e){}
   let code = codeParam;
   let hintHost = (typeof hostPeerIdParam === 'string' && hostPeerIdParam) ? hostPeerIdParam : '';
   if(!code){
@@ -4667,16 +4748,26 @@ function netJoinAction(codeParam, hostPeerIdParam){
   try{ const hm = String(code).match(/[?&]h=([A-Za-z0-9]+)/); if(hm) hHint = hm[1].toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8); }catch(e){}
   try{
     const sm = String(code).match(/[?&]srv=([^&]+)/);
-    if(sm){ const sh = decodeURIComponent(sm[1]).replace(/^https?:\/\//i, '').replace(/\/+$/, '').trim().slice(0, 64); if(/^[A-Za-z0-9.\-:]+$/.test(sh) && sh) NET._srvHintHost = sh; }
+    if(sm){ const sh = decodeURIComponent(sm[1]).replace(/^https?:\/\//i, '').replace(/\/+$/, '').trim().slice(0, 64); if(/^[A-Za-z0-9.\-:]+$/.test(sh) && sh){ NET._srvHintHost = sh; NET._pinSrv = true; } }
     else if(!NET._srvHintHost){ NET._srvHintHost = ''; } // keep boot/?srv= hint: bare codes carry no server info
   }catch(e){}
   try{
     // Host on public cloud pins guests via &cloud=1 (set by host URL sync).
     const qp0 = new URLSearchParams(location.search);
-    if(qp0.get('cloud') === '1') NET._forceCloud = true;
+    if(qp0.get('cloud') === '1'){ NET._forceCloud = true; NET._pinSrv = true; }
     else {
       const cm = String(code).match(/[?&]cloud=1/);
-      if(cm) NET._forceCloud = true;
+      if(cm){ NET._forceCloud = true; NET._pinSrv = true; }
+    }
+  }catch(e){}
+  try{
+    // Directory room entry: pin the host's real signaling server so the guest
+    // dials it directly (and never gets yanked to the cloud by the fallback).
+    const rmMeta = roomMetaParam || null;
+    if(rmMeta){
+      const mSrv = String(rmMeta.srv || '').replace(/^https?:\/\//i, '').replace(/\/+$/, '').trim().slice(0, 64);
+      if(mSrv && /^[A-Za-z0-9.\-:]+$/.test(mSrv)){ NET._srvHintHost = mSrv; NET._pinSrv = true; }
+      if(rmMeta.cloud){ NET._forceCloud = true; NET._pinSrv = true; }
     }
   }catch(e){}
   if(code.includes('room=')){
@@ -5082,6 +5173,7 @@ function netLeaveRoom(reason){
       if(RELAY.pollTimer){ clearInterval(RELAY.pollTimer); RELAY.pollTimer = null; }
     }
   try{ if(NET._fallbackTimer){ clearTimeout(NET._fallbackTimer); NET._fallbackTimer = null; } }catch(e){}
+  try{ if(NET._openFailTimer){ clearTimeout(NET._openFailTimer); NET._openFailTimer = null; } }catch(e){}
   try{ NET._rebuilding = false; }catch(e){}
   if(NET.heartbeatTimer){ clearInterval(NET.heartbeatTimer); NET.heartbeatTimer = null; }
   if(NET.pingTimer){ clearInterval(NET.pingTimer); NET.pingTimer = null; }
@@ -5120,7 +5212,7 @@ function netLeaveRoom(reason){
   NET.mySlot = -1;
   NET.isHost = false;
   NET.isSpectator = false;
-  try{ NET._hostId = ''; NET._hostSuffix = ''; NET._joinHostId = ''; }catch(e){}
+  try{ NET._hostId = ''; NET._hostSuffix = ''; NET._joinHostId = ''; NET._pinSrv = false; NET._activeSrv = null; }catch(e){}
   NET.midgameJoiner = false;
   NET.hostInputs.clear();
   NET.slotsReady = [false, false, false, false, false, false, false, false, false, false];
@@ -5373,7 +5465,7 @@ function netInitUI(){
   const roomQ = (qp.get('room') || qp.get('roomId') || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 6).toUpperCase();
   try{ // carry ?srv= server hint (stripped from code) so guest probes the host's directory
     const srvQ = (qp.get('srv') || '').replace(/^https?:\/\//i, '').replace(/\/+$/, '').trim().slice(0, 64);
-    if(srvQ && /^[A-Za-z0-9.\-:]+$/.test(srvQ)) NET._srvHintHost = srvQ;
+    if(srvQ && /^[A-Za-z0-9.\-:]+$/.test(srvQ)){ NET._srvHintHost = srvQ; NET._pinSrv = true; }
   }catch(e){}
   if(roomQ){
     netJoinAction(roomQ);
